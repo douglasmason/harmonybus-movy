@@ -35,7 +35,7 @@ def patch_schwung_grid(path: Path) -> None:
 
 
 def patch_schwung_page(path: Path) -> None:
-    """Keep Schwung's enum peek synchronized and guarantee it closes on release."""
+    """Keep Schwung PAGE rendering but suppress the broken Movy enum TURNING peek."""
     source: str = path.read_text()
 
     before_turn: str = (
@@ -46,24 +46,23 @@ def patch_schwung_page(path: Path) -> None:
     )
     after_turn: str = (
         "            const n = Math.min(Math.abs(delta) | 0, 63) || 1;\n"
-        "            /* Replay accumulated encoder motion as distinct detents in time,\n"
-        "             * matching the stock Schwung host more closely. Passing one identical\n"
-        "             * timestamp for a whole flick can leave enum peek/write state looking\n"
-        "             * one step behind while the write throttle coalesces the burst. */\n"
+        "            /* Replay accumulated encoder motion as distinct detents in time. */\n"
         "            const started = Date.now();\n"
         "            for (let i = 0; i < n; i++) ctl.onKnobTurn(slot, dir, started + i);\n"
+        "            /* The embedded controller's enum peek is not reliable on Movy's\n"
+        "             * chain transport: on HarmonyBus enums its cursor can remain at the\n"
+        "             * default option while the underlying parameter changes correctly,\n"
+        "             * and a missed lifecycle edge can leave the full-screen TURNING\n"
+        "             * panel stuck. Keep Schwung's normal page/value rendering, but do\n"
+        "             * not show a second, stale representation of the same enum. */\n"
+        "            if (typeof ctl.dismissPeek === 'function') ctl.dismissPeek();\n"
         "        },\n"
         "        knobTouch: (slot: number, down: boolean) => {\n"
         "            ctl.onKnobTouch(slot, down);\n"
-        "            /* A hardware release must be terminal for Schwung's transient enum\n"
-        "             * TURNING peek. The normal controller clears this from touch state,\n"
-        "             * but Movy's routing can occasionally lose the lifecycle edge and\n"
-        "             * leave the full-screen peek latched. Make release idempotently clear\n"
-        "             * it here as well. */\n"
-        "            if (!down && typeof ctl.dismissPeek === 'function') ctl.dismissPeek();\n"
+        "            if (typeof ctl.dismissPeek === 'function') ctl.dismissPeek();\n"
         "        },"
     )
-    source = replace_once(source, before_turn, after_turn, "knob replay and release")
+    source = replace_once(source, before_turn, after_turn, "knob replay and enum peek suppression")
 
     before_change: str = "        changePage(delta: number) { ctl.onJog(delta > 0 ? 1 : -1); },\n        goToPage(i: number) { ctl.goToPage(i); },"
     after_change: str = (
@@ -89,7 +88,7 @@ def main() -> int:
     root: Path = args.movy_root.resolve()
     patch_schwung_grid(root / "src/renderer/schwung-grid.ts")
     patch_schwung_page(root / "src/renderer/schwung-page.ts")
-    print("HarmonyBus Movy: stock Schwung PAGE renderer forced; enum peek lifecycle patched")
+    print("HarmonyBus Movy: stock Schwung PAGE renderer forced; enum TURNING peek suppressed")
     return 0
 
 
