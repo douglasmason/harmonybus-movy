@@ -18,7 +18,7 @@ def replace_once(source: str, before: str, after: str, seam: str) -> str:
 
 
 def transform_track_mutes(source: str) -> str:
-    """Make tracks 5-8 use chain audio mute while MIDI sequencing stays alive."""
+    """Make tracks 5-16 use chain audio mute while MIDI sequencing stays alive."""
     source = replace_once(
         source,
         "import { mlog } from '../log.js';\n",
@@ -34,7 +34,7 @@ def transform_track_mutes(source: str) -> str:
         "const solo: boolean[] = new Array(TRACK_COUNT).fill(false) as boolean[];\n"
         "let base: boolean[] | null = null;   /* user's own mutes, held while a solo is up */\n"
         "const HB_SOURCE_FIRST = 4;\n"
-        "const HB_SOURCE_LAST = 7;\n"
+        "const HB_SOURCE_LAST = 15;\n"
         "const sourceAudioMuted: boolean[] = new Array(TRACK_COUNT).fill(false) as boolean[];\n\n"
         "function isHbSourceTrack(track: number): boolean {\n"
         "    return track >= HB_SOURCE_FIRST && track <= HB_SOURCE_LAST;\n"
@@ -103,70 +103,86 @@ def transform_track_mutes(source: str) -> str:
     return source
 
 
-def transform_router(source: str) -> str:
-    """Make physical + advance to the next bank and - return to the prior bank."""
-    return replace_once(
-        source,
-        "const gdir = d1 === MoveUp ? GROUP_DIR_UP : GROUP_DIR_DOWN;",
-        "const gdir = d1 === MoveUp ? GROUP_DIR_DOWN : GROUP_DIR_UP;",
-        "session +/- bank direction",
-    )
-
-
-def transform_leds(source: str) -> str:
-    """Light + and - only when another bank exists in that physical direction."""
-    return replace_once(
-        source,
-        "        cachedSetButtonLED(CC_DOWN, groupArrowColor(GROUP_DIR_DOWN));\n"
-        "        cachedSetButtonLED(CC_UP, groupArrowColor(GROUP_DIR_UP));",
-        "        /* Physical + advances 1-4 -> 5-8 -> 9-12 -> 13-16;\n"
-        "         * physical - goes back. Off means there is no bank there. */\n"
-        "        cachedSetButtonLED(CC_DOWN, groupArrowColor(GROUP_DIR_UP));\n"
-        "        cachedSetButtonLED(CC_UP, groupArrowColor(GROUP_DIR_DOWN));",
-        "+/- LED affordance",
-    )
-
-
 def transform_colors(source: str) -> str:
-    """Pair source tracks 6-8 visually with render tracks 2-4."""
+    """Use the same role colors in each HarmonyBus source quartet."""
     source = replace_once(
         source,
-        "    9, 2, 23, 95,         // G2: Bright Lime, Orange Red, Neon Pink, Azure Blue dim\n",
-        "    9, 7, 95, 23,         // G2/HB: conductor unique; T6/T7/T8 match T2/T3/T4\n",
+        "    9, 2, 23, 95,         // G2: Bright Lime, Orange Red, Neon Pink, Azure Blue dim\n"
+        "    95, 23, 3, 9,         // G3: Azure Blue dim, Neon Pink, Bright Orange, Bright Lime\n"
+        "    23, 95, 9, 69,        // G4: Neon Pink, Azure Blue dim, Bright Lime, Bright Orange dim\n",
+        "    9, 7, 95, 23,         // G2/HB A: conductor; followers match native T2/T3/T4\n"
+        "    9, 7, 95, 23,         // G3/HB B: same four roles, same four colors\n"
+        "    9, 7, 95, 23,         // G4/HB C: same four roles, same four colors\n",
         "HarmonyBus bright track colors",
     )
     source = replace_once(
         source,
-        "    81, 71, 109, 103,     // Bright Lime dim, Tan dim, Neon Pink dim, Electric Violet dim\n",
-        "    81, 77, 103, 109,     // G2/HB dim: conductor unique; T6/T7/T8 match T2/T3/T4\n",
+        "    81, 71, 109, 103,     // Bright Lime dim, Tan dim, Neon Pink dim, Electric Violet dim\n"
+        "    103, 109, 6, 81,      // Electric Violet dim, Neon Pink dim, Ochre, Bright Lime dim\n"
+        "    109, 103, 81, 71,     // Neon Pink dim, Electric Violet dim, Bright Lime dim, Tan dim\n",
+        "    81, 77, 103, 109,     // G2/HB A dim\n"
+        "    81, 77, 103, 109,     // G3/HB B dim\n"
+        "    81, 77, 103, 109,     // G4/HB C dim\n",
         "HarmonyBus dim track colors",
     )
     return source
 
 
-HB_SOURCE_CHAINS: str = """const HB_SOURCE_CHAINS = [
-    { t: 4, comp: [
-        { c: 'midi_fx1', m: 'harmonybus', s: 'hb15,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,1,0,0,0,20,60,0,0,0,0' },
-        { c: 'synth', m: 'plaits' },
-    ] },
-    { t: 5, comp: [
-        { c: 'midi_fx1', m: 'harmonybus', s: 'hb15,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,1,0,0,0,20,60,0,0,0,0' },
-        { c: 'synth', m: 'plaits' },
-    ] },
-    { t: 6, comp: [
-        { c: 'midi_fx1', m: 'harmonybus', s: 'hb15,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,1,0,0,0,20,60,0,0,0,0' },
-        { c: 'synth', m: 'plaits' },
-    ] },
-    { t: 7, comp: [
-        { c: 'midi_fx1', m: 'harmonybus', s: 'hb15,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,1,0,0,0,20,60,0,0,0,0' },
-        { c: 'synth', m: 'plaits' },
-    ] },
+HB_BANK_HELPERS: str = r"""
+const HB_CONDUCTOR_STATE = 'hb15,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,1,0,0,0,20,60,0,0,0,0';
+const HB_FOLLOWER_STATE = [
+    'hb15,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,1,0,0,0,20,60,0,0,0,0',
+    'hb15,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,1,0,0,0,20,60,0,0,0,0',
+    'hb15,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,1,0,0,0,20,60,0,0,0,0',
 ];
+
+type HbComp = { c: string; m: string; s?: string };
+type HbTrack = { t: number; comp: HbComp[]; lfo?: string[]; mix?: string };
+
+function hbStateForTrack(track: number): string {
+    const pos = (track - 4) % 4;
+    return pos === 0 ? HB_CONDUCTOR_STATE : HB_FOLLOWER_STATE[pos - 1];
+}
+
+function normalizeHarmonyBusBanks(raw: unknown): HbTrack[] {
+    const saved = Array.isArray(raw) ? raw : [];
+    const byTrack = new Map<number, HbTrack>();
+    for (const entry of saved) {
+        if (!entry || typeof entry !== 'object') continue;
+        const t = (entry as { t?: unknown }).t;
+        if (typeof t !== 'number') continue;
+        byTrack.set(t, entry as HbTrack);
+    }
+    for (let t = 4; t < 16; t++) {
+        const prior = byTrack.get(t);
+        const comps = Array.isArray(prior?.comp) ? [...prior!.comp] : [];
+        const withoutHb = comps.filter((c) => c?.c !== 'midi_fx1');
+        const synthExists = withoutHb.some((c) => c?.c === 'synth');
+        const normalized: HbTrack = {
+            ...(prior ?? { t, comp: [] }),
+            t,
+            comp: [
+                { c: 'midi_fx1', m: 'harmonybus', s: hbStateForTrack(t) },
+                ...withoutHb,
+                ...(synthExists ? [] : [{ c: 'synth', m: 'plaits' }]),
+            ],
+        };
+        byTrack.set(t, normalized);
+    }
+    return [...byTrack.values()].sort((a, b) => a.t - b.t);
+}
+
+function configureNativeHarmonyBusDestinations(): void {
+    if (typeof shadow_set_param !== 'function') return;
+    shadow_set_param(1, 'slot:receive_channel', '2');
+    shadow_set_param(2, 'slot:receive_channel', '3');
+    shadow_set_param(3, 'slot:receive_channel', '4');
+}
 """
 
 
 def transform_ui_state(source: str) -> str:
-    """Restore audio-mute mirrors and seed fresh sets with tracks 5-8."""
+    """Normalize all source banks and native receive channels on every Set load."""
     source = replace_once(
         source,
         "import { mutesSnapshot, restoreMutes, resetTrackMutes } from '../mixer/track-mutes.js';\n",
@@ -177,15 +193,26 @@ def transform_ui_state(source: str) -> str:
     source = replace_once(
         source,
         "import { loadSetHostChoice } from '../track/host-mode.js';\n",
-        "import { loadSetHostChoice, setMovyTracks } from '../track/host-mode.js';\n\n" + HB_SOURCE_CHAINS,
-        "ui-state host import",
+        "import { loadSetHostChoice, setMovyTracks } from '../track/host-mode.js';\n\n" + HB_BANK_HELPERS + "\n",
+        "ui-state host import and helpers",
     )
     source = replace_once(
         source,
-        "        loadSetHostChoice(o.flags && typeof o.flags === 'object' ? o.flags : {});\n",
         "        loadSetHostChoice(o.flags && typeof o.flags === 'object' ? o.flags : {});\n"
-        "        restoreSourceAudioMutes(o.chains);\n",
-        "ui-state restore source mutes",
+        "        /* Then the chains, before anything cosmetic: the loads are queued one\n"
+        "         * per audio callback, so the sooner they start the sooner the set sounds\n"
+        "         * like itself. One document says both what to unload and what to load —\n"
+        "         * a set with no `chains` key names nothing, which is how a set written\n"
+        "         * before movy hosted chains still clears the previous set's. */\n"
+        "        const n = restoreChains(o.chains, o.sends);\n",
+        "        /* Dedicated HarmonyBus build always leaves native tracks 1-4 on Schwung,\n"
+        "         * then normalizes 5-16 into three conductor+followers quartets. */\n"
+        "        setMovyTracks(false);\n"
+        "        configureNativeHarmonyBusDestinations();\n"
+        "        const hbChains = normalizeHarmonyBusBanks(o.chains);\n"
+        "        restoreSourceAudioMutes(hbChains);\n"
+        "        const n = restoreChains(hbChains, o.sends);\n",
+        "ui-state loaded-set normalization",
     )
     source = replace_once(
         source,
@@ -195,12 +222,13 @@ def transform_ui_state(source: str) -> str:
         "    /* A Set with no UI blob wants no movy chains — the same clean slate schwung\n"
         "     * gives an unseen set when it seeds empty slots. */\n"
         "    restoreChains(null, null);\n",
-        "    /* Dedicated HarmonyBus build: native 1-4 remain the audible/export bank;\n"
-        "     * Movy hosts the pre-render source bank on 5-8. Tracks 9-16 remain\n"
-        "     * ordinary Movy tracks and are available through the later banks. */\n"
+        "    /* Dedicated HarmonyBus build: every new Set starts fully wired. */\n"
         "    setMovyTracks(false);\n"
-        "    restoreChains(HB_SOURCE_CHAINS, null);\n",
-        "ui-state fresh bank",
+        "    configureNativeHarmonyBusDestinations();\n"
+        "    const hbChains = normalizeHarmonyBusBanks(null);\n"
+        "    restoreSourceAudioMutes(hbChains);\n"
+        "    restoreChains(hbChains, null);\n",
+        "ui-state fresh-set normalization",
     )
     return source
 
@@ -221,8 +249,6 @@ def main() -> int:
     root: Path = args.movy_root.resolve()
 
     update_file(root / "src/mixer/track-mutes.ts", transform_track_mutes)
-    update_file(root / "src/midi/router.ts", transform_router)
-    update_file(root / "src/seq/leds.ts", transform_leds)
     update_file(root / "src/seq/colors.ts", transform_colors)
     update_file(root / "src/seq/ui-state.ts", transform_ui_state)
     return 0
