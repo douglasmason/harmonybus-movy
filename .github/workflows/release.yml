@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  HB_MOVY_VERSION: 0.34.1-hb.3
-  HB_MOVY_TAG: v0.34.1-hb.3
+  HB_MOVY_VERSION: 0.34.1-hb.4
+  HB_MOVY_TAG: v0.34.1-hb.4
   ASSET_NAME: harmonybus-movy-module.tar.gz
 
 jobs:
@@ -40,6 +40,8 @@ jobs:
         run: |
           python3 scripts/apply_movy_harmonybus.py movy
           python3 scripts/apply_movy_harmonybus.py movy
+          python3 scripts/patch_movy_render_bridge.py movy
+          python3 scripts/patch_movy_render_bridge.py movy
 
       - name: Stamp module metadata
         run: |
@@ -50,7 +52,7 @@ jobs:
           data = json.loads(path.read_text())
           data['version'] = '${{ env.HB_MOVY_VERSION }}'
           data['name'] = 'Movy (HarmonyBus)'
-          data['description'] = 'Movy with three auto-wired HarmonyBus source banks on tracks 5-16'
+          data['description'] = 'Movy with three auto-wired HarmonyBus source banks and native render bridge'
           path.write_text(json.dumps(data, indent=4) + '\n')
           PY
 
@@ -99,5 +101,5 @@ jobs:
           else
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Auto-wires tracks 5-16 as three conductor+follower HarmonyBus banks, preserves synth/FX choices, and sets native tracks 2/3/4 receive channels to 2/3/4."
+              --notes "Auto-wires tracks 5-16 as three HarmonyBus banks and bridges nested HarmonyBus Render To Ch note injection into Movy's native-track MIDI path."
           fi
