@@ -28,6 +28,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          sudo ln -sf "$(command -v aarch64-linux-gnu-gcc)" /usr/local/bin/aarch64-unknown-linux-gnu-gcc
+          sudo ln -sf "$(command -v aarch64-linux-gnu-strip)" /usr/local/bin/aarch64-unknown-linux-gnu-strip
           rustup target add aarch64-unknown-linux-gnu
 
       - name: Clone upstream Movy
