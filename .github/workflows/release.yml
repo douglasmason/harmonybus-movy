@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  HB_MOVY_VERSION: 0.34.1-hb.8
-  HB_MOVY_TAG: v0.34.1-hb.8
+  HB_MOVY_VERSION: 0.34.1-hb.9
+  HB_MOVY_TAG: v0.34.1-hb.9
   ASSET_NAME: harmonybus-movy-module.tar.gz
 
 jobs:
@@ -43,24 +43,30 @@ jobs:
           python3 scripts/patch_movy_stock_schwung_pages.py movy
           python3 scripts/patch_movy_stock_schwung_pages.py movy
 
-      - name: Verify Schwung page parity patch
+      - name: Verify Schwung page ownership patch
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
           grid = Path('movy/src/renderer/schwung-grid.ts').read_text()
           page = Path('movy/src/renderer/schwung-page.ts').read_text()
+          router = Path('movy/src/midi/router.ts').read_text()
+
+          turn_start = page.index('const started = Date.now();')
+          touch_start = page.index('knobTouch:', turn_start)
+          turn_block = page[turn_start:touch_start]
 
           required = {
               'PAGE mode forced': "let override: SchwungGridMode | null = 'page';" in grid,
               'accumulated detents replayed with timestamps': 'ctl.onKnobTurn(slot, dir, started + i)' in page,
-              'peek dismissed immediately after turn': "if (typeof ctl.dismissPeek === 'function') ctl.dismissPeek();" in page,
-              'patched knob path present': 'const started = Date.now();' in page,
+              'stock Schwung peek preserved during turns': 'dismissPeek' not in turn_block,
+              'PAGE-mode ownership available in router': 'schwungGridMode' in router,
+              'Movy editor blocked while PAGE owns module': "schwungGridMode() !== 'page'" in router,
           }
           missing = [name for name, ok in required.items() if not ok]
           if missing:
-              raise SystemExit('Missing expected hb.8 patch behavior: ' + ', '.join(missing))
-          print('hb.8 Schwung PAGE / enum-peek patch verified')
+              raise SystemExit('Missing expected hb.9 behavior: ' + ', '.join(missing))
+          print('hb.9 Schwung PAGE ownership / stock enum peek verified')
           PY
 
       - name: Stamp module metadata
@@ -121,5 +127,5 @@ jobs:
           else
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Keeps Schwung PAGE rendering and live parameter semantics, but suppresses the unreliable full-screen enum TURNING peek in Movy so enum edits remain on the normal HarmonyBus page and cannot show a stale/default cursor."
+              --notes "Restores stock Schwung enum peeks on HarmonyBus PAGE-mode parameters while preventing Movy's separate list editor from taking foreground over those pages. Keeps timestamped encoder replay and existing HarmonyBus source-bank integration."
           fi
