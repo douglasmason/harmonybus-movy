@@ -1,0 +1,100 @@
+name: Build HarmonyBus Movy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: harmonybus-movy-release
+  cancel-in-progress: true
+
+env:
+  HB_MOVY_VERSION: 0.34.1-hb.1
+  HB_MOVY_TAG: v0.34.1-hb.1
+  ASSET_NAME: harmonybus-movy-module.tar.gz
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout integration repo
+        uses: actions/checkout@v4
+
+      - name: Install aarch64 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          rustup target add aarch64-unknown-linux-gnu
+
+      - name: Clone upstream Movy
+        run: git clone --depth 1 https://github.com/DimaDake/schwung-movy.git movy
+
+      - name: Apply HarmonyBus integration
+        run: |
+          python3 scripts/apply_movy_harmonybus.py movy
+          python3 scripts/apply_movy_harmonybus.py movy
+
+      - name: Stamp module metadata
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('movy/module.json')
+          data = json.loads(path.read_text())
+          data['version'] = '${{ env.HB_MOVY_VERSION }}'
+          data['name'] = 'Movy (HarmonyBus)'
+          data['description'] = 'Experimental Movy build with HarmonyBus source tracks 5-8'
+          path.write_text(json.dumps(data, indent=4) + '\n')
+          PY
+
+      - name: Install Movy dependencies
+        working-directory: movy
+        run: npm install
+
+      - name: Typecheck and build UI
+        working-directory: movy
+        run: |
+          npm run typecheck
+          npm run build:device
+
+      - name: Build Movy DSP
+        working-directory: movy
+        run: ./scripts/build-dsp.sh
+
+      - name: Package Schwung module
+        run: |
+          rm -rf package
+          mkdir -p package/movy/configs
+          cp movy/module.json movy/ui.js movy/dist/dsp.so package/movy/
+          cp movy/src/module-configs/*.json package/movy/configs/
+          tar -czf "$ASSET_NAME" -C package movy
+          echo 'Package contents:'
+          tar -tzf "$ASSET_NAME" | head -100
+
+      - name: Verify release metadata
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          release = json.loads(Path('release.json').read_text())
+          assert release['version'] == '${{ env.HB_MOVY_VERSION }}', release
+          expected = 'https://github.com/douglasmason/harmonybus-movy/releases/download/${{ env.HB_MOVY_TAG }}/${{ env.ASSET_NAME }}'
+          assert release['download_url'] == expected, (release['download_url'], expected)
+          print('release.json verified')
+          PY
+
+      - name: Publish or replace experimental release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$HB_MOVY_TAG" >/dev/null 2>&1; then
+            gh release upload "$HB_MOVY_TAG" "$ASSET_NAME" --clobber
+          else
+            gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
+              --title "HarmonyBus Movy $HB_MOVY_VERSION" \
+              --notes "Experimental Movy integration for HarmonyBus virtual source tracks 5-8. Requires the HarmonyBus module to be installed separately."
+          fi
