@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  HB_MOVY_VERSION: 0.34.1-hb.9
-  HB_MOVY_TAG: v0.34.1-hb.9
+  HB_MOVY_VERSION: 0.34.1-hb.10
+  HB_MOVY_TAG: v0.34.1-hb.10
   ASSET_NAME: harmonybus-movy-module.tar.gz
 
 jobs:
@@ -51,6 +51,7 @@ jobs:
           grid = Path('movy/src/renderer/schwung-grid.ts').read_text()
           page = Path('movy/src/renderer/schwung-page.ts').read_text()
           router = Path('movy/src/midi/router.ts').read_text()
+          editor = Path('movy/src/renderer/schwung-editor.ts').read_text()
 
           turn_start = page.index('const started = Date.now();')
           touch_start = page.index('knobTouch:', turn_start)
@@ -60,13 +61,15 @@ jobs:
               'PAGE mode forced': "let override: SchwungGridMode | null = 'page';" in grid,
               'accumulated detents replayed with timestamps': 'ctl.onKnobTurn(slot, dir, started + i)' in page,
               'stock Schwung peek preserved during turns': 'dismissPeek' not in turn_block,
-              'PAGE-mode ownership available in router': 'schwungGridMode' in router,
-              'Movy editor blocked while PAGE owns module': "schwungGridMode() !== 'page'" in router,
+              'router still blocks PAGE editor': "schwungGridMode() !== 'page'" in router,
+              'Movy editor cannot become active': 'schwungEditorActive(): boolean { return false; }' in editor,
+              'Movy editor open hard-disabled': "HarmonyBus PAGE build: Movy's separate list editor is disabled." in editor,
+              'Movy editor draw hard-disabled': 'dedicated HarmonyBus PAGE build must never draw Movy' in editor,
           }
           missing = [name for name, ok in required.items() if not ok]
           if missing:
-              raise SystemExit('Missing expected hb.9 behavior: ' + ', '.join(missing))
-          print('hb.9 Schwung PAGE ownership / stock enum peek verified')
+              raise SystemExit('Missing expected hb.10 behavior: ' + ', '.join(missing))
+          print('hb.10 Schwung PAGE ownership / stock peek / editor hard-off verified')
           PY
 
       - name: Stamp module metadata
@@ -127,5 +130,5 @@ jobs:
           else
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Restores stock Schwung enum peeks on HarmonyBus PAGE-mode parameters while preventing Movy's separate list editor from taking foreground over those pages. Keeps timestamped encoder replay and existing HarmonyBus source-bank integration."
+              --notes "Keeps stock Schwung PAGE rendering and responsive enum TURNING peeks, while hard-disabling Movy's separate Schwung list editor so it cannot appear as a stale/non-responsive overlay."
           fi
