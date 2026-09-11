@@ -46,8 +46,9 @@ jobs:
       - name: Verify Schwung page parity patch
         run: |
           grep -q "let override: SchwungGridMode | null = 'page';" movy/src/renderer/schwung-grid.ts
-          grep -q "do not show a second, stale representation" movy/src/renderer/schwung-page.ts
+          grep -q "enum TURNING peek" movy/src/renderer/schwung-page.ts
           grep -q "started + i" movy/src/renderer/schwung-page.ts
+          grep -q "dismissPeek" movy/src/renderer/schwung-page.ts
 
       - name: Stamp module metadata
         run: |
