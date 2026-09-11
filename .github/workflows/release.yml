@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  HB_MOVY_VERSION: 0.34.1-hb.7
-  HB_MOVY_TAG: v0.34.1-hb.7
+  HB_MOVY_VERSION: 0.34.1-hb.8
+  HB_MOVY_TAG: v0.34.1-hb.8
   ASSET_NAME: harmonybus-movy-module.tar.gz
 
 jobs:
@@ -46,7 +46,7 @@ jobs:
       - name: Verify Schwung page parity patch
         run: |
           grep -q "let override: SchwungGridMode | null = 'page';" movy/src/renderer/schwung-grid.ts
-          grep -q "ctl.dismissPeek" movy/src/renderer/schwung-page.ts
+          grep -q "do not show a second, stale representation" movy/src/renderer/schwung-page.ts
           grep -q "started + i" movy/src/renderer/schwung-page.ts
 
       - name: Stamp module metadata
@@ -107,5 +107,5 @@ jobs:
           else
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Keeps stock Schwung parameter-page rendering, replays accumulated encoder turns with monotonic timestamps so enum peek/write state stays aligned, and forcibly dismisses transient enum peeks on knob release or page navigation."
+              --notes "Keeps Schwung PAGE rendering and live parameter semantics, but suppresses the unreliable full-screen enum TURNING peek in Movy so enum edits remain on the normal HarmonyBus page and cannot show a stale/default cursor."
           fi
