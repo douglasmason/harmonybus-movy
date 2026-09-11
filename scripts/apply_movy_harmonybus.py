@@ -129,11 +129,19 @@ def transform_colors(source: str) -> str:
 
 
 HB_BANK_HELPERS: str = r"""
-const HB_CONDUCTOR_STATE = 'hb15,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,1,0,0,0,20,60,0,0,0,0';
+/* hb15 field order after the prefix is:
+ * role, mode, map_target, window, root_policy, explicit_root, input_root,
+ * transpose, split_map, stability, accidentals, RENDER_CHANNEL,
+ * SOURCE_CHANNEL, chord_timing, context, clip_context, follow_lookahead,
+ * retrigger, anticipation, boundary_ms, release_ms, content, travel, scale,
+ * quant_timing.
+ * Render/source channels are zero-based; -1 means Off/All as appropriate.
+ */
+const HB_CONDUCTOR_STATE = 'hb15,0,0,0,25,2,0,0,0,0,0,0,-1,-1,0,0,0,0,0,0,20,60,0,0,0,0';
 const HB_FOLLOWER_STATE = [
-    'hb15,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,1,0,0,0,20,60,0,0,0,0',
-    'hb15,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,1,0,0,0,20,60,0,0,0,0',
-    'hb15,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,1,0,0,0,20,60,0,0,0,0',
+    'hb15,1,0,0,25,2,0,0,0,0,0,0,1,-1,0,0,0,0,0,0,20,60,0,0,0,0',
+    'hb15,1,0,0,25,2,0,0,0,0,0,0,2,-1,0,0,0,0,0,0,20,60,0,0,0,0',
+    'hb15,1,0,0,25,2,0,0,0,0,0,0,3,-1,0,0,0,0,0,0,20,60,0,0,0,0',
 ];
 
 type HbComp = { c: string; m: string; s?: string };
