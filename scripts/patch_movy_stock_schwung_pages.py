@@ -71,7 +71,7 @@ def patch_schwung_page(path: Path) -> None:
 
 
 def patch_midi_router(path: Path) -> None:
-    """Prevent Movy's list editor from competing with Schwung PAGE-mode enum peeks."""
+    """Prevent router-level attempts to open Movy's separate Schwung list editor."""
     source: str = path.read_text()
 
     before_import: str = (
@@ -89,17 +89,63 @@ def patch_midi_router(path: Path) -> None:
         "                }"
     )
     after_open: str = (
-        "                /* In PAGE mode the Schwung controller owns the complete enum UI,\n"
-        "                 * including its useful transient peek. Do not layer Movy's separate\n"
-        "                 * list editor over it; that editor has an independent selection\n"
-        "                 * state and can display a stale/default cursor. */\n"
+        "                /* PAGE mode delegates enum feedback to Schwung's own transient\n"
+        "                 * peek. Movy's separate editor is not part of this build's UI. */\n"
         "                if (intent && intent.action === 'open' && schwungGridMode() !== 'page'\n"
         "                    && !openSchwungEditor(intent, spc)) {\n"
         "                    mlog('schwung-open unhandled ' + (intent.key || '?')\n"
         "                       + ' kind=' + (intent.meta ? intent.meta.kind : '?'));\n"
         "                }"
     )
-    source = replace_once(source, before_open, after_open, "disable Movy editor under PAGE mode")
+    source = replace_once(source, before_open, after_open, "disable router editor under PAGE mode")
+    path.write_text(source)
+
+
+def patch_schwung_editor(path: Path) -> None:
+    """Make Movy's separate Schwung list editor inert in the dedicated PAGE build.
+
+    hb.9 guarded the known router open site, but hardware showed the editor could
+    still become foreground state. This build never needs that editor because PAGE
+    mode is forced globally and Schwung's controller already supplies the useful
+    TURNING peek. Make the editor incapable of becoming active at all.
+    """
+    source: str = path.read_text()
+
+    source = replace_once(
+        source,
+        "export function schwungEditorActive(): boolean { return state !== null; }",
+        "export function schwungEditorActive(): boolean { return false; }",
+        "editor active hard-off",
+    )
+
+    open_start: str = "export function openSchwungEditor(intent: SchwungIntent | null, page: SchwungPage): boolean {"
+    open_end: str = "\n}\n\n/** Move the cursor. Clamped, not wrapped — the same as every other list here. */"
+    if "/* HarmonyBus PAGE build: Movy's separate list editor is disabled. */" not in source:
+        start: int = source.find(open_start)
+        if start < 0:
+            raise RuntimeError("schwung-editor open function seam drifted: start not found")
+        end: int = source.find(open_end, start)
+        if end < 0:
+            raise RuntimeError("schwung-editor open function seam drifted: end not found")
+        replacement: str = (
+            "export function openSchwungEditor(_intent: SchwungIntent | null, _page: SchwungPage): boolean {\n"
+            "    /* HarmonyBus PAGE build: Movy's separate list editor is disabled. */\n"
+            "    state = null;\n"
+            "    return false;\n"
+            "}"
+        )
+        source = source[:start] + replacement + source[end + 2:]
+
+    before_render: str = "export function renderSchwungEditor(): void {\n    if (!state) return;"
+    after_render: str = (
+        "export function renderSchwungEditor(): void {\n"
+        "    /* Defensive: the dedicated HarmonyBus PAGE build must never draw Movy's\n"
+        "     * separate enum editor over Schwung's own parameter page/peek. */\n"
+        "    state = null;\n"
+        "    return;\n"
+        "    if (!state) return;"
+    )
+    source = replace_once(source, before_render, after_render, "editor render hard-off")
     path.write_text(source)
 
 
@@ -112,7 +158,8 @@ def main() -> int:
     patch_schwung_grid(root / "src/renderer/schwung-grid.ts")
     patch_schwung_page(root / "src/renderer/schwung-page.ts")
     patch_midi_router(root / "src/midi/router.ts")
-    print("HarmonyBus Movy: Schwung PAGE + stock enum peek; Movy PAGE editor disabled")
+    patch_schwung_editor(root / "src/renderer/schwung-editor.ts")
+    print("HarmonyBus Movy: Schwung PAGE + stock enum peek; Movy enum editor hard-disabled")
     return 0
 
 
