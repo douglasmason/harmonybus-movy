@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  HB_MOVY_VERSION: 0.34.1-hb.2
-  HB_MOVY_TAG: v0.34.1-hb.2
+  HB_MOVY_VERSION: 0.34.1-hb.3
+  HB_MOVY_TAG: v0.34.1-hb.3
   ASSET_NAME: harmonybus-movy-module.tar.gz
 
 jobs:
@@ -50,7 +50,7 @@ jobs:
           data = json.loads(path.read_text())
           data['version'] = '${{ env.HB_MOVY_VERSION }}'
           data['name'] = 'Movy (HarmonyBus)'
-          data['description'] = 'Experimental Movy build with HarmonyBus source tracks 5-8 and all 16 Movy tracks available'
+          data['description'] = 'Movy with three auto-wired HarmonyBus source banks on tracks 5-16'
           path.write_text(json.dumps(data, indent=4) + '\n')
           PY
 
@@ -99,5 +99,5 @@ jobs:
           else
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Experimental Movy integration for HarmonyBus source tracks 5-8. All 16 Movy tracks remain available; 6/7/8 share colors with render tracks 2/3/4. Requires the HarmonyBus module separately."
+              --notes "Auto-wires tracks 5-16 as three conductor+follower HarmonyBus banks, preserves synth/FX choices, and sets native tracks 2/3/4 receive channels to 2/3/4."
           fi
