@@ -103,19 +103,44 @@ def transform_track_mutes(source: str) -> str:
     return source
 
 
-def transform_focus(source: str) -> str:
-    """Expose only the native quartet and the HarmonyBus source quartet."""
+def transform_router(source: str) -> str:
+    """Make physical + advance to the next bank and - return to the prior bank."""
+    return replace_once(
+        source,
+        "const gdir = d1 === MoveUp ? GROUP_DIR_UP : GROUP_DIR_DOWN;",
+        "const gdir = d1 === MoveUp ? GROUP_DIR_DOWN : GROUP_DIR_UP;",
+        "session +/- bank direction",
+    )
+
+
+def transform_leds(source: str) -> str:
+    """Light + and - only when another bank exists in that physical direction."""
+    return replace_once(
+        source,
+        "        cachedSetButtonLED(CC_DOWN, groupArrowColor(GROUP_DIR_DOWN));\n"
+        "        cachedSetButtonLED(CC_UP, groupArrowColor(GROUP_DIR_UP));",
+        "        /* Physical + advances 1-4 -> 5-8 -> 9-12 -> 13-16;\n"
+        "         * physical - goes back. Off means there is no bank there. */\n"
+        "        cachedSetButtonLED(CC_DOWN, groupArrowColor(GROUP_DIR_UP));\n"
+        "        cachedSetButtonLED(CC_UP, groupArrowColor(GROUP_DIR_DOWN));",
+        "+/- LED affordance",
+    )
+
+
+def transform_colors(source: str) -> str:
+    """Pair source tracks 6-8 visually with render tracks 2-4."""
     source = replace_once(
         source,
-        "import { GROUP_SIZE, TRACK_COUNT, trackGroup, trackRef } from './ref.js';\n",
-        "import { GROUP_SIZE, trackGroup, trackRef } from './ref.js';\n\n"
-        "/* HarmonyBus UI exposes exactly native 1-4 and source 5-8. */\n"
-        "const HB_VISIBLE_TRACK_COUNT = 8;\n",
-        "focus imports",
+        "    9, 2, 23, 95,         // G2: Bright Lime, Orange Red, Neon Pink, Azure Blue dim\n",
+        "    9, 7, 95, 23,         // G2/HB: conductor unique; T6/T7/T8 match T2/T3/T4\n",
+        "HarmonyBus bright track colors",
     )
-    source = replace_once(source, "if (index < 0 || index >= TRACK_COUNT) return;", "if (index < 0 || index >= HB_VISIBLE_TRACK_COUNT) return;", "focus select")
-    source = replace_once(source, "if (g < 0 || g * GROUP_SIZE >= TRACK_COUNT) return false;", "if (g < 0 || g * GROUP_SIZE >= HB_VISIBLE_TRACK_COUNT) return false;", "focus step")
-    source = replace_once(source, "if (g < 0 || g * GROUP_SIZE >= TRACK_COUNT) return -1;", "if (g < 0 || g * GROUP_SIZE >= HB_VISIBLE_TRACK_COUNT) return -1;", "group step")
+    source = replace_once(
+        source,
+        "    81, 71, 109, 103,     // Bright Lime dim, Tan dim, Neon Pink dim, Electric Violet dim\n",
+        "    81, 77, 103, 109,     // G2/HB dim: conductor unique; T6/T7/T8 match T2/T3/T4\n",
+        "HarmonyBus dim track colors",
+    )
     return source
 
 
@@ -171,7 +196,8 @@ def transform_ui_state(source: str) -> str:
         "     * gives an unseen set when it seeds empty slots. */\n"
         "    restoreChains(null, null);\n",
         "    /* Dedicated HarmonyBus build: native 1-4 remain the audible/export bank;\n"
-        "     * Movy hosts the pre-render source bank on 5-8. */\n"
+        "     * Movy hosts the pre-render source bank on 5-8. Tracks 9-16 remain\n"
+        "     * ordinary Movy tracks and are available through the later banks. */\n"
         "    setMovyTracks(false);\n"
         "    restoreChains(HB_SOURCE_CHAINS, null);\n",
         "ui-state fresh bank",
@@ -195,7 +221,9 @@ def main() -> int:
     root: Path = args.movy_root.resolve()
 
     update_file(root / "src/mixer/track-mutes.ts", transform_track_mutes)
-    update_file(root / "src/track/focus.ts", transform_focus)
+    update_file(root / "src/midi/router.ts", transform_router)
+    update_file(root / "src/seq/leds.ts", transform_leds)
+    update_file(root / "src/seq/colors.ts", transform_colors)
     update_file(root / "src/seq/ui-state.ts", transform_ui_state)
     return 0
 
