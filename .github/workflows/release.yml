@@ -45,10 +45,23 @@ jobs:
 
       - name: Verify Schwung page parity patch
         run: |
-          grep -q "let override: SchwungGridMode | null = 'page';" movy/src/renderer/schwung-grid.ts
-          grep -q "enum TURNING peek" movy/src/renderer/schwung-page.ts
-          grep -q "started + i" movy/src/renderer/schwung-page.ts
-          grep -q "dismissPeek" movy/src/renderer/schwung-page.ts
+          python3 - <<'PY'
+          from pathlib import Path
+
+          grid = Path('movy/src/renderer/schwung-grid.ts').read_text()
+          page = Path('movy/src/renderer/schwung-page.ts').read_text()
+
+          required = {
+              'PAGE mode forced': "let override: SchwungGridMode | null = 'page';" in grid,
+              'accumulated detents replayed with timestamps': 'ctl.onKnobTurn(slot, dir, started + i)' in page,
+              'peek dismissed immediately after turn': "if (typeof ctl.dismissPeek === 'function') ctl.dismissPeek();" in page,
+              'patched knob path present': 'const started = Date.now();' in page,
+          }
+          missing = [name for name, ok in required.items() if not ok]
+          if missing:
+              raise SystemExit('Missing expected hb.8 patch behavior: ' + ', '.join(missing))
+          print('hb.8 Schwung PAGE / enum-peek patch verified')
+          PY
 
       - name: Stamp module metadata
         run: |
