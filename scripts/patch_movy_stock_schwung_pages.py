@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Force the dedicated HarmonyBus Movy build to use Schwung's own param-page controller."""
+"""Make dedicated HarmonyBus Movy parameter pages behave like stock Schwung."""
 from __future__ import annotations
 
 import argparse
@@ -35,7 +35,7 @@ def patch_schwung_grid(path: Path) -> None:
 
 
 def patch_schwung_page(path: Path) -> None:
-    """Keep Schwung PAGE rendering but suppress the broken Movy enum TURNING peek."""
+    """Preserve stock Schwung enum peeks while replaying accumulated encoder detents."""
     source: str = path.read_text()
 
     before_turn: str = (
@@ -46,23 +46,14 @@ def patch_schwung_page(path: Path) -> None:
     )
     after_turn: str = (
         "            const n = Math.min(Math.abs(delta) | 0, 63) || 1;\n"
-        "            /* Replay accumulated encoder motion as distinct detents in time. */\n"
+        "            /* Replay accumulated encoder motion as distinct detents in time,\n"
+        "             * but leave Schwung's own enum-peek lifecycle untouched. */\n"
         "            const started = Date.now();\n"
         "            for (let i = 0; i < n; i++) ctl.onKnobTurn(slot, dir, started + i);\n"
-        "            /* The embedded controller's enum peek is not reliable on Movy's\n"
-        "             * chain transport: on HarmonyBus enums its cursor can remain at the\n"
-        "             * default option while the underlying parameter changes correctly,\n"
-        "             * and a missed lifecycle edge can leave the full-screen TURNING\n"
-        "             * panel stuck. Keep Schwung's normal page/value rendering, but do\n"
-        "             * not show a second, stale representation of the same enum. */\n"
-        "            if (typeof ctl.dismissPeek === 'function') ctl.dismissPeek();\n"
         "        },\n"
-        "        knobTouch: (slot: number, down: boolean) => {\n"
-        "            ctl.onKnobTouch(slot, down);\n"
-        "            if (typeof ctl.dismissPeek === 'function') ctl.dismissPeek();\n"
-        "        },"
+        "        knobTouch: (slot: number, down: boolean) => { ctl.onKnobTouch(slot, down); },"
     )
-    source = replace_once(source, before_turn, after_turn, "knob replay and enum peek suppression")
+    source = replace_once(source, before_turn, after_turn, "timestamped knob replay")
 
     before_change: str = "        changePage(delta: number) { ctl.onJog(delta > 0 ? 1 : -1); },\n        goToPage(i: number) { ctl.goToPage(i); },"
     after_change: str = (
@@ -76,7 +67,39 @@ def patch_schwung_page(path: Path) -> None:
         "        },"
     )
     source = replace_once(source, before_change, after_change, "page navigation clears peek")
+    path.write_text(source)
 
+
+def patch_midi_router(path: Path) -> None:
+    """Prevent Movy's list editor from competing with Schwung PAGE-mode enum peeks."""
+    source: str = path.read_text()
+
+    before_import: str = (
+        "import { schwungChangePage, schwungActiveFor } from '../renderer/schwung-grid.js';"
+    )
+    after_import: str = (
+        "import { schwungChangePage, schwungActiveFor, schwungGridMode } from '../renderer/schwung-grid.js';"
+    )
+    source = replace_once(source, before_import, after_import, "router PAGE-mode import")
+
+    before_open: str = (
+        "                if (intent && intent.action === 'open' && !openSchwungEditor(intent, spc)) {\n"
+        "                    mlog('schwung-open unhandled ' + (intent.key || '?')\n"
+        "                       + ' kind=' + (intent.meta ? intent.meta.kind : '?'));\n"
+        "                }"
+    )
+    after_open: str = (
+        "                /* In PAGE mode the Schwung controller owns the complete enum UI,\n"
+        "                 * including its useful transient peek. Do not layer Movy's separate\n"
+        "                 * list editor over it; that editor has an independent selection\n"
+        "                 * state and can display a stale/default cursor. */\n"
+        "                if (intent && intent.action === 'open' && schwungGridMode() !== 'page'\n"
+        "                    && !openSchwungEditor(intent, spc)) {\n"
+        "                    mlog('schwung-open unhandled ' + (intent.key || '?')\n"
+        "                       + ' kind=' + (intent.meta ? intent.meta.kind : '?'));\n"
+        "                }"
+    )
+    source = replace_once(source, before_open, after_open, "disable Movy editor under PAGE mode")
     path.write_text(source)
 
 
@@ -88,7 +111,8 @@ def main() -> int:
     root: Path = args.movy_root.resolve()
     patch_schwung_grid(root / "src/renderer/schwung-grid.ts")
     patch_schwung_page(root / "src/renderer/schwung-page.ts")
-    print("HarmonyBus Movy: stock Schwung PAGE renderer forced; enum TURNING peek suppressed")
+    patch_midi_router(root / "src/midi/router.ts")
+    print("HarmonyBus Movy: Schwung PAGE + stock enum peek; Movy PAGE editor disabled")
     return 0
 
 
