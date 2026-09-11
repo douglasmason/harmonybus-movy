@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  HB_MOVY_VERSION: 0.34.1-hb.5
-  HB_MOVY_TAG: v0.34.1-hb.5
+  HB_MOVY_VERSION: 0.34.1-hb.6
+  HB_MOVY_TAG: v0.34.1-hb.6
   ASSET_NAME: harmonybus-movy-module.tar.gz
 
 jobs:
@@ -40,6 +40,12 @@ jobs:
         run: |
           python3 scripts/apply_movy_harmonybus.py movy
           python3 scripts/apply_movy_harmonybus.py movy
+          python3 scripts/patch_movy_stock_schwung_pages.py movy
+          python3 scripts/patch_movy_stock_schwung_pages.py movy
+
+      - name: Verify Schwung page parity patch
+        run: |
+          grep -q "let override: SchwungGridMode | null = 'page';" movy/src/renderer/schwung-grid.ts
 
       - name: Stamp module metadata
         run: |
@@ -50,7 +56,7 @@ jobs:
           data = json.loads(path.read_text())
           data['version'] = '${{ env.HB_MOVY_VERSION }}'
           data['name'] = 'Movy (HarmonyBus)'
-          data['description'] = 'Movy with three auto-wired HarmonyBus source banks and corrected native render channels'
+          data['description'] = 'Movy HarmonyBus source banks with stock Schwung parameter pages'
           path.write_text(json.dumps(data, indent=4) + '\n')
           PY
 
@@ -99,5 +105,5 @@ jobs:
           else
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Fixes hb15 field ordering so follower banks render to native MIDI channels 2/3/4, leaves source channel unfiltered, and uses Schwung's documented cable-2 Move injection path."
+              --notes "Uses Schwung's own embedded parameter-page controller so HarmonyBus enum labels, read-only/live telemetry, pagination and module-declared UI semantics match stock Schwung. Preserves the existing Schwung-owned tracks 1-4 plus HarmonyBus source tracks 5-8 banked workflow."
           fi
