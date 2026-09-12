@@ -18,7 +18,7 @@ def replace_once(source: str, before: str, after: str, seam: str) -> str:
 
 
 def transform_track_mutes(source: str) -> str:
-    """Make tracks 5-16 use chain audio mute while MIDI sequencing stays alive."""
+    """Make all 16 Movy tracks use chain audio mute while MIDI sequencing stays alive."""
     source = replace_once(
         source,
         "import { mlog } from '../log.js';\n",
@@ -33,7 +33,7 @@ def transform_track_mutes(source: str) -> str:
         "let base: boolean[] | null = null;   /* user's own mutes, held while a solo is up */\n",
         "const solo: boolean[] = new Array(TRACK_COUNT).fill(false) as boolean[];\n"
         "let base: boolean[] | null = null;   /* user's own mutes, held while a solo is up */\n"
-        "const HB_SOURCE_FIRST = 4;\n"
+        "const HB_SOURCE_FIRST = 0;\n"
         "const HB_SOURCE_LAST = 15;\n"
         "const sourceAudioMuted: boolean[] = new Array(TRACK_COUNT).fill(false) as boolean[];\n\n"
         "function isHbSourceTrack(track: number): boolean {\n"
@@ -148,7 +148,7 @@ type HbComp = { c: string; m: string; s?: string };
 type HbTrack = { t: number; comp: HbComp[]; lfo?: string[]; mix?: string };
 
 function hbStateForTrack(track: number): string {
-    const pos = (track - 4) % 4;
+    const pos = track % 4;
     return pos === 0 ? HB_CONDUCTOR_STATE : HB_FOLLOWER_STATE[pos - 1];
 }
 
@@ -161,7 +161,7 @@ function normalizeHarmonyBusBanks(raw: unknown): HbTrack[] {
         if (typeof t !== 'number') continue;
         byTrack.set(t, entry as HbTrack);
     }
-    for (let t = 4; t < 16; t++) {
+    for (let t = 0; t < 16; t++) {
         const prior = byTrack.get(t);
         const comps = Array.isArray(prior?.comp) ? [...prior!.comp] : [];
         const withoutHb = comps.filter((c) => c?.c !== 'midi_fx1');
@@ -190,7 +190,7 @@ function configureNativeHarmonyBusDestinations(): void {
 
 
 def transform_ui_state(source: str) -> str:
-    """Normalize all source banks and native receive channels on every Set load."""
+    """Normalize all four Movy source banks and native receive channels on every Set load."""
     source = replace_once(
         source,
         "import { mutesSnapshot, restoreMutes, resetTrackMutes } from '../mixer/track-mutes.js';\n",
@@ -214,7 +214,7 @@ def transform_ui_state(source: str) -> str:
         "         * before movy hosted chains still clears the previous set's. */\n"
         "        const n = restoreChains(o.chains, o.sends);\n",
         "        /* Dedicated HarmonyBus build always leaves native tracks 1-4 on Schwung,\n"
-        "         * then normalizes 5-16 into three conductor+followers quartets. */\n"
+        "         * then normalizes Movy 1-16 into four conductor+followers quartets. */\n"
         "        setMovyTracks(false);\n"
         "        configureNativeHarmonyBusDestinations();\n"
         "        const hbChains = normalizeHarmonyBusBanks(o.chains);\n"
