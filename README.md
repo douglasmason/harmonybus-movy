@@ -27,10 +27,27 @@ Install from the repository URL in Schwung's GitHub/repository installer:
 https://github.com/douglasmason/harmonybus-movy
 ```
 
-The corrected clean release reports version **0.34.1-hbclean.21** and requires **HarmonyBus 0.2.96 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
+The corrected clean release reports version **0.34.1-hbclean.22** and requires **HarmonyBus 0.2.100 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
 
 The clean release counter starts at 20 so Schwung's numeric version comparison recognizes it as newer than hb.19.
 
 `main/release.json` is the installer entry point. Publish and verify the clean release asset before advancing `main` to a tested `clean-hb` commit. Historical hb.16-hb.19 build workflows are manual so updating the installer entry cannot republish an older package.
 
 This is an experimental hardware-test build. Reinstall standard Movy to restore the upstream module.
+
+## Combined conductor cycles
+
+With HarmonyBus in MIDI FX 1, Movy supplies the playing clip's effective loop length,
+launch phase, and content revision directly to HB. Only contributing Conductor-role
+clips enter the combined cycle; followers and empty/stopped/MIDI-muted lanes do not.
+Local audio mute does not remove MIDI contributions. A 3-bar and a 4-bar conductor
+produce a 12-bar learning cycle. Playback speed and nonzero loop starts are included.
+
+Clip edits, phase changes, launches, stops, and conductor membership changes reset
+the learned model. Repeated playback and selecting a different edit target do not.
+Probability or multi-pass conditional clips display Non-repeating; excessive cycle
+lengths or more than 64 learned harmony transitions are reported rather than
+silently truncating prediction. Lookahead remains Off by default.
+
+Update both modules and restart Move. Existing sets with HB in MIDI FX 1 can use
+the new timing bridge; creating a new set is only required for the preloaded layout.

@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """Apply the minimal HarmonyBus-Movy integration to pinned upstream Movy.
 
-Only four concerns belong here:
+The integration covers:
 1. Fresh Sets seed all 16 Movy chains with HarmonyBus + a simple synth, locally muted.
 2. Schwung PAGE mode owns hosted module parameter rendering.
 3. While Schwung owns a page, knob touch/release never enters Movy's enum overlay path.
 4. Upstream transport LINK defaults on for new/legacy Sets; saved explicit values still win.
+5. Runtime clip metadata gives HarmonyBus actual conductor cycle lengths and phases.
 
 Recording, Capture, pad routing, clip timing and saved chain persistence remain stock upstream.
 """
 from __future__ import annotations
 
 import argparse
+from patch_loop_bridge import patch_loop_bridge
 from pathlib import Path
 
 
@@ -309,6 +311,7 @@ def main() -> int:
         root / "engine/crates/seq-core/src/persist.rs",
     )
     patch_upstream_expectations(root)
+    patch_loop_bridge(root)
     print("HarmonyBus clean integration applied")
     return 0
 

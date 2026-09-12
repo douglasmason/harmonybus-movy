@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 4f6d05e2ee107c0c6a903326028eb02058ded30a
-  HB_MOVY_VERSION: 0.34.1-hbclean.21
-  HB_MOVY_TAG: v0.34.1-hbclean.21
+  HB_REF: 9bdfe85957611db3408e20cfd804d439608b4053
+  HB_MOVY_VERSION: 0.34.1-hbclean.22
+  HB_MOVY_TAG: v0.34.1-hbclean.22
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -161,7 +161,9 @@ jobs:
 
       - name: Test native sequencer and transport
         working-directory: movy/engine
-        run: cargo test -p seq-core --lib
+        run: |
+          cargo test -p seq-core --lib
+          cargo test -p movy-dsp hb_loop --lib
 
       - name: Build Movy DSP
         working-directory: movy
@@ -204,5 +206,5 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Clean restart from pinned upstream Movy. Fresh Sets preload four HarmonyBus quartets across Movy 1-16 with local audio muted; Schwung owns hosted parameter display/peek; transport link defaults on. Record, Capture, pad routing and clip timing remain stock upstream."
+              --notes "Adds runtime clip metadata for HarmonyBus 0.2.100: combined conductor repeat length, actual launch phase, playback speed and content-change detection. Multiple conductors remain supported; 3-bar and 4-bar clips form a 12-bar learning cycle. Prepared tracks, local audio mute, Schwung display and standard Movy recording remain in place."
           fi
