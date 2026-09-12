@@ -73,27 +73,7 @@ def patch_ui_state(path: Path) -> None:
             t,
             comp: [
 """
-    source = replace_once(source, before_normalized, after_normalized, "source-track default audio mute")
-
-    before_fresh = """    const hbChains = normalizeHarmonyBusBanks(null);
-    restoreSourceAudioMutes(hbChains);
-    restoreChains(hbChains, null);
-"""
-    after_fresh = """    const hbChains = normalizeHarmonyBusBanks(null);
-    restoreSourceAudioMutes(hbChains);
-    restoreChains(hbChains, null);
-    /* New HarmonyBus sets start silent. Native 1-4 use engine mutes; Movy
-       sources 5-16 are audio-muted in their chain mix so sequencing/MIDI keeps
-       running. Track 1, when HarmonyBus is already loaded in MIDI FX1, gets the
-       same conductor -> ch3 monitoring default as 5/9/13. */
-    for (let t = 0; t < 4; t++) {
-        seqState.muted[t] = true;
-        seqCmd('mute ' + t + ' 1');
-    }
-    if (typeof shadow_set_param === 'function')
-        shadow_set_param(0, 'midi_fx1:state', HB_CONDUCTOR_STATE);
-"""
-    source = replace_once(source, before_fresh, after_fresh, "fresh-set mute and track1 conductor default")
+    source = replace_once(source, before_normalized, after_normalized, "Movy-track default audio mute")
     path.write_text(source)
 
 
@@ -104,7 +84,7 @@ def main() -> None:
     root = args.movy_root.resolve()
     patch_router(root / "src/midi/router.ts")
     patch_ui_state(root / "src/seq/ui-state.ts")
-    print("HarmonyBus Movy hb.14 defaults/overlay patch applied")
+    print("HarmonyBus Movy defaults/overlay patch applied: all Movy sources audio-muted; native tracks untouched")
 
 
 if __name__ == "__main__":
