@@ -14,8 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_MOVY_VERSION: 0.34.1-hbclean.20
-  HB_MOVY_TAG: v0.34.1-hbclean.20
+  HB_REF: 4f6d05e2ee107c0c6a903326028eb02058ded30a
+  HB_MOVY_VERSION: 0.34.1-hbclean.21
+  HB_MOVY_TAG: v0.34.1-hbclean.21
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -45,6 +46,12 @@ jobs:
 
       - name: Apply clean HarmonyBus integration
         run: python3 scripts/apply_clean_harmonybus.py movy
+
+      - name: Test prepared states with the actual HarmonyBus loader
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/douglasmason/harmonybus.git harmonybus
+          git -C harmonybus checkout "$HB_REF"
+          python3 scripts/verify_harmonybus_defaults.py movy harmonybus
 
       - name: Verify clean scope and defaults
         run: |
@@ -77,8 +84,8 @@ jobs:
           assert "{ c: 'midi_fx1', m: 'harmonybus'" in state
           assert "{ c: 'synth', m: 'plaits' }" in state
           assert "mix: '1.0000,0.0000,1,0.0000,0.0000'" in state
-          assert "HB_FRESH_CONDUCTOR" in state and ",2,0,0,0,0,0,0,20,60" in state
-          assert state.count("'hb15,1,0,0,25,2,0,0,0,0,0,0,") >= 3
+          assert "HB_FRESH_CONDUCTOR" in state
+          assert state.count("'hb16,1,0,0,25,2,0,0,0,0,0,0,") >= 3
           assert "loadSetHostChoice(null);" in state
           assert "restoreChains(freshHarmonyBusChains(), null)" in state
           assert "let override: SchwungGridMode | null = 'page';" in grid

@@ -31,11 +31,11 @@ def patch_fresh_set(path: Path) -> None:
     marker: str = "/* Defaults match init(): C tonic, Major, Chromatic/4ths, C3 on every track. */"
     helper: str = r'''/* HarmonyBus clean-build defaults. These are used ONLY for a Set with no
  * Movy UI blob. Once saved, ordinary upstream chain persistence owns the state. */
-const HB_FRESH_CONDUCTOR = 'hb15,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,20,60,0,0,0,0';
+const HB_FRESH_CONDUCTOR = 'hb16,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,20,60,0,0,0,0';
 const HB_FRESH_FOLLOWERS = [
-    'hb15,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,0,0,0,20,60,0,0,0,0',
-    'hb15,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,20,60,0,0,0,0',
-    'hb15,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,0,0,0,20,60,0,0,0,0',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,0,0,0,0,20,60,0,0,0,0',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,20,60,0,0,0,0',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,0,0,0,0,20,60,0,0,0,0',
 ];
 
 function freshHarmonyBusChains() {
@@ -190,6 +190,8 @@ def patch_upstream_expectations(root: Path) -> None:
         "      const role = track % 4 === 0 ? 0 : 1;\n"
         "      const destination = track % 4 === 0 ? 2 : track % 4;\n"
         "      const values = saved?.comp[0]?.s?.split(',');\n"
+        "      eq('fresh HB state format ' + track, values?.[0], 'hb16');\n"
+        "      eq('fresh HB state field count ' + track, values?.length, 26);\n"
         "      eq('fresh HB role ' + track, Number(values?.[1]), role);\n"
         "      eq('fresh HB render channel ' + track, Number(values?.[12]), destination);\n"
         "      eq('fresh HB source channel ' + track, Number(values?.[13]), 0);\n"
@@ -198,7 +200,7 @@ def patch_upstream_expectations(root: Path) -> None:
         "    const savedSet = JSON.parse(serializeUiState());\n"
         "    eq('fresh Set saves all 16 source chains', savedSet.chains.length, 16);\n"
         "    savedSet.chains[0].comp[0].s = savedSet.chains[0].comp[0].s.replace(\n"
-        "      /^hb15,0,/, 'hb15,1,');\n"
+        "      /^hb16,0,/, 'hb16,1,');\n"
         "    applyUiState(JSON.stringify(savedSet));\n"
         "    eq('saved HB role survives reload',\n"
         "      Number(pendingPayloadFor(0)?.comp[0]?.s?.split(',')[1]), 1);",
