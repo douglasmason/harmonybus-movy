@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 5489cefbaae5fa65ab9721d4cc195529ddb89ca7
-  HB_MOVY_VERSION: 0.34.1-hbclean.23
-  HB_MOVY_TAG: v0.34.1-hbclean.23
+  HB_REF: 6bf80402943752c2c4e4dac83b8577b4c63d8ce5
+  HB_MOVY_VERSION: 0.34.1-hbclean.24
+  HB_MOVY_TAG: v0.34.1-hbclean.24
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -68,6 +68,20 @@ jobs:
           ).splitlines()
           expected = {
               'src/seq/ui-state.ts',
+              'src/seq/clip-page.ts',
+              'src/seq/clip-page-vm.ts',
+              'src/undo/verbs.ts',
+              'engine/crates/seq-core/src/lib.rs',
+              'engine/crates/seq-core/src/command.rs',
+              'engine/crates/seq-core/src/clip_tools.rs',
+              'browser-test/hb-clip-tools.mjs',
+              'browser-test/screenshots/baseline/clip-default.png',
+              'browser-test/screenshots/baseline/clip-drum.png',
+              'browser-test/screenshots/baseline/clip-fraction.png',
+              'browser-test/screenshots/baseline/clip-quant.png',
+              'browser-test/screenshots/baseline/clip-undo-toast.png',
+              'browser-test/screenshots/baseline/quant-overlay-three.png',
+              'browser-test/screenshots/baseline/quant-overlay-two.png',
               'src/renderer/schwung-grid.ts',
               'src/midi/router.ts',
               'engine/crates/seq-core/src/engine.rs',
@@ -131,6 +145,10 @@ jobs:
       - name: Upstream test — logic
         working-directory: movy
         run: node browser-test/logic.mjs
+
+      - name: Verify clip action UI and Undo
+        working-directory: movy
+        run: node browser-test/hb-clip-tools.mjs
 
       - name: Upstream test — track colors
         working-directory: movy
@@ -213,5 +231,5 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Process the full conductor MIDI batch before any chain renders or releases buffered follower notes. Requires HarmonyBus 0.2.101. Combined conductor cycles, prepared tracks, local audio mute, Schwung display and standard Movy recording remain in place."
+              --notes "Add explicit Fill Gaps and Quantize + Fill with a selectable clip grid, one Undo, and swing-aware note lengths. Fresh Sets use a global 350 ms follower buffer. Requires HarmonyBus 0.2.102. Combined conductor cycles, prepared tracks, local audio mute, Schwung display and standard Movy recording remain in place."
           fi

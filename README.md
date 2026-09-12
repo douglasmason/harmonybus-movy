@@ -27,7 +27,7 @@ Install from the repository URL in Schwung's GitHub/repository installer:
 https://github.com/douglasmason/harmonybus-movy
 ```
 
-The corrected clean release reports version **0.34.1-hbclean.23** and requires **HarmonyBus 0.2.101 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
+The corrected clean release reports version **0.34.1-hbclean.24** and requires **HarmonyBus 0.2.102 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
 
 The clean release counter starts at 20 so Schwung's numeric version comparison recognizes it as newer than hb.19.
 
@@ -59,3 +59,23 @@ then renders chains and releases due follower notes. This ordering is independen
 of track index, local audio mute and worker-lane placement. Buffered notes map to
 the harmony at release; note-offs keep the pitch emitted by their paired note-on.
 HarmonyBus processes each conductor timer only once per block.
+
+## Clip edits and timing guide
+
+Open Clip Params with **Shift + Step 3**. Knob 5 selects the edit grid
+(1/16, 1/8, 1/4, 1/2, 1 Bar). Knob 6 or the main wheel selects **Fill Gaps**
+or **Quantize + Fill**. Press the main wheel to apply one Undo-able edit.
+This edits the selected melodic clip's current loop; stop recording first.
+
+Fill Gaps sets each onset group's duration to the next playback onset, accounting
+for current quantization and swing, with the last group ending at the loop end.
+Quantize + Fill first snaps stored starts to the chosen grid. Existing overlaps
+are trimmed. Automation and conditions stay at their existing steps. Active
+notes keep their scheduled note-offs; edits affect subsequent note-ons.
+
+HB's Follower Buffer is global, defaults to 350 ms for fresh settings, and supports
+musical durations. Existing saved values survive. On-grid notes stay on-grid,
+even with a buffer wider than the grid interval.
+
+The canonical [timing guide with SVG diagrams](https://github.com/douglasmason/harmonybus/blob/main/docs/timing-guide.md)
+lives in HarmonyBus. Its PDF is generated in that repo's release workflow.

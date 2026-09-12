@@ -8,11 +8,15 @@ The integration covers:
 4. Upstream transport LINK defaults on for new/legacy Sets; saved explicit values still win.
 5. Runtime clip metadata gives HarmonyBus actual conductor cycle lengths and phases.
 
-Recording, Capture, pad routing, clip timing and saved chain persistence remain stock upstream.
+Recording, Capture, pad routing and saved chain persistence remain stock upstream.
+An explicit clip edit adds Quantize + Fill Gaps using shared playback timing.
 """
 from __future__ import annotations
 
 import argparse
+import subprocess
+import json
+import base64
 from patch_loop_bridge import patch_loop_bridge
 from pathlib import Path
 
@@ -33,11 +37,11 @@ def patch_fresh_set(path: Path) -> None:
     marker: str = "/* Defaults match init(): C tonic, Major, Chromatic/4ths, C3 on every track. */"
     helper: str = r'''/* HarmonyBus clean-build defaults. These are used ONLY for a Set with no
  * Movy UI blob. Once saved, ordinary upstream chain persistence owns the state. */
-const HB_FRESH_CONDUCTOR = 'hb16,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,20,60,0,0,0,0';
+const HB_FRESH_CONDUCTOR = 'hb16,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,350,60,0,0,0,0';
 const HB_FRESH_FOLLOWERS = [
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,0,0,0,0,20,60,0,0,0,0',
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,20,60,0,0,0,0',
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,0,0,0,0,20,60,0,0,0,0',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,0,0,0,0,350,60,0,0,0,0',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,350,60,0,0,0,0',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,0,0,0,0,350,60,0,0,0,0',
 ];
 
 function freshHarmonyBusChains() {
@@ -312,6 +316,16 @@ def main() -> int:
     )
     patch_upstream_expectations(root)
     patch_loop_bridge(root)
+    integration_root: Path = Path(__file__).resolve().parents[1] / 'integration'
+    patch: Path = integration_root / 'clip-tools.patch'
+    applied: subprocess.CompletedProcess[bytes] = subprocess.run(
+        ['git', 'apply', '--reverse', '--check', str(patch)], cwd=root, capture_output=True)
+    if applied.returncode != 0:
+        subprocess.run(['git', 'apply', str(patch)], cwd=root, check=True)
+    (root / 'browser-test/hb-clip-tools.mjs').write_text((integration_root / 'hb-clip-tools.mjs').read_text())
+    map_path_to_base64: dict[str, str] = json.loads((integration_root / 'clip-baselines.json').read_text())
+    for relative_path, encoded_png in map_path_to_base64.items():
+        (root / relative_path).write_bytes(base64.b64decode(encoded_png))
     print("HarmonyBus clean integration applied")
     return 0
 
