@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: fadfd5c2ad177e882a219972d3687f4d17199a56
-  HB_MOVY_VERSION: 0.34.1-hbclean.25
-  HB_MOVY_TAG: v0.34.1-hbclean.25
+  HB_REF: e7edb183fbae65843af95db923f7c8cd48c9b54d
+  HB_MOVY_VERSION: 0.34.1-hbclean.26
+  HB_MOVY_TAG: v0.34.1-hbclean.26
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -188,7 +188,12 @@ jobs:
         working-directory: movy/engine
         run: |
           cargo test -p seq-core --lib
-          cargo test -p movy-dsp hb_loop --lib
+          HB_TIMING_TRACE=/tmp/hb-timing.trace cargo test -p movy-dsp hb_loop --lib
+
+      - name: Replay real sequencer timing through HarmonyBus
+        run: |
+          cc -std=c11 -D_POSIX_C_SOURCE=200809L -Wno-format-zero-length -O1 -I harmonybus tests/follower_trace.c harmonybus/src/harmony_core.c -lm -o /tmp/hb-trace
+          /tmp/hb-trace /tmp/hb-timing.trace
 
       - name: Build Movy DSP
         working-directory: movy

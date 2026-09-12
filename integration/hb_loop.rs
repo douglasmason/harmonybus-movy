@@ -18,7 +18,12 @@ fn gcd(mut left: u64, mut right: u64) -> u64 {
 }
 fn hash(state: &mut u64, value: u64) { *state = (*state ^ value).wrapping_mul(1099511628211); }
 pub fn snapshot(engine: &Engine, track_index: usize) -> Snapshot {
-    let mut result = Snapshot { tick: engine.hb_master_tick(), running: engine.playing, ..Snapshot::default() };
+    // advance_block leaves master_tick and track.pos_tick pointing to the NEXT
+    // sequencer tick. Its outgoing MIDI only covers ticks through next_tick-1.
+    // Publish that completed position so HB cannot release followers against
+    // a chord whose conductor MIDI is still waiting for the next audio block.
+    let next_tick = engine.hb_master_tick();
+    let mut result = Snapshot { tick: next_tick.saturating_sub(1), running: engine.playing, ..Snapshot::default() };
     let track = &engine.tracks[track_index];
     let Some(clip) = track.playing() else { return result; };
     if track.muted || !clip.exists() { return result; }
@@ -30,7 +35,9 @@ pub fn snapshot(engine: &Engine, track_index: usize) -> Snapshot {
     let window = u64::from(end - start) * denominator;
     result.period = window / gcd(window, numerator);
     let phase = (u64::from(track.pos_tick.saturating_sub(start)) * denominator + u64::from(track.scale_acc)) / numerator;
-    result.origin = (result.tick % result.period + result.period - phase % result.period) % result.period;
+    // Both operands describe the next position; keep the loop origin in that
+    // common coordinate system even though the published playhead is completed.
+    result.origin = (next_tick % result.period + result.period - phase % result.period) % result.period;
     result.active = 1;
     let mut revision = 14695981039346656037;
     for value in [track.playing_slot.unwrap() as u64, start as u64, end as u64, numerator, denominator,
@@ -73,6 +80,58 @@ impl Message { pub fn as_c_str(&self) -> &std::ffi::CStr { std::ffi::CStr::from_
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn follower_boundary_never_precedes_conductor_midi() {
+        use seq_core::engine::OutEvent;
+        use std::io::Write;
+        for frames in [64, 250, 1000] {
+            let mut engine = Engine::new(48000,12000);
+            engine.playing = true;
+            engine.tracks[0].playing_slot = Some(0);
+            engine.tracks[0].clips[0].set_loop(0,32);
+            for interval in [0,4,7] {
+                engine.tracks[0].clips[0].add_note_raw(0,0,384,60+interval,100);
+                engine.tracks[0].clips[0].add_note_raw(16,384,384,62+interval,100);
+            }
+            let mut trace = if frames == 64 {
+                std::env::var("HB_TIMING_TRACE").ok().map(|path| std::fs::File::create(path).unwrap())
+            } else { None };
+            let mut events = Vec::new();
+            let mut rendered_root = 60;
+            let mut releases = 0;
+            let mut boundary = 384;
+            while engine.hb_master_tick() < 2305 {
+                engine.advance_block(frames,&mut events);
+                let current = snapshot(&engine,0);
+                if let Some(file) = &mut trace {
+                    writeln!(file,"T {}",current.message().as_c_str().to_str().unwrap()).unwrap();
+                }
+                // The real bridge publishes metadata, drains this MIDI batch,
+                // then runs conductors and releases queued follower notes.
+                for event in events.drain(..) {
+                    match event {
+                        OutEvent::NoteOn { track:0, pitch, vel } => {
+                            if pitch == 60 || pitch == 62 { rendered_root = pitch; }
+                            if let Some(file) = &mut trace { writeln!(file,"N 144 {pitch} {vel}").unwrap(); }
+                        }
+                        OutEvent::NoteOff { track:0, pitch } => {
+                            if let Some(file) = &mut trace { writeln!(file,"N 128 {pitch} 0").unwrap(); }
+                        }
+                        _ => {}
+                    }
+                }
+                if let Some(file) = &mut trace { writeln!(file,"E").unwrap(); }
+                if current.tick >= boundary {
+                    let expected_root = if (boundary / 384) % 2 == 1 { 62 } else { 60 };
+                    assert_eq!(rendered_root,expected_root,
+                        "follower released before chord MIDI: frames={frames}, boundary={boundary}, published={}",current.tick);
+                    boundary += 384;
+                    releases += 1;
+                }
+            }
+            assert_eq!(releases,6);
+        }
+    }
     #[test]
     fn phases_and_revisions_survive_multiple_real_sequencer_wraps() {
         let mut engine = Engine::new(48000,12000);

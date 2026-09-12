@@ -27,7 +27,7 @@ Install from the repository URL in Schwung's GitHub/repository installer:
 https://github.com/douglasmason/harmonybus-movy
 ```
 
-The corrected clean release reports version **0.34.1-hbclean.25** and requires **HarmonyBus 0.2.104 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
+The corrected clean release reports version **0.34.1-hbclean.26** and requires **HarmonyBus 0.2.104 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
 
 The clean release counter starts at 20 so Schwung's numeric version comparison recognizes it as newer than hb.19.
 
@@ -59,6 +59,18 @@ then renders chains and releases due follower notes. This ordering is independen
 of track index, local audio mute and worker-lane placement. Buffered notes map to
 the harmony at release; note-offs keep the pitch emitted by their paired note-on.
 HarmonyBus processes each conductor timer only once per block.
+
+In **hbclean.26**, the bridge reports the last completed sequencer tick. Movy
+internally points at the next tick after generating MIDI; publishing that next
+position previously released buffered followers one tick before the new chord
+arrived. The corrected playhead keeps release timing and conductor MIDI aligned
+while preserving clip launch origins and combined loop lengths. Existing sets
+benefit after updating Movy and restarting; recreating a set is unnecessary.
+
+Regression tests run the actual sequencer across several block sizes and loop
+wraps, then replay its metadata and MIDI through HarmonyBus. Thirteen rapid
+repeated presses spanning a bar line must use the new chord both locally and at
+Render To. This test fails with the old playhead timing.
 
 ## Clip edits and timing guide
 
