@@ -180,6 +180,13 @@ jobs:
           print('release manifest verified')
           PY
 
+      - name: Preserve tested device package
+        uses: actions/upload-artifact@v4
+        with:
+          name: harmonybus-movy-${{ env.HB_MOVY_VERSION }}
+          path: ${{ env.ASSET_NAME }}
+          if-no-files-found: error
+
       - name: Publish clean release
         if: github.event_name == 'workflow_dispatch'
         env:

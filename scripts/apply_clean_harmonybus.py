@@ -226,6 +226,21 @@ def patch_upstream_expectations(root: Path) -> None:
         "assert!(e3.link_enabled, \"legacy save → link on\");",
         "transport persistence test assertion",
     )
+    persist_test = replace_once(
+        persist_test,
+        "        e3.link_enabled = true; // pre-set to prove load() clears it",
+        "        e3.link_enabled = false; // prove a legacy load enables the default",
+        "legacy transport test initial state",
+    )
+    persist_test = replace_once(
+        persist_test,
+        "        assert!(e3.link_enabled, \"legacy save → link on\");",
+        "        assert!(e3.link_enabled, \"legacy save → link on\");\n"
+        "        e.link_enabled = false;\n"
+        "        assert!(load(&mut e2, &serialize(&e)));\n"
+        "        assert!(!e2.link_enabled, \"saved explicit link off survives reload\");",
+        "saved transport opt-out persists",
+    )
     persist_test_path.write_text(persist_test)
 
     engine_test_path: Path = root / "engine/crates/seq-core/src/engine.rs"
@@ -233,14 +248,30 @@ def patch_upstream_expectations(root: Path) -> None:
     before_off: str = "        let mut e = engine();"
     for name in ("link_off_movy_play_starts_without_inject",
                  "link_off_move_fa_does_not_start_movy",
-                 "link_off_move_fc_keeps_movy_playing"):
+                 "link_off_move_fc_keeps_movy_playing",
+                 "an_external_clock_fits_the_take_to_the_existing_tempo"):
         marker: str = f"fn {name}() {{"
         start: int = engine_test.index(marker)
         stop: int = engine_test.index("\n    }", start)
         test_body: str = engine_test[start:stop]
         if "e.link_enabled = false;" not in test_body:
-            test_body = test_body.replace(before_off, before_off + "\n        e.link_enabled = false;", 1)
+            test_body = replace_once(
+                test_body, before_off,
+                before_off + "\n        e.link_enabled = false;",
+                f"explicit unlinked setup for {name}",
+            )
             engine_test = engine_test[:start] + test_body + engine_test[stop:]
+    for name in ("move_play_starts_movy_when_stopped", "move_stop_stops_movy"):
+        marker = f"fn {name}() {{"
+        start = engine_test.index(marker)
+        stop = engine_test.index("\n    }", start)
+        test_body = replace_once(
+            engine_test[start:stop],
+            "        e.link_enabled = true;",
+            "        assert!(e.link_enabled, \"fresh engine follows native transport by default\");",
+            f"default transport behavior in {name}",
+        )
+        engine_test = engine_test[:start] + test_body + engine_test[stop:]
     engine_test_path.write_text(engine_test)
 
     for test_file in ("abi-parity.mjs", "track-colors.mjs"):
