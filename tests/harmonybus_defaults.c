@@ -26,7 +26,7 @@ int main(int argument_count, char **arguments) {
         }
         assert(instances[track]->render_channel == expected_channel);
         assert(instances[track]->source_channel == 0);
-        assert(g_bus.boundary_buffer_ms == 350);
+        assert(g_bus.boundary_buffer_ms == -3);
         assert(instances[track]->quant_timing == 0);
         assert(g_bus.anticipation == 0);
         assert(g_bus.analysis_release_ms == 60);

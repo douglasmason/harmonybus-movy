@@ -27,7 +27,7 @@ Install from the repository URL in Schwung's GitHub/repository installer:
 https://github.com/douglasmason/harmonybus-movy
 ```
 
-The corrected clean release reports version **0.34.1-hbclean.24** and requires **HarmonyBus 0.2.102 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
+The corrected clean release reports version **0.34.1-hbclean.25** and requires **HarmonyBus 0.2.104 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
 
 The clean release counter starts at 20 so Schwung's numeric version comparison recognizes it as newer than hb.19.
 
@@ -73,9 +73,11 @@ Quantize + Fill first snaps stored starts to the chosen grid. Existing overlaps
 are trimmed. Automation and conditions stay at their existing steps. Active
 notes keep their scheduled note-offs; edits affect subsequent note-ons.
 
-HB's Follower Buffer is global, defaults to 350 ms for fresh settings, and supports
+HB's Follower Buffer is global, defaults to 1/16 note for fresh settings, and supports
 musical durations. Existing saved values survive. On-grid notes stay on-grid,
 even with a buffer wider than the grid interval.
 
 The canonical [timing guide with SVG diagrams](https://github.com/douglasmason/harmonybus/blob/main/docs/timing-guide.md)
 lives in HarmonyBus. Its PDF is generated in that repo's release workflow.
+
+HB 0.2.104 adds negative lookahead (late harmony) with the capture window before the shifted boundary, and resolves recognized two-note Movy voicings before due followers. Lookahead stays Off by default; new sets use a 1/16-note global buffer. See the [timing guide](https://github.com/douglasmason/harmonybus/blob/main/docs/timing-guide.md).

@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 6bf80402943752c2c4e4dac83b8577b4c63d8ce5
-  HB_MOVY_VERSION: 0.34.1-hbclean.24
-  HB_MOVY_TAG: v0.34.1-hbclean.24
+  HB_REF: fadfd5c2ad177e882a219972d3687f4d17199a56
+  HB_MOVY_VERSION: 0.34.1-hbclean.25
+  HB_MOVY_TAG: v0.34.1-hbclean.25
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -231,5 +231,5 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Add explicit Fill Gaps and Quantize + Fill with a selectable clip grid, one Undo, and swing-aware note lengths. Fresh Sets use a global 350 ms follower buffer. Requires HarmonyBus 0.2.102. Combined conductor cycles, prepared tracks, local audio mute, Schwung display and standard Movy recording remain in place."
+              --notes "Pin HB 0.2.104 with signed lookahead and recognized two-note boundary mapping fixes. Fresh Sets use a global 1/16-note follower buffer. Requires HarmonyBus 0.2.104. Combined conductor cycles, prepared tracks, local audio mute, Schwung display and standard Movy recording remain in place."
           fi

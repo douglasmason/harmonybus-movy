@@ -37,11 +37,11 @@ def patch_fresh_set(path: Path) -> None:
     marker: str = "/* Defaults match init(): C tonic, Major, Chromatic/4ths, C3 on every track. */"
     helper: str = r'''/* HarmonyBus clean-build defaults. These are used ONLY for a Set with no
  * Movy UI blob. Once saved, ordinary upstream chain persistence owns the state. */
-const HB_FRESH_CONDUCTOR = 'hb16,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,350,60,0,0,0,0';
+const HB_FRESH_CONDUCTOR = 'hb16,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,-3,60,0,0,0,0';
 const HB_FRESH_FOLLOWERS = [
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,0,0,0,0,350,60,0,0,0,0',
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,350,60,0,0,0,0',
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,0,0,0,0,350,60,0,0,0,0',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,0,0,0,0,-3,60,0,0,0,0',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,-3,60,0,0,0,0',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,0,0,0,0,-3,60,0,0,0,0',
 ];
 
 function freshHarmonyBusChains() {
