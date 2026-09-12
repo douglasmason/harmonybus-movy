@@ -44,6 +44,7 @@ jobs:
           python3 scripts/patch_movy_stock_schwung_pages.py movy
           python3 scripts/patch_movy_disable_enum_peek.py movy
           python3 scripts/patch_movy_disable_enum_peek.py movy
+          python3 scripts/patch_movy_editor_noop.py movy
 
       - name: Verify Schwung page ownership patch
         run: |
@@ -66,12 +67,12 @@ jobs:
               'router still blocks PAGE editor': "schwungGridMode() !== 'page'" in router,
               'Movy editor cannot become active': 'schwungEditorActive(): boolean { return false; }' in editor,
               'Movy editor open hard-disabled': "HarmonyBus PAGE build: Movy's separate list editor is disabled." in editor,
-              'Movy editor draw hard-disabled': 'dedicated HarmonyBus PAGE build must never draw Movy' in editor,
+              'Movy editor renderer is true no-op': 'export function renderSchwungEditor(): void {' in editor and 'state = null;' in editor and 'drawEnumList' not in editor,
           }
           missing = [name for name, ok in required.items() if not ok]
           if missing:
               raise SystemExit('Missing expected hb.11 behavior: ' + ', '.join(missing))
-          print('hb.11 Schwung PAGE ownership / no-peek enum writes / editor hard-off verified')
+          print('hb.11 Schwung PAGE ownership / no-peek enum writes / editor no-op verified')
           PY
 
       - name: Stamp module metadata
