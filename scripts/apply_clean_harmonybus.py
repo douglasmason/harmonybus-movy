@@ -165,6 +165,101 @@ def patch_transport(engine_path: Path, persist_path: Path) -> None:
     persist_path.write_text(persist)
 
 
+def patch_upstream_expectations(root: Path) -> None:
+    """Adapt upstream tests whose assumptions are intentionally changed here."""
+    chain_test_path: Path = root / "browser-test/logic/tracks-chain.mjs"
+    chain_test: str = chain_test_path.read_text()
+    chain_test = replace_once(
+        chain_test,
+        "    eq('resetUiState unloads the previous set\\'s modules',\n"
+        "       writes.filter((w) => w[0] === 'chains' && w[1] === '0\\n').length, 1);",
+        "    const { decodeBulk } = await import('../../dist/esm/track/bulk.js');\n"
+        "    const fresh = decodeBulk(writes.find((w) => w[0] === 'chains')?.[1]);\n"
+        "    eq('fresh Set replaces the previous chains with 16 HB and synth pairs',\n"
+        "       fresh?.length, 16 * 2 * 3);\n"
+        "    for (let track = 0; track < 16; track++) {\n"
+        "      eq('fresh HB slot ' + track, fresh?.[track * 6 + 1], 'midi_fx1');\n"
+        "      eq('fresh HB module ' + track, fresh?.[track * 6 + 2], 'harmonybus');\n"
+        "      eq('fresh synth module ' + track, fresh?.[track * 6 + 5], 'plaits');\n"
+        "    }\n"
+        "    const { pendingPayloadFor } = await import('../../dist/esm/track/chain-payload.js');\n"
+        "    const { serializeUiState, applyUiState } =\n"
+        "      await import('../../dist/esm/seq/ui-state.js');\n"
+        "    for (let track = 0; track < 16; track++) {\n"
+        "      const saved = pendingPayloadFor(track);\n"
+        "      const role = track % 4 === 0 ? 0 : 1;\n"
+        "      const destination = track % 4 === 0 ? 2 : track % 4;\n"
+        "      const values = saved?.comp[0]?.s?.split(',');\n"
+        "      eq('fresh HB role ' + track, Number(values?.[1]), role);\n"
+        "      eq('fresh HB render channel ' + track, Number(values?.[12]), destination);\n"
+        "      eq('fresh HB source channel ' + track, Number(values?.[13]), 0);\n"
+        "      eq('fresh local audio mute ' + track, saved?.mix?.split(',')[2], '1');\n"
+        "    }\n"
+        "    const savedSet = JSON.parse(serializeUiState());\n"
+        "    eq('fresh Set saves all 16 source chains', savedSet.chains.length, 16);\n"
+        "    savedSet.chains[0].comp[0].s = savedSet.chains[0].comp[0].s.replace(\n"
+        "      /^hb15,0,/, 'hb15,1,');\n"
+        "    applyUiState(JSON.stringify(savedSet));\n"
+        "    eq('saved HB role survives reload',\n"
+        "      Number(pendingPayloadFor(0)?.comp[0]?.s?.split(',')[1]), 1);",
+        "fresh-set chain test",
+    )
+    chain_test_path.write_text(chain_test)
+
+    persist_test_path: Path = root / "engine/crates/seq-core/src/persist.rs"
+    persist_test: str = persist_test_path.read_text()
+    persist_test = replace_once(
+        persist_test,
+        "fn link_enabled_round_trips_and_defaults_off()",
+        "fn link_enabled_round_trips_and_defaults_on()",
+        "transport persistence test name",
+    )
+    persist_test = replace_once(
+        persist_test,
+        "// A legacy save without a `link` line loads with the link off.",
+        "// A legacy save without a `link` line follows native Move by default.",
+        "transport persistence test comment",
+    )
+    persist_test = replace_once(
+        persist_test,
+        "assert!(!e3.link_enabled, \"legacy save → link off\");",
+        "assert!(e3.link_enabled, \"legacy save → link on\");",
+        "transport persistence test assertion",
+    )
+    persist_test_path.write_text(persist_test)
+
+    engine_test_path: Path = root / "engine/crates/seq-core/src/engine.rs"
+    engine_test: str = engine_test_path.read_text()
+    before_off: str = "        let mut e = engine();"
+    for name in ("link_off_movy_play_starts_without_inject",
+                 "link_off_move_fa_does_not_start_movy",
+                 "link_off_move_fc_keeps_movy_playing"):
+        marker: str = f"fn {name}() {{"
+        start: int = engine_test.index(marker)
+        stop: int = engine_test.index("\n    }", start)
+        test_body: str = engine_test[start:stop]
+        if "e.link_enabled = false;" not in test_body:
+            test_body = test_body.replace(before_off, before_off + "\n        e.link_enabled = false;", 1)
+            engine_test = engine_test[:start] + test_body + engine_test[stop:]
+    engine_test_path.write_text(engine_test)
+
+    for test_file in ("abi-parity.mjs", "track-colors.mjs"):
+        test_path: Path = root / "browser-test" / test_file
+        test_source: str = test_path.read_text()
+        fixture_names: tuple[str, ...] = (
+            ("host/plugin_api_v1.h", "host/shadow_constants.h")
+            if test_file == "abi-parity.mjs" else ("shared/constants.mjs",)
+        )
+        for fixture_name in fixture_names:
+            test_source = replace_once(
+                test_source,
+                f"'/Users/dake/git/cld/schwung/src/{fixture_name}'",
+                f"(process.env.SCHWUNG_ROOT || '/Users/dake/git/cld/schwung') + '/src/{fixture_name}'",
+                f"portable Schwung fixture {fixture_name}",
+            )
+        test_path.write_text(test_source)
+
+
 def main() -> int:
     parser: argparse.ArgumentParser = argparse.ArgumentParser()
     parser.add_argument("movy_root", type=Path)
@@ -180,6 +275,7 @@ def main() -> int:
         root / "engine/crates/seq-core/src/engine.rs",
         root / "engine/crates/seq-core/src/persist.rs",
     )
+    patch_upstream_expectations(root)
     print("HarmonyBus clean integration applied")
     return 0
 
