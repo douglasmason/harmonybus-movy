@@ -27,7 +27,9 @@ Install from the repository URL in Schwung's GitHub/repository installer:
 https://github.com/douglasmason/harmonybus-movy
 ```
 
-The clean release reports version **0.34.1-hbclean.1**. HarmonyBus must also be installed separately. After updating Movy, reload the module and create a brand-new Set to check the prepared layout.
+The clean release reports version **0.34.1-hbclean.20**. HarmonyBus must also be installed separately. After updating Movy, reload the module and create a brand-new Set to check the prepared layout.
+
+The clean release counter starts at 20 so Schwung's numeric version comparison recognizes it as newer than hb.19.
 
 `main/release.json` is the installer entry point. Publish and verify the clean release asset before advancing `main` to a tested `clean-hb` commit. Historical hb.16-hb.19 build workflows are manual so updating the installer entry cannot republish an older package.
 
