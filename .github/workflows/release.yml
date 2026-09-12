@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  HB_MOVY_VERSION: 0.34.1-hb.14
-  HB_MOVY_TAG: v0.34.1-hb.14
+  HB_MOVY_VERSION: 0.34.1-hb.15
+  HB_MOVY_TAG: v0.34.1-hb.15
   ASSET_NAME: harmonybus-movy-module.tar.gz
 
 jobs:
@@ -53,6 +53,7 @@ jobs:
           from pathlib import Path
 
           state = Path('movy/src/seq/ui-state.ts').read_text()
+          mutes = Path('movy/src/mixer/track-mutes.ts').read_text()
           grid = Path('movy/src/renderer/schwung-grid.ts').read_text()
           page = Path('movy/src/renderer/schwung-page.ts').read_text()
           router = Path('movy/src/midi/router.ts').read_text()
@@ -66,10 +67,12 @@ jobs:
 
           required = {
               'quartet conductor defaults to channel 3': "const HB_CONDUCTOR_STATE = 'hb15,0,0,0,25,2,0,0,0,0,0,0,2,-1" in state,
+              'leaders are Movy 1/5/9/13': 'const pos = track % 4;' in state and 'for (let t = 0; t < 16; t++)' in state,
               'saved HB state preserved': "const existingHb = comps.find" in state and "? { ...existingHb }" in state,
-              'fresh Movy sources default audio-muted': "mix: '1,0,1,0,0,0'" in state,
-              'fresh native tracks default muted': "seqCmd('mute ' + t + ' 1')" in state,
-              'track1 HB state defaults to conductor ch3 when present': "shadow_set_param(0, 'midi_fx1:state', HB_CONDUCTOR_STATE)" in state,
+              'all 16 Movy tracks are HB source tracks': 'const HB_SOURCE_FIRST = 0;' in mutes and 'const HB_SOURCE_LAST = 15;' in mutes,
+              'fresh Movy tracks default audio-muted': "mix: '1,0,1,0,0,0'" in state,
+              'native tracks are not auto-muted': "seqCmd('mute ' + t + ' 1')" not in state,
+              'native Track 1 is not given HB state': "shadow_set_param(0, 'midi_fx1:state', HB_CONDUCTOR_STATE)" not in state,
               'PAGE mode forced': "let override: SchwungGridMode | null = 'page';" in grid,
               'accumulated detents replayed with timestamps': 'ctl.onKnobTurn(slot, dir, started + i)' in page,
               'stock Schwung peek remains active': 'dismissPeek' not in turn_block,
@@ -81,8 +84,8 @@ jobs:
           }
           missing = [name for name, ok in required.items() if not ok]
           if missing:
-              raise SystemExit('Missing expected hb.14 behavior: ' + ', '.join(missing))
-          print('hb.14 mute defaults / leader defaults / Schwung-only knob ownership verified')
+              raise SystemExit('Missing expected hb.15 behavior: ' + ', '.join(missing))
+          print('hb.15 four Movy quartets / audio-mute defaults / Schwung-only knob ownership verified')
           PY
 
       - name: Stamp module metadata
@@ -94,7 +97,7 @@ jobs:
           data = json.loads(path.read_text())
           data['version'] = '${{ env.HB_MOVY_VERSION }}'
           data['name'] = 'Movy (HarmonyBus)'
-          data['description'] = 'HarmonyBus quartet defaults: muted sources, conductor monitoring to ch3, Schwung-only parameter peek ownership'
+          data['description'] = 'Four HarmonyBus Movy quartets: leaders 1/5/9/13 conductor to ch3, followers to ch2/3/4, all source audio muted by default, Schwung-only parameter peek ownership'
           path.write_text(json.dumps(data, indent=4) + '\n')
           PY
 
@@ -143,5 +146,5 @@ jobs:
           else
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "New sets start muted; quartet leaders use conductor -> ch3 monitoring defaults; hosted Schwung pages own knob touch/release so Movy's independent enum overlay no longer appears over the good Schwung peek."
+              --notes "Movy 1/5/9/13 are conductor -> ch3 leaders; 2/6/10/14 -> ch2, 3/7/11/15 -> ch3, 4/8/12/16 -> ch4 followers. All 16 Movy tracks start local-audio muted. Native Schwung/Move tracks remain separate and untouched. Hosted Schwung pages exclusively own knob touch/release so Movy's enum overlay does not cover the good Schwung peek."
           fi
