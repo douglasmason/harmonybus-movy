@@ -1,4 +1,4 @@
-> Release hbclean.30 carries Schwung page names into the Movy header, on the sound-restored hbclean.29 baseline. Update HB to 0.2.108 as well. The conductor recording bridge and new quality controls are temporarily withdrawn; source code remains in the earlier release tags.
+> Release hbclean.31 restores rendered conductor recording while preserving the working Render To route, and adds knob-touch name/value feedback. Update HB to 0.2.109 for conductor chord modes, quality controls and removal of UI Test.
 
 # HarmonyBus Movy
 
@@ -29,7 +29,7 @@ Install from the repository URL in Schwung's GitHub/repository installer:
 https://github.com/douglasmason/harmonybus-movy
 ```
 
-The corrected clean release reports version **0.34.1-hbclean.30** and requires **HarmonyBus 0.2.108**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
+The corrected clean release reports version **0.34.1-hbclean.31** and requires **HarmonyBus 0.2.109**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
 
 The clean release counter starts at 20 so Schwung's numeric version comparison recognizes it as newer than hb.19.
 
@@ -62,7 +62,7 @@ of track index, local audio mute and worker-lane placement. Buffered notes map t
 the harmony at release; note-offs keep the pitch emitted by their paired note-on.
 HarmonyBus processes each conductor timer only once per block.
 
-In **hbclean.30**, the bridge reports the last completed sequencer tick. Movy
+In **hbclean.31**, the bridge reports the last completed sequencer tick. Movy
 internally points at the next tick after generating MIDI; publishing that next
 position previously released buffered followers one tick before the new chord
 arrived. The corrected playhead keeps release timing and conductor MIDI aligned
@@ -95,3 +95,6 @@ The canonical [timing guide with SVG diagrams](https://github.com/douglasmason/h
 lives in HarmonyBus. Its PDF is generated in that repo's release workflow.
 
 HB 0.2.104 adds negative lookahead (late harmony) with the capture window before the shifted boundary, and resolves recognized two-note Movy voicings before due followers. Lookahead stays Off by default; new sets use a 1/16-note global buffer. See the [timing guide](https://github.com/douglasmason/harmonybus/blob/main/docs/timing-guide.md).
+
+
+The release gate now loads the actual Movy, Schwung chain and HB native modules together with a deterministic PCM instrument. It exercises raw/chord pads on conductor/follower tracks, local audio, routed note-on/off pairs, generated recording and playback after changing chord form. This covers the host callback boundary; device audio remains a separate verification.

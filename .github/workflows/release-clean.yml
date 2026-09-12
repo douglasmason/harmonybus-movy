@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: a58e476cc62e1a536b177f9100f540df2642e42f
-  HB_MOVY_VERSION: 0.34.1-hbclean.30
-  HB_MOVY_TAG: v0.34.1-hbclean.30
+  HB_REF: a0a0a296848a040b5f2574bc5f69fe7f7fde181f
+  HB_MOVY_VERSION: 0.34.1-hbclean.31
+  HB_MOVY_TAG: v0.34.1-hbclean.31
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -88,11 +88,14 @@ jobs:
               'src/app/tick.ts',
               'src/midi/router.ts',
               'engine/crates/seq-core/src/engine.rs',
+              'engine/crates/seq-core/src/clip.rs',
               'engine/crates/seq-core/src/persist.rs',
               'engine/crates/movy-dsp/src/lib.rs',
               'engine/crates/movy-dsp/src/chain_host.rs',
               'engine/crates/movy-dsp/src/chain_slots.rs',
               'engine/crates/movy-dsp/src/hb_loop.rs',
+              'engine/crates/movy-dsp/src/hb_record.rs',
+              'browser-test/hb-touch.mjs',
               'browser-test/logic/tracks-chain.mjs',
               'browser-test/abi-parity.mjs',
               'browser-test/track-colors.mjs',
@@ -119,8 +122,10 @@ jobs:
           assert "link_enabled: true," in engine
           assert "engine.link_enabled = true;" in persist
 
-          # The clean integration must not patch sequencing/record/capture code.
-          assert not any('capture' in p.lower() or 'record' in p.lower() for p in changed)
+          # Recording intercepts private packets only; preserve the working Render To route.
+          host = (root / 'engine/crates/movy-dsp/src/chain_host.rs').read_text()
+          assert 'fn hb_record_inject' in host
+          assert 'fn shim_inject_to_move' not in host
           print('clean scope/defaults verified')
           PY
 
@@ -198,6 +203,15 @@ jobs:
           cc -std=c11 -D_POSIX_C_SOURCE=200809L -Wno-format-zero-length -O1 -I harmonybus tests/follower_trace.c harmonybus/src/harmony_core.c -lm -o /tmp/hb-trace
           /tmp/hb-trace /tmp/hb-timing.trace
 
+      - name: Exercise the full native audio and recording chain
+        run: bash scripts/test_full_chain_audio.sh movy harmonybus schwung
+
+      - name: Verify HB knob touch with the real Schwung controller
+        working-directory: movy
+        run: |
+          SCHWUNG="$SCHWUNG_ROOT" node build/browser.mjs
+          HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-touch.mjs
+
       - name: Build Movy DSP
         working-directory: movy
         run: ./scripts/build-dsp.sh
@@ -239,5 +253,5 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Recovery release: restore the hbclean.26 integration and MIDI routing after reports of silence. Pair with HB 0.2.108. The conductor recording bridge is temporarily withdrawn. Existing clips and prepared track layouts are retained."
+              --notes "Restore conductor rendered-chord recording with a private recording-only callback; preserve the working Render To routing. Add knob-touch name/value feedback using the real Schwung controller. Pair with HB 0.2.109. Full-chain PCM, save/replay, and touch tests pass."
           fi

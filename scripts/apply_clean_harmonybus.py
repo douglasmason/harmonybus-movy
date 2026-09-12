@@ -13,6 +13,7 @@ An explicit clip edit adds Quantize + Fill Gaps using shared playback timing.
 """
 from __future__ import annotations
 
+from patch_movy_record_bridge import patch_record_bridge
 import argparse
 import subprocess
 import json
@@ -303,6 +304,13 @@ def patch_panel_titles(root: Path) -> None:
     """Carry Schwung's current page label through Movy's header model."""
     map_path_to_replacements: dict[str, list[tuple[str, str]]] = {
         "src/renderer/schwung-page.ts": [
+            ("import { mlog } from '../log.js';", "import { mlog } from '../log.js';\nimport { drawHeader } from './header.js';"),
+            ("            ctl.render(ctx, { title, bands: BANDS });",
+             "            ctl.render(ctx, { title, bands: BANDS });\n"
+             "            // Schwung already resolves the touched parameter and current value.\n"
+             "            // Restore its touch feedback in the header owned by Movy.\n"
+             "            const touchHeader = ctl.describePage({ title }).header;\n"
+             "            if (touchHeader.inverted) drawHeader(touchHeader.left, touchHeader.right, true);"),
             ("    readonly pageIndex: number;", "    readonly pageIndex: number;\n    readonly pageTitle: string;"),
             ("        get pageIndex() { return ctl.pageIndex; },",
              "        get pageIndex() { return ctl.pageIndex; },\n"
@@ -345,12 +353,22 @@ def main() -> int:
     )
     patch_upstream_expectations(root)
     patch_loop_bridge(root)
+    patch_record_bridge(root)
     integration_root: Path = Path(__file__).resolve().parents[1] / 'integration'
+    record_patch: Path = integration_root / 'recorded-chords.patch'
+    record_applied: subprocess.CompletedProcess[bytes] = subprocess.run(
+        ['git', 'apply', '--reverse', '--check', str(record_patch)], cwd=root, capture_output=True)
     patch: Path = integration_root / 'clip-tools.patch'
     applied: subprocess.CompletedProcess[bytes] = subprocess.run(
         ['git', 'apply', '--reverse', '--check', str(patch)], cwd=root, capture_output=True)
-    if applied.returncode != 0:
+    if applied.returncode != 0 and record_applied.returncode != 0:
         subprocess.run(['git', 'apply', str(patch)], cwd=root, check=True)
+    record_patch: Path = integration_root / 'recorded-chords.patch'
+    record_applied: subprocess.CompletedProcess[bytes] = subprocess.run(
+        ['git', 'apply', '--reverse', '--check', str(record_patch)], cwd=root, capture_output=True)
+    if record_applied.returncode != 0:
+        subprocess.run(['git', 'apply', str(record_patch)], cwd=root, check=True)
+    (root / 'browser-test/hb-touch.mjs').write_text((integration_root / 'hb-touch.mjs').read_text())
     (root / 'browser-test/hb-clip-tools.mjs').write_text((integration_root / 'hb-clip-tools.mjs').read_text())
     map_path_to_base64: dict[str, str] = json.loads((integration_root / 'clip-baselines.json').read_text())
     for relative_path, encoded_png in map_path_to_base64.items():
