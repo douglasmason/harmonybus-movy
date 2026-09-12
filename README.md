@@ -27,7 +27,7 @@ Install from the repository URL in Schwung's GitHub/repository installer:
 https://github.com/douglasmason/harmonybus-movy
 ```
 
-The corrected clean release reports version **0.34.1-hbclean.27** and requires **HarmonyBus 0.2.106 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
+The corrected clean release reports version **0.34.1-hbclean.28** and requires **HarmonyBus 0.2.106 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
 
 With Chord Mode enabled on a Movy conductor track, recording now stores the generated chord voices, including their individual starts and note-offs. Playback marks those saved voices so HB passes them through to the conductor synth and Render To channel without building another chord. Raw notes in older clips still use the current chord mode. Auto Chord also exposes Chord Quality, Chromatic Keys and a one-shot Chromatic Below control on both conductor and follower instances.
 
@@ -62,7 +62,7 @@ of track index, local audio mute and worker-lane placement. Buffered notes map t
 the harmony at release; note-offs keep the pitch emitted by their paired note-on.
 HarmonyBus processes each conductor timer only once per block.
 
-In **hbclean.27**, the bridge reports the last completed sequencer tick. Movy
+In **hbclean.28**, the bridge reports the last completed sequencer tick. Movy
 internally points at the next tick after generating MIDI; publishing that next
 position previously released buffered followers one tick before the new chord
 arrived. The corrected playhead keeps release timing and conductor MIDI aligned

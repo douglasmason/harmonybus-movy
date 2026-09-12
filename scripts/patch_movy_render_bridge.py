@@ -46,8 +46,9 @@ def transform(source: str) -> str:
         "        if cable == 0x20 && (cin == 0x08 || cin == 0x09)\n"
         "            && (status == 0x80 || status == 0x90)\n"
         "        {\n"
-        "            let sent = shim_send_internal(packet[1..].as_ptr(), 3);\n"
-        "            return if sent == 3 { 4 } else { 0 };\n"
+        "            let routed = [cin, packet[1], packet[2], packet[3]];\n"
+        "            let sent = shim_send_internal(routed.as_ptr(), 4);\n"
+        "            return if sent == 4 { 4 } else { 0 };\n"
         "        }\n"
         "    }\n"
         "    let Some(inject) = ORIGINAL_INJECT.get() else { return 0 };\n"
@@ -70,6 +71,8 @@ def transform(source: str) -> str:
         "    copy.midi_inject_to_move = Some(shim_inject_to_move);\n",
         "install inject wrapper",
     )
+    tests_path: Path = Path(__file__).resolve().parents[1] / 'integration/hb_render_bridge_tests.rs'
+    source += tests_path.read_text()
     return source
 
 

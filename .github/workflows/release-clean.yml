@@ -15,8 +15,8 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   HB_REF: b1698073b792995d00a566ce3fa23a6aeb814a40
-  HB_MOVY_VERSION: 0.34.1-hbclean.27
-  HB_MOVY_TAG: v0.34.1-hbclean.27
+  HB_MOVY_VERSION: 0.34.1-hbclean.28
+  HB_MOVY_TAG: v0.34.1-hbclean.28
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -238,5 +238,5 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Pin HB 0.2.106. Record generated conductor chord voices in Movy clips and replay them without doubling; preserve Render To MIDI routing and chromatic quality controls. Fresh Sets retain the prepared muted 16-track layout and a global 1/16-note buffer. Requires HarmonyBus 0.2.106."
+              --notes "Fix silent Render To output: preserve the four-byte USB-MIDI packet required by Schwung. Add host-boundary regression coverage for note-ons, note-offs, channel routing, private recording and transport. Requires HarmonyBus 0.2.106; no HB update is needed from that version."
           fi
