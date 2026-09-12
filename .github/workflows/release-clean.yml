@@ -1,0 +1,150 @@
+name: Build HarmonyBus Movy clean
+
+on:
+  push:
+    branches: [clean-hb]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: harmonybus-movy-clean-release
+  cancel-in-progress: true
+
+env:
+  UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
+  HB_MOVY_VERSION: 0.34.1-hbclean.1
+  HB_MOVY_TAG: v0.34.1-hbclean.1
+  ASSET_NAME: harmonybus-movy-module.tar.gz
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install aarch64 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          sudo ln -sf "$(command -v aarch64-linux-gnu-gcc)" /usr/local/bin/aarch64-unknown-linux-gnu-gcc
+          sudo ln -sf "$(command -v aarch64-linux-gnu-nm)" /usr/local/bin/aarch64-unknown-linux-gnu-nm
+          sudo ln -sf "$(command -v aarch64-linux-gnu-strip)" /usr/local/bin/aarch64-unknown-linux-gnu-strip
+          rustup target add aarch64-unknown-linux-gnu
+
+      - name: Clone pinned upstream Movy
+        run: |
+          git clone https://github.com/DimaDake/schwung-movy.git movy
+          cd movy
+          git checkout "$UPSTREAM_REF"
+
+      - name: Apply clean HarmonyBus integration
+        run: python3 scripts/apply_clean_harmonybus.py movy
+
+      - name: Verify clean scope and defaults
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          root = Path('movy')
+          changed = subprocess.check_output(
+              ['git', '-C', str(root), 'diff', '--name-only'], text=True
+          ).splitlines()
+          expected = {
+              'src/seq/ui-state.ts',
+              'src/renderer/schwung-grid.ts',
+              'src/midi/router.ts',
+              'engine/crates/seq-core/src/engine.rs',
+              'engine/crates/seq-core/src/persist.rs',
+          }
+          assert set(changed) == expected, (changed, expected)
+
+          state = (root / 'src/seq/ui-state.ts').read_text()
+          router = (root / 'src/midi/router.ts').read_text()
+          grid = (root / 'src/renderer/schwung-grid.ts').read_text()
+          engine = (root / 'engine/crates/seq-core/src/engine.rs').read_text()
+          persist = (root / 'engine/crates/seq-core/src/persist.rs').read_text()
+
+          assert "{ c: 'midi_fx1', m: 'harmonybus'" in state
+          assert "{ c: 'synth', m: 'plaits' }" in state
+          assert "mix: '1.0000,0.0000,1,0.0000,0.0000'" in state
+          assert "HB_FRESH_CONDUCTOR" in state and ",2,0,0,0,0,0,0,20,60" in state
+          assert state.count("'hb15,1,0,0,25,2,0,0,0,0,0,0,") >= 3
+          assert "loadSetHostChoice(null);" in state
+          assert "restoreChains(freshHarmonyBusChains(), null)" in state
+          assert "let override: SchwungGridMode | null = 'page';" in grid
+          assert "if (sp2) sp2.knobTouch(d1, true);\n                else m2?.handleKnobTouch(d1);" in router
+          assert "if (sp2) sp2.knobTouch(d1, false);\n                else if (m2?.handleKnobRelease(d1))" in router
+          assert "openSchwungEditor(intent, spc)" not in router
+          assert "link_enabled: true," in engine
+          assert "engine.link_enabled = true;" in persist
+
+          # The clean integration must not patch sequencing/record/capture code.
+          assert not any('capture' in p.lower() or 'record' in p.lower() for p in changed)
+          print('clean scope/defaults verified')
+          PY
+
+      - name: Stamp module metadata
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('movy/module.json')
+          data = json.loads(path.read_text())
+          data['version'] = '${{ env.HB_MOVY_VERSION }}'
+          data['name'] = 'Movy (HarmonyBus Clean)'
+          data['description'] = 'Stock Movy with fresh-set HarmonyBus quartets, muted local sources, Schwung-owned parameter UI, and native Move transport follow enabled by default'
+          path.write_text(json.dumps(data, indent=4) + '\n')
+          PY
+
+      - name: Install Movy dependencies
+        working-directory: movy
+        run: npm install
+
+      - name: Run stock Movy tests
+        working-directory: movy
+        run: npm test
+
+      - name: Typecheck and build UI
+        working-directory: movy
+        run: |
+          npm run typecheck
+          npm run build:device
+
+      - name: Build Movy DSP
+        working-directory: movy
+        run: ./scripts/build-dsp.sh
+
+      - name: Package module
+        run: |
+          rm -rf package
+          mkdir -p package/movy/configs
+          cp movy/module.json movy/ui.js movy/dist/dsp.so package/movy/
+          cp movy/src/module-configs/*.json package/movy/configs/
+          tar -czf "$ASSET_NAME" -C package movy
+          tar -tzf "$ASSET_NAME" | head -100
+
+      - name: Verify branch release manifest
+        run: |
+          python3 - <<'PY'
+          import json
+          r = json.load(open('release.json'))
+          assert r['version'] == '${{ env.HB_MOVY_VERSION }}'
+          expected = 'https://github.com/douglasmason/harmonybus-movy/releases/download/${{ env.HB_MOVY_TAG }}/${{ env.ASSET_NAME }}'
+          assert r['download_url'] == expected
+          print('release manifest verified')
+          PY
+
+      - name: Publish clean release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$HB_MOVY_TAG" >/dev/null 2>&1; then
+            gh release upload "$HB_MOVY_TAG" "$ASSET_NAME" --clobber
+          else
+            gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
+              --title "HarmonyBus Movy $HB_MOVY_VERSION" \
+              --notes "Clean restart from pinned upstream Movy. Fresh Sets preload four HarmonyBus quartets across Movy 1-16 with local audio muted; Schwung owns hosted parameter display/peek; transport link defaults on. Record, Capture, pad routing and clip timing remain stock upstream."
+          fi
