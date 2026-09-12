@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: e7edb183fbae65843af95db923f7c8cd48c9b54d
-  HB_MOVY_VERSION: 0.34.1-hbclean.26
-  HB_MOVY_TAG: v0.34.1-hbclean.26
+  HB_REF: b1698073b792995d00a566ce3fa23a6aeb814a40
+  HB_MOVY_VERSION: 0.34.1-hbclean.27
+  HB_MOVY_TAG: v0.34.1-hbclean.27
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -85,10 +85,12 @@ jobs:
               'src/renderer/schwung-grid.ts',
               'src/midi/router.ts',
               'engine/crates/seq-core/src/engine.rs',
+              'engine/crates/seq-core/src/clip.rs',
               'engine/crates/seq-core/src/persist.rs',
               'engine/crates/movy-dsp/src/lib.rs',
               'engine/crates/movy-dsp/src/chain_host.rs',
               'engine/crates/movy-dsp/src/chain_slots.rs',
+              'engine/crates/movy-dsp/src/hb_record.rs',
               'engine/crates/movy-dsp/src/hb_loop.rs',
               'browser-test/logic/tracks-chain.mjs',
               'browser-test/abi-parity.mjs',
@@ -116,8 +118,8 @@ jobs:
           assert "link_enabled: true," in engine
           assert "engine.link_enabled = true;" in persist
 
-          # The clean integration must not patch sequencing/record/capture code.
-          assert not any('capture' in p.lower() or 'record' in p.lower() for p in changed)
+          # Recording stores HB's generated conductor voices in the clip.
+          assert 'engine/crates/movy-dsp/src/hb_record.rs' in changed
           print('clean scope/defaults verified')
           PY
 
@@ -188,7 +190,7 @@ jobs:
         working-directory: movy/engine
         run: |
           cargo test -p seq-core --lib
-          HB_TIMING_TRACE=/tmp/hb-timing.trace cargo test -p movy-dsp hb_loop --lib
+          HB_TIMING_TRACE=/tmp/hb-timing.trace cargo test -p movy-dsp hb_ --lib
 
       - name: Replay real sequencer timing through HarmonyBus
         run: |
@@ -236,5 +238,5 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Pin HB 0.2.104 with signed lookahead and recognized two-note boundary mapping fixes. Fresh Sets use a global 1/16-note follower buffer. Requires HarmonyBus 0.2.104. Combined conductor cycles, prepared tracks, local audio mute, Schwung display and standard Movy recording remain in place."
+              --notes "Pin HB 0.2.106. Record generated conductor chord voices in Movy clips and replay them without doubling; preserve Render To MIDI routing and chromatic quality controls. Fresh Sets retain the prepared muted 16-track layout and a global 1/16-note buffer. Requires HarmonyBus 0.2.106."
           fi

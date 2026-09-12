@@ -6,6 +6,7 @@ use std::fmt::{self, Write};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Snapshot {
     pub tick: u64,
+    pub track: u8,
     pub period: u64,
     pub origin: u64,
     pub revision: u64,
@@ -23,7 +24,8 @@ pub fn snapshot(engine: &Engine, track_index: usize) -> Snapshot {
     // Publish that completed position so HB cannot release followers against
     // a chord whose conductor MIDI is still waiting for the next audio block.
     let next_tick = engine.hb_master_tick();
-    let mut result = Snapshot { tick: next_tick.saturating_sub(1), running: engine.playing, ..Snapshot::default() };
+    let mut result = Snapshot { tick: next_tick.saturating_sub(1), track: track_index as u8,
+        running: engine.playing, ..Snapshot::default() };
     let track = &engine.tracks[track_index];
     let Some(clip) = track.playing() else { return result; };
     if track.muted || !clip.exists() { return result; }
@@ -66,7 +68,7 @@ impl Write for Message {
 impl Snapshot {
     pub fn message(self) -> Message {
         let mut message = Message { bytes: [0;192], len:0 };
-        write!(&mut message,"{},{},{},{},{},{},{}",self.tick,self.period,self.origin,self.revision,self.active,self.running as u8,PPQN).unwrap();
+        write!(&mut message,"{},{},{},{},{},{},{},{}",self.tick,self.period,self.origin,self.revision,self.active,self.running as u8,PPQN,self.track).unwrap();
         message
     }
 }
@@ -181,6 +183,6 @@ mod tests {
         assert_eq!(snapshot(&engine,0).period,576);
         engine.tracks[0].muted=true;
         assert_eq!(snapshot(&engine,0).active,0);
-        assert!(first.message().as_c_str().to_bytes().ends_with(b",96"));
+        assert!(first.message().as_c_str().to_bytes().ends_with(b",96,0"));
     }
 }

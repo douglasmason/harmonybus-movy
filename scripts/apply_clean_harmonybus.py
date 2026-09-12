@@ -18,6 +18,7 @@ import subprocess
 import json
 import base64
 from patch_loop_bridge import patch_loop_bridge
+from patch_movy_render_bridge import transform as patch_render_bridge
 from pathlib import Path
 
 
@@ -316,12 +317,19 @@ def main() -> int:
     )
     patch_upstream_expectations(root)
     patch_loop_bridge(root)
+    render_bridge: Path = root / 'engine/crates/movy-dsp/src/chain_host.rs'
+    render_bridge.write_text(patch_render_bridge(render_bridge.read_text()))
     integration_root: Path = Path(__file__).resolve().parents[1] / 'integration'
     patch: Path = integration_root / 'clip-tools.patch'
     applied: subprocess.CompletedProcess[bytes] = subprocess.run(
         ['git', 'apply', '--reverse', '--check', str(patch)], cwd=root, capture_output=True)
     if applied.returncode != 0:
         subprocess.run(['git', 'apply', str(patch)], cwd=root, check=True)
+    record_patch: Path = integration_root / 'recorded-chords.patch'
+    record_applied: subprocess.CompletedProcess[bytes] = subprocess.run(
+        ['git', 'apply', '--reverse', '--check', str(record_patch)], cwd=root, capture_output=True)
+    if record_applied.returncode != 0:
+        subprocess.run(['git', 'apply', str(record_patch)], cwd=root, check=True)
     (root / 'browser-test/hb-clip-tools.mjs').write_text((integration_root / 'hb-clip-tools.mjs').read_text())
     map_path_to_base64: dict[str, str] = json.loads((integration_root / 'clip-baselines.json').read_text())
     for relative_path, encoded_png in map_path_to_base64.items():
