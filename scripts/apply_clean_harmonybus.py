@@ -299,12 +299,41 @@ def patch_upstream_expectations(root: Path) -> None:
         test_path.write_text(test_source)
 
 
+def patch_panel_titles(root: Path) -> None:
+    """Carry Schwung's current page label through Movy's header model."""
+    map_path_to_replacements: dict[str, list[tuple[str, str]]] = {
+        "src/renderer/schwung-page.ts": [
+            ("    readonly pageIndex: number;", "    readonly pageIndex: number;\n    readonly pageTitle: string;"),
+            ("        get pageIndex() { return ctl.pageIndex; },",
+             "        get pageIndex() { return ctl.pageIndex; },\n"
+             "        get pageTitle() { return ctl.pageLabel(); },"),
+        ],
+        "src/app/tick.ts": [
+            ("{ index: number; count: number } | undefined", "{ index: number; count: number; title: string } | undefined"),
+            ("{ index: sp.pageIndex, count: sp.pageCount }", "{ index: sp.pageIndex, count: sp.pageCount, title: sp.pageTitle }"),
+        ],
+        "src/renderer/knob-view.ts": [
+            ("export interface BankOverride { index: number; count: number }",
+             "export interface BankOverride { index: number; count: number; title?: string }"),
+            ("const rightText = vm.drumPadName || vm.bankName;",
+             "const rightText = vm.drumPadName || bank?.title || vm.bankName;"),
+        ],
+    }
+    for relative_path, replacements in map_path_to_replacements.items():
+        path: Path = root / relative_path
+        source: str = path.read_text()
+        for before, after in replacements:
+            source = replace_once(source, before, after, f"page title in {relative_path}")
+        path.write_text(source)
+
+
 def main() -> int:
     parser: argparse.ArgumentParser = argparse.ArgumentParser()
     parser.add_argument("movy_root", type=Path)
     args: argparse.Namespace = parser.parse_args()
     root: Path = args.movy_root.resolve()
 
+    patch_panel_titles(root)
     patch_fresh_set(root / "src/seq/ui-state.ts")
     patch_schwung_page_ownership(
         root / "src/renderer/schwung-grid.ts",

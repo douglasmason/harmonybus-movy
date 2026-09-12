@@ -1,4 +1,4 @@
-> Recovery release hbclean.29 restores the hbclean.26 integration after reports of silence. Update HB to 0.2.107 as well. The conductor recording bridge and new quality controls are temporarily withdrawn; source code remains in the earlier release tags.
+> Release hbclean.30 carries Schwung page names into the Movy header, on the sound-restored hbclean.29 baseline. Update HB to 0.2.108 as well. The conductor recording bridge and new quality controls are temporarily withdrawn; source code remains in the earlier release tags.
 
 # HarmonyBus Movy
 
@@ -29,7 +29,7 @@ Install from the repository URL in Schwung's GitHub/repository installer:
 https://github.com/douglasmason/harmonybus-movy
 ```
 
-The corrected clean release reports version **0.34.1-hbclean.29** and requires **HarmonyBus 0.2.107**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
+The corrected clean release reports version **0.34.1-hbclean.30** and requires **HarmonyBus 0.2.108**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
 
 The clean release counter starts at 20 so Schwung's numeric version comparison recognizes it as newer than hb.19.
 
@@ -62,7 +62,7 @@ of track index, local audio mute and worker-lane placement. Buffered notes map t
 the harmony at release; note-offs keep the pitch emitted by their paired note-on.
 HarmonyBus processes each conductor timer only once per block.
 
-In **hbclean.29**, the bridge reports the last completed sequencer tick. Movy
+In **hbclean.30**, the bridge reports the last completed sequencer tick. Movy
 internally points at the next tick after generating MIDI; publishing that next
 position previously released buffered followers one tick before the new chord
 arrived. The corrected playhead keeps release timing and conductor MIDI aligned

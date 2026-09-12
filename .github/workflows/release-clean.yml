@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: b7b4a92d7ea4566354d04f5c004ece2fc3dfa9b9
-  HB_MOVY_VERSION: 0.34.1-hbclean.29
-  HB_MOVY_TAG: v0.34.1-hbclean.29
+  HB_REF: a58e476cc62e1a536b177f9100f540df2642e42f
+  HB_MOVY_VERSION: 0.34.1-hbclean.30
+  HB_MOVY_TAG: v0.34.1-hbclean.30
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -83,6 +83,9 @@ jobs:
               'browser-test/screenshots/baseline/quant-overlay-three.png',
               'browser-test/screenshots/baseline/quant-overlay-two.png',
               'src/renderer/schwung-grid.ts',
+              'src/renderer/schwung-page.ts',
+              'src/renderer/knob-view.ts',
+              'src/app/tick.ts',
               'src/midi/router.ts',
               'engine/crates/seq-core/src/engine.rs',
               'engine/crates/seq-core/src/persist.rs',
@@ -236,5 +239,5 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Recovery release: restore the hbclean.26 integration and MIDI routing after reports of silence. Pair with HB 0.2.107. The conductor recording bridge is temporarily withdrawn. Existing clips and prepared track layouts are retained."
+              --notes "Recovery release: restore the hbclean.26 integration and MIDI routing after reports of silence. Pair with HB 0.2.108. The conductor recording bridge is temporarily withdrawn. Existing clips and prepared track layouts are retained."
           fi
