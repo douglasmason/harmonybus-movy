@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 9bdfe85957611db3408e20cfd804d439608b4053
-  HB_MOVY_VERSION: 0.34.1-hbclean.22
-  HB_MOVY_TAG: v0.34.1-hbclean.22
+  HB_REF: 5489cefbaae5fa65ab9721d4cc195529ddb89ca7
+  HB_MOVY_VERSION: 0.34.1-hbclean.23
+  HB_MOVY_TAG: v0.34.1-hbclean.23
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -213,5 +213,5 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Adds runtime clip metadata for HarmonyBus 0.2.100: combined conductor repeat length, actual launch phase, playback speed and content-change detection. Multiple conductors remain supported; 3-bar and 4-bar clips form a 12-bar learning cycle. Prepared tracks, local audio mute, Schwung display and standard Movy recording remain in place."
+              --notes "Process the full conductor MIDI batch before any chain renders or releases buffered follower notes. Requires HarmonyBus 0.2.101. Combined conductor cycles, prepared tracks, local audio mute, Schwung display and standard Movy recording remain in place."
           fi

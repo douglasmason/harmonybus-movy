@@ -33,6 +33,13 @@ def patch_loop_bridge(root: Path) -> None:
     }
 
 ''' + marker, 1)
+    if 'pub fn hb_conductor_block' not in source:
+        source = source.replace(marker, '''    pub fn hb_conductor_block(&mut self, message: &std::ffi::CStr) {
+        let key = std::ffi::CStr::from_bytes_with_nul(b"midi_fx1:hb_movy_block\\0").unwrap();
+        for instance in self.slots.iter_mut().flatten() { instance.hb_set_param(key,message); }
+    }
+
+''' + marker, 1)
     path.write_text(source)
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
     source = path.read_text()
@@ -55,5 +62,9 @@ def patch_loop_bridge(root: Path) -> None:
             }
         }
         self.drain_out();
+        // Every conductor sees the entire MIDI batch before any follower can
+        // release a due note, including chains that render on worker lanes.
+        let message = hb_loop::block_message(self.blocks,out_audio.len()/2,host::sample_rate());
+        self.chains.hb_conductor_block(message.as_c_str());
         self.click.render(out_audio);""", 1)
     path.write_text(source)

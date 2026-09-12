@@ -27,7 +27,7 @@ Install from the repository URL in Schwung's GitHub/repository installer:
 https://github.com/douglasmason/harmonybus-movy
 ```
 
-The corrected clean release reports version **0.34.1-hbclean.22** and requires **HarmonyBus 0.2.100 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
+The corrected clean release reports version **0.34.1-hbclean.23** and requires **HarmonyBus 0.2.101 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
 
 The clean release counter starts at 20 so Schwung's numeric version comparison recognizes it as newer than hb.19.
 
@@ -51,3 +51,11 @@ silently truncating prediction. Lookahead remains Off by default.
 
 Update both modules and restart Move. Existing sets with HB in MIDI FX 1 can use
 the new timing bridge; creating a new set is only required for the preloaded layout.
+
+## Conductor-first boundary processing
+
+Each audio block delivers all sequencer MIDI, resolves the conductor harmonies,
+then renders chains and releases due follower notes. This ordering is independent
+of track index, local audio mute and worker-lane placement. Buffered notes map to
+the harmony at release; note-offs keep the pitch emitted by their paired note-on.
+HarmonyBus processes each conductor timer only once per block.

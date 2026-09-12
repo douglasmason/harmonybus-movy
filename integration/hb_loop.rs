@@ -63,6 +63,11 @@ impl Snapshot {
         message
     }
 }
+pub fn block_message(block: u64, frames: usize, sample_rate: u32) -> Message {
+    let mut message = Message { bytes:[0;192],len:0 };
+    write!(&mut message,"{},{},{}",block,frames,sample_rate).unwrap();
+    message
+}
 impl Message { pub fn as_c_str(&self) -> &std::ffi::CStr { std::ffi::CStr::from_bytes_with_nul(&self.bytes[..=self.len]).unwrap() } }
 
 #[cfg(test)]
@@ -92,6 +97,10 @@ mod tests {
                 assert_eq!(second.origin,384);
             }
         }
+    }
+    #[test]
+    fn conductor_block_protocol() {
+        assert_eq!(block_message(7,64,48000).as_c_str().to_bytes(),b"7,64,48000");
     }
     #[test]
     fn loop_metadata_tracks_playing_content_and_phase() {
