@@ -60,6 +60,9 @@ jobs:
           touch_start = page.index('knobTouch:', turn_start)
           turn_block = page[turn_start:touch_start]
 
+          render_start = editor.index('export function renderSchwungEditor(): void {')
+          render_block = editor[render_start:]
+
           required = {
               'PAGE mode forced': "let override: SchwungGridMode | null = 'page';" in grid,
               'accumulated detents replayed with timestamps': 'ctl.onKnobTurn(slot, dir, started + i)' in page,
@@ -67,7 +70,7 @@ jobs:
               'router still blocks PAGE editor': "schwungGridMode() !== 'page'" in router,
               'Movy editor cannot become active': 'schwungEditorActive(): boolean { return false; }' in editor,
               'Movy editor open hard-disabled': "HarmonyBus PAGE build: Movy's separate list editor is disabled." in editor,
-              'Movy editor renderer is true no-op': 'export function renderSchwungEditor(): void {' in editor and 'state = null;' in editor and 'drawEnumList' not in editor,
+              'Movy editor renderer is true no-op': 'state = null;' in render_block and 'drawEnumList' not in render_block,
           }
           missing = [name for name, ok in required.items() if not ok]
           if missing:
