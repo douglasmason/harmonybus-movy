@@ -188,7 +188,6 @@ jobs:
           if-no-files-found: error
 
       - name: Publish clean release
-        if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -196,6 +195,7 @@ jobs:
             gh release upload "$HB_MOVY_TAG" "$ASSET_NAME" --clobber
           else
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
+              --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
               --notes "Clean restart from pinned upstream Movy. Fresh Sets preload four HarmonyBus quartets across Movy 1-16 with local audio muted; Schwung owns hosted parameter display/peek; transport link defaults on. Record, Capture, pad routing and clip timing remain stock upstream."
           fi

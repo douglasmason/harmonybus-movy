@@ -1,8 +1,6 @@
 name: Build HarmonyBus Movy
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

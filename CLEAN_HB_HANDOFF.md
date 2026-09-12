@@ -182,6 +182,6 @@ Only after that passes should we test all 16 tracks and persistence.
 
 ## Repository/release policy
 
-Keep the old `main` hb.19 line untouched as reference.
+Keep the old hb.19 tag as reference. After publishing and verifying the clean release asset, advance `main` to the tested clean commit so Schwung's repository installer can read its `release.json`.
 Develop clean integration on `clean-hb`.
 Use a new release series/name (for example `0.34.1-hbclean.1`) so device installs cannot be confused with hb.14-hb.19.
