@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  HB_MOVY_VERSION: 0.34.1-hb.12
-  HB_MOVY_TAG: v0.34.1-hb.12
+  HB_MOVY_VERSION: 0.34.1-hb.13
+  HB_MOVY_TAG: v0.34.1-hb.13
   ASSET_NAME: harmonybus-movy-module.tar.gz
 
 jobs:
@@ -44,8 +44,6 @@ jobs:
           python3 scripts/patch_movy_hb_leader_defaults.py movy
           python3 scripts/patch_movy_stock_schwung_pages.py movy
           python3 scripts/patch_movy_stock_schwung_pages.py movy
-          python3 scripts/patch_movy_disable_enum_peek.py movy
-          python3 scripts/patch_movy_disable_enum_peek.py movy
           python3 scripts/patch_movy_editor_noop.py movy
 
       - name: Verify HarmonyBus source-bank patch
@@ -70,16 +68,16 @@ jobs:
               'saved HB state preserved': "const existingHb = comps.find" in state and "? { ...existingHb }" in state,
               'PAGE mode forced': "let override: SchwungGridMode | null = 'page';" in grid,
               'accumulated detents replayed with timestamps': 'ctl.onKnobTurn(slot, dir, started + i)' in page,
-              'hosted enum peek suppressed': 'dismissPeek' in turn_block,
-              'router still blocks PAGE editor': "schwungGridMode() !== 'page'" in router,
+              'stock Schwung peek remains active': 'dismissPeek' not in turn_block,
+              'router blocks PAGE editor': "schwungGridMode() !== 'page'" in router,
               'Movy editor cannot become active': 'schwungEditorActive(): boolean { return false; }' in editor,
               'Movy editor open hard-disabled': "HarmonyBus PAGE build: Movy's separate list editor is disabled." in editor,
               'Movy editor renderer is true no-op': 'state = null;' in render_block and 'drawEnumList' not in render_block,
           }
           missing = [name for name, ok in required.items() if not ok]
           if missing:
-              raise SystemExit('Missing expected hb.12 behavior: ' + ', '.join(missing))
-          print('hb.12 conductor routing / saved state / no-peek UI verified')
+              raise SystemExit('Missing expected hb.13 behavior: ' + ', '.join(missing))
+          print('hb.13 conductor routing / saved state / Schwung-only peek verified')
           PY
 
       - name: Stamp module metadata
@@ -91,7 +89,7 @@ jobs:
           data = json.loads(path.read_text())
           data['version'] = '${{ env.HB_MOVY_VERSION }}'
           data['name'] = 'Movy (HarmonyBus)'
-          data['description'] = 'Movy HarmonyBus source banks with preserved per-track state, conductor monitoring to ch3, and no stale enum overlay'
+          data['description'] = 'Movy HarmonyBus source banks with preserved state, conductor monitoring to ch3, and Schwung-owned enum peeks'
           path.write_text(json.dumps(data, indent=4) + '\n')
           PY
 
@@ -140,5 +138,5 @@ jobs:
           else
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Tracks 5/9/13 now default to Conductor + Render To Ch 3, and existing HarmonyBus state is preserved instead of being reset during Set normalization. Keeps the no-stale-peek UI behavior and later routing/autowiring fixes."
+              --notes "Restores Schwung's own responsive enum TURNING peek while keeping Movy's competing enum editor completely disabled. Preserves hb.12 routing, conductor ch3 defaults, and saved HarmonyBus state."
           fi
