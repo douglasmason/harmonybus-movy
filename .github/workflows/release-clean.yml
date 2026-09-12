@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: b1698073b792995d00a566ce3fa23a6aeb814a40
-  HB_MOVY_VERSION: 0.34.1-hbclean.28
-  HB_MOVY_TAG: v0.34.1-hbclean.28
+  HB_REF: b7b4a92d7ea4566354d04f5c004ece2fc3dfa9b9
+  HB_MOVY_VERSION: 0.34.1-hbclean.29
+  HB_MOVY_TAG: v0.34.1-hbclean.29
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -85,12 +85,10 @@ jobs:
               'src/renderer/schwung-grid.ts',
               'src/midi/router.ts',
               'engine/crates/seq-core/src/engine.rs',
-              'engine/crates/seq-core/src/clip.rs',
               'engine/crates/seq-core/src/persist.rs',
               'engine/crates/movy-dsp/src/lib.rs',
               'engine/crates/movy-dsp/src/chain_host.rs',
               'engine/crates/movy-dsp/src/chain_slots.rs',
-              'engine/crates/movy-dsp/src/hb_record.rs',
               'engine/crates/movy-dsp/src/hb_loop.rs',
               'browser-test/logic/tracks-chain.mjs',
               'browser-test/abi-parity.mjs',
@@ -118,8 +116,8 @@ jobs:
           assert "link_enabled: true," in engine
           assert "engine.link_enabled = true;" in persist
 
-          # Recording stores HB's generated conductor voices in the clip.
-          assert 'engine/crates/movy-dsp/src/hb_record.rs' in changed
+          # The clean integration must not patch sequencing/record/capture code.
+          assert not any('capture' in p.lower() or 'record' in p.lower() for p in changed)
           print('clean scope/defaults verified')
           PY
 
@@ -190,7 +188,7 @@ jobs:
         working-directory: movy/engine
         run: |
           cargo test -p seq-core --lib
-          HB_TIMING_TRACE=/tmp/hb-timing.trace cargo test -p movy-dsp hb_ --lib
+          HB_TIMING_TRACE=/tmp/hb-timing.trace cargo test -p movy-dsp hb_loop --lib
 
       - name: Replay real sequencer timing through HarmonyBus
         run: |
@@ -238,5 +236,5 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Fix silent Render To output: preserve the four-byte USB-MIDI packet required by Schwung. Add host-boundary regression coverage for note-ons, note-offs, channel routing, private recording and transport. Requires HarmonyBus 0.2.106; no HB update is needed from that version."
+              --notes "Recovery release: restore the hbclean.26 integration and MIDI routing after reports of silence. Pair with HB 0.2.107. The conductor recording bridge is temporarily withdrawn. Existing clips and prepared track layouts are retained."
           fi
