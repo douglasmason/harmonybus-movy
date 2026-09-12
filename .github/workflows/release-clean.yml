@@ -108,72 +108,36 @@ jobs:
         run: node build/browser.mjs
 
       - name: Upstream test — logic
-        id: test_logic
-        continue-on-error: true
         working-directory: movy
         run: node browser-test/logic.mjs
 
       - name: Upstream test — track colors
-        id: test_track_colors
-        continue-on-error: true
         working-directory: movy
         run: node browser-test/track-colors.mjs
 
       - name: Upstream test — ABI parity
-        id: test_abi
-        continue-on-error: true
         working-directory: movy
         run: node browser-test/abi-parity.mjs
 
       - name: Upstream test — dump replay
-        id: test_dump
-        continue-on-error: true
         working-directory: movy
         run: node browser-test/dump-replay.mjs
 
       - name: Upstream test — app loop
-        id: test_app
-        continue-on-error: true
         working-directory: movy
         run: node browser-test/app-loop.mjs
 
       - name: Upstream test — screenshot
-        id: test_screenshot
-        continue-on-error: true
         working-directory: movy
         run: node browser-test/screenshot.mjs
 
       - name: Upstream test — perf
-        id: test_perf
-        continue-on-error: true
         working-directory: movy
         run: node browser-test/perf.mjs
 
       - name: Upstream test — device scripts
-        id: test_device
-        continue-on-error: true
         working-directory: movy
         run: node browser-test/device-scripts.mjs
-
-      - name: Require all upstream browser tests
-        if: always()
-        run: |
-          printf '%-18s %s\n' logic '${{ steps.test_logic.outcome }}'
-          printf '%-18s %s\n' track-colors '${{ steps.test_track_colors.outcome }}'
-          printf '%-18s %s\n' abi-parity '${{ steps.test_abi.outcome }}'
-          printf '%-18s %s\n' dump-replay '${{ steps.test_dump.outcome }}'
-          printf '%-18s %s\n' app-loop '${{ steps.test_app.outcome }}'
-          printf '%-18s %s\n' screenshot '${{ steps.test_screenshot.outcome }}'
-          printf '%-18s %s\n' perf '${{ steps.test_perf.outcome }}'
-          printf '%-18s %s\n' device-scripts '${{ steps.test_device.outcome }}'
-          test '${{ steps.test_logic.outcome }}' = success
-          test '${{ steps.test_track_colors.outcome }}' = success
-          test '${{ steps.test_abi.outcome }}' = success
-          test '${{ steps.test_dump.outcome }}' = success
-          test '${{ steps.test_app.outcome }}' = success
-          test '${{ steps.test_screenshot.outcome }}' = success
-          test '${{ steps.test_perf.outcome }}' = success
-          test '${{ steps.test_device.outcome }}' = success
 
       - name: Typecheck and build UI
         working-directory: movy
