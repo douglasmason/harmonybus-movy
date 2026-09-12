@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  HB_MOVY_VERSION: 0.34.1-hb.13
-  HB_MOVY_TAG: v0.34.1-hb.13
+  HB_MOVY_VERSION: 0.34.1-hb.14
+  HB_MOVY_TAG: v0.34.1-hb.14
   ASSET_NAME: harmonybus-movy-module.tar.gz
 
 jobs:
@@ -45,6 +45,7 @@ jobs:
           python3 scripts/patch_movy_stock_schwung_pages.py movy
           python3 scripts/patch_movy_stock_schwung_pages.py movy
           python3 scripts/patch_movy_editor_noop.py movy
+          python3 scripts/patch_hb14_defaults_and_overlay.py movy
 
       - name: Verify HarmonyBus source-bank patch
         run: |
@@ -66,18 +67,22 @@ jobs:
           required = {
               'quartet conductor defaults to channel 3': "const HB_CONDUCTOR_STATE = 'hb15,0,0,0,25,2,0,0,0,0,0,0,2,-1" in state,
               'saved HB state preserved': "const existingHb = comps.find" in state and "? { ...existingHb }" in state,
+              'fresh Movy sources default audio-muted': "mix: '1,0,1,0,0,0'" in state,
+              'fresh native tracks default muted': "seqCmd('mute ' + t + ' 1')" in state,
+              'track1 HB state defaults to conductor ch3 when present': "shadow_set_param(0, 'midi_fx1:state', HB_CONDUCTOR_STATE)" in state,
               'PAGE mode forced': "let override: SchwungGridMode | null = 'page';" in grid,
               'accumulated detents replayed with timestamps': 'ctl.onKnobTurn(slot, dir, started + i)' in page,
               'stock Schwung peek remains active': 'dismissPeek' not in turn_block,
+              'Movy model touch skipped on Schwung pages': "if (sp2) sp2.knobTouch(d1, true);\n                else m2?.handleKnobTouch(d1);" in router,
+              'Movy model release skipped on Schwung pages': "if (sp2) sp2.knobTouch(d1, false);\n                else if (m2?.handleKnobRelease(d1))" in router,
               'router blocks PAGE editor': "schwungGridMode() !== 'page'" in router,
               'Movy editor cannot become active': 'schwungEditorActive(): boolean { return false; }' in editor,
-              'Movy editor open hard-disabled': "HarmonyBus PAGE build: Movy's separate list editor is disabled." in editor,
               'Movy editor renderer is true no-op': 'state = null;' in render_block and 'drawEnumList' not in render_block,
           }
           missing = [name for name, ok in required.items() if not ok]
           if missing:
-              raise SystemExit('Missing expected hb.13 behavior: ' + ', '.join(missing))
-          print('hb.13 conductor routing / saved state / Schwung-only peek verified')
+              raise SystemExit('Missing expected hb.14 behavior: ' + ', '.join(missing))
+          print('hb.14 mute defaults / leader defaults / Schwung-only knob ownership verified')
           PY
 
       - name: Stamp module metadata
@@ -89,7 +94,7 @@ jobs:
           data = json.loads(path.read_text())
           data['version'] = '${{ env.HB_MOVY_VERSION }}'
           data['name'] = 'Movy (HarmonyBus)'
-          data['description'] = 'Movy HarmonyBus source banks with preserved state, conductor monitoring to ch3, and Schwung-owned enum peeks'
+          data['description'] = 'HarmonyBus quartet defaults: muted sources, conductor monitoring to ch3, Schwung-only parameter peek ownership'
           path.write_text(json.dumps(data, indent=4) + '\n')
           PY
 
@@ -138,5 +143,5 @@ jobs:
           else
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Restores Schwung's own responsive enum TURNING peek while keeping Movy's competing enum editor completely disabled. Preserves hb.12 routing, conductor ch3 defaults, and saved HarmonyBus state."
+              --notes "New sets start muted; quartet leaders use conductor -> ch3 monitoring defaults; hosted Schwung pages own knob touch/release so Movy's independent enum overlay no longer appears over the good Schwung peek."
           fi
