@@ -1,0 +1,114 @@
+name: Build HarmonyBus Movy hb.19
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: harmonybus-movy-hb19-release
+  cancel-in-progress: true
+
+env:
+  HB_MOVY_VERSION: 0.34.1-hb.19
+  HB_MOVY_TAG: v0.34.1-hb.19
+  ASSET_NAME: harmonybus-movy-module.tar.gz
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install aarch64 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          sudo ln -sf "$(command -v aarch64-linux-gnu-gcc)" /usr/local/bin/aarch64-unknown-linux-gnu-gcc
+          sudo ln -sf "$(command -v aarch64-linux-gnu-nm)" /usr/local/bin/aarch64-unknown-linux-gnu-nm
+          sudo ln -sf "$(command -v aarch64-linux-gnu-strip)" /usr/local/bin/aarch64-unknown-linux-gnu-strip
+          rustup target add aarch64-unknown-linux-gnu
+      - name: Clone upstream Movy
+        run: git clone --depth 1 https://github.com/DimaDake/schwung-movy.git movy
+      - name: Apply HarmonyBus integration
+        run: |
+          python3 scripts/apply_movy_harmonybus.py movy
+          python3 scripts/apply_movy_harmonybus.py movy
+          python3 scripts/patch_movy_hb_leader_defaults.py movy
+          python3 scripts/patch_movy_hb_leader_defaults.py movy
+          python3 scripts/patch_movy_stock_schwung_pages.py movy
+          python3 scripts/patch_movy_stock_schwung_pages.py movy
+          python3 scripts/patch_movy_editor_noop.py movy
+          python3 scripts/patch_hb14_defaults_and_overlay.py movy
+          python3 scripts/patch_hb16_runtime_sync.py movy
+          python3 scripts/patch_hb17_record_transport_quartets.py movy
+          python3 scripts/patch_hb19_ready_reconcile.py movy
+      - name: Verify hb.19 behavior
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          state=Path('movy/src/seq/ui-state.ts').read_text()
+          tick=Path('movy/src/app/tick.ts').read_text()
+          dsp=Path('movy/engine/crates/movy-dsp/src/lib.rs').read_text()
+          engine=Path('movy/engine/crates/seq-core/src/engine.rs').read_text()
+          assert state.count('setMovyTracks(true);') >= 3
+          assert 'setMovyTracks(false);' not in state
+          assert 'reconcileHarmonyBusBanksAfterReady' in state
+          assert "{ c: 'midi_fx1', m: 'harmonybus'" in state
+          assert 'captureChains(readChainDoc())' in state
+          assert 'restoreChains(hbChains, null)' in state
+          assert 'engineGeneration()' in tick
+          assert 'hbReconciledGeneration' in tick
+          assert 'reconcileHarmonyBusBanksAfterReady();' in tick
+          assert 'pub fn capture_live_note' in engine
+          assert 'i.engine.capture_live_note(chain, pitch, vel, on);' in dsp
+          print('hb.19 verified: one-shot engine-ready HB reconciliation present')
+          PY
+      - name: Stamp module metadata
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path=Path('movy/module.json')
+          data=json.loads(path.read_text())
+          data['version']='${{ env.HB_MOVY_VERSION }}'
+          data['name']='Movy (HarmonyBus)'
+          data['description']='All 16 Movy tracks hosted as distinct chains; engine-ready one-shot reconciliation guarantees HarmonyBus in MIDI FX 1 with four normalized quartets while preserving other chain content'
+          path.write_text(json.dumps(data,indent=4)+'\n')
+          PY
+      - name: Install Movy dependencies
+        working-directory: movy
+        run: npm install
+      - name: Typecheck and build UI
+        working-directory: movy
+        run: |
+          npm run typecheck
+          npm run build:device
+      - name: Build Movy DSP
+        working-directory: movy
+        run: ./scripts/build-dsp.sh
+      - name: Package module
+        run: |
+          rm -rf package
+          mkdir -p package/movy/configs
+          cp movy/module.json movy/ui.js movy/dist/dsp.so package/movy/
+          cp movy/src/module-configs/*.json package/movy/configs/
+          tar -czf "$ASSET_NAME" -C package movy
+      - name: Verify release metadata
+        run: |
+          python3 - <<'PY'
+          import json
+          r=json.load(open('release.json'))
+          assert r['version']=='${{ env.HB_MOVY_VERSION }}'
+          PY
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$HB_MOVY_TAG" >/dev/null 2>&1; then
+            gh release upload "$HB_MOVY_TAG" "$ASSET_NAME" --clobber
+          else
+            gh release create "$HB_MOVY_TAG" "$ASSET_NAME" --title "HarmonyBus Movy $HB_MOVY_VERSION" --notes "Adds one-shot engine-ready reconciliation so every Movy track gets HarmonyBus in MIDI FX 1 reliably even when fresh-set initialization fires before the chain host is ready."
+          fi
