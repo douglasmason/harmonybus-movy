@@ -25,6 +25,8 @@ int main(int argument_count, char **arguments) {
                     track + 1, instances[track]->role, expected_role);
             return 1;
         }
+        assert(instances[track]->player.config.mode == (expected_role == 0 ? 1 : 0));
+        assert(instances[track]->player.config.phase == 1);
         assert(instances[track]->render_channel == expected_channel);
         assert(instances[track]->source_channel == (track >= 12 ? quartet_position : 0));
         assert(g_bus.boundary_buffer_ms == -3);

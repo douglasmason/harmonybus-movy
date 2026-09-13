@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: b005afba0d61b787b7acb94e4792567a78f5dce4
-  HB_MOVY_VERSION: 0.34.1-hbclean.36
-  HB_MOVY_TAG: v0.34.1-hbclean.36
+  HB_REF: a379760949b8463fa5d4f7335c70aaa492400517
+  HB_MOVY_VERSION: 0.34.1-hbclean.37
+  HB_MOVY_TAG: v0.34.1-hbclean.37
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -70,6 +70,10 @@ jobs:
               'src/seq/ui-state.ts',
               'src/seq/engine.ts',
               'src/seq/leds.ts',
+              'src/seq/ui-dirty.ts',
+              'src/seq/set-save.ts',
+              'src/seq/set-session.ts',
+              'browser-test/logic/set-session.mjs',
               'src/seq/clip-page.ts',
               'src/seq/clip-page-vm.ts',
               'src/undo/verbs.ts',
@@ -257,5 +261,5 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Reduce empty-clip green beat LED lag by advancing the display clock between engine status polls. Regression tests verify actual LED colors at beat and bar boundaries, tempo changes, stop and restart. Audio timing is unchanged; existing recording, routing and touch behavior are preserved."
+              --notes "Save hosted parameter edits independently of clip edits, bound autosave waits by elapsed time, prioritize toggle release and empty-clip beat LEDs, and trigger Reset Learn on touch. Fresh conductors start in Scale Degree chord mode. Requires HB 0.2.123 for the updated eight-knob arp panel. Native and restart regressions verify defaults and persistence."
           fi

@@ -7,6 +7,7 @@ assert(schwungLibAvailable(), 'This test requires the real Schwung controller');
 const { createSchwungPage } = await import('../dist/esm/renderer/schwung-page.js');
 const module = JSON.parse(readFileSync(process.env.HB_MODULE, 'utf8'));
 const values = new Map(module.capabilities.chain_params.map(param => [param.key, param.default ?? param.options?.[0] ?? '0']));
+const { uiStateDirty, clearUiDirty } = await import('../dist/esm/seq/set-save.js');
 const writes = [];
 const port = {
     track: { index: 0 },
@@ -31,8 +32,8 @@ const phaseSlot = page.ctl.page.keys.indexOf('arp_phase');
 const gateSlot = page.ctl.page.keys.indexOf('arp_gate');
 const writesBefore = writes.length;
 page.knobTouch(phaseSlot, true);
-assert.equal(page.ctl.describePage().header.right, 'Free');
-assert.equal(page.ctl.describePage().header.left, 'Arp Phase');
+assert.equal(page.ctl.describePage().header.right, 'Auto');
+assert.equal(page.ctl.describePage().header.left, 'Arp Start');
 const rectangles = [];
 globalThis.fill_rect = (...args) => rectangles.push(args);
 page.render('HB');
@@ -40,7 +41,7 @@ assert(rectangles.some(([x,y,width,height,color]) => x===0 && y===0 && width===1
 page.knobTouch(gateSlot, true);
 assert.equal(page.ctl.describePage().header.left, 'Arp Gate');
 page.knobTouch(gateSlot, false);
-assert.equal(page.ctl.describePage().header.left, 'Arp Phase');
+assert.equal(page.ctl.describePage().header.left, 'Arp Start');
 page.knobTouch(phaseSlot, false);
 assert.equal(page.ctl.describePage().header.inverted, false);
 assert.equal(writes.length, writesBefore, 'Touch alone must never edit a parameter');
@@ -57,7 +58,9 @@ for (const key of ['mod_chrom_below', 'mod_scale_above']) {
     values.set(key, 'Off');
     const slot = focusKey(key);
     const before = writes.length;
+    clearUiDirty();
     page.knobTouch(slot, true);
+    assert(uiStateDirty(), 'Hosted parameter edits must be saved');
     assert.deepEqual(writes.at(-1), [`midi_fx1:${key}`, 'On']);
     page.knobTouch(slot, true);
     page.knobTurn(slot, 3);
@@ -75,7 +78,7 @@ for (const key of ['mod_chrom_below', 'mod_scale_above']) {
     page.knobTouch(slot, false);
     assert.equal(writes.length, released, 'Duplicate release is inert');
 }
-for (const [key, action] of [['approach_reset','Reset'],['approach_scale_next','Scale +'],['approach_chrom_next','Chrom -'],['next_reset','Reset'],['arp_clear','Clear']]) {
+for (const [key, action] of [['approach_reset','Reset'],['approach_scale_next','Scale +'],['approach_chrom_next','Chrom -'],['next_reset','Reset']]) {
     const slot = focusKey(key);
     assert(page.ctl.metaAt(slot).writeOnly, `${key} must resolve as an action button`);
     const before = writes.length;
@@ -90,3 +93,7 @@ for (const [key, action] of [['approach_reset','Reset'],['approach_scale_next','
     assert.equal(writes.length, before + 2, `${key}: next touch immediately re-arms`);
 }
 console.log('HB buttons: momentary modifiers, release after page change, every action, repeat-touch and turn deduplication pass');
+
+assert.equal(page.ctl.pages.filter(candidate => candidate.keys?.includes('arp_phase')).length, 1);
+assert.equal(module.capabilities.ui_hierarchy.levels.arp_player.knobs.length, 8);
+assert(!module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_clear'));

@@ -20,6 +20,7 @@ import json
 import base64
 from patch_loop_bridge import patch_loop_bridge
 from patch_visual_beat import patch_visual_beat
+from patch_responsive_persistence import patch_responsive_persistence
 from pathlib import Path
 
 
@@ -39,7 +40,7 @@ def patch_fresh_set(path: Path) -> None:
     marker: str = "/* Defaults match init(): C tonic, Major, Chromatic/4ths, C3 on every track. */"
     helper: str = r'''/* HarmonyBus clean-build defaults. These are used ONLY for a Set with no
  * Movy UI blob. Once saved, ordinary upstream chain persistence owns the state. */
-const HB_FRESH_CONDUCTOR = 'hb16,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,-3,60,0,0,0,0';
+const HB_FRESH_CONDUCTOR = 'hb16,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,-3,60,0,0,0,0;cp1,1,0,0,0,0,0,0,2,1,0;ds1,0;cq1,0,0;ph1,1;np1,0';
 const HB_FRESH_FOLLOWERS = [
     'hb16,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,0,0,0,0,-3,60,0,0,0,0',
     'hb16,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,-3,60,0,0,0,0',
@@ -205,7 +206,7 @@ def patch_upstream_expectations(root: Path) -> None:
         "      const saved = pendingPayloadFor(track);\n"
         "      const role = track >= 12 ? 3 : track % 4 === 0 ? 0 : 1;\n"
         "      const destination = track >= 12 ? -1 : track % 4 === 0 ? 2 : track % 4;\n"
-        "      const values = saved?.comp[0]?.s?.split(',');\n"
+        "      const values = saved?.comp[0]?.s?.split(';')[0].split(',');\n"
         "      eq('fresh HB state format ' + track, values?.[0], 'hb16');\n"
         "      eq('fresh HB state field count ' + track, values?.length, 26);\n"
         "      eq('fresh HB role ' + track, Number(values?.[1]), role);\n"
@@ -386,7 +387,7 @@ def patch_playhead_poll(path: Path) -> None:
     source = path.read_text()
     source = replace_once(source, "let pollCountdown = 1;", "let pollCountdown = 1;\nlet lastStatusPollAt = 0;", "poll deadline clock")
     source = replace_once(source, "    if (--pollCountdown <= 0) {\n        pollCountdown = STATUS_POLL_TICKS;",
-        "    const pollNow = Date.now();\n    if (--pollCountdown <= 0 || (seqState.playing && (pollNow - lastStatusPollAt >= 40 || pollNow < lastStatusPollAt))) {\n        lastStatusPollAt = pollNow;\n        pollCountdown = STATUS_POLL_TICKS;", "playhead deadline")
+        "    const pollNow = Date.now();\n    if (--pollCountdown <= 0 || (pollNow - lastStatusPollAt >= 40 || pollNow < lastStatusPollAt)) {\n        lastStatusPollAt = pollNow;\n        pollCountdown = STATUS_POLL_TICKS;", "playhead deadline")
     path.write_text(source)
 
 
@@ -412,6 +413,7 @@ def main() -> int:
     patch_record_bridge(root)
     patch_playhead_poll(root / "src/seq/engine.ts")
     patch_visual_beat(root)
+    patch_responsive_persistence(root)
     poll_test = root / "browser-test/logic/seq-engine.mjs"
     poll_source = poll_test.read_text()
     poll_anchor = "    eq('bpm mirrored', seqState.bpmX100, 13350);"

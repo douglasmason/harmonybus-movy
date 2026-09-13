@@ -1,4 +1,4 @@
-> Release hbclean.36 fixes polling-induced lag in the empty-clip green beat groups. The display advances between engine status samples using the reported tempo and resynchronizes at each sample. Audio timing is unchanged. Regression tests check the actual 16 LED colors across beat/bar boundaries, tempo changes, stop and restart.
+> Release hbclean.37 fixes UI-only autosave and slow-UI save cadence, prioritizes modifier release and beat LEDs, and explicitly triggers Reset Learn on touch. Fresh conductors start in Scale Degree chord mode. Pair with HB 0.2.123.
 
 
 
@@ -36,7 +36,7 @@ Install from the repository URL in Schwung's GitHub/repository installer:
 https://github.com/douglasmason/harmonybus-movy
 ```
 
-The corrected clean release reports version **0.34.1-hbclean.36** and requires **HarmonyBus 0.2.118 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
+The corrected clean release reports version **0.34.1-hbclean.37** and requires **HarmonyBus 0.2.123 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
 
 The empty-clip visual metronome uses a display-only clock projected from each engine status reading, capped at 100 ms of extrapolation if readings stop arriving. This removes the wait for the next status poll; it does not compensate for hardware LED latency or a blocked UI thread. Sequencing, clip playheads and MIDI rendering continue to use the engine's own timing.
 
@@ -111,3 +111,13 @@ The release gate now loads the actual Movy, Schwung chain and HB native modules 
 ## Playhead polling
 
 During playback, position polling now also runs after 40 ms elapsed, so busy UI ticks do not require waiting eight ticks for a refresh. This preserves the normal polling cadence while reducing avoidable step-button lag. Hardware response still depends on UI scheduling; the elapsed-time behavior is covered by a deterministic browser logic test.
+
+## Saving and performance controls
+
+Movy saves automatically; no save toggle is required. Hosted parameter changes now request a save even when no clip notes changed. Autosave runs at least once per roughly three seconds of elapsed time while the UI is running, rather than waiting 600 slow UI ticks. Notes and UI settings are covered by fresh-session reload tests. Immediate power loss before a save completes can still lose the latest edits.
+
+State is attached to the active native Move Set. A new native Set must acquire a permanent identity; Movy already asks Move to commit it. If a restart still opens an empty pattern, check that you reopened the same native Set and keep the existing Set for diagnosis.
+
+Empty-clip beat LEDs are emitted before potentially expensive set-save work. Modifier release commits Off before controller bookkeeping. These reduce avoidable UI delay; hardware LEDs and capacitive events still share the host UI path, so this is not a guarantee of sample-accurate visuals or touch timing.
+
+Fresh conductor tracks 1, 5 and 9 have Scale Degree chord mode enabled. Existing saved chord modes are preserved. Reset Learn fires once per touch, with no extra reset on release. Clear Notes is removed from the HB arp panel, leaving eight controls.

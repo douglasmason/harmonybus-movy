@@ -20,7 +20,7 @@ def main() -> int:
     harmonybus_root: Path = arguments.harmonybus_root.resolve()
     repository_root: Path = Path(__file__).resolve().parents[1]
     ui_source: str = (movy_root / "src/seq/ui-state.ts").read_text()
-    preset_strings: list[str] = re.findall(r"'(hb(?:15|16),[-0-9,]+)'", ui_source)
+    preset_strings: list[str] = re.findall(r"'(hb(?:15|16),[-0-9,]+(?:;[a-z0-9,\-]+)*)'", ui_source)
     if len(preset_strings) != 8:
         raise ValueError(f"Expected eight shipped presets, found {len(preset_strings)}")
     temporary_directory: str
