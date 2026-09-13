@@ -67,6 +67,7 @@ jobs:
               ['git', '-C', str(root), 'ls-files', '--others', '--exclude-standard'], text=True
           ).splitlines()
           expected = {
+              'src/keyboard/handler.ts',
               'src/seq/pads.ts',
               'src/seq/flags-def.ts',
               'src/keyboard/harmony-pads.ts',

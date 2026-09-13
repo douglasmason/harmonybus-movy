@@ -17,6 +17,11 @@ def patch_harmony_pads(root: Path) -> None:
     const harmonyColor = harmonyPadColor(pitch, track);
     if (harmonyColor !== null) return harmonyColor;''')
     path.write_text(source)
+    path = root / 'src/keyboard/handler.ts'
+    source = "import { harmonyPadColor } from './harmony-pads.js';\n" + path.read_text()
+    source = replace_once(source, 'setLED(padNote, C_GREEN, true); // immediate green feedback before the next poll',
+        'setLED(padNote, harmonyPadColor(midiNote, track) ?? C_GREEN, true); // preserve harmony backgrounds on the immediate path')
+    path.write_text(source)
     path = root / 'src/app/tick.ts'
     source = "import { refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + path.read_text()
     source = replace_once(source, '        const map       = padMapFor(track);', '        refreshHarmonyPads(track);\n        const map       = padMapFor(track);')

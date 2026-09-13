@@ -36,3 +36,18 @@ refreshHarmonyPads(4,50);assert.equal(reads,2);
 setFlag('padDisplay',0);refreshHarmonyPads(4,100);assert.equal(reads,2,'Standard does no HB polling');
 port.getParam=originalGet;
 console.log('Harmony pad polling: one bounded snapshot, zero IPC in Standard pass');
+
+const { noteOn, noteOff } = await import('../dist/esm/keyboard/handler.js');
+const previousLED = globalThis.setLED;
+let immediateColor = -1;
+globalThis.setLED = (pad, color) => { immediateColor = color; };
+setFlag('padDisplay',1);
+noteOn(68,68,0,100);
+assert.equal(immediateColor,padColor(68,68,0,false),'Immediate note-down cannot override harmony background');
+noteOff(68,68);
+setFlag('padDisplay',0);
+noteOn(68,68,0,100);
+assert.equal(immediateColor,11,'Standard keeps immediate green feedback');
+noteOff(68,68);
+globalThis.setLED = previousLED;
+console.log('Immediate pad touch honors harmony colors and Standard feedback');
