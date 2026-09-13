@@ -45,6 +45,13 @@ const HB_FRESH_FOLLOWERS = [
     'hb16,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,0,0,0,0,-3,60,0,0,0,0',
 ];
 
+const HB_FRESH_RECEIVERS = [
+    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,0,0,0,0,0,0,0,-3,60,0,0,0,0',
+    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,1,0,0,0,0,0,0,-3,60,0,0,0,0',
+    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,2,0,0,0,0,0,0,-3,60,0,0,0,0',
+    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,3,0,0,0,0,0,0,-3,60,0,0,0,0',
+];
+
 function freshHarmonyBusChains() {
     return Array.from({ length: TRACK_COUNT }, (_, t) => {
         const pos = t % 4;
@@ -52,8 +59,8 @@ function freshHarmonyBusChains() {
             t,
             comp: [
                 { c: 'midi_fx1', m: 'harmonybus',
-                  s: pos === 0 ? HB_FRESH_CONDUCTOR : HB_FRESH_FOLLOWERS[pos - 1] },
-                { c: 'synth', m: 'plaits' },
+                  s: t >= 12 ? HB_FRESH_RECEIVERS[pos] : pos === 0 ? HB_FRESH_CONDUCTOR : HB_FRESH_FOLLOWERS[pos - 1] },
+                ...(t < 12 ? [{ c: 'synth', m: 'plaits' }] : []),
             ],
             /* gain,pan,muted,send1,send2. Local audio is muted; MIDI is not. */
             mix: '1.0000,0.0000,1,0.0000,0.0000',
@@ -183,25 +190,26 @@ def patch_upstream_expectations(root: Path) -> None:
         "    const { decodeBulk } = await import('../../dist/esm/track/bulk.js');\n"
         "    const fresh = decodeBulk(writes.find((w) => w[0] === 'chains')?.[1]);\n"
         "    eq('fresh Set replaces the previous chains with 16 HB and synth pairs',\n"
-        "       fresh?.length, 16 * 2 * 3);\n"
+        "       fresh?.length, (12 * 2 + 4) * 3);\n"
         "    for (let track = 0; track < 16; track++) {\n"
-        "      eq('fresh HB slot ' + track, fresh?.[track * 6 + 1], 'midi_fx1');\n"
-        "      eq('fresh HB module ' + track, fresh?.[track * 6 + 2], 'harmonybus');\n"
-        "      eq('fresh synth module ' + track, fresh?.[track * 6 + 5], 'plaits');\n"
+        "      const offset = track < 12 ? track * 6 : 72 + (track - 12) * 3;\n"
+        "      eq('fresh HB slot ' + track, fresh?.[offset + 1], 'midi_fx1');\n"
+        "      eq('fresh HB module ' + track, fresh?.[offset + 2], 'harmonybus');\n"
+        "      if (track < 12) eq('fresh synth module ' + track, fresh?.[offset + 5], 'plaits');\n"
         "    }\n"
         "    const { pendingPayloadFor } = await import('../../dist/esm/track/chain-payload.js');\n"
         "    const { serializeUiState, applyUiState } =\n"
         "      await import('../../dist/esm/seq/ui-state.js');\n"
         "    for (let track = 0; track < 16; track++) {\n"
         "      const saved = pendingPayloadFor(track);\n"
-        "      const role = track % 4 === 0 ? 0 : 1;\n"
-        "      const destination = track % 4 === 0 ? 2 : track % 4;\n"
+        "      const role = track >= 12 ? 3 : track % 4 === 0 ? 0 : 1;\n"
+        "      const destination = track >= 12 ? -1 : track % 4 === 0 ? 2 : track % 4;\n"
         "      const values = saved?.comp[0]?.s?.split(',');\n"
         "      eq('fresh HB state format ' + track, values?.[0], 'hb16');\n"
         "      eq('fresh HB state field count ' + track, values?.length, 26);\n"
         "      eq('fresh HB role ' + track, Number(values?.[1]), role);\n"
         "      eq('fresh HB render channel ' + track, Number(values?.[12]), destination);\n"
-        "      eq('fresh HB source channel ' + track, Number(values?.[13]), 0);\n"
+        "      eq('fresh HB source channel ' + track, Number(values?.[13]), track >= 12 ? track - 12 : 0);\n"
         "      eq('fresh local audio mute ' + track, saved?.mix?.split(',')[2], '1');\n"
         "    }\n"
         "    const savedSet = JSON.parse(serializeUiState());\n"
@@ -335,6 +343,14 @@ def patch_panel_titles(root: Path) -> None:
         path.write_text(source)
 
 
+def patch_playhead_poll(path: Path) -> None:
+    source = path.read_text()
+    source = replace_once(source, "let pollCountdown = 1;", "let pollCountdown = 1;\nlet lastStatusPollAt = 0;", "poll deadline clock")
+    source = replace_once(source, "    if (--pollCountdown <= 0) {\n        pollCountdown = STATUS_POLL_TICKS;",
+        "    const pollNow = Date.now();\n    if (--pollCountdown <= 0 || (seqState.playing && (pollNow - lastStatusPollAt >= 40 || pollNow < lastStatusPollAt))) {\n        lastStatusPollAt = pollNow;\n        pollCountdown = STATUS_POLL_TICKS;", "playhead deadline")
+    path.write_text(source)
+
+
 def main() -> int:
     parser: argparse.ArgumentParser = argparse.ArgumentParser()
     parser.add_argument("movy_root", type=Path)
@@ -354,6 +370,28 @@ def main() -> int:
     patch_upstream_expectations(root)
     patch_loop_bridge(root)
     patch_record_bridge(root)
+    patch_playhead_poll(root / "src/seq/engine.ts")
+    poll_test = root / "browser-test/logic/seq-engine.mjs"
+    poll_source = poll_test.read_text()
+    poll_anchor = "    eq('bpm mirrored', seqState.bpmX100, 13350);"
+    poll_extra = """
+    // Heavy UI ticks must not stretch an eight-tick poll to hundreds of ms.
+    const originalNow = Date.now;
+    let clock = originalNow() + 100;
+    Date.now = () => clock;
+    try {
+        seqEngineTick();
+        const { statusSeq } = await import('../../dist/esm/seq/engine.js');
+        const polls = statusSeq();
+        for (let frame = 1; frame <= 4; frame++) {
+            clock += 20; engine.status.tick = 5000 + frame; seqEngineTick();
+        }
+        eq('slow UI polls every 40 ms during playback', statusSeq() - polls, 2);
+        eq('step clock catches up on the fourth slow frame', seqState.engineTick, 5004);
+    } finally { Date.now = originalNow; }
+"""
+    poll_test.write_text(replace_once(poll_source,poll_anchor,poll_anchor+poll_extra,"slow UI poll regression"))
+
     integration_root: Path = Path(__file__).resolve().parents[1] / 'integration'
     record_patch: Path = integration_root / 'recorded-chords.patch'
     record_applied: subprocess.CompletedProcess[bytes] = subprocess.run(

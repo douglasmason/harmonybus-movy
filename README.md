@@ -1,4 +1,5 @@
-> Release hbclean.31 restores rendered conductor recording while preserving the working Render To route, and adds knob-touch name/value feedback. Update HB to 0.2.109 for conductor chord modes, quality controls and removal of UI Test.
+> Release hbclean.32 adds HB Receiver defaults on tracks 13–16 (channels 1–4, no instruments) and elapsed-time playhead polling. Requires HarmonyBus 0.2.115. Original stock MIDI rendering is preserved.
+
 
 # HarmonyBus Movy
 
@@ -6,16 +7,20 @@ Dedicated Movy build with HarmonyBus preloaded on all 16 Movy source tracks.
 
 This package preserves Movy's module id (`movy`) so installing it temporarily replaces the standard Movy module. HarmonyBus remains a separate installed Schwung module.
 
-Every brand-new Set contains HarmonyBus in MIDI FX 1 and a Plaits monitoring synth on each Movy track. The tracks form four identical quartets:
+Every brand-new Set contains HarmonyBus in MIDI FX 1 on all 16 tracks. Tracks 1–12 have a Plaits monitoring synth; tracks 13–16 have no instrument.
 
-| Movy tracks | HB role | Render To Ch |
+| Movy tracks | HB role | Render To / Receive Channel |
 |---|---|---|
-| 1, 5, 9, 13 | Conductor | 3 |
-| 2, 6, 10, 14 | Follower | 2 |
-| 3, 7, 11, 15 | Follower | 3 |
-| 4, 8, 12, 16 | Follower | 4 |
+| 1, 5, 9 | Conductor | Render 3 |
+| 2, 6, 10 | Follower | Render 2 |
+| 3, 7, 11 | Follower | Render 3 |
+| 4, 8, 12 | Follower | Render 4 |
+| 13 | Receiver | Receive 1 |
+| 14 | Receiver | Receive 2 |
+| 15 | Receiver | Receive 3 |
+| 16 | Receiver | Receive 4 |
 
-Source Ch is 1 on every HB instance. All 16 local audio outputs start muted; sequencing, HB processing, and rendered MIDI remain active. Schwung owns hosted parameter pages and transient peeks. Native Move transport follow starts enabled.
+Source Ch is 1 on conductor/follower instances. All 16 local audio outputs start muted; sequencing, HB processing, and rendered MIDI remain active. To hear a receiver, load an instrument after HB and unmute its local audio. Receivers play already-rendered notes without remapping or rebroadcasting them. The existing channel broadcasts remain available to stock Move/Schwung tracks. Schwung owns hosted parameter pages and transient peeks. Native Move transport follow starts enabled.
 
 Native Move tracks are separate from Movy's source bank. Set native destination tracks 2-4 to receive MIDI channels 2-4 respectively.
 
@@ -29,7 +34,7 @@ Install from the repository URL in Schwung's GitHub/repository installer:
 https://github.com/douglasmason/harmonybus-movy
 ```
 
-The corrected clean release reports version **0.34.1-hbclean.31** and requires **HarmonyBus 0.2.109**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
+The corrected clean release reports version **0.34.1-hbclean.32** and requires **HarmonyBus 0.2.115**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
 
 The clean release counter starts at 20 so Schwung's numeric version comparison recognizes it as newer than hb.19.
 
@@ -98,3 +103,7 @@ HB 0.2.104 adds negative lookahead (late harmony) with the capture window before
 
 
 The release gate now loads the actual Movy, Schwung chain and HB native modules together with a deterministic PCM instrument. It exercises raw/chord pads on conductor/follower tracks, local audio, routed note-on/off pairs, generated recording and playback after changing chord form. This covers the host callback boundary; device audio remains a separate verification.
+
+## Playhead polling
+
+During playback, position polling now also runs after 40 ms elapsed, so busy UI ticks do not require waiting eight ticks for a refresh. This preserves the normal polling cadence while reducing avoidable step-button lag. Hardware response still depends on UI scheduling; the elapsed-time behavior is covered by a deterministic browser logic test.

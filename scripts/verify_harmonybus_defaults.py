@@ -21,8 +21,8 @@ def main() -> int:
     repository_root: Path = Path(__file__).resolve().parents[1]
     ui_source: str = (movy_root / "src/seq/ui-state.ts").read_text()
     preset_strings: list[str] = re.findall(r"'(hb(?:15|16),[-0-9,]+)'", ui_source)
-    if len(preset_strings) != 4:
-        raise ValueError(f"Expected four shipped presets, found {len(preset_strings)}")
+    if len(preset_strings) != 8:
+        raise ValueError(f"Expected eight shipped presets, found {len(preset_strings)}")
     temporary_directory: str
     with tempfile.TemporaryDirectory(prefix="hb-default-check-") as temporary_directory:
         executable: Path = Path(temporary_directory) / "check-hb-defaults"

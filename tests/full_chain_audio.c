@@ -101,5 +101,19 @@ int main(int argc,char **argv){
     set("cmd","play");long replay=render(345);set("cmd","stop");render(32);
     printf("replay local_pcm=%ld routed_on=%d routed_off=%d rejected=%d\n",replay,sent_on,sent_off,rejected);
     assert(replay>0&&sent_on==3&&sent_off==3&&rejected==0);
+    // Real hosted HB subscribers: audible only from the receiver chain,
+    // while the original cable-2 host callback still receives all notes.
+    for(int t=0;t<16;t++){snprintf(parameter,sizeof(parameter),"ch%d:mix",t);set(parameter,"1,0,1,0,0");}
+    set("ch0:midi_fx1:chord_form","Triad");set("ch0:midi_fx1:render_channel","2");
+    set("ch12:midi_fx1:role","Receiver");set("ch12:midi_fx1:receive_channel","2");
+    set("ch12:mix","1,0,0,0,0");render(32);
+    sent_on=sent_off=rejected=0;
+    api->on_midi(instance,down,3,0);long received=render(32);
+    api->on_midi(instance,up,3,0);render(32);long receiver_tail=render(32);
+    printf("receiver local_pcm=%ld routed_on=%d routed_off=%d tail=%ld\n",received,sent_on,sent_off,receiver_tail);
+    assert(received>0&&sent_on==3&&sent_off==3&&receiver_tail==0);
+    set("ch12:midi_fx1:receive_channel","3");render(16);sent_on=sent_off=0;
+    api->on_midi(instance,down,3,0);assert(render(32)==0);
+    api->on_midi(instance,up,3,0);render(32);assert(sent_on==3&&sent_off==3);
     api->destroy_instance(instance);return 0;
 }

@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: a0a0a296848a040b5f2574bc5f69fe7f7fde181f
-  HB_MOVY_VERSION: 0.34.1-hbclean.31
-  HB_MOVY_TAG: v0.34.1-hbclean.31
+  HB_REF: 3ecd81e1dafe89ea395d404b0dff53e971d9539b
+  HB_MOVY_VERSION: 0.34.1-hbclean.32
+  HB_MOVY_TAG: v0.34.1-hbclean.32
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -68,6 +68,7 @@ jobs:
           ).splitlines()
           expected = {
               'src/seq/ui-state.ts',
+              'src/seq/engine.ts',
               'src/seq/clip-page.ts',
               'src/seq/clip-page-vm.ts',
               'src/undo/verbs.ts',
@@ -97,6 +98,7 @@ jobs:
               'engine/crates/movy-dsp/src/hb_record.rs',
               'browser-test/hb-touch.mjs',
               'browser-test/logic/tracks-chain.mjs',
+              'browser-test/logic/seq-engine.mjs',
               'browser-test/abi-parity.mjs',
               'browser-test/track-colors.mjs',
           }
@@ -138,7 +140,7 @@ jobs:
           data = json.loads(path.read_text())
           data['version'] = '${{ env.HB_MOVY_VERSION }}'
           data['name'] = 'Movy (HarmonyBus Clean)'
-          data['description'] = 'Stock Movy with fresh-set HarmonyBus quartets, muted local sources, Schwung-owned parameter UI, and native Move transport follow enabled by default'
+          data['description'] = 'Stock Movy with HarmonyBus sources and four instrument-free receivers, muted local outputs, Schwung-owned parameter UI, and native Move transport follow enabled by default'
           path.write_text(json.dumps(data, indent=4) + '\n')
           PY
 
