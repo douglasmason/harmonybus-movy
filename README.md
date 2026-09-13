@@ -1,4 +1,4 @@
-> Release hbclean.38 forwards per-pad pressure to held arp sources and enables Retrigger Held in fresh track presets. Pair with HB 0.2.124 for the chord-boundary arp fix and pressure-controlled attack velocities.
+> Release hbclean.39 records follower poly-pressure curves and replays them through HarmonyBus. Pair with HB 0.2.124 for the chord-boundary arp fix and pressure-controlled attack velocities.
 
 
 
@@ -36,7 +36,7 @@ Install from the repository URL in Schwung's GitHub/repository installer:
 https://github.com/douglasmason/harmonybus-movy
 ```
 
-The corrected clean release reports version **0.34.1-hbclean.38** and requires **HarmonyBus 0.2.124 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
+The corrected clean release reports version **0.34.1-hbclean.39** and requires **HarmonyBus 0.2.124 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
 
 The empty-clip visual metronome uses a display-only clock projected from each engine status reading, capped at 100 ms of extrapolation if readings stop arriving. This removes the wait for the next status poll; it does not compensate for hardware LED latency or a blocked UI thread. Sequencing, clip playheads and MIDI rendering continue to use the engine's own timing.
 
@@ -121,3 +121,8 @@ State is attached to the active native Move Set. A new native Set must acquire a
 Empty-clip beat LEDs are emitted before potentially expensive set-save work. Modifier release commits Off before controller bookkeeping. These reduce avoidable UI delay; hardware LEDs and capacitive events still share the host UI path, so this is not a guarantee of sample-accurate visuals or touch timing.
 
 Fresh conductor tracks 1, 5 and 9 have Scale Degree chord mode enabled. Existing saved chord modes are preserved. Reset Learn fires once per touch, with no extra reset on release. Clear Notes is removed from the HB arp panel, leaving eight controls.
+
+
+### Recorded follower pressure
+
+Normal Record stores polyphonic pressure changes with each held input note. On playback, those changes drive HB Repeat Arp hit velocities; the follower notes still map to the current conductor harmony. Curves remain relative to the note onset through quantization and clip speed changes, and follow note copies, transposition, loop wrap, and save/reload. Pressure is applied before arp generation for the audio block. Older sets have no curves and retain their original velocities. Retrospective Capture remains note-only.

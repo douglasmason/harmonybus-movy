@@ -20,6 +20,7 @@ import json
 import base64
 from patch_loop_bridge import patch_loop_bridge
 from patch_visual_beat import patch_visual_beat
+from patch_pressure_recording import patch_pressure_recording
 from patch_arp_pressure import patch_arp_pressure
 from patch_responsive_persistence import patch_responsive_persistence
 from pathlib import Path
@@ -456,6 +457,7 @@ def main() -> int:
     map_path_to_base64: dict[str, str] = json.loads((integration_root / 'clip-baselines.json').read_text())
     for relative_path, encoded_png in map_path_to_base64.items():
         (root / relative_path).write_bytes(base64.b64decode(encoded_png))
+    patch_pressure_recording(root)
     print("HarmonyBus clean integration applied")
     return 0
 
