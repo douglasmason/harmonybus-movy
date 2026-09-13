@@ -1,4 +1,4 @@
-> Release hbclean.44 adds global Steps / Perform mode and eight performance controls. Update HarmonyBus to 0.2.130.
+> Release hbclean.45 fixes false STEPS / NO HB detection. Keep HarmonyBus 0.2.130 installed; only Movy needs updating.
 
 
 

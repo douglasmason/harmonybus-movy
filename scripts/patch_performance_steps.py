@@ -8,7 +8,7 @@ def patch_performance_steps(root: Path) -> None:
     integration: Path = Path(__file__).resolve().parents[1] / 'integration/performance'
     (root / 'src/renderer/hb-performance.ts').write_text((integration / 'hb-performance.ts').read_text())
     path: Path = root / 'src/renderer/schwung-page.ts'
-    source: str = "export { hbPerformanceStep, releaseHbPerformanceStep, paintHbPerformance, resetHbPerformance, setHbPerformanceMode, syncHbPerformanceMode } from './hb-performance.js';\n" + path.read_text()
+    source: str = "export { hbPerformancePage, drawHbPerformanceMode, hbPerformanceStep, releaseHbPerformanceStep, paintHbPerformance, resetHbPerformance, setHbPerformanceMode, syncHbPerformanceMode } from './hb-performance.js';\n" + path.read_text()
     source = replace_once(source, '    readonly ctl: any;', '    readonly ctl: any;\n    performanceSet(key: string, value: string): void;\n    performanceGet(key: string): string;')
     source = replace_once(source, '        knobTouch: (slot: number, down: boolean) => {', '''        performanceSet: (key: string, value: string) => { port.setParam(qualify(componentKey + ':' + key), value); },
         performanceGet: (key: string) => String(port.getParam(qualify(componentKey + ':' + key)) ?? ''),

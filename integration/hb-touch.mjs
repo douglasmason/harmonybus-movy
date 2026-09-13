@@ -6,6 +6,10 @@ const { schwungLibAvailable } = await import('../dist/esm/renderer/schwung-lib.j
 assert(schwungLibAvailable(), 'This test requires the real Schwung controller');
 const { createSchwungPage } = await import('../dist/esm/renderer/schwung-page.js');
 const module = JSON.parse(readFileSync(process.env.HB_MODULE, 'utf8'));
+// The device asks the DSP first. Its runtime list is not module.json's list.
+const dspSource = readFileSync(process.env.HB_MODULE.replace(/module\.json$/, 'dsp/harmonybus.c'), 'utf8');
+const runtimeDeclaration = dspSource.match(/static const char CHAIN_PARAMS\[\]=([\s\S]*?);/)[1];
+const runtimeChainParams = [...runtimeDeclaration.matchAll(/"(?:\\.|[^"\\])*"/g)].map(match => JSON.parse(match[0])).join('');
 const values = new Map(module.capabilities.chain_params.map(param => [param.key, param.default ?? param.options?.[0] ?? '0']));
 const { uiStateDirty, clearUiDirty } = await import('../dist/esm/seq/set-save.js');
 const writes = [];
@@ -14,7 +18,7 @@ const port = {
     getParam(key) {
         const bare = key.split(':').at(-1);
         if (bare === 'ui_hierarchy') return JSON.stringify(module.capabilities.ui_hierarchy);
-        if (bare === 'chain_params') return JSON.stringify(module.capabilities.chain_params);
+        if (bare === 'chain_params') return runtimeChainParams;
         if (key === 'midi_fx1_module') return 'harmonybus';
         return values.get(bare) ?? '';
     },
@@ -234,3 +238,58 @@ try {
     assert(!syncHbPerformanceMode());
 } finally { resetHbPerformance();uninstallMockFs();resetFlags(); }
 console.log('HB Step Row mode: global preference, release Settings control, persistence across sets and mode-change cleanup pass');
+
+// Exercise discovery through the real registry, with no injected button owner.
+const { appState, VIEW_KEYS, VIEW_KNOBS } = await import('../dist/esm/app/state.js');
+const { seqState } = await import('../dist/esm/seq/state.js');
+const { trackRef } = await import('../dist/esm/track/ref.js');
+const { resetPorts } = await import('../dist/esm/track/registry.js');
+const { schwungGridReload, schwungActiveFor } = await import('../dist/esm/renderer/schwung-grid.js');
+const { hbPerformancePage, drawHbPerformanceMode } = await import('../dist/esm/renderer/schwung-page.js');
+const { setFlag } = await import('../dist/esm/seq/flags.js');
+const { stepPageState } = await import('../dist/esm/seq/step-page.js');
+const savedHostGet = globalThis.shadow_get_param, savedHostSet = globalThis.shadow_set_param;
+const savedEngineGet = globalThis.host_module_get_param, savedEngineSet = globalThis.host_module_set_param_blocking;
+const routedWrites = [];
+let available = true;
+let discoveryReads = 0;
+const readContract = key => { discoveryReads++; return available ? port.getParam(key) : ''; };
+installMockFs();
+try {
+    resetFlags();setFlag('chtracks', 0);resetPorts();schwungGridReload();
+    globalThis.shadow_get_param = (_slot, key) => readContract(key);
+    globalThis.shadow_set_param = (slot, key, value) => { routedWrites.push([slot, key, value]); return true; };
+    globalThis.host_module_get_param = key => readContract(key.replace(/^ch\d+:/, ''));
+    globalThis.host_module_set_param_blocking = (key, value) => { routedWrites.push(['engine', key, value]); return true; };
+    appState.shiftHeld = false;seqState.sessionMode = false;seqState.loopMode = false;
+    seqState.trackSelectHold = false;stepPageState.selected = false;
+    setHbPerformanceMode(1);
+    for (const track of [0, 4]) {
+        appState.activeTrack = trackRef(track);appState.currentView = VIEW_KEYS;
+        const found = hbPerformancePage();
+        assert(found, `Track ${track + 1}: hierarchy-only operations must enable Perform before opening HB`);
+        assert.equal(found, schwungActiveFor(track, 'midi_fx1'));
+        assert(!found.ctl.state.chainParams?.some(entry => entry.key === 'motion_lane'));
+        assert(found.ctl.state.metaIndex.get('motion_lane'));
+        const beforeReads = discoveryReads;
+        for (let frame = 0; frame < 100; frame++) { assert.equal(hbPerformancePage(), found); drawHbPerformanceMode(); }
+        assert.equal(discoveryReads, beforeReads, 'Detection and footer do not add per-frame host reads');
+        appState.currentView = VIEW_KNOBS;
+        appState.trackChainIndex[track] = 1; // Synth editor; target remains MIDI FX 1.
+        assert.equal(hbPerformancePage(), found);
+        assert(hbPerformanceStep([0x90, 20, 127]));
+        const expectedAddress = track === 0 ? [0, 'midi_fx1:performance_below'] : ['engine', 'ch4:midi_fx1:performance_below'];
+        assert.deepEqual(routedWrites.at(-1), [...expectedAddress, 'On']);
+        appState.activeTrack = trackRef(7);
+        assert(releaseHbPerformanceStep([0x80, 20, 0]));
+        assert.deepEqual(routedWrites.at(-1), [...expectedAddress, 'Off']);
+    }
+    resetHbPerformance();available = false;schwungGridReload();
+    assert.equal(hbPerformancePage(), null, 'A genuinely empty MIDI FX slot retains ordinary steps');
+    assert(!hbPerformanceStep([0x90, 20, 127]));
+} finally {
+    resetHbPerformance();uninstallMockFs();resetFlags();resetPorts();schwungGridReload();
+    globalThis.shadow_get_param = savedHostGet;globalThis.shadow_set_param = savedHostSet;
+    globalThis.host_module_get_param = savedEngineGet;globalThis.host_module_set_param_blocking = savedEngineSet;
+}
+console.log('HB discovery: runtime DSP metadata, host and Movy tracks, cold/synth views, captured release and no per-frame reads pass');

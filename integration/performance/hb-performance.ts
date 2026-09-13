@@ -61,7 +61,9 @@ export function hbPerformancePage(): PerformancePort | null {
     if (!syncHbPerformanceMode() || !performanceViewAvailable()) return null;
     // HB remains the target when the focused editor changes to a synth/effect.
     const page = schwungActiveFor(appState.activeTrack.index, 'midi_fx1');
-    if (!page || page.ctl.state.pickerOpen || !page.ctl.state.chainParams?.some((entry: any) => entry.key === 'motion_lane')) return null;
+    // Controls may be declared inline in ui_hierarchy; chain_params alone is
+    // not the module's complete contract (HB 0.2.130 serves a legacy list).
+    if (!page || page.ctl.state.pickerOpen || !page.ctl.state.metaIndex?.get('motion_lane')) return null;
     return page;
 }
 
