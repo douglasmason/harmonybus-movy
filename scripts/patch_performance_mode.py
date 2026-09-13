@@ -15,6 +15,11 @@ def patch_performance_mode(root: Path) -> None:
         hint: 'Step row: sequencer or HB effects.',
     },""" + source[insertion:]
     path.write_text(source)
+    path = root / 'browser-test/logic/flags.mjs'
+    source = replace_once(path.read_text(),
+        "relKeys(), 'chtracks,chtrackset');",
+        "relKeys(), 'chtracks,chtrackset,hbsteprow');")
+    path.write_text(source)
     path = root / 'src/seq/flags-page.ts'
     source = "import { setHbPerformanceMode } from '../renderer/hb-performance.js';\n" + path.read_text()
     source = replace_once(source, "    if (def.key === 'chtracks')", "    if (def.key === 'hbsteprow') { setHbPerformanceMode(next); return; }\n    if (def.key === 'chtracks')")

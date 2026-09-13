@@ -14,7 +14,7 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 2ecc4a4d695e89e5d148a07499cd493f77f0c3af
+  HB_REF: 1b552bf10bc482b1b97dc2f256bbdeb48f90cf92
   HB_MOVY_VERSION: 0.34.1-hbclean.44
   HB_MOVY_TAG: v0.34.1-hbclean.44
   ASSET_NAME: harmonybus-movy-module.tar.gz
@@ -102,6 +102,7 @@ jobs:
               'src/renderer/hb-performance.ts',
               'src/seq/flags-def.ts',
               'src/seq/flags-page.ts',
+              'browser-test/logic/flags.mjs',
               'src/app/input-reset.ts',
               'src/app/unload.ts',
               'src/renderer/knob-view.ts',
