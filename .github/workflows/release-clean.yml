@@ -255,5 +255,5 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Restore conductor rendered-chord recording with a private recording-only callback; preserve the working Render To routing. Add knob-touch name/value feedback using the real Schwung controller. Pair with HB 0.2.109. Full-chain PCM, save/replay, and touch tests pass."
+              --notes "Add Receiver-role defaults on tracks 13-16 for channels 1-4, with no instruments. Original stock MIDI broadcasts remain intact. Improve playing-position polling under slow UI ticks. Requires HB 0.2.115. Fresh sets remain muted; load a receiver instrument and unmute it to hear output. Existing sets are preserved. Full-chain audio, recording, routing, UI and timing gates pass."
           fi
