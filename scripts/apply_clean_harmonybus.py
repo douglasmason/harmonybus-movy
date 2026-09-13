@@ -323,7 +323,13 @@ def patch_touch_buttons(root: Path) -> None:
     before: str = "        knobTouch: (slot: number, down: boolean) => { ctl.onKnobTouch(slot, down); },"
     after: str = """        knobTouch: (slot: number, down: boolean) => {
             ctl.onKnobTouch(slot, down);
-            if (!down) { touchActions.delete(slot); return; }
+            if (!down) {
+                const heldKey = touchActions.get(slot);
+                touchActions.delete(slot);
+                if (heldKey === 'mod_chrom_below' || heldKey === 'mod_scale_above')
+                    ctl.commitEnum(heldKey, 0);
+                return;
+            }
             if (touchActions.has(slot)) return;
             if (port.getParam(moduleReadKey(componentKey)) !== 'harmonybus') return;
             const key = ctl.keyAt(slot);
@@ -334,8 +340,7 @@ def patch_touch_buttons(root: Path) -> None:
                 ctl.onClick(slot);
             } else if (key === 'mod_chrom_below' || key === 'mod_scale_above') {
                 touchActions.set(slot, key);
-                const current = port.getParam(qualify(key));
-                ctl.commitEnum(key, current === 'On' || current === '1' ? 0 : 1);
+                ctl.commitEnum(key, 1);
             }
         },"""
     page_path.write_text(replace_once(source, before, after, "touch button activation"))

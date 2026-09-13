@@ -63,11 +63,17 @@ for (const key of ['mod_chrom_below', 'mod_scale_above']) {
     page.knobTurn(slot, 3);
     page.knobTurn(slot, -3);
     page.knobTouch(slot, false);
-    assert.equal(writes.length, before + 1, `${key}: exactly one write per touch`);
-    assert.equal(values.get(key), 'On', 'Release preserves the toggle');
+    assert.equal(writes.length, before + 2, `${key}: one On and one Off per touch`);
+    assert.equal(values.get(key), 'Off', 'Release disables the modifier');
     page.knobTouch(slot, true);
-    assert.deepEqual(writes.at(-1), [`midi_fx1:${key}`, 'Off']);
+    assert.deepEqual(writes.at(-1), [`midi_fx1:${key}`, 'On']);
+    // Release follows the captured key even after navigating to another page.
+    focusKey('arp_phase');
     page.knobTouch(slot, false);
+    assert.deepEqual(writes.at(-1), [`midi_fx1:${key}`, 'Off']);
+    const released = writes.length;
+    page.knobTouch(slot, false);
+    assert.equal(writes.length, released, 'Duplicate release is inert');
 }
 for (const [key, action] of [['approach_reset','Reset'],['approach_scale_next','Scale +'],['approach_chrom_next','Chrom -'],['next_reset','Reset'],['arp_clear','Clear']]) {
     const slot = focusKey(key);
@@ -83,4 +89,4 @@ for (const [key, action] of [['approach_reset','Reset'],['approach_scale_next','
     page.knobTouch(slot, false);
     assert.equal(writes.length, before + 2, `${key}: next touch immediately re-arms`);
 }
-console.log('HB buttons: touch toggle, release persistence, every action, repeat-touch and turn deduplication pass');
+console.log('HB buttons: momentary modifiers, release after page change, every action, repeat-touch and turn deduplication pass');

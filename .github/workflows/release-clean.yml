@@ -15,8 +15,8 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   HB_REF: 724468f7c324b06e15d315e94fd4f0f432c6663d
-  HB_MOVY_VERSION: 0.34.1-hbclean.33
-  HB_MOVY_TAG: v0.34.1-hbclean.33
+  HB_MOVY_VERSION: 0.34.1-hbclean.34
+  HB_MOVY_TAG: v0.34.1-hbclean.34
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -255,5 +255,5 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Activate HB action buttons and Chrom Below / Scale Above toggles on knob touch. One activation per touch, no repeated action from turning while held. Ordinary parameter touch still displays the current value. Pair with HB 0.2.117 for four-bar timing choices. Receiver defaults and stock MIDI broadcasts are preserved."
+              --notes "Activate HB action buttons and Chrom Below / Scale Above are On while touched and Off on release. Action buttons fire once on touch, with no release action or repeat from turning while held. Ordinary parameter touch still displays the current value. Pair with HB 0.2.117 for four-bar timing choices. Receiver defaults and stock MIDI broadcasts are preserved."
           fi
