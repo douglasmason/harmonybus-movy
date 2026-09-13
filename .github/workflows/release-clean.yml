@@ -263,3 +263,5 @@ jobs:
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
               --notes "Save hosted parameter edits independently of clip edits, bound autosave waits by elapsed time, prioritize toggle release and empty-clip beat LEDs, and trigger Reset Learn on touch. Fresh conductors start in Scale Degree chord mode. Requires HB 0.2.123 for the updated eight-knob arp panel. Native and restart regressions verify defaults and persistence."
           fi
+          gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA"
+          test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
