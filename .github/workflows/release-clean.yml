@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: a379760949b8463fa5d4f7335c70aaa492400517
-  HB_MOVY_VERSION: 0.34.1-hbclean.37
-  HB_MOVY_TAG: v0.34.1-hbclean.37
+  HB_REF: 4974939f0e68c1a39d00056993df5797020f7e40
+  HB_MOVY_VERSION: 0.34.1-hbclean.38
+  HB_MOVY_TAG: v0.34.1-hbclean.38
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -67,6 +67,8 @@ jobs:
               ['git', '-C', str(root), 'ls-files', '--others', '--exclude-standard'], text=True
           ).splitlines()
           expected = {
+              'src/track/pad-route.ts',
+              'engine/crates/movy-dsp/src/pad_route.rs',
               'src/seq/ui-state.ts',
               'src/seq/engine.ts',
               'src/seq/leds.ts',
@@ -261,7 +263,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Save hosted parameter edits independently of clip edits, bound autosave waits by elapsed time, prioritize toggle release and empty-clip beat LEDs, and trigger Reset Learn on touch. Fresh conductors start in Scale Degree chord mode. Requires HB 0.2.123 for the updated eight-knob arp panel. Native and restart regressions verify defaults and persistence."
+              --notes "Forward coalesced per-pad pressure through the held-note ledger for pressure-controlled arp velocities. Fresh track presets default Retrigger Held to On. Requires HB 0.2.124, which preserves due arp hits across harmony changes. Existing saved settings are preserved."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

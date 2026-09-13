@@ -20,6 +20,7 @@ import json
 import base64
 from patch_loop_bridge import patch_loop_bridge
 from patch_visual_beat import patch_visual_beat
+from patch_arp_pressure import patch_arp_pressure
 from patch_responsive_persistence import patch_responsive_persistence
 from pathlib import Path
 
@@ -40,18 +41,18 @@ def patch_fresh_set(path: Path) -> None:
     marker: str = "/* Defaults match init(): C tonic, Major, Chromatic/4ths, C3 on every track. */"
     helper: str = r'''/* HarmonyBus clean-build defaults. These are used ONLY for a Set with no
  * Movy UI blob. Once saved, ordinary upstream chain persistence owns the state. */
-const HB_FRESH_CONDUCTOR = 'hb16,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,-3,60,0,0,0,0;cp1,1,0,0,0,0,0,0,2,1,0;ds1,0;cq1,0,0;ph1,1;np1,0';
+const HB_FRESH_CONDUCTOR = 'hb16,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,1,0,-3,60,0,0,0,0;cp1,1,0,0,0,0,0,0,2,1,0;ds1,0;cq1,0,0;ph1,1;np1,0';
 const HB_FRESH_FOLLOWERS = [
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,0,0,0,0,-3,60,0,0,0,0',
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,-3,60,0,0,0,0',
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,0,0,0,0,-3,60,0,0,0,0',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,0,0,1,0,-3,60,0,0,0,0',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,1,0,-3,60,0,0,0,0',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,0,0,1,0,-3,60,0,0,0,0',
 ];
 
 const HB_FRESH_RECEIVERS = [
-    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,0,0,0,0,0,0,0,-3,60,0,0,0,0',
-    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,1,0,0,0,0,0,0,-3,60,0,0,0,0',
-    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,2,0,0,0,0,0,0,-3,60,0,0,0,0',
-    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,3,0,0,0,0,0,0,-3,60,0,0,0,0',
+    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,0,0,0,0,0,1,0,-3,60,0,0,0,0',
+    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,1,0,0,0,0,1,0,-3,60,0,0,0,0',
+    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,2,0,0,0,0,1,0,-3,60,0,0,0,0',
+    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,3,0,0,0,0,1,0,-3,60,0,0,0,0',
 ];
 
 function freshHarmonyBusChains() {
@@ -414,6 +415,7 @@ def main() -> int:
     patch_playhead_poll(root / "src/seq/engine.ts")
     patch_visual_beat(root)
     patch_responsive_persistence(root)
+    patch_arp_pressure(root)
     poll_test = root / "browser-test/logic/seq-engine.mjs"
     poll_source = poll_test.read_text()
     poll_anchor = "    eq('bpm mirrored', seqState.bpmX100, 13350);"

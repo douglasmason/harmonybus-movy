@@ -1,4 +1,4 @@
-> Release hbclean.37 fixes UI-only autosave and slow-UI save cadence, prioritizes modifier release and beat LEDs, and explicitly triggers Reset Learn on touch. Fresh conductors start in Scale Degree chord mode. Pair with HB 0.2.123.
+> Release hbclean.38 forwards per-pad pressure to held arp sources and enables Retrigger Held in fresh track presets. Pair with HB 0.2.124 for the chord-boundary arp fix and pressure-controlled attack velocities.
 
 
 
@@ -36,7 +36,7 @@ Install from the repository URL in Schwung's GitHub/repository installer:
 https://github.com/douglasmason/harmonybus-movy
 ```
 
-The corrected clean release reports version **0.34.1-hbclean.37** and requires **HarmonyBus 0.2.123 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
+The corrected clean release reports version **0.34.1-hbclean.38** and requires **HarmonyBus 0.2.124 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
 
 The empty-clip visual metronome uses a display-only clock projected from each engine status reading, capped at 100 ms of extrapolation if readings stop arriving. This removes the wait for the next status poll; it does not compensate for hardware LED latency or a blocked UI thread. Sequencing, clip playheads and MIDI rendering continue to use the engine's own timing.
 
