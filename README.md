@@ -1,4 +1,5 @@
-> Release hbclean.32 adds HB Receiver defaults on tracks 13–16 (channels 1–4, no instruments) and elapsed-time playhead polling. Requires HarmonyBus 0.2.115. Original stock MIDI rendering is preserved.
+> Release hbclean.33 activates HB action buttons and Chrom Below / Scale Above on knob touch. Each touch fires once; turning while held does not fire again. Normal parameter touches still display their values. Pair with HB 0.2.117 for four-bar timing.
+
 
 
 # HarmonyBus Movy
@@ -34,7 +35,7 @@ Install from the repository URL in Schwung's GitHub/repository installer:
 https://github.com/douglasmason/harmonybus-movy
 ```
 
-The corrected clean release reports version **0.34.1-hbclean.32** and requires **HarmonyBus 0.2.115**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
+The corrected clean release reports version **0.34.1-hbclean.33** and requires **HarmonyBus 0.2.117**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
 
 The clean release counter starts at 20 so Schwung's numeric version comparison recognizes it as newer than hb.19.
 

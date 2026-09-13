@@ -45,3 +45,42 @@ page.knobTouch(phaseSlot, false);
 assert.equal(page.ctl.describePage().header.inverted, false);
 assert.equal(writes.length, writesBefore, 'Touch alone must never edit a parameter');
 console.log('HB touch: real controller labels, current value, highlighted header, multiple fingers and no writes pass');
+
+function focusKey(key) {
+    const index = page.ctl.pages.findIndex(candidate => candidate.keys?.includes(key));
+    assert(index >= 0, `${key} must have a knob`);
+    page.goToPage(index);
+    for (let tick = 0; tick < 64; tick++) page.tick();
+    return page.ctl.page.keys.indexOf(key);
+}
+for (const key of ['mod_chrom_below', 'mod_scale_above']) {
+    values.set(key, 'Off');
+    const slot = focusKey(key);
+    const before = writes.length;
+    page.knobTouch(slot, true);
+    assert.deepEqual(writes.at(-1), [`midi_fx1:${key}`, 'On']);
+    page.knobTouch(slot, true);
+    page.knobTurn(slot, 3);
+    page.knobTurn(slot, -3);
+    page.knobTouch(slot, false);
+    assert.equal(writes.length, before + 1, `${key}: exactly one write per touch`);
+    assert.equal(values.get(key), 'On', 'Release preserves the toggle');
+    page.knobTouch(slot, true);
+    assert.deepEqual(writes.at(-1), [`midi_fx1:${key}`, 'Off']);
+    page.knobTouch(slot, false);
+}
+for (const [key, action] of [['approach_reset','Reset'],['approach_scale_next','Scale +'],['approach_chrom_next','Chrom -'],['next_reset','Reset'],['arp_clear','Clear']]) {
+    const slot = focusKey(key);
+    assert(page.ctl.metaAt(slot).writeOnly, `${key} must resolve as an action button`);
+    const before = writes.length;
+    page.knobTouch(slot, true);
+    assert.deepEqual(writes.at(-1), [`midi_fx1:${key}`, action]);
+    page.knobTouch(slot, true);
+    page.knobTurn(slot, 5);
+    page.knobTouch(slot, false);
+    assert.equal(writes.length, before + 1, `${key}: no duplicate action`);
+    page.knobTouch(slot, true);
+    page.knobTouch(slot, false);
+    assert.equal(writes.length, before + 2, `${key}: next touch immediately re-arms`);
+}
+console.log('HB buttons: touch toggle, release persistence, every action, repeat-touch and turn deduplication pass');

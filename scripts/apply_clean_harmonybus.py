@@ -308,6 +308,39 @@ def patch_upstream_expectations(root: Path) -> None:
         test_path.write_text(test_source)
 
 
+def patch_touch_buttons(root: Path) -> None:
+    """Activate hosted HB actions once per capacitive touch gesture."""
+    page_path: Path = root / "src/renderer/schwung-page.ts"
+    source: str = page_path.read_text()
+    source = replace_once(source,
+        "    const qualify = (k: string) =>",
+        "    const touchActions = new Map<number, string>();\n    const qualify = (k: string) =>",
+        "touch action ownership")
+    source = replace_once(source,
+        "        knobTurn: (slot: number, delta: number) => {\n            const dir",
+        "        knobTurn: (slot: number, delta: number) => {\n            if (touchActions.has(slot)) return;\n            const dir",
+        "touch action turn deduplication")
+    before: str = "        knobTouch: (slot: number, down: boolean) => { ctl.onKnobTouch(slot, down); },"
+    after: str = """        knobTouch: (slot: number, down: boolean) => {
+            ctl.onKnobTouch(slot, down);
+            if (!down) { touchActions.delete(slot); return; }
+            if (touchActions.has(slot)) return;
+            if (port.getParam(moduleReadKey(componentKey)) !== 'harmonybus') return;
+            const key = ctl.keyAt(slot);
+            const meta = ctl.metaAt(slot);
+            if (!key || !meta || meta.readOnly) return;
+            if (meta.writeOnly) {
+                touchActions.set(slot, key);
+                ctl.onClick(slot);
+            } else if (key === 'mod_chrom_below' || key === 'mod_scale_above') {
+                touchActions.set(slot, key);
+                const current = port.getParam(qualify(key));
+                ctl.commitEnum(key, current === 'On' || current === '1' ? 0 : 1);
+            }
+        },"""
+    page_path.write_text(replace_once(source, before, after, "touch button activation"))
+
+
 def patch_panel_titles(root: Path) -> None:
     """Carry Schwung's current page label through Movy's header model."""
     map_path_to_replacements: dict[str, list[tuple[str, str]]] = {
@@ -358,6 +391,7 @@ def main() -> int:
     root: Path = args.movy_root.resolve()
 
     patch_panel_titles(root)
+    patch_touch_buttons(root)
     patch_fresh_set(root / "src/seq/ui-state.ts")
     patch_schwung_page_ownership(
         root / "src/renderer/schwung-grid.ts",
