@@ -1,4 +1,5 @@
-> Release hbclean.39 records follower poly-pressure curves and replays them through HarmonyBus. Pair with HB 0.2.124 for the chord-boundary arp fix and pressure-controlled attack velocities.
+> Release hbclean.40 prioritizes captured performance-touch releases and defers parameter reloads, polling and periodic autosave while a toggle is held. Pair with HB 0.2.125 for Foll Play and octave arp range.
+
 
 
 

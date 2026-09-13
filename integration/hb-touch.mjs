@@ -54,7 +54,7 @@ function focusKey(key) {
     for (let tick = 0; tick < 64; tick++) page.tick();
     return page.ctl.page.keys.indexOf(key);
 }
-for (const key of ['mod_chrom_below', 'mod_scale_above']) {
+for (const key of ['mod_chrom_below', 'mod_scale_above', 'play_bypass']) {
     values.set(key, 'Off');
     const slot = focusKey(key);
     const before = writes.length;
@@ -78,7 +78,7 @@ for (const key of ['mod_chrom_below', 'mod_scale_above']) {
     page.knobTouch(slot, false);
     assert.equal(writes.length, released, 'Duplicate release is inert');
 }
-for (const [key, action] of [['approach_reset','Reset'],['approach_scale_next','Scale +'],['approach_chrom_next','Chrom -'],['next_reset','Reset']]) {
+for (const [key, action] of [['approach_reset','Reset'],['approach_scale_next','Scale +'],['approach_chrom_next','Chrom -'],['next_reset','Reset'],['play_reset','Reset']]) {
     const slot = focusKey(key);
     assert(page.ctl.metaAt(slot).writeOnly, `${key} must resolve as an action button`);
     const before = writes.length;
@@ -97,3 +97,19 @@ console.log('HB buttons: momentary modifiers, release after page change, every a
 assert.equal(page.ctl.pages.filter(candidate => candidate.keys?.includes('arp_phase')).length, 1);
 assert.equal(module.capabilities.ui_hierarchy.levels.arp_player.knobs.length, 8);
 assert(!module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_clear'));
+
+const { releasePerformanceTouch, performanceTouchActive } = await import('../dist/esm/renderer/schwung-page.js');
+const performanceSlot = focusKey('mod_chrom_below');
+page.knobTouch(performanceSlot, true);
+assert(performanceTouchActive());
+const originalGet = port.getParam;
+port.getParam = () => { throw new Error('Parameter read delayed an owned release'); };
+for (let tick = 0; tick < 20; tick++) page.tick();
+releasePerformanceTouch(performanceSlot);
+assert.deepEqual(writes.at(-1), ['midi_fx1:mod_chrom_below', 'Off']);
+const afterRelease = writes.length;
+releasePerformanceTouch(performanceSlot);
+assert.equal(writes.length, afterRelease);
+port.getParam = originalGet;
+assert.equal(module.capabilities.ui_hierarchy.levels.follower_play.knobs.length, 8);
+console.log('HB performance release: no polling during touch, direct captured release, no duplicate Off pass');

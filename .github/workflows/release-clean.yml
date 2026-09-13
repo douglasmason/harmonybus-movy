@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 805f4c37804fa9916fc29f2677c9422c3df7bb8f
-  HB_MOVY_VERSION: 0.34.1-hbclean.39
-  HB_MOVY_TAG: v0.34.1-hbclean.39
+  HB_REF: 04949cc9fe0b9c6773dceb1395f9c0521023703c
+  HB_MOVY_VERSION: 0.34.1-hbclean.40
+  HB_MOVY_TAG: v0.34.1-hbclean.40
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -92,6 +92,7 @@ jobs:
               'browser-test/screenshots/baseline/quant-overlay-two.png',
               'src/renderer/schwung-grid.ts',
               'src/renderer/schwung-page.ts',
+              'src/renderer/performance-touch.ts',
               'src/renderer/knob-view.ts',
               'src/app/tick.ts',
               'src/midi/router.ts',

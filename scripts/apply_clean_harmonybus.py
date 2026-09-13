@@ -22,6 +22,7 @@ from patch_loop_bridge import patch_loop_bridge
 from patch_visual_beat import patch_visual_beat
 from patch_pressure_recording import patch_pressure_recording
 from patch_arp_pressure import patch_arp_pressure
+from patch_performance_touch import patch_performance_touch
 from patch_responsive_persistence import patch_responsive_persistence
 from pathlib import Path
 
@@ -458,6 +459,7 @@ def main() -> int:
     for relative_path, encoded_png in map_path_to_base64.items():
         (root / relative_path).write_bytes(base64.b64decode(encoded_png))
     patch_pressure_recording(root)
+    patch_performance_touch(root)
     print("HarmonyBus clean integration applied")
     return 0
 
