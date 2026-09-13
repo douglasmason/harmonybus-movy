@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: aa9bd1776c657c4fb33c4761e6b10e4b3da67451
-  HB_MOVY_VERSION: 0.34.1-hbclean.42
-  HB_MOVY_TAG: v0.34.1-hbclean.42
+  HB_REF: 2adfd09c633c79594d22cd0a2aaa5bf0f53db359
+  HB_MOVY_VERSION: 0.34.1-hbclean.43
+  HB_MOVY_TAG: v0.34.1-hbclean.43
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -69,13 +69,9 @@ jobs:
           expected = {
               'src/keyboard/handler.ts',
               'src/seq/pads.ts',
-              'src/seq/flags-def.ts',
               'src/keyboard/harmony-pads.ts',
               'src/keyboard/pad-palette.ts',
-              'browser-test/logic/flags.mjs',
               'browser-test/hb-pad-colors.mjs',
-              'browser-test/screenshots/baseline/flags-scrolled.png',
-              'browser-test/screenshots/baseline/flags-release.png',
 
               'src/track/pad-route.ts',
               'engine/crates/movy-dsp/src/pad_route.rs',
@@ -278,7 +274,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Adds saved global harmony pad colors: fixed input-root and scale backgrounds, current/effective harmony pulses half a cycle apart, configurable rate, shape and colors. Standard remains the default. Requires HarmonyBus 0.2.128."
+              --notes "Colors follow rendered notes, with separate Current, Lookahead and Effective choices. All display settings now live in one shared HB Pads Global panel, with no duplicate Movy controls. Requires HarmonyBus 0.2.129."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

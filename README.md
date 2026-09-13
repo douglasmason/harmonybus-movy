@@ -1,4 +1,4 @@
-> Release hbclean.42 adds optional harmony pad colors. Update HarmonyBus to 0.2.128 as well.
+> Release hbclean.43 uses rendered-note pad colors and one shared HB Pads Global panel. Update HarmonyBus to 0.2.129.
 
 
 
@@ -130,12 +130,14 @@ Normal Record stores polyphonic pressure changes with each held input note. On p
 
 ## Harmony pad colors
 
-Movy hbclean.42 with HarmonyBus 0.2.128 adds global saved settings under Shift + Step 2 (Settings). Pad Colors defaults to Standard, preserving existing feedback. Choose Current, Effective or Both to enable pitch-class harmony colors across every octave.
+Movy hbclean.43 with HarmonyBus 0.2.129 provides one shared Pads Global panel inside HB, accessible from any track. Display settings apply to all HB tracks and save with the Set; the old Movy Settings controls are removed. Standard preserves the original pad feedback. Current, Effective, Lookahead and Both color pads by their RENDERED pitches, using the active track's follower mapping, chord voicing, modifiers and live Foll Play settings. Each input pitch class is previewed through the effective rendering context once; the resulting pitches are compared with the selected chord. All octaves share the same classification. No notes are sent and one-shot modifiers are not consumed by previewing.
 
-The fixed background is the input-key root in track color, other in-scale notes in dim white, and chromatic notes dark. Current harmony defaults to cyan; effective/lookahead harmony defaults to yellow. These overlays pulse half a cycle apart over the background. Shared tones receive both pulses; background can show between them. Last-played and held-note feedback does not override this scheme. The conductor harmony root does not replace the input-key root marker.
+Current tests the rendered pitches against the current conductor chord. Lookahead tests them against the signed lookahead harmony before follower-buffer adjustment, and remains unlit until prediction is ready. Effective tests them against the harmony actually used to render, including predictive follower buffering (bypassed by Repeat Arp). Both overlays Current and Lookahead half a pulse cycle apart. Existing saved display selections retain their meanings and numeric values; Lookahead is appended.
 
-Pad Pulse Rate offers Off, 1/16, 1/8, 1/4 (default), 1/2, 1 Bar, 2 Bars and 4 Bars. Pulse Shape offers Smooth (default), Triangle and Square. Current Color and Lookahead Color each offer eight colors. Off makes harmony colors steady; shared tones blend. Move's fixed LED palette approximates the blends in discrete steps.
+For example, with C as the follower reference, Relative travel and Scale content over G major, input C renders G and lights as a chord tone; input D renders A and does not, even though the input pitch D belongs to G major. In chord mode all rendered voices must belong to the selected chord to receive its highlight; chords with additional scale tones retain the scale background.
 
-Effective uses the selected track's learned harmony timing, including signed lookahead and the predictive follower window; Repeat Arp bypasses that window. During learning, only current harmony is shown. This is a pitch-class view of the harmony, not a preview of every follower mapping. Background scale follows HB's effective scale, with the input layout as fallback.
+The input-key root always has track color as its background. Other pads whose rendered voices all belong to the effective scale have dim-white backgrounds; chromatic results are dark. Current defaults to cyan and Lookahead/Effective to yellow. Overlay pulses leave the background visible between peaks. Last-played, held and immediate pad-down feedback cannot override this scheme.
 
-Color polling is read-only, limited to one snapshot per 50 ms while enabled, and paused during performance-touch gestures. Pulses use the master transport while playing and tempo while stopped. Standard makes no extra HB reads. Drum and session pads retain their existing displays. These settings persist with Movy's global preferences.
+Pad Pulse Rate: Off, 1/16, 1/8, 1/4 (default), 1/2, 1 Bar, 2 Bars, 4 Bars. Shape: Smooth (default), Triangle, Square. Both colors have eight choices. Off makes overlays steady, blending shared tones. Move's fixed palette approximates blends in discrete steps. All instances save the same shared display settings; a stale track restore cannot overwrite a live change.
+
+Polling is read-only, at most once per 50 ms, and paused during performance-touch gestures. Pulses follow the master transport when running, or tempo when stopped. Standard returns only the lightweight shared settings, without calculating note previews. Drum and session pads retain their normal display. The five controls are Pad Colors, Pulse Rate, Pulse Shape, Current Color and Lookahead Color. Only the rendering classification varies by track. Stock Schwung can show this panel, but its native pad LEDs require host support; Movy hbclean.43 supplies that integration.
