@@ -19,6 +19,7 @@ import subprocess
 import json
 import base64
 from patch_loop_bridge import patch_loop_bridge
+from patch_visual_beat import patch_visual_beat
 from pathlib import Path
 
 
@@ -410,6 +411,7 @@ def main() -> int:
     patch_loop_bridge(root)
     patch_record_bridge(root)
     patch_playhead_poll(root / "src/seq/engine.ts")
+    patch_visual_beat(root)
     poll_test = root / "browser-test/logic/seq-engine.mjs"
     poll_source = poll_test.read_text()
     poll_anchor = "    eq('bpm mirrored', seqState.bpmX100, 13350);"

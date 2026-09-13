@@ -15,8 +15,8 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   HB_REF: b005afba0d61b787b7acb94e4792567a78f5dce4
-  HB_MOVY_VERSION: 0.34.1-hbclean.35
-  HB_MOVY_TAG: v0.34.1-hbclean.35
+  HB_MOVY_VERSION: 0.34.1-hbclean.36
+  HB_MOVY_TAG: v0.34.1-hbclean.36
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -69,6 +69,7 @@ jobs:
           expected = {
               'src/seq/ui-state.ts',
               'src/seq/engine.ts',
+              'src/seq/leds.ts',
               'src/seq/clip-page.ts',
               'src/seq/clip-page-vm.ts',
               'src/undo/verbs.ts',
@@ -99,6 +100,7 @@ jobs:
               'browser-test/hb-touch.mjs',
               'browser-test/logic/tracks-chain.mjs',
               'browser-test/logic/seq-engine.mjs',
+              'browser-test/logic/seq-leds.mjs',
               'browser-test/abi-parity.mjs',
               'browser-test/track-colors.mjs',
           }

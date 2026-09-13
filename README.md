@@ -1,4 +1,4 @@
-> Release hbclean.35 verifies master transpose across live playing, conductor recording/replay, rendered MIDI and Receiver audio with HB 0.2.118. Touch behavior and fresh-set defaults are preserved.
+> Release hbclean.36 fixes polling-induced lag in the empty-clip green beat groups. The display advances between engine status samples using the reported tempo and resynchronizes at each sample. Audio timing is unchanged. Regression tests check the actual 16 LED colors across beat/bar boundaries, tempo changes, stop and restart.
 
 
 
@@ -36,7 +36,9 @@ Install from the repository URL in Schwung's GitHub/repository installer:
 https://github.com/douglasmason/harmonybus-movy
 ```
 
-The corrected clean release reports version **0.34.1-hbclean.35** and requires **HarmonyBus 0.2.118**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
+The corrected clean release reports version **0.34.1-hbclean.36** and requires **HarmonyBus 0.2.118 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
+
+The empty-clip visual metronome uses a display-only clock projected from each engine status reading, capped at 100 ms of extrapolation if readings stop arriving. This removes the wait for the next status poll; it does not compensate for hardware LED latency or a blocked UI thread. Sequencing, clip playheads and MIDI rendering continue to use the engine's own timing.
 
 The clean release counter starts at 20 so Schwung's numeric version comparison recognizes it as newer than hb.19.
 
