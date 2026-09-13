@@ -257,5 +257,5 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Verify HB 0.2.118 master transpose across conductor recording and replay: record with one transpose, replay with another, and retain the original chord voicing. Full-chain checks verify rendered pitches and Receiver audio. Existing touch behavior and fresh-set defaults are preserved."
+              --notes "Reduce empty-clip green beat LED lag by advancing the display clock between engine status polls. Regression tests verify actual LED colors at beat and bar boundaries, tempo changes, stop and restart. Audio timing is unchanged; existing recording, routing and touch behavior are preserved."
           fi
