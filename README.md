@@ -1,4 +1,4 @@
-> Release hbclean.41 adds optional harmony pad colors. Update HarmonyBus to 0.2.128 as well.
+> Release hbclean.42 adds optional harmony pad colors. Update HarmonyBus to 0.2.128 as well.
 
 
 
@@ -130,7 +130,7 @@ Normal Record stores polyphonic pressure changes with each held input note. On p
 
 ## Harmony pad colors
 
-Movy hbclean.41 with HarmonyBus 0.2.128 adds global saved settings under Shift + Step 2 (Settings). Pad Colors defaults to Standard, preserving existing feedback. Choose Current, Effective or Both to enable pitch-class harmony colors across every octave.
+Movy hbclean.42 with HarmonyBus 0.2.128 adds global saved settings under Shift + Step 2 (Settings). Pad Colors defaults to Standard, preserving existing feedback. Choose Current, Effective or Both to enable pitch-class harmony colors across every octave.
 
 The fixed background is the input-key root in track color, other in-scale notes in dim white, and chromatic notes dark. Current harmony defaults to cyan; effective/lookahead harmony defaults to yellow. These overlays pulse half a cycle apart over the background. Shared tones receive both pulses; background can show between them. Last-played and held-note feedback does not override this scheme. The conductor harmony root does not replace the input-key root marker.
 
