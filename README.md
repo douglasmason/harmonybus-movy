@@ -1,4 +1,4 @@
-> Release hbclean.40 prioritizes captured performance-touch releases and defers parameter reloads, polling and periodic autosave while a toggle is held. Pair with HB 0.2.126 for Foll Play and octave arp range.
+> Release hbclean.41 adds optional harmony pad colors. Update HarmonyBus to 0.2.128 as well.
 
 
 
@@ -127,3 +127,15 @@ Fresh conductor tracks 1, 5 and 9 have Scale Degree chord mode enabled. Existing
 ### Recorded follower pressure
 
 Normal Record stores polyphonic pressure changes with each held input note. On playback, those changes drive HB Repeat Arp hit velocities; the follower notes still map to the current conductor harmony. Curves remain relative to the note onset through quantization and clip speed changes, and follow note copies, transposition, loop wrap, and save/reload. Pressure is applied before arp generation for the audio block. Older sets have no curves and retain their original velocities. Retrospective Capture remains note-only.
+
+## Harmony pad colors
+
+Movy hbclean.41 with HarmonyBus 0.2.128 adds global saved settings under Shift + Step 2 (Settings). Pad Colors defaults to Standard, preserving existing feedback. Choose Current, Effective or Both to enable pitch-class harmony colors across every octave.
+
+The fixed background is the input-key root in track color, other in-scale notes in dim white, and chromatic notes dark. Current harmony defaults to cyan; effective/lookahead harmony defaults to yellow. These overlays pulse half a cycle apart over the background. Shared tones receive both pulses; background can show between them. Last-played and held-note feedback does not override this scheme. The conductor harmony root does not replace the input-key root marker.
+
+Pad Pulse Rate offers Off, 1/16, 1/8, 1/4 (default), 1/2, 1 Bar, 2 Bars and 4 Bars. Pulse Shape offers Smooth (default), Triangle and Square. Current Color and Lookahead Color each offer eight colors. Off makes harmony colors steady; shared tones blend. Move's fixed LED palette approximates the blends in discrete steps.
+
+Effective uses the selected track's learned harmony timing, including signed lookahead and the predictive follower window; Repeat Arp bypasses that window. During learning, only current harmony is shown. This is a pitch-class view of the harmony, not a preview of every follower mapping. Background scale follows HB's effective scale, with the input layout as fallback.
+
+Color polling is read-only, limited to one snapshot per 50 ms while enabled, and paused during performance-touch gestures. Pulses use the master transport while playing and tempo while stopped. Standard makes no extra HB reads. Drum and session pads retain their existing displays. These settings persist with Movy's global preferences.

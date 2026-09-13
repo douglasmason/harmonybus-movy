@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+import { installEnv } from './env.mjs';
+installEnv();
+const { colorHarmonyPitch, harmonyPulse, parseHarmonySnapshot, refreshHarmonyPads, padColor } = await import('../dist/esm/seq/pads.js');
+const { setFlag } = await import('../dist/esm/seq/flags.js');
+const { trackColor, C_LIGHTGREY } = await import('../dist/esm/seq/colors.js');
+const scale = 0xAB5, chord = (1<<0)|(1<<4)|(1<<7), future = (1<<2)|(1<<6)|(1<<9);
+const render = (note,phase,current=chord,next=future) => colorHarmonyPitch(note,0,0,scale,current,next,3,phase,0,127,125,true);
+for(let note=36;note<84;note++)for(const phase of [0,0.125,0.25,0.5,0.75])
+    assert.equal(render(note,phase),render(note+12,phase),'Pitch classes match in every octave');
+assert.equal(render(60,0.5),trackColor(0),'Input root returns to track background');
+assert.equal(render(64,0.5),C_LIGHTGREY,'Scale member returns to half-white');
+assert.equal(render(61,0),0,'Nonmember stays dark');
+assert.equal(render(66,0.5),125,'Altered future chord tone overrides dark background');
+assert.equal(render(60,0),127,'Current chord pulse peak');
+assert.equal(render(60,0.5,chord,chord),125,'Shared tone shows opposite pulse');
+assert(Math.abs(harmonyPulse(0.25,0)+harmonyPulse(0.75,0)-0.5)<1e-9,'Smooth permits background between peaks');
+assert.equal(harmonyPulse(0.25,2)+harmonyPulse(0.75,2),0,'Square permits a gap');
+assert.equal(parseHarmonySnapshot('bad'),null);
+assert.deepEqual(parseHarmonySnapshot('145,580,2741,1'),{current:145,effective:580,scale:2741,ready:true});
+setFlag('padDisplay',1);
+assert.equal(padColor(68,68,0,true),padColor(68,68,0,false),'Playing white/green cannot override harmony colors');
+setFlag('padDisplay',0);
+assert.notEqual(padColor(68,68,0,true),padColor(68,68,0,false),'Standard feedback remains available');
+console.log('Harmony pads: pitch classes, root backgrounds, overlap, independent shapes and Standard pass');
+
+const { portFor } = await import('../dist/esm/track/registry.js');
+const port = portFor(4), originalGet = port.getParam;
+let reads = 0;
+port.getParam = key => { assert.equal(key,'midi_fx1:pad_harmony'); reads++; return '145,580,2741,1'; };
+setFlag('padDisplay',3);
+refreshHarmonyPads(4,0);
+for(let now=1;now<50;now++) refreshHarmonyPads(4,now);
+assert.equal(reads,1,'No per-pad or per-frame polling');
+refreshHarmonyPads(4,50);assert.equal(reads,2);
+setFlag('padDisplay',0);refreshHarmonyPads(4,100);assert.equal(reads,2,'Standard does no HB polling');
+port.getParam=originalGet;
+console.log('Harmony pad polling: one bounded snapshot, zero IPC in Standard pass');

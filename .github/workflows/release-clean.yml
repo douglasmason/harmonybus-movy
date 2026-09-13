@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 1f1d81e79586bf0723d28bc0290a7ed71bc65544
-  HB_MOVY_VERSION: 0.34.1-hbclean.40
-  HB_MOVY_TAG: v0.34.1-hbclean.40
+  HB_REF: aa9bd1776c657c4fb33c4761e6b10e4b3da67451
+  HB_MOVY_VERSION: 0.34.1-hbclean.41
+  HB_MOVY_TAG: v0.34.1-hbclean.41
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -67,6 +67,15 @@ jobs:
               ['git', '-C', str(root), 'ls-files', '--others', '--exclude-standard'], text=True
           ).splitlines()
           expected = {
+              'src/seq/pads.ts',
+              'src/seq/flags-def.ts',
+              'src/keyboard/harmony-pads.ts',
+              'src/keyboard/pad-palette.ts',
+              'browser-test/logic/flags.mjs',
+              'browser-test/hb-pad-colors.mjs',
+              'browser-test/screenshots/baseline/flags-scrolled.png',
+              'browser-test/screenshots/baseline/flags-release.png',
+
               'src/track/pad-route.ts',
               'engine/crates/movy-dsp/src/pad_route.rs',
               'src/seq/ui-state.ts',
@@ -164,6 +173,10 @@ jobs:
       - name: Upstream test — logic
         working-directory: movy
         run: node browser-test/logic.mjs
+
+      - name: Verify harmony pad colors
+        working-directory: movy
+        run: node browser-test/hb-pad-colors.mjs
 
       - name: Verify clip action UI and Undo
         working-directory: movy
@@ -264,7 +277,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Record note-relative poly pressure on follower tracks and replay it through HarmonyBus to shape arp velocities against the current harmony. Preserve curves through looping, note copying, quantization, transpose and save/reload. Requires HB 0.2.124. Normal Record supports pressure; retrospective Capture remains note-only."
+              --notes "Adds saved global harmony pad colors: fixed input-root and scale backgrounds, current/effective harmony pulses half a cycle apart, configurable rate, shape and colors. Standard remains the default. Requires HarmonyBus 0.2.128."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
