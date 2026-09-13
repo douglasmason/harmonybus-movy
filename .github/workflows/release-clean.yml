@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 2adfd09c633c79594d22cd0a2aaa5bf0f53db359
-  HB_MOVY_VERSION: 0.34.1-hbclean.43
-  HB_MOVY_TAG: v0.34.1-hbclean.43
+  HB_REF: 2ecc4a4d695e89e5d148a07499cd493f77f0c3af
+  HB_MOVY_VERSION: 0.34.1-hbclean.44
+  HB_MOVY_TAG: v0.34.1-hbclean.44
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -99,6 +99,11 @@ jobs:
               'src/renderer/schwung-grid.ts',
               'src/renderer/schwung-page.ts',
               'src/renderer/performance-touch.ts',
+              'src/renderer/hb-performance.ts',
+              'src/seq/flags-def.ts',
+              'src/seq/flags-page.ts',
+              'src/app/input-reset.ts',
+              'src/app/unload.ts',
               'src/renderer/knob-view.ts',
               'src/app/tick.ts',
               'src/midi/router.ts',
@@ -274,7 +279,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Colors follow rendered notes, with separate Current, Lookahead and Effective choices. All display settings now live in one shared HB Pads Global panel, with no duplicate Movy controls. Requires HarmonyBus 0.2.129."
+              --notes "Global Settings / Step Row selects STEPS or PERFORM. Four held operation lanes, two held pitch modifiers, and two triggered enclosures target the active track. Requires HarmonyBus 0.2.130. Physical gestures on Move remain unverified."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

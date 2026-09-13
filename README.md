@@ -1,4 +1,4 @@
-> Release hbclean.43 uses rendered-note pad colors and one shared HB Pads Global panel. Update HarmonyBus to 0.2.129.
+> Release hbclean.44 adds global Steps / Perform mode and eight performance controls. Update HarmonyBus to 0.2.130.
 
 
 
@@ -141,3 +141,11 @@ The input-key root always has track color as its background. Other pads whose re
 Pad Pulse Rate: Off, 1/16, 1/8, 1/4 (default), 1/2, 1 Bar, 2 Bars, 4 Bars. Shape: Smooth (default), Triangle, Square. Both colors have eight choices. Off makes overlays steady, blending shared tones. Move's fixed palette approximates blends in discrete steps. All instances save the same shared display settings; a stale track restore cannot overwrite a live change.
 
 Polling is read-only, at most once per 50 ms, and paused during performance-touch gestures. Pulses follow the master transport when running, or tempo when stopped. Standard returns only the lightweight shared settings, without calculating note previews. Drum and session pads retain their normal display. The five controls are Pad Colors, Pulse Rate, Pulse Shape, Current Color and Lookahead Color. Only the rendering classification varies by track. Stock Schwung can show this panel, but its native pad LEDs require host support; Movy hbclean.43 supplies that integration.
+
+## Step Row performance controls (hbclean.44)
+
+Open Settings with Shift+Step 2, select Step Row with the wheel, and use K1 to choose STEPS or PERFORM. The default is STEPS. This preference is global and persists across sets. PERFORM targets the active track's HarmonyBus in MIDI FX 1, including while viewing another instrument. The footer identifies the target. Shift, Loop, Session and dedicated step editing retain their normal actions.
+
+Hold steps 1–4 to force the corresponding operation lane. Hold 5 for chromatic below or 6 for scale above. Press 7 to arm scale above → chromatic below → target; press 8 for the reverse approach. Enclosures use the next three note/chord onsets, and trigger release does not cancel them. Steps 9–16 are reserved. Changing back to STEPS clears holds and enclosures immediately.
+
+Two HB editing panels share the selected operation lane. Knob touch does not activate these new operations. Source clips remain unchanged; see [the signal path and recording details](https://github.com/douglasmason/harmonybus/blob/main/docs/operations.md). Release gates exercise native loading, recording and UI behavior; physical gestures and audio on Move remain unverified for this release.
