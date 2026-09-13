@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 static int sent_on,sent_off,rejected;
+static unsigned rendered_mask;
 static double beat;
 static void log_message(const char *message){fprintf(stderr,"%s\n",message);}
 static float bpm(void){return 120;}
@@ -16,7 +17,7 @@ static double position(void){return beat;}
 static int clock_status(void){return 0;}
 static int send_packet(const uint8_t *packet,int length){
     if(length!=4){rejected++;return 0;}
-    if((packet[1]&0xf0)==0x90&&packet[3])sent_on++;
+    if((packet[1]&0xf0)==0x90&&packet[3]){sent_on++;rendered_mask|=1u<<(packet[2]%12);}
     if((packet[1]&0xf0)==0x80||((packet[1]&0xf0)==0x90&&!packet[3]))sent_off++;
     return 4;
 }
@@ -77,6 +78,7 @@ int main(int argc,char **argv){
     }
     set("ch0:mix","1,0,0,0,0");set("ch1:mix","1,0,1,0,0");
     set("padmap","0,60,64,67,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60");
+    set("ch0:midi_fx1:master_transpose","D");render(32);
     set("cmd","link 0;rec 0");render(800);
     uint8_t down[]={0x90,68,100},up[]={0x80,68,0};
     api->on_midi(instance,down,3,0);set("cmd","non 0 60 100");render(32);
@@ -97,10 +99,17 @@ int main(int argc,char **argv){
     }
     assert(count==3&&pitches==((1u<<0)|(1u<<4)|(1u<<7)));
     // A changed chord form must not regenerate the three saved voices on replay.
-    set("ch0:midi_fx1:chord_form","Ninth");sent_on=sent_off=rejected=0;
+    set("ch0:midi_fx1:chord_form","Ninth");
+    set("ch0:midi_fx1:master_transpose","F");render(32);
+    sent_on=sent_off=rejected=0;rendered_mask=0;
     set("cmd","play");long replay=render(345);set("cmd","stop");render(32);
     printf("replay local_pcm=%ld routed_on=%d routed_off=%d rejected=%d\n",replay,sent_on,sent_off,rejected);
     assert(replay>0&&sent_on==3&&sent_off==3&&rejected==0);
+    assert(rendered_mask==((1u<<5)|(1u<<9)|(1u<<0)));
+    // Changing master again moves the same recorded triad, without regeneration.
+    set("ch0:midi_fx1:master_transpose","D");render(16);rendered_mask=0;
+    set("cmd","play");render(345);set("cmd","stop");render(32);
+    assert(rendered_mask==((1u<<2)|(1u<<6)|(1u<<9)));
     // Real hosted HB subscribers: audible only from the receiver chain,
     // while the original cable-2 host callback still receives all notes.
     for(int t=0;t<16;t++){snprintf(parameter,sizeof(parameter),"ch%d:mix",t);set(parameter,"1,0,1,0,0");}
