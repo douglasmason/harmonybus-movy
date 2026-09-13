@@ -1,4 +1,4 @@
-> Release hbclean.40 prioritizes captured performance-touch releases and defers parameter reloads, polling and periodic autosave while a toggle is held. Pair with HB 0.2.125 for Foll Play and octave arp range.
+> Release hbclean.40 prioritizes captured performance-touch releases and defers parameter reloads, polling and periodic autosave while a toggle is held. Pair with HB 0.2.126 for Foll Play and octave arp range.
 
 
 
