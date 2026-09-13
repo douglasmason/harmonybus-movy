@@ -103,6 +103,8 @@ jobs:
               'src/seq/flags-def.ts',
               'src/seq/flags-page.ts',
               'browser-test/logic/flags.mjs',
+              'browser-test/screenshots/baseline/flags-release.png',
+              'browser-test/screenshots/baseline/flags-scrolled.png',
               'src/app/input-reset.ts',
               'src/app/unload.ts',
               'src/renderer/knob-view.ts',

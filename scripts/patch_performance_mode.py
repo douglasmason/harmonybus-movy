@@ -1,4 +1,6 @@
 """Expose a persistent global Steps/Perform choice and a visible active-mode label."""
+import base64
+import json
 from pathlib import Path
 from patch_responsive_persistence import replace_once
 
@@ -31,3 +33,7 @@ def patch_performance_mode(root: Path) -> None:
     if (!seqToastActive() && !jogToastShown && !captureOverlayActive() &&
         !leaveModalActive() && !undoToastActive() && !quantOverlayActive()) drawHbPerformanceMode();''')
     path.write_text(source)
+    baseline_path: Path = Path(__file__).resolve().parents[1] / 'integration/performance/baselines.json'
+    baselines: dict[str, str] = json.loads(baseline_path.read_text())
+    for relative_path, encoded_png in baselines.items():
+        (root / relative_path).write_bytes(base64.b64decode(encoded_png))
