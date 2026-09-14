@@ -1,6 +1,6 @@
-> New in hbclean.49 with HB 0.2.134: cycle conditions for Auto-capable note operations. The Conditions page shares the lane selector, adds Every / From / Through and shows the current cycle. Last-bar fill: Every 4, From 4, Through 4, Cycle 1 Bar, Auto On. Holding a step overrides the schedule.
+> New in hbclean.50 with HB 0.2.135: automatic cycle conditions for Clip Repeat, Reverse, Time Shift and Speed. Auto On runs in the sequencer even with the editor closed. Manual holds override the schedule; recording bypasses the recording track. Highest-numbered eligible automatic clip lane wins when several qualify.
 
-> Release hbclean.49 pairs with HarmonyBus 0.2.134: 16 assignable step-row slots, with approaches/enclosures in slots 13–16 by default. Clip Repeat, Reverse, Time Shift and Speed operate while held on existing playing clips. The normal transport keeps moving; release returns to it. Source clips and new-set HB/Plaits defaults are preserved. See [operation controls](https://github.com/douglasmason/harmonybus/blob/main/docs/operations.md).
+> Release hbclean.50 pairs with HarmonyBus 0.2.135: 16 assignable step-row slots, with approaches/enclosures in slots 13–16 by default. Clip Repeat, Reverse, Time Shift and Speed operate while held on existing playing clips. The normal transport keeps moving; release returns to it. Source clips and new-set HB/Plaits defaults are preserved. See [operation controls](https://github.com/douglasmason/harmonybus/blob/main/docs/operations.md).
 
 > Release hbclean.46 restores native Schwung option-list peeks for Lane and Operation. Keep HarmonyBus 0.2.130; update Movy only.
 

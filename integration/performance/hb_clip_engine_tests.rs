@@ -45,4 +45,21 @@ mod hb_clip_engine_tests {
         assert_eq!(notes,vec![&OutEvent::NoteOn{track:0,pitch:60,vel:100},&OutEvent::NoteOff{track:0,pitch:60},&OutEvent::NoteOn{track:0,pitch:60,vel:100}]);
         engine.stop(&mut output);assert!(engine.gates.is_empty());
     }
+    #[test]
+    fn automatic_windows_preserve_clip_and_stop_and_skip_recording() {
+        let mut engine=fixture();let saved=crate::persist::serialize(&engine);let mut output=Vec::new();
+        engine.hb_auto_config(0,"mca1;0,12,1,0,1,2,2,2,100,0");
+        for tick in 0..192 {engine.master_tick=tick+1;engine.step_tick(0,&mut output);}
+        let pitches:Vec<_>=output.iter().filter_map(|event|if let OutEvent::NoteOn{pitch,..}=event{Some(*pitch)}else{None}).collect();
+        let mut expected=vec![60,62,64,65];expected.extend([60;16]);assert_eq!(pitches,expected);
+        assert_eq!(crate::persist::serialize(&engine),saved);
+        engine.stop(&mut output);assert!(engine.gates.is_empty());assert!(engine.hb_auto[0][0].is_some());
+        assert!(crate::persist::load(&mut engine,&saved));assert!(engine.hb_auto[0].iter().all(Option::is_none));
+        engine.hb_auto_config(0,"mca1;0,12,1,0,1,1,1,1,100,0");
+        engine.playing=true;engine.tracks[0].playing_slot=Some(0);engine.recording=true;engine.rec_track=0;
+        output.clear();for tick in 0..96 {engine.master_tick=tick+1;engine.step_tick(0,&mut output);}
+        let pitches:Vec<_>=output.iter().filter_map(|event|if let OutEvent::NoteOn{pitch,..}=event{Some(*pitch)}else{None}).collect();
+        assert_eq!(pitches,vec![60,62,64,65]);
+    }
+
 }

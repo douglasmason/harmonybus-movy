@@ -23,7 +23,7 @@ function engineWrite(key: string, value: string): void {
     else if (typeof host_module_set_param === 'function') host_module_set_param(key,value);
 }
 export function registerHbHost(track: number, write: (value: string) => void): void {
-    hosts.set(track,write);write('movy-clip-v1');
+    hosts.set(track,write);write('movy-clip-v2');
 }
 export function releaseHbHosts(): void {
     for (const [track,write] of hosts) { engineWrite('hbperform_reset',String(track));write(''); }

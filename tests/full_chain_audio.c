@@ -124,5 +124,17 @@ int main(int argc,char **argv){
     set("ch12:midi_fx1:receive_channel","3");render(16);sent_on=sent_off=0;
     api->on_midi(instance,down,3,0);assert(render(32)==0);
     api->on_midi(instance,up,3,0);render(32);assert(sent_on==3&&sent_off==3);
+    /* Real HB configuration reaches the sequencer without any UI page open. */
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 4 0 0:3:60:100:0:1;24:3:64:100:1:1;48:3:67:100:2:1;72:3:72:100:3:1\n");
+    set("ch0:midi_fx1:motion_operation","Clip Repeat");set("ch0:midi_fx1:motion_grid","1/64");
+    set("ch0:midi_fx1:motion_cycle","1/4");set("ch0:midi_fx1:motion_every","2");set("ch0:midi_fx1:motion_from","2");
+    set("ch0:midi_fx1:motion_enabled","On");render(16);sent_on=sent_off=0;
+    set("cmd","play");render(344);set("cmd","stop");render(32);
+    printf("automatic clip: routed_on=%d routed_off=%d\n",sent_on,sent_off);
+    assert(sent_on==20&&sent_off==20);
+    /* Disabling Auto is copied at the next block, without a metadata poll loop. */
+    set("ch0:midi_fx1:motion_enabled","Off");render(16);sent_on=sent_off=0;
+    set("cmd","play");render(344);set("cmd","stop");render(32);
+    assert(sent_on==8&&sent_off==8);
     api->destroy_instance(instance);return 0;
 }
