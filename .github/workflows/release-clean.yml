@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: dd197968a99913ded118ed2caa0071775037093e
-  HB_MOVY_VERSION: 0.34.1-hbclean.47
-  HB_MOVY_TAG: v0.34.1-hbclean.47
+  HB_REF: 39d0552b510674a8027713f1c87f2e13d78ad33e
+  HB_MOVY_VERSION: 0.34.1-hbclean.48
+  HB_MOVY_TAG: v0.34.1-hbclean.48
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -284,7 +284,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Sixteen assignable operation slots with native option-list peeks. Default slots 13-16 are pitch approaches and triggered enclosures. Add held clip Repeat, Reverse, Time Shift and Speed without rewriting source notes or moving the transport. Requires HarmonyBus 0.2.132; standalone HB preserves unsupported assignments."
+              --notes "Pairs with HarmonyBus 0.2.133 for Clock/Note/Chord pattern advancement, Ratchet and MIDI Echo. Native option lists include Advance and Echo uses a contextual Decay control. Live-compatible repeats use green LEDs and release cancels pending repeats. Preserves sixteen operation slots, clip operations and automatic muted HB/Plaits new-set defaults."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

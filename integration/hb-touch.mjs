@@ -16,7 +16,7 @@ const port = {
     getParam(key) {
         const bare = key.split(':').at(-1);
         if (bare === 'ui_hierarchy') return JSON.stringify(module.capabilities.ui_hierarchy);
-        if (bare === 'chain_params') return runtimeChainParams;
+        if (bare === 'chain_params') return values.get('motion_operation') === 'MIDI Echo' ? JSON.stringify(module.capabilities.chain_params.map(parameter => parameter.key === 'motion_offset' ? {...parameter,name:'Decay %',min:0} : parameter)) : runtimeChainParams;
         if (key === 'midi_fx1_module') return 'harmonybus';
         return values.get(bare) ?? '';
     },
@@ -156,7 +156,7 @@ try {
     focusKey('motion_probability');
     assert.equal(page.pageTitle, 'Timing / Trigger');
     assert.equal(page.ctl.describePage().cells.find(cell => cell.key === 'motion_lane').raw, '2');
-    const punchSlot = page.ctl.page.keys.indexOf('motion_punch');
+    const punchSlot = focusKey('motion_punch');
     const before = writes.length;
     page.knobTouch(punchSlot, true);page.knobTurn(punchSlot, 1);page.knobTouch(punchSlot, false);
     assert.equal(writes.length, before, 'Knob touch does not activate an operation');
@@ -165,7 +165,7 @@ try {
 console.log('HB operations: exactly two pages, shared lane cursor, immediate value refresh and no knob-touch activation pass');
 
 // Actual native peek: choices, current highlight, direction and dismissal.
-for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_grid']) {
+for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_grid', 'motion_advance']) {
     const slot = focusKey(key);
     page.knobTouch(slot, true);
     page.knobTurn(slot, 1);
@@ -185,6 +185,13 @@ for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_
     page.knobTouch(slot, false);
     assert.equal(page.ctl.enumPeek(), null, 'Release dismisses the list');
 }
+const operationSlot = focusKey('motion_operation');
+page.knobTurn(operationSlot, 100);page.knobTouch(operationSlot, false);
+assert.equal(values.get('motion_operation'), 'MIDI Echo');
+assert.equal(page.ctl.metaAt(page.ctl.page.keys.indexOf('motion_offset')).name, 'Decay %');
+page.knobTurn(operationSlot, -1);page.knobTouch(operationSlot, false);
+assert.equal(values.get('motion_operation'), 'Ratchet');
+assert.equal(page.ctl.metaAt(page.ctl.page.keys.indexOf('motion_offset')).name, 'Offset');
 console.log('HB operation peek: lane, operation, pattern and grid show native lists with current highlights and release dismissal');
 
 const { hbPerformanceStep, releaseHbPerformanceStep, paintHbPerformance, resetHbPerformance } = await import('../dist/esm/renderer/schwung-page.js');
@@ -332,7 +339,7 @@ console.log('HB clip bridge: direct press, captured track/slot release without r
 
 const { hbOperationColor }=await import('../dist/esm/renderer/schwung-page.js');
 assert.equal(hbOperationColor(0,false),0);assert.equal(hbOperationColor(0,true),0);
-for (const operation of [1,3,7,8,9,10,11,16]) {
+for (const operation of [1,3,7,8,9,10,11,16,17,18]) {
     assert.equal(hbOperationColor(operation,false),85);
     assert.equal(hbOperationColor(operation,true),11);
 }
