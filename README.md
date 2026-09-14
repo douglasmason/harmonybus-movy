@@ -1,4 +1,4 @@
-> Release hbclean.45 fixes false STEPS / NO HB detection. Keep HarmonyBus 0.2.130 installed; only Movy needs updating.
+> Release hbclean.46 restores native Schwung option-list peeks for Lane and Operation. Keep HarmonyBus 0.2.130; update Movy only.
 
 
 

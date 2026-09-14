@@ -16,8 +16,13 @@ def patch_motion_controls(root: Path) -> None:
                 const options = ctl.metaAt(slot)?.options || [];
                 const current = options.indexOf(String(port.getParam(qualify(componentKey + ':' + key))));
                 if (current < 0) return;
-                ctl.commitEnum(key, Math.max(0, Math.min(options.length - 1, current + delta)));
+                const index = Math.max(0, Math.min(options.length - 1, current + delta));
+                ctl.commitEnum(key, index);
                 ctl.revalue();
+                // commitEnum bypasses onKnobTurn, which normally opens the
+                // native peek. Reuse its overlay, timeout and dismissal state.
+                ctl.state.peek = { key, title: ctl.metaAt(slot)?.name || key,
+                    options, index, at: Date.now() };
                 return;
             }
             const dir = delta > 0 ? 1 : -1;""")

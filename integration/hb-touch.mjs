@@ -166,6 +166,29 @@ try {
 } finally { Date.now = realNow; }
 console.log('HB operations: exactly two pages, shared lane cursor, immediate value refresh and no knob-touch activation pass');
 
+// Actual native peek: choices, current highlight, direction and dismissal.
+for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_grid']) {
+    const slot = focusKey(key);
+    page.knobTouch(slot, true);
+    page.knobTurn(slot, 1);
+    let peek = page.ctl.enumPeek();
+    assert(peek, key + ': turning must open the Schwung option list');
+    assert.equal(peek.key, key);
+    assert.deepEqual(peek.options, page.ctl.metaAt(slot).options);
+    assert.equal(peek.options[peek.index], page.ctl.state.values[key], 'Highlight follows edited value');
+    const text = [];
+    let clears = 0;
+    page.ctl.renderOverlays({fillRect:()=>{},print:(_x,_y,label)=>text.push(label),textWidth:label=>label.length*6}, {clearScreen:()=>clears++});
+    assert.equal(clears, 1, 'Native list replaces the grid while shown');
+    assert(text.some(label => String(label).includes(peek.options[peek.index])), 'Selected choice is rendered as text');
+    page.knobTurn(slot, -1);
+    peek = page.ctl.enumPeek();
+    assert.equal(peek.options[peek.index], page.ctl.state.values[key]);
+    page.knobTouch(slot, false);
+    assert.equal(page.ctl.enumPeek(), null, 'Release dismisses the list');
+}
+console.log('HB operation peek: lane, operation, pattern and grid show native lists with current highlights and release dismissal');
+
 const { hbPerformanceStep, releaseHbPerformanceStep, paintHbPerformance, resetHbPerformance } = await import('../dist/esm/renderer/schwung-page.js');
 const performanceKeys = ['motion_hold_1','motion_hold_2','motion_hold_3','motion_hold_4',
     'performance_below','performance_above','performance_enclose_ab','performance_enclose_ba'];
