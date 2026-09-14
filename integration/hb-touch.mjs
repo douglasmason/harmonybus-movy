@@ -6,10 +6,8 @@ const { schwungLibAvailable } = await import('../dist/esm/renderer/schwung-lib.j
 assert(schwungLibAvailable(), 'This test requires the real Schwung controller');
 const { createSchwungPage } = await import('../dist/esm/renderer/schwung-page.js');
 const module = JSON.parse(readFileSync(process.env.HB_MODULE, 'utf8'));
-// The device asks the DSP first. Its runtime list is not module.json's list.
-const dspSource = readFileSync(process.env.HB_MODULE.replace(/module\.json$/, 'dsp/harmonybus.c'), 'utf8');
-const runtimeDeclaration = dspSource.match(/static const char CHAIN_PARAMS\[\]=([\s\S]*?);/)[1];
-const runtimeChainParams = [...runtimeDeclaration.matchAll(/"(?:\\.|[^"\\])*"/g)].map(match => JSON.parse(match[0])).join('');
+// Generated metadata is verified against the real DSP in the native suite.
+const runtimeChainParams = JSON.stringify(module.capabilities.chain_params);
 const values = new Map(module.capabilities.chain_params.map(param => [param.key, param.default ?? param.options?.[0] ?? '0']));
 const { uiStateDirty, clearUiDirty } = await import('../dist/esm/seq/set-save.js');
 const writes = [];
@@ -190,9 +188,8 @@ for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_
 console.log('HB operation peek: lane, operation, pattern and grid show native lists with current highlights and release dismissal');
 
 const { hbPerformanceStep, releaseHbPerformanceStep, paintHbPerformance, resetHbPerformance } = await import('../dist/esm/renderer/schwung-page.js');
-const performanceKeys = ['motion_hold_1','motion_hold_2','motion_hold_3','motion_hold_4',
-    'performance_below','performance_above','performance_enclose_ab','performance_enclose_ba'];
-for (let step = 0; step < 8; step++) {
+const performanceKeys = Array.from({length:16},(_,index)=>'motion_hold_'+(index+1));
+for (let step = 0; step < 16; step++) {
     const before = writes.length;
     assert(hbPerformanceStep([0x90,16+step,127],page));
     assert.deepEqual(writes.at(-1),['midi_fx1:'+performanceKeys[step],'On']);
@@ -201,8 +198,8 @@ for (let step = 0; step < 8; step++) {
     const originalGetParam = port.getParam;
     port.getParam = () => { throw new Error('Release must not read the current page or track'); };
     assert(releaseHbPerformanceStep([step%2?0x80:0x90,16+step,0]));
-    assert.equal(writes.length,before+(step<6?2:1),'Only momentary buttons write Off');
-    if(step<6)assert.deepEqual(writes.at(-1),['midi_fx1:'+performanceKeys[step],'Off']);
+    assert.equal(writes.length,before+2,'Every slot owns its release; enclosure DSP ignores Off');
+    assert.deepEqual(writes.at(-1),['midi_fx1:'+performanceKeys[step],'Off']);
     assert(!releaseHbPerformanceStep([0x80,16+step,0]));
     port.getParam = originalGetParam;
 }
@@ -227,7 +224,7 @@ try {
     assert.equal(statusReads,1,'Idle LED frames do not poll the DSP repeatedly');
     assert(!paintHbPerformance(null));
 } finally {Date.now=savedNow;resetHbPerformance();}
-console.log('HB step controls: six holds, two one-shot triggers, duplicate edges, captured releases, teardown and bounded LED polling pass');
+console.log('HB step controls: sixteen assignable holds/triggers, duplicate edges, captured releases, teardown and bounded LED polling pass');
 
 const { setHbPerformanceMode, syncHbPerformanceMode } = await import('../dist/esm/renderer/schwung-page.js');
 const { flagValue, resetFlags, loadPerSetFlags, perSetFlagsSnapshot } = await import('../dist/esm/seq/flags.js');
@@ -253,7 +250,7 @@ try {
     flagsPageState.selected=visibleFlags().findIndex(def=>def.key==='hbsteprow');
     for(let turn=0;turn<64;turn++)flagsPageKnob(0,-1);
     assert.equal(flagValue('hbsteprow'),0);
-    assert(writes.slice(before).some(([key,value])=>key==='midi_fx1:performance_below'&&value==='Off'));
+    assert(writes.slice(before).some(([key,value])=>key==='midi_fx1:motion_hold_5'&&value==='Off'));
     assert(writes.slice(before).some(([key])=>key==='midi_fx1:performance_reset'),'Turning off cancels an armed enclosure');
     const cleared=writes.length;
     assert(releaseHbPerformanceStep([0x80,20,0]),'The old release cannot enter ordinary step editing');
@@ -276,7 +273,7 @@ const savedEngineGet = globalThis.host_module_get_param, savedEngineSet = global
 const routedWrites = [];
 let available = true;
 let discoveryReads = 0;
-const readContract = key => { discoveryReads++; return available ? port.getParam(key) : ''; };
+const readContract = key => { discoveryReads++; return available && !key.endsWith('chain_params') ? port.getParam(key) : ''; };
 installMockFs();
 try {
     resetFlags();setFlag('chtracks', 0);resetPorts();schwungGridReload();
@@ -301,7 +298,7 @@ try {
         appState.trackChainIndex[track] = 1; // Synth editor; target remains MIDI FX 1.
         assert.equal(hbPerformancePage(), found);
         assert(hbPerformanceStep([0x90, 20, 127]));
-        const expectedAddress = track === 0 ? [0, 'midi_fx1:performance_below'] : ['engine', 'ch4:midi_fx1:performance_below'];
+        const expectedAddress = track === 0 ? [0, 'midi_fx1:motion_hold_5'] : ['engine', 'ch4:midi_fx1:motion_hold_5'];
         assert.deepEqual(routedWrites.at(-1), [...expectedAddress, 'On']);
         appState.activeTrack = trackRef(7);
         assert(releaseHbPerformanceStep([0x80, 20, 0]));
@@ -316,3 +313,48 @@ try {
     globalThis.host_module_get_param = savedEngineGet;globalThis.host_module_set_param_blocking = savedEngineSet;
 }
 console.log('HB discovery: runtime DSP metadata, host and Movy tracks, cold/synth views, captured release and no per-frame reads pass');
+
+// A clip gesture reaches the engine on the press, with no polling on release.
+const engineWrites=[];
+const beforeEngineSet=globalThis.host_module_set_param_blocking;
+globalThis.host_module_set_param_blocking=(key,value)=>engineWrites.push([key,value]);
+try {
+    const clipOwner={performanceTrack:4,performanceSet:()=>{},performanceGet:()=> '15,-2,2'};
+    hbPerformanceStep([0x90,27,127],clipOwner);
+    assert.deepEqual(engineWrites.at(-1),['hbperform','4,11,1,15,-2,2']);
+    clipOwner.performanceGet=()=>{throw new Error('release read binding');};
+    releaseHbPerformanceStep([0x80,27,0]);
+    assert.deepEqual(engineWrites.at(-1),['hbperform','4,11,0,0,0,0']);
+    resetHbPerformance();
+    assert.deepEqual(engineWrites.at(-1),['hbperform_reset','4']);
+} finally {globalThis.host_module_set_param_blocking=beforeEngineSet;}
+console.log('HB clip bridge: direct press, captured track/slot release without reads, teardown reset pass');
+
+const { hbOperationColor }=await import('../dist/esm/renderer/schwung-page.js');
+assert.equal(hbOperationColor(0,false),0);assert.equal(hbOperationColor(0,true),0);
+for (const operation of [1,3,7,8,9,10,11,16]) {
+    assert.equal(hbOperationColor(operation,false),85);
+    assert.equal(hbOperationColor(operation,true),11);
+}
+for (const operation of [12,13,14,15]) {
+    assert.equal(hbOperationColor(operation,false),97);
+    assert.equal(hbOperationColor(operation,true),17);
+}
+console.log('HB step colors: Off unlit, live-compatible green, clip-only blue; activity preserves category hue');
+const { ledFrameReset, seqLedsInvalidate }=await import('../dist/esm/seq/led-cache.js');
+const savedLedSend=globalThis.move_midi_internal_send, colorNow=Date.now;
+let rowTime=9000;
+const colorWrites=[];
+const rowOperations=[3,12,0,10,...new Array(12).fill(0)];
+const colorOwner={performanceSet:()=>{},performanceGet:key=>key==='motion_row'?[8,...rowOperations].join(','):'12,1,2'};
+globalThis.move_midi_internal_send=packet=>colorWrites.push(packet);Date.now=()=>rowTime;
+try {
+    resetHbPerformance();ledFrameReset();seqLedsInvalidate();paintHbPerformance(colorOwner);
+    const sentColor=note=>colorWrites.filter(packet=>packet[2]===note).at(-1)?.[3];
+    assert.equal(sentColor(16),85);assert.equal(sentColor(17),97);assert.equal(sentColor(18),0);assert.equal(sentColor(19),11);
+    hbPerformanceStep([0x90,17,127],colorOwner);assert.equal(sentColor(17),17,'Press brightens blue without turning white');
+    releaseHbPerformanceStep([0x80,17,0]);ledFrameReset();paintHbPerformance(colorOwner);assert.equal(sentColor(17),97);
+    rowOperations[0]=15;rowTime+=100;ledFrameReset();paintHbPerformance(colorOwner);
+    assert.equal(sentColor(16),97,'Editing an assignment updates its category without changing track');
+} finally {resetHbPerformance();globalThis.move_midi_internal_send=savedLedSend;Date.now=colorNow;}
+console.log('HB LED wire: assignment categories, trigger activity, immediate hold, release and live reassignment pass');

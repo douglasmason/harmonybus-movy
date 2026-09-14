@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 1b552bf10bc482b1b97dc2f256bbdeb48f90cf92
-  HB_MOVY_VERSION: 0.34.1-hbclean.46
-  HB_MOVY_TAG: v0.34.1-hbclean.46
+  HB_REF: dd197968a99913ded118ed2caa0071775037093e
+  HB_MOVY_VERSION: 0.34.1-hbclean.47
+  HB_MOVY_TAG: v0.34.1-hbclean.47
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -77,6 +77,7 @@ jobs:
               'engine/crates/movy-dsp/src/pad_route.rs',
               'src/seq/ui-state.ts',
               'src/seq/engine.ts',
+              'src/seq/constants.ts',
               'src/seq/leds.ts',
               'src/seq/ui-dirty.ts',
               'src/seq/set-save.ts',
@@ -86,6 +87,7 @@ jobs:
               'src/seq/clip-page-vm.ts',
               'src/undo/verbs.ts',
               'engine/crates/seq-core/src/lib.rs',
+              'engine/crates/seq-core/src/hb_clip_performance.rs',
               'engine/crates/seq-core/src/command.rs',
               'engine/crates/seq-core/src/clip_tools.rs',
               'browser-test/hb-clip-tools.mjs',
@@ -282,7 +284,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Restore the native Schwung option-list peek while turning Lane and Operation. Highlight the current choice and preserve immediate shared-lane updates. Verify Pattern and Grid peeks too. Keep HarmonyBus 0.2.130; update Movy only."
+              --notes "Sixteen assignable operation slots with native option-list peeks. Default slots 13-16 are pitch approaches and triggered enclosures. Add held clip Repeat, Reverse, Time Shift and Speed without rewriting source notes or moving the transport. Requires HarmonyBus 0.2.132; standalone HB preserves unsupported assignments."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

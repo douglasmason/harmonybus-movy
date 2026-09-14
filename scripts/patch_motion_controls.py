@@ -19,6 +19,8 @@ def patch_motion_controls(root: Path) -> None:
                 const index = Math.max(0, Math.min(options.length - 1, current + delta));
                 ctl.commitEnum(key, index);
                 ctl.revalue();
+                const pageIndex = ctl.state.pageIndex;
+                reload();ctl.goToPage(pageIndex);ctl.revalue();
                 // commitEnum bypasses onKnobTurn, which normally opens the
                 // native peek. Reuse its overlay, timeout and dismissal state.
                 ctl.state.peek = { key, title: ctl.metaAt(slot)?.name || key,

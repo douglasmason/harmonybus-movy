@@ -1,38 +1,64 @@
-/* Eight step-row performance controls. Releases belong to their original port. */
+/* Sixteen assignable step-row performance controls. Releases belong to their original port. */
 import { appState, VIEW_KNOBS, VIEW_KEYS, VIEW_CHAIN, VIEW_MAIN_PARAMS, VIEW_CLIP_PARAMS } from '../app/state.js';
 import { seqState } from '../seq/state.js';
 import { stepPageState, stepPageAvailable } from '../seq/step-page.js';
 import { muteHeld } from '../seq/router-buttons.js';
 import { schwungActiveFor } from './schwung-grid.js';
 import { cachedSetAnimLED, seqLedsInvalidate } from '../seq/led-cache.js';
-import { C_BLACK, C_DARKGREY, C_GREEN, C_WHITE, ANIM_NONE } from '../seq/colors.js';
+import { C_BLACK, C_GREEN, ANIM_NONE } from '../seq/colors.js';
 import { seqToast } from '../seq/render.js';
 import { flagValue, setFlag } from '../seq/flags.js';
 import { fontPrint } from '../font/index.js';
 
 export interface PerformancePort {
+    readonly performanceTrack?: number;
     performanceSet(key: string, value: string): void;
     performanceGet(key: string): string;
 }
-const keys = ['motion_hold_1','motion_hold_2','motion_hold_3','motion_hold_4',
-    'performance_below','performance_above','performance_enclose_ab','performance_enclose_ba'];
-const labels = ['Lane 1','Lane 2','Lane 3','Lane 4','Chrom Below','Scale Above',
-    'Scale+ / Chrom- / Target','Chrom- / Scale+ / Target'];
-const held = new Map<number, { owner: PerformancePort; key: string; momentary: boolean }>();
+const keys = Array.from({length:16}, (_,index) => 'motion_hold_' + (index + 1));
+const held = new Map<number, { owner: PerformancePort; key: string; momentary: boolean; clip: boolean }>();
+const hosts = new Map<number, (value: string) => void>();
+function engineWrite(key: string, value: string): void {
+    if (typeof host_module_set_param_blocking === 'function') host_module_set_param_blocking(key,value,50);
+    else if (typeof host_module_set_param === 'function') host_module_set_param(key,value);
+}
+export function registerHbHost(track: number, write: (value: string) => void): void {
+    hosts.set(track,write);write('movy-clip-v1');
+}
+export function releaseHbHosts(): void {
+    for (const [track,write] of hosts) { engineWrite('hbperform_reset',String(track));write(''); }
+    hosts.clear();
+}
+function releaseAction(action: {owner: PerformancePort; key: string; clip: boolean}): void {
+    // No parameter reads on release; the original owner and lane were captured.
+    if (action.clip) engineWrite('hbperform',[action.owner.performanceTrack,Number(action.key.slice(12))-1,0,0,0,0].join(','));
+    action.owner.performanceSet(action.key,'Off');
+}
+function resetOwner(owner: PerformancePort): void {
+    if (owner.performanceTrack !== undefined) engineWrite('hbperform_reset',String(owner.performanceTrack));
+    owner.performanceSet('performance_reset','1');
+}
 const usedOwners = new Set<PerformancePort>();
 let paintedOwner: PerformancePort | null = null;
 let sampledAt = -Infinity;
 let statusMask = 0;
+let operations: number[] = new Array(16).fill(0);
+/** Hardware palette: Neon Green 11/85; Royal Blue 17/97. */
+export function hbOperationColor(operation: number, active: boolean): number {
+    if (!operation) return C_BLACK;
+    const clip = operation >= 12 && operation <= 15;
+    return clip ? (active ? 17 : 97) : (active ? C_GREEN : 85);
+}
 
 let lastMode: number | null = null;
 
 function releaseForModeChange(): void {
     for (const action of held.values()) {
-        if (action.momentary) action.owner.performanceSet(action.key, 'Off');
+        if (action.momentary) releaseAction(action);
         // Keep the physical release owned so it cannot fall into step editing.
         action.momentary = false;
     }
-    for (const owner of usedOwners) owner.performanceSet('performance_reset', '1');
+    for (const owner of usedOwners) resetOwner(owner);
     usedOwners.clear();sampledAt = -Infinity;statusMask = 0;
     seqLedsInvalidate();appState.dirty = true;
 }
@@ -81,7 +107,7 @@ export function releaseHbPerformanceStep(data: number[]): boolean {
     const action = held.get(step);
     if (!action) return false;
     held.delete(step);
-    if (action.momentary) action.owner.performanceSet(action.key, 'Off');
+    if (action.momentary) releaseAction(action);
     if (paintedOwner === action.owner && action.momentary) statusMask &= ~(1 << step);
     sampledAt = -Infinity;
     seqLedsInvalidate();appState.dirty = true;
@@ -92,39 +118,48 @@ export function hbPerformanceStep(data: number[], owner: PerformancePort | null 
     if (releaseHbPerformanceStep(data)) return true;
     const status = data[0] & 0xf0, step = data[1] - 16;
     if (!owner || step < 0 || step >= 16 || (status !== 0x90 && status !== 0x80)) return false;
-    if (step >= 8 || status === 0x80 || !data[2] || held.has(step)) return true;
+    if (status === 0x80 || !data[2] || held.has(step)) return true;
     const key = keys[step];
-    held.set(step, { owner, key, momentary: step < 6 });usedOwners.add(owner);
+    const binding = owner.performanceGet('motion_binding_' + (step + 1)).split(',').map(Number);
+    const clip = owner.performanceTrack !== undefined && binding.length === 3 && binding.every(Number.isFinite) && binding[0] >= 12 && binding[0] <= 15;
+    held.set(step, { owner, key, momentary: true, clip });usedOwners.add(owner);
+    if (clip) engineWrite('hbperform',[owner.performanceTrack,step,1,...binding].join(','));
     owner.performanceSet(key, 'On');
     if (paintedOwner === owner) statusMask |= 1 << step;
-    cachedSetAnimLED(16 + step, C_WHITE, C_WHITE, ANIM_NONE);
+    const operation = Number.isFinite(binding[0]) ? binding[0] : 0;
+    if (paintedOwner === owner) operations[step] = operation;
+    const color = hbOperationColor(operation,true);
+    cachedSetAnimLED(16 + step,color,color,ANIM_NONE);
     sampledAt = -Infinity;
-    seqToast(labels[step]);appState.dirty = true;
+    seqToast('Slot ' + (step + 1));appState.dirty = true;
     return true;
 }
 
 export function paintHbPerformance(owner: PerformancePort | null = hbPerformancePage()): boolean {
     if (paintedOwner !== owner) {
-        paintedOwner = owner;sampledAt = -Infinity;statusMask = 0;seqLedsInvalidate();
+        paintedOwner = owner;sampledAt = -Infinity;statusMask = 0;operations.fill(0);seqLedsInvalidate();
     }
     if (!owner) return false;
     const now = Date.now();
     if (sampledAt > now || now - sampledAt >= 100) {
-        const value = Number(owner.performanceGet('performance_status'));
-        if (Number.isFinite(value)) statusMask = value | 0;
+        // One bounded read carries both activity and all sixteen assignments.
+        const row = owner.performanceGet('motion_row').split(',').map(Number);
+        if (row.length === 17 && row.every(Number.isFinite)) {
+            statusMask = row[0] | 0;operations = row.slice(1);
+        }
         sampledAt = now;
     }
     for (let step = 0; step < 16; step++) {
         const down = held.get(step)?.owner === owner;
-        const color = step >= 8 ? C_BLACK : down ? C_WHITE : statusMask & (1 << step) ? C_GREEN : C_DARKGREY;
+        const color = hbOperationColor(operations[step],down || !!(statusMask & (1 << step)));
         cachedSetAnimLED(16 + step, color, color, ANIM_NONE);
     }
     return true;
 }
 
 export function resetHbPerformance(): void {
-    for (const action of held.values()) if (action.momentary) action.owner.performanceSet(action.key, 'Off');
-    for (const owner of usedOwners) owner.performanceSet('performance_reset', '1');
+    for (const action of held.values()) if (action.momentary) releaseAction(action);
+    for (const owner of usedOwners) resetOwner(owner);
     held.clear();usedOwners.clear();paintedOwner = null;sampledAt = -Infinity;statusMask = 0;
     seqLedsInvalidate();
 }
