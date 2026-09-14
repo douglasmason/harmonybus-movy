@@ -14,9 +14,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 8aff6ecb937184ec352ccaf8836f3adec406ef73
-  HB_MOVY_VERSION: 0.34.1-hbclean.50
-  HB_MOVY_TAG: v0.34.1-hbclean.50
+  HB_REF: f7f3bc867aabdc8cb3d8c4b1329ac8dae78d3eb8
+  HB_MOVY_VERSION: 0.34.1-hbclean.51
+  HB_MOVY_TAG: v0.34.1-hbclean.51
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -284,7 +284,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Pairs with HarmonyBus 0.2.135 to automate Clip Repeat, Reverse, Time Shift and Speed through the existing Auto and Conditions controls. Windows run inside the sequencer with manual-hold priority, recording bypass and safe note-off handling. Configuration refreshes on edits or loads without UI polling. Preserves source clips and automatic muted HB/Plaits new-set defaults."
+              --notes "Record from stopped now starts stock Move through the same linked transport handshake as Play. The one-bar count-in waits for native Start, preventing it from running ahead while Move starts. Includes cancellation, fallback and host-injection regression tests. Pair with HB 0.2.136 for the idle scheduler optimization. All operations and prepared HB/Plaits defaults remain."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

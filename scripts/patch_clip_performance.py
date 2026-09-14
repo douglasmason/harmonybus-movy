@@ -1,6 +1,7 @@
 """Install runtime-only clip playback gestures and the direct HB host bridge."""
 from pathlib import Path
 from patch_responsive_persistence import replace_once
+from patch_record_start import patch_record_start
 
 
 def patch_clip_performance(root: Path) -> None:
@@ -68,7 +69,7 @@ def patch_clip_performance(root: Path) -> None:
     path = root / 'engine/crates/seq-core/src/persist.rs'
     path.write_text(replace_once(path.read_text(), '    // Reset all clips before applying.', '    engine.hb_performance.fill(Default::default());\n    engine.hb_auto.fill([None;16]);\n    // Reset all clips before applying.'))
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
-    source = replace_once(path.read_text(), 'const ENGINE_VERSION: &str = "0.71.0";', 'const ENGINE_VERSION: &str = "0.71.0-hb50";')
+    source = replace_once(path.read_text(), 'const ENGINE_VERSION: &str = "0.71.0";', 'const ENGINE_VERSION: &str = "0.71.0-hb51";')
     source = replace_once(source, '            "file_path" => {}', '''            "hbperform" => {
                 let fields: Vec<_> = val.split(',').collect();
                 if let [track,lane,down,operation,amount,grid] = fields.as_slice() {
@@ -84,7 +85,7 @@ def patch_clip_performance(root: Path) -> None:
             "file_path" => {}''')
     path.write_text(source)
     path = root / 'src/seq/constants.ts'
-    path.write_text(replace_once(path.read_text(), "export const ENGINE_VERSION = '0.71.0';", "export const ENGINE_VERSION = '0.71.0-hb50';"))
+    path.write_text(replace_once(path.read_text(), "export const ENGINE_VERSION = '0.71.0';", "export const ENGINE_VERSION = '0.71.0-hb51';"))
     path = root / 'src/renderer/schwung-page.ts'
     source = "import { registerHbHost } from './hb-performance.js';\n" + path.read_text()
     source = replace_once(source, '    function reload(): void {', '''    function reload(): void {
@@ -99,6 +100,7 @@ def patch_clip_performance(root: Path) -> None:
     source = replace_once(source, '    resetHbPerformance();', '    resetHbPerformance();\n    releaseHbHosts();')
     path.write_text(source)
     patch_auto_clip(root)
+    patch_record_start(root)
 
 
 def patch_auto_clip(root: Path) -> None:

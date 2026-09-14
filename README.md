@@ -1,3 +1,5 @@
+> hbclean.51 fixes Record from stopped: with Play Link on, stock Move starts and Movy counts in from its Start signal. Use HB 0.2.136 for the idle scheduler performance fix. All operations and new-set defaults remain.
+
 > New in hbclean.50 with HB 0.2.135: automatic cycle conditions for Clip Repeat, Reverse, Time Shift and Speed. Auto On runs in the sequencer even with the editor closed. Manual holds override the schedule; recording bypasses the recording track. Highest-numbered eligible automatic clip lane wins when several qualify.
 
 > Release hbclean.50 pairs with HarmonyBus 0.2.135: 16 assignable step-row slots, with approaches/enclosures in slots 13–16 by default. Clip Repeat, Reverse, Time Shift and Speed operate while held on existing playing clips. The normal transport keeps moving; release returns to it. Source clips and new-set HB/Plaits defaults are preserved. See [operation controls](https://github.com/douglasmason/harmonybus/blob/main/docs/operations.md).

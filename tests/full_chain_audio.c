@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 static int sent_on,sent_off,rejected;
+static int move_play_presses,move_play_releases;
 static unsigned rendered_mask;
 static double beat;
 static void log_message(const char *message){fprintf(stderr,"%s\n",message);}
@@ -21,8 +22,14 @@ static int send_packet(const uint8_t *packet,int length){
     if((packet[1]&0xf0)==0x80||((packet[1]&0xf0)==0x90&&!packet[3]))sent_off++;
     return 4;
 }
+static int inject_packet(const uint8_t *packet,int length){
+    if(length==4&&packet[1]==0xb0&&packet[2]==85){
+        if(packet[3])move_play_presses++;else move_play_releases++;
+    }
+    return send_packet(packet,length);
+}
 static host_api_v1_t host={.api_version=1,.sample_rate=44100,.frames_per_block=128,
-    .log=log_message,.midi_send_internal=send_packet,.midi_inject_to_move=send_packet,
+    .log=log_message,.midi_send_internal=send_packet,.midi_inject_to_move=inject_packet,
     .get_bpm=bpm,.get_beat_position=position,.get_clock_status=clock_status};
 static const plugin_api_v2_t *api;
 static void *instance;
@@ -136,5 +143,16 @@ int main(int argc,char **argv){
     set("ch0:midi_fx1:motion_enabled","Off");render(16);sent_on=sent_off=0;
     set("cmd","play");render(344);set("cmd","stop");render(32);
     assert(sent_on==8&&sent_off==8);
+    /* Record from stopped must reach the same host injection callback as Play.
+       Until native Start arrives, count-in is armed but not advancing. */
+    set("cmd","link 1;minject 1;rec 0");render(64);
+    char status[4096];api->get_param(instance,"status",status,sizeof(status));
+    assert(strstr(status,"play=0 ")&&strstr(status,"cin=1 "));
+    assert(move_play_presses==1&&move_play_releases==1);
+    uint8_t native_start=0xfa;api->on_midi(instance,&native_start,1,0);render(1);
+    api->get_param(instance,"status",status,sizeof(status));
+    assert(strstr(status,"play=1 ")&&strstr(status,"cin=1 "));
+    printf("record start: one native Play press/release, count-in waits for native Start\n");
+    set("cmd","stop");render(64);
     api->destroy_instance(instance);return 0;
 }
