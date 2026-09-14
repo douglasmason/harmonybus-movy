@@ -47,7 +47,9 @@ mod hb_clip_engine_tests {
     }
     #[test]
     fn automatic_windows_preserve_clip_and_stop_and_skip_recording() {
-        let mut engine=fixture();let saved=crate::persist::serialize(&engine);let mut output=Vec::new();
+        let mut engine=fixture();
+        engine.tracks[0].clips[0].set_clip_length(4);
+        let saved=crate::persist::serialize(&engine);let mut output=Vec::new();
         engine.hb_auto_config(0,"mca1;0,12,1,0,1,2,2,2,100,0");
         for tick in 0..192 {engine.master_tick=tick+1;engine.step_tick(0,&mut output);}
         let pitches:Vec<_>=output.iter().filter_map(|event|if let OutEvent::NoteOn{pitch,..}=event{Some(*pitch)}else{None}).collect();
