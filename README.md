@@ -1,6 +1,6 @@
-> New in hbclean.48 with HB 0.2.133: Ratchet, MIDI Echo, and Clock/Note/Chord advancement in the existing panels. Native option lists, contextual Echo Decay and green LEDs cover the new controls.
+> New in hbclean.49 with HB 0.2.134: cycle conditions for Auto-capable note operations. The Conditions page shares the lane selector, adds Every / From / Through and shows the current cycle. Last-bar fill: Every 4, From 4, Through 4, Cycle 1 Bar, Auto On. Holding a step overrides the schedule.
 
-> Release hbclean.48 pairs with HarmonyBus 0.2.133: 16 assignable step-row slots, with approaches/enclosures in slots 13–16 by default. Clip Repeat, Reverse, Time Shift and Speed operate while held on existing playing clips. The normal transport keeps moving; release returns to it. Source clips and new-set HB/Plaits defaults are preserved. See [operation controls](https://github.com/douglasmason/harmonybus/blob/main/docs/operations.md).
+> Release hbclean.49 pairs with HarmonyBus 0.2.134: 16 assignable step-row slots, with approaches/enclosures in slots 13–16 by default. Clip Repeat, Reverse, Time Shift and Speed operate while held on existing playing clips. The normal transport keeps moving; release returns to it. Source clips and new-set HB/Plaits defaults are preserved. See [operation controls](https://github.com/douglasmason/harmonybus/blob/main/docs/operations.md).
 
 > Release hbclean.46 restores native Schwung option-list peeks for Lane and Operation. Keep HarmonyBus 0.2.130; update Movy only.
 

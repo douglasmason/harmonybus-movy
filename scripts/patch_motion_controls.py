@@ -10,8 +10,9 @@ def patch_motion_controls(root: Path) -> None:
     source = replace_once(source, "            const dir = delta > 0 ? 1 : -1;", """            // Flush the previous lane before changing the editor cursor.
             const laneEdit = ctl.keyAt(slot) === 'motion_lane';
             const operationEdit = ctl.keyAt(slot) === 'motion_operation';
-            if (laneEdit || operationEdit) ctl.revalue();
-            if (laneEdit || operationEdit) {
+            const conditionEdit = ['motion_every','motion_from','motion_through'].includes(ctl.keyAt(slot));
+            if (laneEdit || operationEdit || conditionEdit) ctl.revalue();
+            if (laneEdit || operationEdit || conditionEdit) {
                 const key = ctl.keyAt(slot);
                 const options = ctl.metaAt(slot)?.options || [];
                 const current = options.indexOf(String(port.getParam(qualify(componentKey + ':' + key))));
@@ -23,8 +24,10 @@ def patch_motion_controls(root: Path) -> None:
                 reload();ctl.goToPage(pageIndex);ctl.revalue();
                 // commitEnum bypasses onKnobTurn, which normally opens the
                 // native peek. Reuse its overlay, timeout and dismissal state.
+                const refreshedOptions = ctl.metaAt(slot)?.options || [];
+                const refreshedIndex = refreshedOptions.indexOf(String(port.getParam(qualify(componentKey + ':' + key))));
                 ctl.state.peek = { key, title: ctl.metaAt(slot)?.name || key,
-                    options, index, at: Date.now() };
+                    options: refreshedOptions, index: Math.max(0, refreshedIndex), at: Date.now() };
                 return;
             }
             const dir = delta > 0 ? 1 : -1;""")
@@ -32,5 +35,5 @@ def patch_motion_controls(root: Path) -> None:
         "            for (let i = 0; i < n; i++) ctl.onKnobTurn(slot, dir);",
         """            for (let i = 0; i < n; i++) ctl.onKnobTurn(slot, dir);
             // Commit the cursor and reload all dependent controls before another turn.
-            if (laneEdit || operationEdit) ctl.revalue();""")
+            if (laneEdit || operationEdit || conditionEdit) ctl.revalue();""")
     path.write_text(source)

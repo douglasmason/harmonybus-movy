@@ -16,11 +16,23 @@ const port = {
     getParam(key) {
         const bare = key.split(':').at(-1);
         if (bare === 'ui_hierarchy') return JSON.stringify(module.capabilities.ui_hierarchy);
-        if (bare === 'chain_params') return values.get('motion_operation') === 'MIDI Echo' ? JSON.stringify(module.capabilities.chain_params.map(parameter => parameter.key === 'motion_offset' ? {...parameter,name:'Decay %',min:0} : parameter)) : runtimeChainParams;
+        if (bare === 'chain_params') return JSON.stringify(module.capabilities.chain_params.map(parameter => {
+            if (parameter.key === 'motion_offset' && values.get('motion_operation') === 'MIDI Echo') return {...parameter,name:'Decay %',min:0};
+            if (['motion_from','motion_through'].includes(parameter.key)) return {...parameter,options:Array.from({length:Number(values.get('motion_every'))},(_,index)=>String(index+1))};
+            return parameter;
+        }));
         if (key === 'midi_fx1_module') return 'harmonybus';
         return values.get(bare) ?? '';
     },
-    setParam(key, value) { writes.push([key, value]); values.set(key.split(':').at(-1), value); },
+    setParam(key, value) {
+        writes.push([key, value]);const bare=key.split(':').at(-1);values.set(bare, value);
+        if (bare === 'motion_every') {
+            values.set('motion_from',String(Math.min(Number(values.get('motion_from')),Number(value))));
+            values.set('motion_through',String(Math.min(Number(values.get('motion_through')),Number(value))));
+        }
+        if (bare === 'motion_from' && Number(value)>Number(values.get('motion_through'))) values.set('motion_through',String(value));
+        if (bare === 'motion_through' && Number(value)<Number(values.get('motion_from'))) values.set('motion_from',String(value));
+    },
 };
 const page = createSchwungPage(port, 'midi_fx1');
 for (let tick = 0; tick < 128; tick++) page.tick();
@@ -133,7 +145,7 @@ console.log('HB Pads Global: five controls, correct title, knob editing and save
 const realNow = Date.now;
 Date.now = () => realNow() + 1000;
 try {
-    assert.equal(page.ctl.pages.filter(candidate => candidate.keys?.includes('motion_lane')).length, 2);
+    assert.equal(page.ctl.pages.filter(candidate => candidate.keys?.includes('motion_lane')).length, 3);
     const originalSetParam = port.setParam;
     const laneAmounts = ['3', '17', '-2', '0'];
     values.set('motion_lane', '1');
@@ -162,10 +174,10 @@ try {
     assert.equal(writes.length, before, 'Knob touch does not activate an operation');
     port.setParam = originalSetParam;
 } finally { Date.now = realNow; }
-console.log('HB operations: exactly two pages, shared lane cursor, immediate value refresh and no knob-touch activation pass');
+console.log('HB operations: three shared pages, shared lane cursor, immediate value refresh and no knob-touch activation pass');
 
 // Actual native peek: choices, current highlight, direction and dismissal.
-for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_grid', 'motion_advance']) {
+for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_grid', 'motion_advance', 'motion_every']) {
     const slot = focusKey(key);
     page.knobTouch(slot, true);
     page.knobTurn(slot, 1);
@@ -193,6 +205,31 @@ page.knobTurn(operationSlot, -1);page.knobTouch(operationSlot, false);
 assert.equal(values.get('motion_operation'), 'Ratchet');
 assert.equal(page.ctl.metaAt(page.ctl.page.keys.indexOf('motion_offset')).name, 'Offset');
 console.log('HB operation peek: lane, operation, pattern and grid show native lists with current highlights and release dismissal');
+
+
+// Conditions are a third shared editor with bounded native lists and read-only feedback.
+const everySlot=focusKey('motion_every');
+assert.equal(page.pageTitle,'Conditions');
+page.knobTurn(everySlot,100);page.knobTouch(everySlot,false);
+assert.equal(values.get('motion_every'),'16');
+page.knobTurn(everySlot,-8);page.knobTouch(everySlot,false);
+assert.equal(values.get('motion_every'),'8');
+const fromSlot=page.ctl.page.keys.indexOf('motion_from'),throughSlot=page.ctl.page.keys.indexOf('motion_through');
+assert.equal(page.ctl.metaAt(fromSlot).options.length,8);
+page.knobTurn(fromSlot,6);page.knobTouch(fromSlot,false);
+assert.equal(values.get('motion_from'),'7');assert.equal(values.get('motion_through'),'7');
+page.knobTurn(throughSlot,1);
+assert.equal(page.ctl.enumPeek().options[page.ctl.enumPeek().index],'8');page.knobTouch(throughSlot,false);
+page.knobTurn(everySlot,-4);page.knobTouch(everySlot,false);
+assert.equal(values.get('motion_every'),'4');assert.equal(values.get('motion_from'),'4');assert.equal(values.get('motion_through'),'4');
+assert.equal(page.ctl.metaAt(fromSlot).options.length,4);
+page.knobTurn(fromSlot,1);
+assert.equal(page.ctl.enumPeek().options[page.ctl.enumPeek().index],'4','Clamped value stays highlighted');page.knobTouch(fromSlot,false);
+const statusSlot=page.ctl.page.keys.indexOf('motion_condition_status');
+const beforeStatusTouch=writes.length;page.knobTouch(statusSlot,true);page.knobTurn(statusSlot,1);page.knobTouch(statusSlot,false);
+assert.equal(writes.length,beforeStatusTouch,'Cycle readout is inert');
+assert.equal(page.ctl.describePage().cells.find(cell=>cell.key==='motion_lane').raw,values.get('motion_lane'));
+console.log('HB conditions: shared cursor, native range lists, clamped dependent values and read-only status pass');
 
 const { hbPerformanceStep, releaseHbPerformanceStep, paintHbPerformance, resetHbPerformance } = await import('../dist/esm/renderer/schwung-page.js');
 const performanceKeys = Array.from({length:16},(_,index)=>'motion_hold_'+(index+1));
