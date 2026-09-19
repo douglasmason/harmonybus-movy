@@ -3,20 +3,22 @@ name: Build HarmonyBus Movy clean
 on:
   push:
     branches: [clean-hb]
+  pull_request:
+    branches: [clean-hb]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: harmonybus-movy-clean-release
+  group: harmonybus-movy-clean-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: f7f3bc867aabdc8cb3d8c4b1329ac8dae78d3eb8
-  HB_MOVY_VERSION: 0.34.1-hbclean.51
-  HB_MOVY_TAG: v0.34.1-hbclean.51
+  HB_REF: a7eab52013c3f0cdde5adc9a901e618f7f7a2f8d
+  HB_MOVY_VERSION: 0.34.1-hbclean.52
+  HB_MOVY_TAG: v0.34.1-hbclean.52
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -117,6 +119,7 @@ jobs:
               'engine/crates/seq-core/src/persist.rs',
               'engine/crates/movy-dsp/src/lib.rs',
               'engine/crates/movy-dsp/src/chain_host.rs',
+              'engine/crates/movy-dsp/src/host.rs',
               'engine/crates/movy-dsp/src/chain_slots.rs',
               'engine/crates/movy-dsp/src/hb_loop.rs',
               'engine/crates/movy-dsp/src/hb_record.rs',
@@ -275,6 +278,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish clean release
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

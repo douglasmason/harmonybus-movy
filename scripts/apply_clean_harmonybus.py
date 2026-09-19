@@ -13,6 +13,8 @@ An explicit clip edit adds Quantize + Fill Gaps using shared playback timing.
 """
 from __future__ import annotations
 
+from patch_deleted_set import patch_deleted_set
+from patch_running_transport import patch_running_transport
 from patch_movy_record_bridge import patch_record_bridge
 import argparse
 import subprocess
@@ -50,9 +52,9 @@ def patch_fresh_set(path: Path) -> None:
  * Movy UI blob. Once saved, ordinary upstream chain persistence owns the state. */
 const HB_FRESH_CONDUCTOR = 'hb16,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,1,0,-3,60,0,0,0,0;cp1,1,0,0,0,0,0,0,2,1,0;ds1,0;cq1,0,0;ph1,1;np1,0';
 const HB_FRESH_FOLLOWERS = [
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,0,0,1,0,-3,60,0,0,0,0',
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,1,0,-3,60,0,0,0,0',
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,0,0,1,0,-3,60,0,0,0,0',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,0,0,1,0,-3,60,1,0,0,0',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,1,0,-3,60,1,0,0,0',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,0,0,1,0,-3,60,1,0,0,0',
 ];
 
 const HB_FRESH_RECEIVERS = [
@@ -470,6 +472,8 @@ def main() -> int:
     patch_performance_mode(root)
     patch_clip_performance(root)
     patch_harmony_pads(root)
+    patch_running_transport(root)
+    patch_deleted_set(root)
     print("HarmonyBus clean integration applied")
     return 0
 

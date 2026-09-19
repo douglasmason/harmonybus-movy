@@ -32,6 +32,7 @@ int main(int argument_count, char **arguments) {
         assert(instances[track]->source_channel == (track >= 12 ? quartet_position : 0));
         assert(g_bus.boundary_buffer_ms == -3);
         assert(instances[track]->quant_timing == 0);
+        assert(instances[track]->content_map == (expected_role == 1 ? 1 : 0));
         assert(g_bus.anticipation == 0);
         assert(g_bus.analysis_release_ms == 60);
         char serialized_state[512];
