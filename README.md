@@ -1,3 +1,5 @@
+> hbclean.52 pairs with HB 0.2.137. New follower tracks use Scale content. Opening or loading Movy during native playback adopts the native beat and clip positions without toggling Play. A deleted native set with a stale published UUID gets a separate blank working state after a two-second absence check across all set pages; existing data is not reused as the new set.
+
 > hbclean.51 fixes Record from stopped: with Play Link on, stock Move starts and Movy counts in from its Start signal. Use HB 0.2.136 for the idle scheduler performance fix. All operations and new-set defaults remain.
 
 > New in hbclean.50 with HB 0.2.135: automatic cycle conditions for Clip Repeat, Reverse, Time Shift and Speed. Auto On runs in the sequencer even with the editor closed. Manual holds override the schedule; recording bypasses the recording track. Highest-numbered eligible automatic clip lane wins when several qualify.
