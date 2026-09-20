@@ -1,3 +1,5 @@
+> hbclean.60: tool display name is now **01 Movy (HarmonyBus Clean)** so Schwung lists it before File Browser. Module identity and saved data are unchanged. Keep HarmonyBus 0.2.149.
+
 > hbclean.59: paired with HarmonyBus 0.2.149. Approach knob touches and operation step controls report immediate presses and timed releases to shared DSP gesture state. Short taps arm/toggle; holds release off. Tap order chooses enclosure order, and unused modifiers can be disarmed independently. Hold Time is in Global (250 ms default, 150–500 ms); operation Touch Mode offers Hold, Toggle and Tap/Hold. Captured releases retain their original owner; teardown cancels without arming.
 
 > hbclean.58: stop reloading HarmonyBus contracts on every paint; use cached knob-touch feedback before background polling; retain whole diagnostic frames when snapshot reads fail, including the first read. Tested with simulated 100 ms host reads. Pair with HarmonyBus 0.2.148 for Cycle arp rates and Shuffle.

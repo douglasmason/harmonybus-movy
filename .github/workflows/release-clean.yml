@@ -17,8 +17,8 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   HB_REF: 317986206b1686eea03fbac98ee0876511e93643
-  HB_MOVY_VERSION: 0.34.1-hbclean.59
-  HB_MOVY_TAG: v0.34.1-hbclean.59
+  HB_MOVY_VERSION: 0.34.1-hbclean.60
+  HB_MOVY_TAG: v0.34.1-hbclean.60
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -171,7 +171,7 @@ jobs:
           path = Path('movy/module.json')
           data = json.loads(path.read_text())
           data['version'] = '${{ env.HB_MOVY_VERSION }}'
-          data['name'] = 'Movy (HarmonyBus Clean)'
+          data['name'] = '01 Movy (HarmonyBus Clean)'
           data['description'] = 'Stock Movy with HarmonyBus sources and four instrument-free receivers, muted local outputs, Schwung-owned parameter UI, and native Move transport follow enabled by default'
           path.write_text(json.dumps(data, indent=4) + '\n')
           PY
@@ -293,7 +293,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Add timed approach knob gestures and per-operation Hold/Toggle/Tap-Hold controls. Knobs and steps share ordered pending enclosures, with tap-again disarming and captured cancellation across page changes. Pair with HarmonyBus 0.2.149. Automated controller tests pass; physical device verification remains pending."
+              --notes "Rename the tool entry to 01 Movy (HarmonyBus Clean) so it sorts before File Browser in Schwung. Display-name change only; continue using HarmonyBus 0.2.149."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
