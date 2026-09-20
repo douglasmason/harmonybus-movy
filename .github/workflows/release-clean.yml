@@ -299,3 +299,18 @@ jobs:
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
           fi
           test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
+
+      - name: Update default-branch installer pointer
+        if: github.event_name != 'pull_request'
+        run: |
+          cp release.json "$RUNNER_TEMP/hb-movy-release.json"
+          git fetch origin main
+          git worktree add --detach "$RUNNER_TEMP/hb-movy-store" origin/main
+          cp "$RUNNER_TEMP/hb-movy-release.json" "$RUNNER_TEMP/hb-movy-store/release.json"
+          git -C "$RUNNER_TEMP/hb-movy-store" config user.name 'github-actions[bot]'
+          git -C "$RUNNER_TEMP/hb-movy-store" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C "$RUNNER_TEMP/hb-movy-store" add release.json
+          if ! git -C "$RUNNER_TEMP/hb-movy-store" diff --cached --quiet; then
+            git -C "$RUNNER_TEMP/hb-movy-store" commit -m "Update installer pointer to $HB_MOVY_VERSION"
+            git -C "$RUNNER_TEMP/hb-movy-store" push origin HEAD:main
+          fi
