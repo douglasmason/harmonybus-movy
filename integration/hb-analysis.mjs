@@ -74,3 +74,27 @@ try {
     assert.deepEqual(page.ctl.page.keys.map(key=>page.ctl.state.values[key]),frame.split('|').slice(1),'Quiet app still publishes the entire changed frame');
 } finally {Date.now=savedNow;globalThis.shadow_get_param=oldRead;}
 console.log('Real app analysis: held-note refresh does not depend on control-model dirtiness');
+
+// A real MIDI touch must repaint a hosted page even when Movy's model is quiet.
+const painted=[];
+const previousFill=globalThis.fill_rect;
+globalThis.fill_rect=(...args)=>{painted.push(args);previousFill?.(...args);};
+try {
+    for(const key of ['arp_hold','travel_map','next_anti_buffer_ms']) {
+        const index=page.ctl.pages.findIndex(candidate=>candidate.keys?.includes(key));
+        assert(index>=0);page.goToPage(index);
+        appState.dirty=true;globalThis.tick();
+        const slot=page.ctl.page.keys.indexOf(key);
+        painted.length=0;appState.dirty=false;
+        globalThis.onMidiMessageInternal([0x90,slot,127]);
+        assert(appState.dirty,'Knob touch must request a redraw without any turn');
+        globalThis.tick();
+        assert.equal(page.ctl.describePage().header.left,page.ctl.metaAt(slot).name);
+        assert(painted.some(([x,y,w,h,color])=>x===0&&y===0&&w===128&&h>=7&&color===1),'Touch paints full-name/value header');
+        painted.length=0;appState.dirty=false;
+        globalThis.onMidiMessageInternal([0x90,slot,0]);
+        assert(appState.dirty,'Release must request a redraw');globalThis.tick();
+        assert.equal(page.ctl.describePage().header.inverted,false);
+    }
+} finally {globalThis.fill_rect=previousFill;}
+console.log('Real MIDI knob touch/release redraws arp, follower and lookahead pages without turning');

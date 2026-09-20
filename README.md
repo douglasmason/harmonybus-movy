@@ -1,3 +1,5 @@
+> hbclean.57: touching or releasing a hosted parameter knob immediately redraws its full-name/value header, without needing a turn. Verified through actual MIDI input on arp, follower and lookahead pages. HarmonyBus 0.2.147 adds corrected latch modes and Clear Arp.
+
 > hbclean.56: refresh held-note analysis independently of ordinary control changes, and update complete diagnostic rows in the fallback renderer. Musical mapping is unchanged.
 
 > hbclean.55: prioritize the empty-clip beat lights immediately after transport polling, before automation reads and other UI work. Recording and audio timing are unchanged.

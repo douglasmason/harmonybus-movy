@@ -133,7 +133,7 @@ def patch_schwung_page_ownership(grid_path: Path, router_path: Path) -> None:
                 const m2 = knobModel();
                 const sp2 = m2 ? schwungActiveFor(appState.activeTrack.index,
                                 m2.getComponentKey ? m2.getComponentKey() : 'synth') : null;
-                if (sp2) sp2.knobTouch(d1, true);
+                if (sp2) { sp2.knobTouch(d1, true); appState.dirty = true; }
                 else m2?.handleKnobTouch(d1);
             }
 '''
@@ -151,7 +151,7 @@ def patch_schwung_page_ownership(grid_path: Path, router_path: Path) -> None:
                 const m2 = knobModel();
                 const sp2 = m2 ? schwungActiveFor(appState.activeTrack.index,
                                 m2.getComponentKey ? m2.getComponentKey() : 'synth') : null;
-                if (sp2) sp2.knobTouch(d1, false);
+                if (sp2) { sp2.knobTouch(d1, false); appState.dirty = true; }
                 else if (m2?.handleKnobRelease(d1)) seqToast('Wrong preset type');
             }
 '''

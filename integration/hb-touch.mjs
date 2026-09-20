@@ -92,7 +92,7 @@ for (const key of ['play_bypass']) {
     page.knobTouch(slot, false);
     assert.equal(writes.length, released, 'Duplicate release is inert');
 }
-for (const [key, action] of [['approach_reset','Reset'],['approach_scale_next','Scale +'],['approach_chrom_next','Chrom -'],['next_reset','Reset'],['play_reset','Reset']]) {
+for (const [key, action] of [['approach_reset','Reset'],['approach_scale_next','Scale +'],['approach_chrom_next','Chrom -'],['arp_clear','Clear'],['play_reset','Reset']]) {
     const slot = focusKey(key);
     assert(page.ctl.metaAt(slot).writeOnly, `${key} must resolve as an action button`);
     const before = writes.length;
@@ -110,7 +110,9 @@ console.log('HB buttons: momentary modifiers, release after page change, every a
 
 assert.equal(page.ctl.pages.filter(candidate => candidate.keys?.includes('arp_phase')).length, 1);
 assert.equal(module.capabilities.ui_hierarchy.levels.arp_player.knobs.length, 8);
-assert(!module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_clear'));
+assert(module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_clear'));
+assert(module.capabilities.ui_hierarchy.levels.chord_player.knobs.includes('strum_spread'));
+assert.equal(module.capabilities.ui_hierarchy.levels.chord_player.knobs.length,8);
 
 const { releasePerformanceTouch, performanceTouchActive } = await import('../dist/esm/renderer/schwung-page.js');
 const performanceSlot = focusKey('play_bypass');
