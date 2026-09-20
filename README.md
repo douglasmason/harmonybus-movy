@@ -1,3 +1,5 @@
+> hbclean.56: refresh held-note analysis independently of ordinary control changes, and update complete diagnostic rows in the fallback renderer. Musical mapping is unchanged.
+
 > hbclean.55: prioritize the empty-clip beat lights immediately after transport polling, before automation reads and other UI work. Recording and audio timing are unchanged.
 
 > hbclean.54: extend complete-page snapshot refresh to the Harmony Flow row in HarmonyBus 0.2.142. Switching analysis pages immediately refreshes the newly selected page.

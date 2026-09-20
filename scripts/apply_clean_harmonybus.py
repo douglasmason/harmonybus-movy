@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from patch_deleted_set import patch_deleted_set
 from patch_follower_snapshot import patch_follower_snapshot
+from patch_diagnostic_refresh import patch_diagnostic_refresh
 from patch_running_transport import patch_running_transport
 from patch_movy_record_bridge import patch_record_bridge
 import argparse
@@ -462,6 +463,7 @@ def main() -> int:
     if record_applied.returncode != 0:
         subprocess.run(['git', 'apply', str(record_patch)], cwd=root, check=True)
     (root / 'browser-test/hb-touch.mjs').write_text((integration_root / 'hb-touch.mjs').read_text())
+    (root / 'browser-test/hb-analysis.mjs').write_text((integration_root / 'hb-analysis.mjs').read_text())
     (root / 'browser-test/hb-clip-tools.mjs').write_text((integration_root / 'hb-clip-tools.mjs').read_text())
     map_path_to_base64: dict[str, str] = json.loads((integration_root / 'clip-baselines.json').read_text())
     for relative_path, encoded_png in map_path_to_base64.items():
@@ -476,6 +478,7 @@ def main() -> int:
     patch_running_transport(root)
     patch_deleted_set(root)
     patch_follower_snapshot(root)
+    patch_diagnostic_refresh(root)
     print("HarmonyBus clean integration applied")
     return 0
 
