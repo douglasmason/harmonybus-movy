@@ -461,3 +461,35 @@ focusKey('fpath_0_0_0');focusKey('hpath_0');
 assert.equal(harmonyReads,3,'Changing analysis pages refreshes the new snapshot immediately');
 Date.now=harmonyClock;port.getParam=harmonyGet;
 console.log('Harmony Flow: ordered stages, atomic updates and analysis-page switching pass');
+
+// Charge 100 ms per device read: a touch frame must use cached values only.
+focusKey('arp_hold');
+const slowGet=port.getParam, slowClock=Date.now;
+let slowNow=slowClock(), slowReads=0, contractReads=0;
+Date.now=()=>slowNow;
+port.getParam=key=>{slowReads++;slowNow+=100;if(/:(ui_hierarchy|chain_params)$/.test(key))contractReads++;return slowGet(key);};
+try {
+    const slot=page.ctl.page.keys.indexOf('arp_hold');
+    page.knobTouch(slot,true);page.tick();
+    assert.equal(slowReads,0,'Touch and its first paint do not wait for device reads');
+    assert.equal(page.ctl.describePage().header.left,'Hold');
+    page.knobTouch(slot,false);page.tick();
+    assert.equal(slowReads,0,'Release and its first paint also avoid reads');
+    for(let index=0;index<8;index++){slowNow+=40;page.tick();}
+    assert.equal(contractReads,0,'Steady HarmonyBus page does not reload large contracts');
+} finally {port.getParam=slowGet;Date.now=slowClock;}
+// Failed first snapshots must not start an individual-cell polling sweep.
+focusKey('arp_hold');
+const failedGet=port.getParam;
+let individualReads=0;
+port.getParam=key=>{
+    if(key.endsWith(':follower_snapshot'))return null;
+    if(/:fpath_0_/.test(key)){individualReads++;return 'STALE';}
+    return failedGet(key);
+};
+try {
+    focusKey('fpath_0_0_0');
+    for(let index=0;index<24;index++)page.tick();
+    assert.equal(individualReads,0,'No partial row reads while snapshot is unavailable');
+} finally {port.getParam=failedGet;}
+console.log('Slow host: cached touch frames, no repeated contracts, no partial diagnostic fallback');

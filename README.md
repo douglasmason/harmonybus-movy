@@ -1,3 +1,5 @@
+> hbclean.58: stop reloading HarmonyBus contracts on every paint; use cached knob-touch feedback before background polling; retain whole diagnostic frames when snapshot reads fail, including the first read. Tested with simulated 100 ms host reads. Pair with HarmonyBus 0.2.148 for Cycle arp rates and Shuffle.
+
 > hbclean.57: touching or releasing a hosted parameter knob immediately redraws its full-name/value header, without needing a turn. Verified through actual MIDI input on arp, follower and lookahead pages. HarmonyBus 0.2.147 adds corrected latch modes and Clear Arp.
 
 > hbclean.56: refresh held-note analysis independently of ordinary control changes, and update complete diagnostic rows in the fallback renderer. Musical mapping is unchanged.
