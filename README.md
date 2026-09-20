@@ -1,3 +1,5 @@
+> hbclean.53: update follower note rows together from HarmonyBus 0.2.141 snapshots at up to 25 Hz. One read fetches all eight cells, preserving raw-note/input-role correspondence during transitions. Older HarmonyBus versions retain ordinary polling.
+
 > hbclean.52 pairs with HB 0.2.137. New follower tracks use Scale content. Opening or loading Movy during native playback adopts the native beat and clip positions without toggling Play. A deleted native set with a stale published UUID gets a separate blank working state after a two-second absence check across all set pages; existing data is not reused as the new set.
 
 > hbclean.51 fixes Record from stopped: with Play Link on, stock Move starts and Movy counts in from its Start signal. Use HB 0.2.136 for the idle scheduler performance fix. All operations and new-set defaults remain.

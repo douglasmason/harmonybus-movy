@@ -68,7 +68,7 @@ function focusKey(key) {
     for (let tick = 0; tick < 64; tick++) page.tick();
     return page.ctl.page.keys.indexOf(key);
 }
-for (const key of ['mod_chrom_below', 'mod_scale_above', 'play_bypass']) {
+for (const key of ['play_bypass']) {
     values.set(key, 'Off');
     const slot = focusKey(key);
     const before = writes.length;
@@ -113,14 +113,14 @@ assert.equal(module.capabilities.ui_hierarchy.levels.arp_player.knobs.length, 8)
 assert(!module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_clear'));
 
 const { releasePerformanceTouch, performanceTouchActive } = await import('../dist/esm/renderer/schwung-page.js');
-const performanceSlot = focusKey('mod_chrom_below');
+const performanceSlot = focusKey('play_bypass');
 page.knobTouch(performanceSlot, true);
 assert(performanceTouchActive());
 const originalGet = port.getParam;
 port.getParam = () => { throw new Error('Parameter read delayed an owned release'); };
 for (let tick = 0; tick < 20; tick++) page.tick();
 releasePerformanceTouch(performanceSlot);
-assert.deepEqual(writes.at(-1), ['midi_fx1:mod_chrom_below', 'Off']);
+assert.deepEqual(writes.at(-1), ['midi_fx1:play_bypass', 'Off']);
 const afterRelease = writes.length;
 releasePerformanceTouch(performanceSlot);
 assert.equal(writes.length, afterRelease);
@@ -402,3 +402,39 @@ try {
     assert.equal(sentColor(16),97,'Editing an assignment updates its category without changing track');
 } finally {resetHbPerformance();globalThis.move_midi_internal_send=savedLedSend;Date.now=colorNow;}
 console.log('HB LED wire: assignment categories, trigger activity, immediate hold, release and live reassignment pass');
+
+// A changing chord/second note must never leave mixed-age follower fields.
+const snapshotGet = port.getParam;
+let snapshotReads = 0;
+let wireReads = 0;
+let frame = 'fp1|G4|5th|b7|G4|--|--|--|--';
+let snapshotNow = Date.now() + 10000;
+const snapshotClock = Date.now;
+Date.now = () => snapshotNow;
+port.getParam = (key) => {
+    wireReads++;
+    if (key.endsWith(':follower_snapshot')) { snapshotReads++; return frame; }
+    return snapshotGet(key);
+};
+focusKey('fpath_0_0_0');
+assert.equal(page.ctl.state.values.fpath_0_0_1, '5th');
+const readsBeforeFrames = snapshotReads;
+const writesBeforeFrames = writes.length;
+for (let index = 0; index < 20; index++) {
+    frame = index % 2 ? 'fp1|G4|5th|Root|A4|--|--|--|--' : 'fp1|C4|Root|3rd|E4|G4|5th|b7|G4';
+    snapshotNow += 40;
+    page.tick();
+    const expected = frame.split('|').slice(1);
+    assert.deepEqual(page.ctl.page.keys.map(key => page.ctl.state.values[key]), expected);
+}
+assert.equal(snapshotReads - readsBeforeFrames, 20, 'One snapshot read per refresh');
+const beforeFastTicks = snapshotReads;
+for(let index=0;index<20;index++)page.tick();
+assert.equal(snapshotReads,beforeFastTicks,'Bound snapshot requests to 25 Hz');
+assert.equal(writes.length,writesBeforeFrames,'Refreshing diagnostics never writes musical parameters');
+frame = '';
+snapshotNow += 40;page.tick();
+assert.equal(page.ctl.state.values.fpath_0_0_1, '5th','An unavailable snapshot retains the last coherent frame');
+Date.now = snapshotClock;
+port.getParam = snapshotGet;
+console.log('Follower snapshots: coherent changing rows, fixed Explicit-C fifth, bounded reads and no writes pass');

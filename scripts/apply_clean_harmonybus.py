@@ -14,6 +14,7 @@ An explicit clip edit adds Quantize + Fill Gaps using shared playback timing.
 from __future__ import annotations
 
 from patch_deleted_set import patch_deleted_set
+from patch_follower_snapshot import patch_follower_snapshot
 from patch_running_transport import patch_running_transport
 from patch_movy_record_bridge import patch_record_bridge
 import argparse
@@ -474,6 +475,7 @@ def main() -> int:
     patch_harmony_pads(root)
     patch_running_transport(root)
     patch_deleted_set(root)
+    patch_follower_snapshot(root)
     print("HarmonyBus clean integration applied")
     return 0
 

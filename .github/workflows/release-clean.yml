@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 26b94715071de02e755c114cdff404a1cd092243
-  HB_MOVY_VERSION: 0.34.1-hbclean.52
-  HB_MOVY_TAG: v0.34.1-hbclean.52
+  HB_REF: 6aeaac2cc6a70d3bf9c8ea548b6d50601c35f3fb
+  HB_MOVY_VERSION: 0.34.1-hbclean.53
+  HB_MOVY_TAG: v0.34.1-hbclean.53
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -288,7 +288,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Attach Movy to the existing native transport phase when opened during playback. Isolate deleted native sets from retained Movy data and default new follower content to Scale. Pair with HarmonyBus 0.2.137 for follower role, transposition, lookahead Anti Buffer and per-note path improvements. Physical device confirmation remains pending."
+              --notes "Refresh the complete follower note page together at up to 25 Hz using one HarmonyBus snapshot per refresh, preventing mixed-age raw notes and roles. Pair with HarmonyBus 0.2.141 for None travel, split assignment caching and simplified pages. Physical device verification remains pending."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
