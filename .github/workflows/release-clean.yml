@@ -150,8 +150,8 @@ jobs:
           assert "loadSetHostChoice(null);" in state
           assert "restoreChains(freshHarmonyBusChains(), null)" in state
           assert "let override: SchwungGridMode | null = 'page';" in grid
-          assert "if (sp2) sp2.knobTouch(d1, true);\n                else m2?.handleKnobTouch(d1);" in router
-          assert "if (sp2) sp2.knobTouch(d1, false);\n                else if (m2?.handleKnobRelease(d1))" in router
+          assert "if (sp2) { sp2.knobTouch(d1, true); appState.dirty = true; }\n                else m2?.handleKnobTouch(d1);" in router
+          assert "if (sp2) { sp2.knobTouch(d1, false); appState.dirty = true; }\n                else if (m2?.handleKnobRelease(d1))" in router
           assert "openSchwungEditor(intent, spc)" not in router
           assert "link_enabled: true," in engine
           assert "engine.link_enabled = true;" in persist
