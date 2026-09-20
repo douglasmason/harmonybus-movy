@@ -438,3 +438,24 @@ assert.equal(page.ctl.state.values.fpath_0_0_1, '5th','An unavailable snapshot r
 Date.now = snapshotClock;
 port.getParam = snapshotGet;
 console.log('Follower snapshots: coherent changing rows, fixed Explicit-C fifth, bounded reads and no writes pass');
+
+const harmonyGet = port.getParam;
+let harmonyFrame = 'hp1|C E G|C|Am|Bm';
+let harmonyReads = 0;
+let harmonyNow = Date.now() + 20000;
+const harmonyClock = Date.now;
+Date.now = () => harmonyNow;
+port.getParam = (key) => {
+    if(key.endsWith(':harmony_snapshot')){harmonyReads++;return harmonyFrame;}
+    return harmonyGet(key);
+};
+focusKey('hpath_0');
+assert.equal(page.pageTitle,'Harmony Flow');
+assert.deepEqual(page.ctl.page.keys.map(key=>page.ctl.state.values[key]),['C E G','C','Am','Bm']);
+harmonyFrame='hp1|F A C|F|G7|A7';harmonyNow+=40;page.tick();
+assert.deepEqual(page.ctl.page.keys.map(key=>page.ctl.state.values[key]),['F A C','F','G7','A7']);
+assert.equal(harmonyReads,2);
+focusKey('fpath_0_0_0');focusKey('hpath_0');
+assert.equal(harmonyReads,3,'Changing analysis pages refreshes the new snapshot immediately');
+Date.now=harmonyClock;port.getParam=harmonyGet;
+console.log('Harmony Flow: ordered stages, atomic updates and analysis-page switching pass');

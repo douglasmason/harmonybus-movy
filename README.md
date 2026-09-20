@@ -1,3 +1,5 @@
+> hbclean.54: extend complete-page snapshot refresh to the Harmony Flow row in HarmonyBus 0.2.142. Switching analysis pages immediately refreshes the newly selected page.
+
 > hbclean.53: update follower note rows together from HarmonyBus 0.2.141 snapshots at up to 25 Hz. One read fetches all eight cells, preserving raw-note/input-role correspondence during transitions. Older HarmonyBus versions retain ordinary polling.
 
 > hbclean.52 pairs with HB 0.2.137. New follower tracks use Scale content. Opening or loading Movy during native playback adopts the native beat and clip positions without toggling Play. A deleted native set with a stale published UUID gets a separate blank working state after a two-second absence check across all set pages; existing data is not reused as the new set.
