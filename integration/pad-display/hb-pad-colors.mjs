@@ -31,7 +31,7 @@ console.log('Harmony pads: pitch classes, root backgrounds, overlap, independent
 
 const port = portFor(4), originalGet = port.getParam;
 let reads = 0;
-port.getParam = key => { assert.equal(key,'midi_fx1:pad_render'); reads++; return '145,580,2741,1,580,3,3,0,4,2'; };
+port.getParam = key => { assert.equal(key,'midi_fx1:pad_view'); reads++; return '145,580,2741,1,580,3,3,0,4,2'; };
 refreshHarmonyPads(4,0);
 for(let now=1;now<50;now++) refreshHarmonyPads(4,now);
 assert.equal(reads,1,'No per-pad or per-frame polling');
@@ -57,3 +57,15 @@ console.log('Immediate pad touch honors harmony colors and Standard feedback');
 
 assert.equal(colorHarmonyPitch(60,0,0,scale,chord,0,4,0,0,127,125,true),trackColor(0),'Lookahead only never paints current harmony');
 assert.equal(parseHarmonySnapshot('145,580,2741,1'),null,'Reject old pitch-mask protocol instead of miscoloring inputs');
+
+// Retained inputs are exact MIDI keys, never rendered chord tones or octave copies.
+portFor(0).getParam = () => '0,0,0,0,0,0,3,0,4,2|arp1,1,60';
+refreshHarmonyPads(0,testTime+=100);
+const {harmonyPadColor}=await import('../dist/esm/seq/pads.js');
+assert.equal(harmonyPadColor(60,0),11);
+assert.notEqual(harmonyPadColor(72,0),11);
+assert.notEqual(harmonyPadColor(64,0),11);
+portFor(0).getParam = () => '0,0,0,0,0,0,3,0,4,2|arp1,1';
+refreshHarmonyPads(0,testTime+=100);
+assert.notEqual(harmonyPadColor(60,0),11,'Clear/toggle-off removes retained input feedback');
+console.log('Arp pad view: exact raw inputs, no output/octave ghosts, empty pool clears highlights');

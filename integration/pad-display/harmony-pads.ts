@@ -2,13 +2,13 @@
 import { performanceTouchActive } from '../renderer/performance-touch.js';
 import { keyboardState } from './state.js';
 import { inScaleFor } from '../seq/scales.js';
-import { trackColor, C_LIGHTGREY } from '../seq/colors.js';
+import { trackColor, C_LIGHTGREY, C_GREEN } from '../seq/colors.js';
 import { portFor } from '../track/registry.js';
 import { seqState } from '../seq/state.js';
 import { visualEngineTick } from '../seq/engine.js';
 import { PAD_PALETTE } from './pad-palette.js';
 
-export type HarmonySnapshot = { current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[] };
+export type HarmonySnapshot = { current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; arpInputs?: number[] };
 let snapshot: HarmonySnapshot | null = null;
 let settings = [0,3,0,4,2];
 let watchedTrack = -1;
@@ -19,12 +19,21 @@ const mixes = new Map<string, number>();
 
 export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null {
     if (!raw) return null;
-    const parts = raw.trim().split(',').map(Number);
+    const [harmony, arp] = raw.trim().split('|');
+    const parts = harmony.split(',').map(Number);
     if (parts.length !== 10 || parts.some(value => !Number.isInteger(value)) ||
         [...parts.slice(0, 3), parts[4]].some(value => value < 0 || value > 4095) ||
         (parts[3] !== 0 && parts[3] !== 1) ||
         parts.slice(5).some((value,index) => value < 0 || value >= [5,8,3,8,8][index])) return null;
-    return { current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
+    let arpInputs: number[] | undefined;
+    if (arp) {
+        const [version, active, ...notes] = arp.split(',');
+        if (version !== 'arp1' || !['0','1'].includes(active)) return null;
+        const inputs = notes.map(Number);
+        if (inputs.some(note => !Number.isInteger(note) || note < 0 || note > 127)) return null;
+        if (active === '1') arpInputs = inputs;
+    }
+    return { ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
 }
 
 /** Poll one compact snapshot, never once per pad or once per display frame. */
@@ -33,7 +42,9 @@ export function refreshHarmonyPads(track: number, now = Date.now()): void {
     if (performanceTouchActive()) return;
     if (now >= polledAt && now - polledAt < 50) return;
     polledAt = now;
-    snapshot = parseHarmonySnapshot(portFor(track).getParam('midi_fx1:pad_render'));
+    const port = portFor(track);
+    const raw = port.getParam('midi_fx1:pad_view');
+    snapshot = parseHarmonySnapshot(raw || port.getParam('midi_fx1:pad_render'));
     settings = snapshot?.settings || [0,3,0,4,2];
 }
 
@@ -82,8 +93,14 @@ export function colorHarmonyPitch(pitch: number, inputRoot: number, track: numbe
 /** Null leaves Standard's existing pressed/last-played/step-edit behavior intact. */
 export function harmonyPadColor(pitch: number, track: number): number | null {
     const mode = settings[0];
-    if (!mode) return null;
     const view = watchedTrack === track ? snapshot : null;
+    // Exact raw input notes own highlights; generated output never lights pads.
+    if (view?.arpInputs !== undefined) {
+        if (view.arpInputs.includes(pitch)) return C_GREEN;
+        if (!mode) return pitch % 12 === keyboardState.rootPc ? trackColor(track) :
+            inScaleFor(pitch, keyboardState.rootPc, keyboardState.scale) ? C_LIGHTGREY : 0;
+    }
+    if (!mode) return null;
     let scale = view?.scale || 0;
     if (!view) for (let note = 0; note < 12; note++)
         if (inScaleFor(note, keyboardState.rootPc, keyboardState.scale)) scale |= 1 << note;
