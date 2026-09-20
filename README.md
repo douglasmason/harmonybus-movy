@@ -1,3 +1,5 @@
+> hbclean.59: paired with HarmonyBus 0.2.149. Approach knob touches and operation step controls report immediate presses and timed releases to shared DSP gesture state. Short taps arm/toggle; holds release off. Tap order chooses enclosure order, and unused modifiers can be disarmed independently. Hold Time is in Global (250 ms default, 150–500 ms); operation Touch Mode offers Hold, Toggle and Tap/Hold. Captured releases retain their original owner; teardown cancels without arming.
+
 > hbclean.58: stop reloading HarmonyBus contracts on every paint; use cached knob-touch feedback before background polling; retain whole diagnostic frames when snapshot reads fail, including the first read. Tested with simulated 100 ms host reads. Pair with HarmonyBus 0.2.148 for Cycle arp rates and Shuffle.
 
 > hbclean.57: touching or releasing a hosted parameter knob immediately redraws its full-name/value header, without needing a turn. Verified through actual MIDI input on arp, follower and lookahead pages. HarmonyBus 0.2.147 adds corrected latch modes and Clear Arp.

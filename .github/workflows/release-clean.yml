@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 6704ebf0a18f47ccd26f68b7b71e856f85e2d971
-  HB_MOVY_VERSION: 0.34.1-hbclean.58
-  HB_MOVY_TAG: v0.34.1-hbclean.58
+  HB_REF: 317986206b1686eea03fbac98ee0876511e93643
+  HB_MOVY_VERSION: 0.34.1-hbclean.59
+  HB_MOVY_TAG: v0.34.1-hbclean.59
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -293,7 +293,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Give follower and harmony analysis pages their own bounded repaint cadence, independent of ordinary control changes. Refresh complete rows in the fallback renderer too. No musical mapping changes. Pair with HarmonyBus 0.2.142; physical device verification remains pending."
+              --notes "Add timed approach knob gestures and per-operation Hold/Toggle/Tap-Hold controls. Knobs and steps share ordered pending enclosures, with tap-again disarming and captured cancellation across page changes. Pair with HarmonyBus 0.2.149. Automated controller tests pass; physical device verification remains pending."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

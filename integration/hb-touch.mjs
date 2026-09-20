@@ -92,7 +92,7 @@ for (const key of ['play_bypass']) {
     page.knobTouch(slot, false);
     assert.equal(writes.length, released, 'Duplicate release is inert');
 }
-for (const [key, action] of [['approach_reset','Reset'],['approach_scale_next','Scale +'],['approach_chrom_next','Chrom -'],['arp_clear','Clear'],['play_reset','Reset']]) {
+for (const [key, action] of [['approach_reset','Reset'],['arp_clear','Clear'],['play_reset','Reset']]) {
     const slot = focusKey(key);
     assert(page.ctl.metaAt(slot).writeOnly, `${key} must resolve as an action button`);
     const before = writes.length;
@@ -493,3 +493,41 @@ try {
     assert.equal(individualReads,0,'No partial row reads while snapshot is unavailable');
 } finally {port.getParam=failedGet;}
 console.log('Slow host: cached touch frames, no repeated contracts, no partial diagnostic fallback');
+
+// Timed knob gestures preserve press order and the original owner on release.
+const gestureClock=Date.now;let gestureNow=100000;Date.now=()=>gestureNow;
+try {
+    for(const [key,wire] of [['approach_scale_next','performance_gesture_above'],['approach_chrom_next','performance_gesture_below']]){
+        const slot=focusKey(key);const before=writes.length;
+        page.knobTouch(slot,true);page.knobTouch(slot,true);
+        assert.deepEqual(writes.at(-1),['midi_fx1:'+wire,'Down']);
+        gestureNow+=100;page.knobTouch(slot,false);
+        assert.deepEqual(writes.at(-1),['midi_fx1:'+wire,'Up,100']);
+        assert.equal(writes.length,before+2,'Duplicate touch must not create another gesture');
+        page.knobTouch(slot,true);gestureNow+=350;focusKey('arp_phase');
+        releasePerformanceTouch(slot);
+        assert.deepEqual(writes.at(-1),['midi_fx1:'+wire,'Up,350'],'Release uses captured control after page change');
+    }
+    const {cancelPerformanceTouches}=await import('../dist/esm/renderer/schwung-page.js');
+    const slot=focusKey('approach_scale_next');page.knobTouch(slot,true);cancelPerformanceTouches();
+    assert.deepEqual(writes.at(-1),['midi_fx1:performance_gesture_above','Cancel'],'Teardown must never become a short tap');
+} finally {Date.now=gestureClock;}
+console.log('Timed knob gestures: short/long duration, duplicate press, captured release and cancellation pass');
+const stepClock=Date.now;let stepNow=200000;Date.now=()=>stepNow;
+const gestureWrites=[];let gestureReads=0;
+const gestureOwner={performanceTrack:2,
+    performanceGet(key){gestureReads++;return key.startsWith('motion_gesture_binding_')?'8,1,3,2,250,0':'';},
+    performanceSet(key,value){gestureWrites.push([key,value]);},
+};
+try {
+    resetHbPerformance();hbPerformanceStep([0x90,16,127],gestureOwner);
+    assert.deepEqual(gestureWrites.at(-1),['motion_gesture_1','Down']);
+    const reads=gestureReads;stepNow+=80;releaseHbPerformanceStep([0x80,16,0]);
+    assert.deepEqual(gestureWrites.at(-1),['motion_gesture_1','Up,80']);
+    assert.equal(gestureReads,reads,'Step release performs no host reads');
+    hbPerformanceStep([0x90,16,127],gestureOwner);stepNow+=400;
+    releaseHbPerformanceStep([0x90,16,0]);assert.deepEqual(gestureWrites.at(-1),['motion_gesture_1','Up,400']);
+    hbPerformanceStep([0x90,16,127],gestureOwner);resetHbPerformance();
+    assert(gestureWrites.some(([key,value])=>key==='motion_gesture_1'&&value==='Cancel'),'Teardown cancels pending step taps');
+} finally {Date.now=stepClock;resetHbPerformance();}
+console.log('Timed steps: captured owner, duration, read-free release and teardown cancellation pass');

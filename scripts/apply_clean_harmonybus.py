@@ -17,6 +17,7 @@ from patch_deleted_set import patch_deleted_set
 from patch_follower_snapshot import patch_follower_snapshot
 from patch_diagnostic_refresh import patch_diagnostic_refresh
 from patch_page_latency import patch_page_latency
+from patch_tap_hold import patch_tap_hold
 from patch_running_transport import patch_running_transport
 from patch_movy_record_bridge import patch_record_bridge
 import argparse
@@ -481,6 +482,7 @@ def main() -> int:
     patch_follower_snapshot(root)
     patch_diagnostic_refresh(root)
     patch_page_latency(root)
+    patch_tap_hold(root)
     print("HarmonyBus clean integration applied")
     return 0
 

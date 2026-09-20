@@ -16,7 +16,11 @@ export interface PerformancePort {
     performanceGet(key: string): string;
 }
 const keys = Array.from({length:16}, (_,index) => 'motion_hold_' + (index + 1));
-const held = new Map<number, { owner: PerformancePort; key: string; momentary: boolean; clip: boolean }>();
+interface HeldAction {
+    owner: PerformancePort; key: string; momentary: boolean; clip: boolean;
+    gesture?: boolean; started?: number; mode?: number; threshold?: number; wasLatched?: boolean; lane?: number;
+}
+const held = new Map<number, HeldAction>();
 const hosts = new Map<number, (value: string) => void>();
 function engineWrite(key: string, value: string): void {
     if (typeof host_module_set_param_blocking === 'function') host_module_set_param_blocking(key,value,50);
@@ -29,8 +33,15 @@ export function releaseHbHosts(): void {
     for (const [track,write] of hosts) { engineWrite('hbperform_reset',String(track));write(''); }
     hosts.clear();
 }
-function releaseAction(action: {owner: PerformancePort; key: string; clip: boolean}): void {
+function releaseAction(action: HeldAction, cancel = false): void {
     // No parameter reads on release; the original owner and lane were captured.
+    if (action.gesture) {
+        const elapsed = Math.max(0, Date.now() - (action.started ?? Date.now()));
+        action.owner.performanceSet(action.key, cancel ? 'Cancel' : 'Up,' + elapsed);
+        const stays = !cancel && (action.mode === 1 ? !action.wasLatched : action.mode === 2 && elapsed < (action.threshold ?? 250) && !action.wasLatched);
+        if (action.clip && !stays) engineWrite('hbperform',[action.owner.performanceTrack,action.lane,0,0,0,0].join(','));
+        return;
+    }
     if (action.clip) engineWrite('hbperform',[action.owner.performanceTrack,Number(action.key.slice(12))-1,0,0,0,0].join(','));
     action.owner.performanceSet(action.key,'Off');
 }
@@ -54,7 +65,7 @@ let lastMode: number | null = null;
 
 function releaseForModeChange(): void {
     for (const action of held.values()) {
-        if (action.momentary) releaseAction(action);
+        if (action.momentary) releaseAction(action, true);
         // Keep the physical release owned so it cannot fall into step editing.
         action.momentary = false;
     }
@@ -120,11 +131,15 @@ export function hbPerformanceStep(data: number[], owner: PerformancePort | null 
     if (!owner || step < 0 || step >= 16 || (status !== 0x90 && status !== 0x80)) return false;
     if (status === 0x80 || !data[2] || held.has(step)) return true;
     const key = keys[step];
-    const binding = owner.performanceGet('motion_binding_' + (step + 1)).split(',').map(Number);
+    const gestureBinding = owner.performanceGet('motion_gesture_binding_' + (step + 1)).split(',').map(Number);
+    const gesture = gestureBinding.length === 6 && gestureBinding.every(Number.isFinite);
+    const binding = gesture ? gestureBinding.slice(0,3) : owner.performanceGet('motion_binding_' + (step + 1)).split(',').map(Number);
     const clip = owner.performanceTrack !== undefined && binding.length === 3 && binding.every(Number.isFinite) && binding[0] >= 12 && binding[0] <= 15;
-    held.set(step, { owner, key, momentary: true, clip });usedOwners.add(owner);
-    if (clip) engineWrite('hbperform',[owner.performanceTrack,step,1,...binding].join(','));
-    owner.performanceSet(key, 'On');
+    const mode=gestureBinding[3],threshold=gestureBinding[4],wasLatched=gestureBinding[5]===1;
+    const commandKey=gesture?'motion_gesture_'+(step+1):key;
+    held.set(step, { owner, key:commandKey, momentary: true, clip, gesture, started:Date.now(),mode,threshold,wasLatched,lane:step });usedOwners.add(owner);
+    if (clip) engineWrite('hbperform',[owner.performanceTrack,step,gesture&&mode===1&&wasLatched?0:1,...binding].join(','));
+    owner.performanceSet(commandKey, gesture?'Down':'On');
     if (paintedOwner === owner) statusMask |= 1 << step;
     const operation = Number.isFinite(binding[0]) ? binding[0] : 0;
     if (paintedOwner === owner) operations[step] = operation;
@@ -158,7 +173,7 @@ export function paintHbPerformance(owner: PerformancePort | null = hbPerformance
 }
 
 export function resetHbPerformance(): void {
-    for (const action of held.values()) if (action.momentary) releaseAction(action);
+    for (const action of held.values()) if (action.momentary) releaseAction(action, true);
     for (const owner of usedOwners) resetOwner(owner);
     held.clear();usedOwners.clear();paintedOwner = null;sampledAt = -Infinity;statusMask = 0;
     seqLedsInvalidate();
