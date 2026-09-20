@@ -1,3 +1,5 @@
+> hbclean.55: prioritize the empty-clip beat lights immediately after transport polling, before automation reads and other UI work. Recording and audio timing are unchanged.
+
 > hbclean.54: extend complete-page snapshot refresh to the Harmony Flow row in HarmonyBus 0.2.142. Switching analysis pages immediately refreshes the newly selected page.
 
 > hbclean.53: update follower note rows together from HarmonyBus 0.2.141 snapshots at up to 25 Hz. One read fetches all eight cells, preserving raw-note/input-role correspondence during transitions. Older HarmonyBus versions retain ordinary polling.

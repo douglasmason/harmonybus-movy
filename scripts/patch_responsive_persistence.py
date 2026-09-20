@@ -78,7 +78,8 @@ def patch_responsive_persistence(root: Path) -> None:
     path.write_text(source)
     path = root / 'src/app/tick.ts'
     source = path.read_text().replace('import { seqLedsTick,', 'import { seqBeatLedsTick, seqLedsTick,')
-    source = replace_once(source, '    sessionTick();\n    /* A phase change is a view change', '    seqBeatLedsTick();\n    sessionTick();\n    /* A phase change is a view change')
+    source = source.replace('    seqBeatLedsTick();\n    sessionTick();', '    sessionTick();')
+    source = replace_once(source, '    seqEngineTick();\n', '    seqEngineTick();\n    // Paint the beat before label reads, cache warms, capture, or persistence.\n    if (globalThis.overtakeParked !== true) seqBeatLedsTick();\n')
     path.write_text(source)
     path = root / 'browser-test/logic/set-session.mjs'
     source = path.read_text()
@@ -113,3 +114,11 @@ def patch_responsive_persistence(root: Path) -> None:
     if regression not in source:
         assert source.count(marker) == 1
         path.write_text(source.replace(marker, regression + marker, 1))
+
+    path = root / 'browser-test/app-loop.mjs'
+    source = path.read_text()
+    regression = (Path(__file__).resolve().parent.parent / 'integration/performance/hb_beat_priority.mjs').read_text()
+    marker = 'if (failures === 0) _log('
+    if regression not in source:
+        assert source.count(marker) == 1
+        path.write_text(source.replace(marker, regression + '\n' + marker, 1))

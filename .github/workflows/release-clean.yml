@@ -17,8 +17,8 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   HB_REF: 361dca1bb7740d457f8d7c24a84b594e36211d50
-  HB_MOVY_VERSION: 0.34.1-hbclean.54
-  HB_MOVY_TAG: v0.34.1-hbclean.54
+  HB_MOVY_VERSION: 0.34.1-hbclean.55
+  HB_MOVY_TAG: v0.34.1-hbclean.55
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -127,6 +127,7 @@ jobs:
               'browser-test/logic/tracks-chain.mjs',
               'browser-test/logic/seq-engine.mjs',
               'browser-test/logic/seq-leds.mjs',
+              'browser-test/app-loop.mjs',
               'browser-test/abi-parity.mjs',
               'browser-test/track-colors.mjs',
           }
@@ -288,7 +289,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Refresh Harmony Flow and follower note paths as complete snapshots at up to 25 Hz. Show conductor notes, detected harmony, selected harmony and rendered harmony together. Pair with HarmonyBus 0.2.142. Physical device verification remains pending."
+              --notes "Prioritize empty-clip beat lights immediately after transport polling, before automation reads and other UI work. Recording and audio timing are unchanged. Includes Harmony Flow snapshot refresh; pair with HarmonyBus 0.2.142. Physical device verification remains pending."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
