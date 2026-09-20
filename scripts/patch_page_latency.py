@@ -13,7 +13,9 @@ def patch_page_latency(root: Path) -> None:
     let touchPaintPending = false;
     let hostedModuleId: string | null = null;
     let lastContractCheck = -Infinity;''')
-    source = replace_once(source, '            const v = port.getParam(qualify(k));', '''            if (touchReadOnly) return readCache.get(k) ?? null;
+    source = replace_once(source, '            const v = port.getParam(qualify(k));', '''            if (/^(fpath_0_[01]_[0-3]|hpath_[0-3])$/.test(followerKey))
+                return readCache.get(k) ?? '--';
+            if (touchReadOnly) return readCache.get(k) ?? null;
             const v = port.getParam(qualify(k));
             if (v !== null && v !== undefined) readCache.set(k, v);''')
     source = replace_once(source, '    function reload(): void {', '''    function reload(): void {
@@ -35,6 +37,8 @@ def patch_page_latency(root: Path) -> None:
                 followerKeys.forEach((key: string) => { followerValues![key] = String(ctl.state.values[key] ?? '--'); });
             }
             if (now < followerSnapshotAt || now - followerSnapshotAt >= 40) {''')
+    source = replace_once(source, '                    Object.assign(ctl.state.values, snapshot);', '''                    Object.assign(ctl.state.values, snapshot);
+                    followerKeys.forEach((key: string) => readCache.set(qualify(key), snapshot[key]));''')
     source = replace_once(source, '        knobTouch: (slot: number, down: boolean) => {', '''        knobTouch: (slot: number, down: boolean) => {
             touchPaintPending = true;''')
     source = replace_once(source, '            ctl.onKnobTouch(slot, true);', '''            touchReadOnly = true;
