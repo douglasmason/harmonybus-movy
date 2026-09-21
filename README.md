@@ -1,3 +1,7 @@
+> hbclean.68 / HB 0.2.159: hold a track button and turn Volume to adjust both local audio gain and HB Render To velocity. Recorded notes stay unchanged; Undo/Redo restores both values. Velocity changes affect subsequent note attacks, including arp/echo hits. No new panel.
+
+**Update-safe storage:** hbclean.68 writes sets, saved chains, version history and preferences under `/data/UserData/movy/`, outside the replaceable module folder. Future custom GitHub/archive installations can replace Movy's code without deleting this data. Existing module-local data is left alone if present but is not imported into the new location; this change protects new saves rather than recovering old ones.
+
 > hbclean.67 / HB 0.2.158: recorded operation actions and clip-reader intervals retain original notes; global operation settings and grids; independent track lookahead; follower-only active-render harmony coloring. Follower Travel lists None first.
 
 > hbclean.66 / HB 0.2.157: captured performance touch releases return immediately after cleanup, bypassing generic knob reads. Short approach taps show the native button burst; the default tap/hold threshold is 350 ms.

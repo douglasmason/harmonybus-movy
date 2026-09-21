@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: a924361e7236132bccda6a5dd0d14149c2481c36
-  HB_MOVY_VERSION: 0.34.1-hbclean.67
-  HB_MOVY_TAG: v0.34.1-hbclean.67
+  HB_REF: 2ea4bf21aec815ae2220f01211ca131e15538553
+  HB_MOVY_VERSION: 0.34.1-hbclean.68
+  HB_MOVY_TAG: v0.34.1-hbclean.68
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -69,6 +69,20 @@ jobs:
               ['git', '-C', str(root), 'ls-files', '--others', '--exclude-standard'], text=True
           ).splitlines()
           expected = {
+              'browser-test/hb-data-survival.mjs',
+              'scripts/lib/test-set.sh',
+              'scripts/test-chains.sh',
+              'scripts/test-mutes.sh',
+              'scripts/test-seq.sh',
+              'scripts/recover-sets.mjs',
+              'scripts/test-versions.sh',
+              'browser-test/logic/old-set.mjs',
+              'browser-test/logic/set-state.mjs',
+              'browser-test/logic/versions.mjs',
+              'src/seq/set-context.ts',
+              'src/seq/prefs.ts',
+              'src/mixer/track-volume.ts',
+              'browser-test/logic/track-volume.mjs',
               'src/seq/pads.ts',
               'src/undo/ui-fields.ts',
               'src/seq/main-page.ts',
@@ -214,6 +228,10 @@ jobs:
         working-directory: movy
         run: node browser-test/hb-clip-tools.mjs
 
+      - name: Verify user data survives custom reinstall
+        working-directory: movy
+        run: node browser-test/hb-data-survival.mjs
+
       - name: Upstream test — track colors
         working-directory: movy
         run: node browser-test/track-colors.mjs
@@ -311,7 +329,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Record relative note operations and timed clip-reader performance while retaining original inputs. Shared operation controls, per-track lookahead and follower-only active-render harmony pad colors. Requires HarmonyBus 0.2.158."
+              --notes "Track-volume gesture also scales HB routed note velocity; original recordings remain unchanged. New sets, history and preferences live outside the module directory and survive custom reinstalls. Existing module-local data is not imported. Requires HarmonyBus 0.2.159."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
