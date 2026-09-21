@@ -480,7 +480,8 @@ try {
 } finally {port.getParam=slowGet;Date.now=slowClock;}
 // Failed first snapshots must not start an individual-cell polling sweep.
 focusKey('arp_hold');
-const failedGet=port.getParam;
+const failedGet=port.getParam, failedClock=Date.now;
+let failedNow=failedClock();Date.now=()=>failedNow;
 let individualReads=0;
 port.getParam=key=>{
     if(key.endsWith(':follower_snapshot'))return null;
@@ -489,9 +490,9 @@ port.getParam=key=>{
 };
 try {
     focusKey('fpath_0_0_0');
-    for(let index=0;index<24;index++)page.tick();
+    for(let index=0;index<96;index++){failedNow+=50;page.tick();}
     assert.equal(individualReads,0,'No partial row reads while snapshot is unavailable');
-} finally {port.getParam=failedGet;}
+} finally {port.getParam=failedGet;Date.now=failedClock;}
 console.log('Slow host: cached touch frames, no repeated contracts, no partial diagnostic fallback');
 
 // Timed knob gestures preserve press order and the original owner on release.

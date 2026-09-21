@@ -13,8 +13,13 @@ def patch_page_latency(root: Path) -> None:
     let touchPaintPending = false;
     let hostedModuleId: string | null = null;
     let lastContractCheck = -Infinity;''')
+    source = replace_once(source, "            const followerKey = k.split(':').pop() || '';", """            const followerKey = k.replace(/:(modulated|base)$/, '').split(':').pop() || '';
+            // Diagnostics are read-only snapshot fields, never modulation targets.
+            // Controller probes must not bypass the atomic cache via a suffix.
+            if (/^(fpath_0_[01]_[0-3]|hpath_[0-3])$/.test(followerKey) && k.endsWith(':modulated'))
+                return '0';""")
     source = replace_once(source, '            const v = port.getParam(qualify(k));', '''            if (/^(fpath_0_[01]_[0-3]|hpath_[0-3])$/.test(followerKey))
-                return readCache.get(k) ?? '--';
+                return readCache.get(qualify(followerKey)) ?? '--';
             if (touchReadOnly) return readCache.get(k) ?? null;
             const v = port.getParam(qualify(k));
             if (v !== null && v !== undefined) readCache.set(k, v);''')
