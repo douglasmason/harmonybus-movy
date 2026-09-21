@@ -1,3 +1,5 @@
+> hbclean.65 with HB 0.2.156: follower recordings retain their input degrees across global root/scale changes. Green pads show remapped inputs before auto-chord/arp. Saved source pitches remain unchanged; chromatic approaches retain explicit roles. Legacy notes adopt the first active follower input key after upgrade.
+
 > hbclean.64 restores green recorded-input playback highlights above harmony pad backgrounds, in fourths, piano and Inline layouts. Note-off restores the background.
 
 > hbclean.64: note pads show exact retained raw arp inputs in green, including released latched inputs. Output transformations and generated chord tones cannot create ghost highlights. One bounded snapshot carries harmony colors and the input pool together. Pair with HarmonyBus 0.2.151 for Single/Overlap latch choices and Clear on Harmony Change.

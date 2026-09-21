@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 77c2ab56f7ae7c1158cf3a40913b0a39b1e68308
-  HB_MOVY_VERSION: 0.34.1-hbclean.64
-  HB_MOVY_TAG: v0.34.1-hbclean.64
+  HB_REF: 053a8e36c9e9a7b15bd3c02a6a7509a5a46c3b92
+  HB_MOVY_VERSION: 0.34.1-hbclean.65
+  HB_MOVY_TAG: v0.34.1-hbclean.65
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -104,6 +104,8 @@ jobs:
               'src/seq/clip-page-vm.ts',
               'src/undo/verbs.ts',
               'engine/crates/seq-core/src/lib.rs',
+              'engine/crates/seq-core/src/follower_input.rs',
+              'engine/crates/seq-core/src/capture.rs',
               'engine/crates/seq-core/src/hb_clip_performance.rs',
               'engine/crates/seq-core/src/command.rs',
               'engine/crates/seq-core/src/clip_tools.rs',
@@ -308,7 +310,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Show exact retained raw arp inputs on the note pads, including released latched notes. Generated pitches and octave copies do not create highlights. Pair with HarmonyBus 0.2.151 for Single latch modes and optional harmony-change clearing."
+              --notes "Preserve recorded follower degrees across global input root and scale changes. Green playback pads show projected inputs before auto-chord and arp rendering. Source context survives save/load, Capture, and recording tails. Pair with HarmonyBus 0.2.156."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
