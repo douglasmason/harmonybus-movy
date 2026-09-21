@@ -11,14 +11,9 @@ def patch_harmony_pads(root: Path) -> None:
     path: Path = root / 'src/seq/pads.ts'
     source: str = path.read_text()
     source = "import { harmonyPadColor } from '../keyboard/harmony-pads.js';\nexport { setFollowerInputScale, setFollowerInputRoot, harmonyPadColor, colorHarmonyPitch, harmonyPulse, parseHarmonySnapshot, refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + source
-    source = replace_once(source, '    if (pitch < 0) return C_BLACK;', '''    if (pitch < 0) return C_BLACK;
+    source = replace_once(source, '    if (isPlaying) return C_GREEN;', '''    if (isPlaying) return C_GREEN;
     const harmonyColor = harmonyPadColor(pitch, track, holdNotes !== null ? holdNotes.includes(pitch) : noteHeld(track, pitch));
     if (harmonyColor !== null) return harmonyColor;''')
-    path.write_text(source)
-    path = root / 'src/keyboard/handler.ts'
-    source = "import { harmonyPadColor } from './harmony-pads.js';\n" + path.read_text()
-    source = replace_once(source, 'setLED(padNote, C_GREEN, true); // immediate green feedback before the next poll',
-        'setLED(padNote, harmonyPadColor(midiNote, track, true) ?? C_GREEN, true); // preserve harmony backgrounds on the immediate path')
     path.write_text(source)
     path = root / 'src/app/tick.ts'
     source = "import { refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + path.read_text()

@@ -24,7 +24,7 @@ assert.equal(harmonyPulse(0.25,2)+harmonyPulse(0.75,2),0,'Square permits a gap')
 assert.equal(parseHarmonySnapshot('bad'),null);
 assert.deepEqual(parseHarmonySnapshot('145,580,2741,1,580,3,3,0,4,2'),{current:145,effective:580,lookahead:580,scale:2741,ready:true,settings:[3,3,0,4,2]});
 setMode(1);
-assert.equal(padColor(68,68,0,true),padColor(68,68,0,false),'Playing white/green cannot override harmony colors');
+assert.equal(padColor(68,68,0,true),11,'Playback input green takes priority over harmony colors');
 setMode(0);
 assert.notEqual(padColor(68,68,0,true),padColor(68,68,0,false),'Standard feedback remains available');
 console.log('Harmony pads: pitch classes, root backgrounds, overlap, independent shapes and Standard pass');
@@ -46,14 +46,14 @@ let immediateColor = -1;
 globalThis.setLED = (pad, color) => { immediateColor = color; };
 setMode(1);
 noteOn(68,68,0,100);
-assert.equal(immediateColor,padColor(68,68,0,false),'Immediate note-down cannot override harmony background');
+assert.equal(immediateColor,11,'Immediate raw input feedback stays green over harmony colors');
 noteOff(68,68);
 setMode(0);
 noteOn(68,68,0,100);
 assert.equal(immediateColor,11,'Standard keeps immediate green feedback');
 noteOff(68,68);
 globalThis.setLED = previousLED;
-console.log('Immediate pad touch honors harmony colors and Standard feedback');
+console.log('Immediate raw pad touch remains green in every color mode');
 
 assert.equal(colorHarmonyPitch(60,0,0,scale,chord,0,4,0,0,127,125,true),trackColor(0),'Lookahead only never paints current harmony');
 assert.equal(parseHarmonySnapshot('145,580,2741,1'),null,'Reject old pitch-mask protocol instead of miscoloring inputs');
@@ -119,3 +119,30 @@ rawView='0,0,0,0,0,0,3,0,4,2|arp1,0|input1,0,1,1,2741,145|key1,1,1';
 refreshHarmonyPads(0,testTime+=100);assert.equal(keyboardState.scale,0);
 refreshHarmonyPads(1,testTime+=100);assert.equal(keyboardState.scale,0,'Track switch preserves the shared scale');
 console.log('Global keyboard scale: conductor and follower selection, shared edits, no per-track layout changes pass');
+
+// Sequencer activity is exact input pitch, independent of rendered harmony masks.
+const { activeFromStr, activeHasNote } = await import('../dist/esm/seq/state.js');
+keyboardState.rootPc=0; keyboardState.scale=0; keyboardState.octave[0]=4;
+for (const [mode,layout] of [[0,0],[0,1],[1,0],[1,1]]) {
+    keyboardState.mode=mode; keyboardState.layout=layout;
+    const map=padMapFor(0), inputPitch=map.find(pitch=>pitch>=0);
+    for(let colorMode=0;colorMode<=4;colorMode++) {
+        portFor(0).getParam=()=>`0,0,2741,0,0,${colorMode},3,0,4,2|arp1,0|input1,0,1,1,2741,145`;
+        refreshHarmonyPads(0,testTime+=100);
+        activeFromStr(`${inputPitch},,,,,,,,,,,,,,,`);
+        for(let index=0;index<32;index++) {
+            const pitch=map[index];
+            const color=padColor(index,0,0,activeHasNote(0,pitch),[]);
+            if(pitch<0) assert.equal(color,0,'Piano gaps remain black');
+            else if(pitch===inputPitch) assert.equal(color,11,'Recorded input lights green in every layout and harmony mode');
+            else assert.equal(color,padColor(index,0,0,false,[]),'Other pitches retain their harmony background');
+        }
+        activeFromStr(',,,,,,,,,,,,,,,');
+        const inputIndex=map.indexOf(inputPitch);
+        assert.equal(padColor(inputIndex,0,0,activeHasNote(0,inputPitch),[]),
+            padColor(inputIndex,0,0,false,[]),'Note-off restores harmony background');
+        activeFromStr(`,${inputPitch},,,,,,,,,,,,,,`);
+        assert.equal(activeHasNote(0,inputPitch),false,'Other-track playback does not light selected input');
+    }
+}
+console.log('Recorded input highlights: every layout/color mode, exact pitch, note-off and track isolation pass');

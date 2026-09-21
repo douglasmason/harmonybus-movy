@@ -17,8 +17,8 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   HB_REF: 77c2ab56f7ae7c1158cf3a40913b0a39b1e68308
-  HB_MOVY_VERSION: 0.34.1-hbclean.63
-  HB_MOVY_TAG: v0.34.1-hbclean.63
+  HB_MOVY_VERSION: 0.34.1-hbclean.64
+  HB_MOVY_TAG: v0.34.1-hbclean.64
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -69,7 +69,6 @@ jobs:
               ['git', '-C', str(root), 'ls-files', '--others', '--exclude-standard'], text=True
           ).splitlines()
           expected = {
-              'src/keyboard/handler.ts',
               'src/seq/pads.ts',
               'src/undo/ui-fields.ts',
               'src/seq/main-page.ts',

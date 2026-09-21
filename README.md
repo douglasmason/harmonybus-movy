@@ -1,4 +1,6 @@
-> hbclean.63: note pads show exact retained raw arp inputs in green, including released latched inputs. Output transformations and generated chord tones cannot create ghost highlights. One bounded snapshot carries harmony colors and the input pool together. Pair with HarmonyBus 0.2.151 for Single/Overlap latch choices and Clear on Harmony Change.
+> hbclean.64 restores green recorded-input playback highlights above harmony pad backgrounds, in fourths, piano and Inline layouts. Note-off restores the background.
+
+> hbclean.64: note pads show exact retained raw arp inputs in green, including released latched inputs. Output transformations and generated chord tones cannot create ghost highlights. One bounded snapshot carries harmony colors and the input pool together. Pair with HarmonyBus 0.2.151 for Single/Overlap latch choices and Clear on Harmony Change.
 
 > hbclean.60: tool display name is now **01 Movy (HarmonyBus Clean)** so Schwung lists it before File Browser. Module identity and saved data are unchanged. Keep HarmonyBus 0.2.149.
 
