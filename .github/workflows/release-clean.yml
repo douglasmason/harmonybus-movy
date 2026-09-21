@@ -16,7 +16,7 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: fb58535bd74a915f4e068f74c4319a8ed7d1f752
+  HB_REF: a924361e7236132bccda6a5dd0d14149c2481c36
   HB_MOVY_VERSION: 0.34.1-hbclean.67
   HB_MOVY_TAG: v0.34.1-hbclean.67
   ASSET_NAME: harmonybus-movy-module.tar.gz

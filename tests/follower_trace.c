@@ -35,7 +35,7 @@ int main(int argc,char **argv){
     API.set_param(follower,"source_channel","1");
     API.set_param(follower,"follower_root_policy","Explicit");
     API.set_param(follower,"follower_explicit_root","C");
-    follower->quant_timing=3; /* quarter-note boundaries */
+    g_bus.quant_timing=3; /* quarter-note boundaries */
     /* First press is exactly 1/16 before the bar. Use an explicit wider
        window: musical buffers now exclude that nominal leading edge by 1 ms. */
     API.set_param(follower,"boundary_buffer_ms","150 ms");
