@@ -45,8 +45,7 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
         const values = rawValues.map(Number);
         if (version !== 'input1' || values.length !== 5 || values.some(v => !Number.isInteger(v)) ||
             values[0] < 0 || values[0] > 11 || values[1] < 0 || values[1] > 9 ||
-            values[2] < 1 || values[2] > 9 || values.slice(3).some(v => v < 0 || v > 4095) ||
-            (values[4] & ~values[3])) return null;
+            values[2] < 1 || values[2] > 9 || values.slice(3).some(v => v < 0 || v > 4095)) return null;
         input = {root: values[0], selected: values[1], resolved: values[2], scale: values[3], chord: values[4]};
     }
     let globalScale: HarmonySnapshot['globalScale'];

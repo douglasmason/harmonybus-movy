@@ -37,6 +37,7 @@ from patch_clip_performance import patch_clip_performance
 from patch_follower_input import patch_follower_input
 from patch_harmony_pads import patch_harmony_pads
 from patch_responsive_persistence import patch_responsive_persistence
+from patch_recorded_operations import patch_recorded_operations
 from pathlib import Path
 
 
@@ -487,6 +488,7 @@ def main() -> int:
     patch_page_latency(root)
     patch_tap_hold(root)
     patch_touch_release(root)
+    patch_recorded_operations(root)
     print("HarmonyBus clean integration applied")
     return 0
 

@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 04dcb904bbf151a79b9f09b9552328a9dad6c0de
-  HB_MOVY_VERSION: 0.34.1-hbclean.66
-  HB_MOVY_TAG: v0.34.1-hbclean.66
+  HB_REF: fb58535bd74a915f4e068f74c4319a8ed7d1f752
+  HB_MOVY_VERSION: 0.34.1-hbclean.67
+  HB_MOVY_TAG: v0.34.1-hbclean.67
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -105,6 +105,7 @@ jobs:
               'src/undo/verbs.ts',
               'engine/crates/seq-core/src/lib.rs',
               'engine/crates/seq-core/src/follower_input.rs',
+              'engine/crates/seq-core/src/recorded_actions.rs',
               'engine/crates/seq-core/src/capture.rs',
               'engine/crates/seq-core/src/hb_clip_performance.rs',
               'engine/crates/seq-core/src/command.rs',
@@ -310,7 +311,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Finish captured knob releases before model reads and automation handling; give short approach touches the native K6-style button burst without a second trigger. Pair with HarmonyBus 0.2.157 for the new 350 ms default threshold."
+              --notes "Record relative note operations and timed clip-reader performance while retaining original inputs. Shared operation controls, per-track lookahead and follower-only active-render harmony pad colors. Requires HarmonyBus 0.2.158."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

@@ -1,3 +1,5 @@
+> hbclean.67 / HB 0.2.158: recorded operation actions and clip-reader intervals retain original notes; global operation settings and grids; independent track lookahead; follower-only active-render harmony coloring. Follower Travel lists None first.
+
 > hbclean.66 / HB 0.2.157: captured performance touch releases return immediately after cleanup, bypassing generic knob reads. Short approach taps show the native button burst; the default tap/hold threshold is 350 ms.
 
 > hbclean.65 with HB 0.2.156: follower recordings retain their input degrees across global root/scale changes. Green pads show remapped inputs before auto-chord/arp. Saved source pitches remain unchanged; chromatic approaches retain explicit roles. Legacy notes adopt the first active follower input key after upgrade.
@@ -129,14 +131,14 @@ Quantize + Fill first snaps stored starts to the chosen grid. Existing overlaps
 are trimmed. Automation and conditions stay at their existing steps. Active
 notes keep their scheduled note-offs; edits affect subsequent note-ons.
 
-HB's Follower Buffer is global, defaults to 1/16 note for fresh settings, and supports
+HB's Follower Buffer is per track, defaults to 1/16 note for fresh settings, and supports
 musical durations. Existing saved values survive. On-grid notes stay on-grid,
 even with a buffer wider than the grid interval.
 
 The canonical [timing guide with SVG diagrams](https://github.com/douglasmason/harmonybus/blob/main/docs/timing-guide.md)
 lives in HarmonyBus. Its PDF is generated in that repo's release workflow.
 
-HB 0.2.104 adds negative lookahead (late harmony) with the capture window before the shifted boundary, and resolves recognized two-note Movy voicings before due followers. Lookahead stays Off by default; new sets use a 1/16-note global buffer. See the [timing guide](https://github.com/douglasmason/harmonybus/blob/main/docs/timing-guide.md).
+HB 0.2.104 adds negative lookahead (late harmony) with the capture window before the shifted boundary, and resolves recognized two-note Movy voicings before due followers. Lookahead stays Off by default; new sets use a 1/16-note buffer per follower. See the [timing guide](https://github.com/douglasmason/harmonybus/blob/main/docs/timing-guide.md).
 
 
 The release gate now loads the actual Movy, Schwung chain and HB native modules together with a deterministic PCM instrument. It exercises raw/chord pads on conductor/follower tracks, local audio, routed note-on/off pairs, generated recording and playback after changing chord form. This covers the host callback boundary; device audio remains a separate verification.

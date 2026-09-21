@@ -104,7 +104,7 @@ setFollowerInputScale(0,0);
 assert.deepEqual(writes.pop(),['midi_fx1:follower_scale','Major']);
 setFollowerInputRoot(0,2);
 assert.deepEqual(writes.splice(0),[['midi_fx1:follower_root_policy','Explicit'],['midi_fx1:follower_explicit_root','D']]);
-assert.equal(parseHarmonySnapshot('0,0,0,0,0,0,3,0,4,2|arp1,0|input1,0,1,1,2741,2'),null,'Reject chord roles outside input scale');
+assert.equal(parseHarmonySnapshot('0,0,0,0,0,0,3,0,4,2|arp1,0|input1,0,1,1,2741,2').input.chord,2,'A chromatic input can render a chord tone');
 console.log('Follower input colors: fourths, piano, inline, inferred scale, and user scale/root writes pass');
 
 // Conductor selection and editing use the same global input collection.
