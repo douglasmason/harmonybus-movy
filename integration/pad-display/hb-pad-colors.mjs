@@ -69,3 +69,40 @@ portFor(0).getParam = () => '0,0,0,0,0,0,3,0,4,2|arp1,1';
 refreshHarmonyPads(0,testTime+=100);
 assert.notEqual(harmonyPadColor(60,0),11,'Clear/toggle-off removes retained input feedback');
 console.log('Arp pad view: exact raw inputs, no output/octave ghosts, empty pool clears highlights');
+
+// All layouts color the actual input map, never pad index or rendered pitch.
+const { keyboardState, padMapFor } = await import('../dist/esm/keyboard/state.js');
+const { C_DARKGREY, C_WHITE } = await import('../dist/esm/seq/colors.js');
+const { setFollowerInputScale, setFollowerInputRoot } = await import('../dist/esm/seq/pads.js');
+let rawView = '0,0,0,0,0,0,3,0,4,2|arp1,0|input1,0,1,1,2741,145';
+const writes=[];
+portFor(0).getParam = () => rawView;
+portFor(0).setParam = (key,value) => writes.push([key,value]);
+keyboardState.octave[0]=4;
+for (const [mode,layout] of [[0,0],[0,1],[1,0],[1,1]]) {
+    keyboardState.mode=mode; keyboardState.layout=layout;
+    refreshHarmonyPads(0,testTime+=100);
+    const map=padMapFor(0);
+    for(let index=0;index<32;index++) {
+        const pitch=map[index], color=padColor(index,0,0,false,[]);
+        if(pitch<0) { assert.equal(color,0,'Piano gaps stay dead'); continue; }
+        if(pitch%12===0) assert.equal(color,trackColor(0),'Every octave root gets track color');
+        else if([4,7].includes(pitch%12)) {
+            assert.notEqual(color,C_LIGHTGREY,'Chord-role inputs get tinted grey');
+            assert.equal(color,harmonyPadColor(pitch+12,0),'Repeated input notes share role color');
+        } else if(!(2741 & (1 << (pitch%12)))) assert.equal(color,mode===0&&layout===1?C_DARKGREY:0);
+        else assert.equal(color,C_LIGHTGREY);
+    }
+}
+assert.equal(padMapFor(0)[24]-padMapFor(0)[0],36,'Inline starts successive rows an octave apart');
+assert.equal(harmonyPadColor(64,0,true),C_WHITE,'Held input feedback is white');
+rawView='0,0,0,0,0,0,3,0,4,2|arp1,0|input1,0,0,4,1451,137';
+refreshHarmonyPads(0,testTime+=100);
+assert.equal(keyboardState.scale,3,'HB inferred Phrygian updates keyboard');
+assert.equal(writes.length,0,'Inference does not write back or disable Auto');
+setFollowerInputScale(0,0);
+assert.deepEqual(writes.pop(),['midi_fx1:follower_scale','Major']);
+setFollowerInputRoot(0,2);
+assert.deepEqual(writes.splice(0),[['midi_fx1:follower_root_policy','Explicit'],['midi_fx1:follower_explicit_root','D']]);
+assert.equal(parseHarmonySnapshot('0,0,0,0,0,0,3,0,4,2|arp1,0|input1,0,1,1,2741,2'),null,'Reject chord roles outside input scale');
+console.log('Follower input colors: fourths, piano, inline, inferred scale, and user scale/root writes pass');
