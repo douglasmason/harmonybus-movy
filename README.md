@@ -1,4 +1,4 @@
-> hbclean.62: note pads show exact retained raw arp inputs in green, including released latched inputs. Output transformations and generated chord tones cannot create ghost highlights. One bounded snapshot carries harmony colors and the input pool together. Pair with HarmonyBus 0.2.151 for Single/Overlap latch choices and Clear on Harmony Change.
+> hbclean.63: note pads show exact retained raw arp inputs in green, including released latched inputs. Output transformations and generated chord tones cannot create ghost highlights. One bounded snapshot carries harmony colors and the input pool together. Pair with HarmonyBus 0.2.151 for Single/Overlap latch choices and Clear on Harmony Change.
 
 > hbclean.60: tool display name is now **01 Movy (HarmonyBus Clean)** so Schwung lists it before File Browser. Module identity and saved data are unchanged. Keep HarmonyBus 0.2.149.
 
@@ -177,11 +177,11 @@ Hold steps 1–4 to force the corresponding operation lane. Hold 5 for chromatic
 Two HB editing panels share the selected operation lane. Knob touch does not activate these new operations. Source clips remain unchanged; see [the signal path and recording details](https://github.com/douglasmason/harmonybus/blob/main/docs/operations.md). Release gates exercise native loading, recording and UI behavior; physical gestures and audio on Move remain unverified for this release.
 
 
-### Input keys and layouts (.62)
+### Input keys and layouts (.63)
 
 Set Parameters now has one Layout selector: Chromatic 4ths, Piano, In Key 4ths, and Inline. Inline keeps its existing four-row mapping: each row starts one octave higher. Existing saved mode/layout values remain compatible.
 
-On a HarmonyBus follower in MIDI FX 1, the keyboard scale and follower input scale update each other. Infer shows its current resolved scale without switching itself to an explicit scale. Inference follows the current observed harmony, not lookahead or output transposition. The active follower supplies the keyboard root; editing Root selects the same explicit root in HB. The nine shared scales are available on follower tracks; other tracks retain Movy's complete scale list.
+On a HarmonyBus follower in MIDI FX 1, the keyboard scale and follower input scale update each other. Infer shows its current resolved scale without switching itself to an explicit scale. Inference follows the current observed harmony, not lookahead or output transposition. Follower Scale is shared globally: switching tracks never selects a different scale. Conductor tracks also read and edit this shared keyboard scale. The active follower supplies the keyboard root; editing Root selects the same explicit root in HB. The nine shared scales are available on HarmonyBus tracks; other tracks retain Movy's complete scale list.
 
 Standard pad display shows input roots in track color, other chord-role inputs in grey mixed with track color, other scale inputs in grey, and chromatic inputs dark. Piano keeps playable chromatic keys dim grey and gaps black. Held inputs show white; latched arp highlights still identify exact raw input notes. Fourths, Piano, and Inline all use their existing pad-to-note maps. Explicit harmony animation modes remain available.
 

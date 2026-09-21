@@ -11,7 +11,7 @@ import { seqState } from '../seq/state.js';
 import { visualEngineTick } from '../seq/engine.js';
 import { PAD_PALETTE } from './pad-palette.js';
 
-export type HarmonySnapshot = { current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; arpInputs?: number[]; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
+export type HarmonySnapshot = { current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
 let snapshot: HarmonySnapshot | null = null;
 let settings = [0,3,0,4,2];
 let watchedTrack = -1;
@@ -22,7 +22,10 @@ const mixes = new Map<string, number>();
 
 export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null {
     if (!raw) return null;
-    const [harmony, arp, inputRaw] = raw.trim().split('|');
+    const [harmony, ...sections] = raw.trim().split('|');
+    const arp = sections.find(section => section.startsWith('arp1,'));
+    const inputRaw = sections.find(section => section.startsWith('input1,'));
+    const keyRaw = sections.find(section => section.startsWith('key1,'));
     const parts = harmony.split(',').map(Number);
     if (parts.length !== 10 || parts.some(value => !Number.isInteger(value)) ||
         [...parts.slice(0, 3), parts[4]].some(value => value < 0 || value > 4095) ||
@@ -46,7 +49,15 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
             (values[4] & ~values[3])) return null;
         input = {root: values[0], selected: values[1], resolved: values[2], scale: values[3], chord: values[4]};
     }
-    return { ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
+    let globalScale: HarmonySnapshot['globalScale'];
+    if (keyRaw) {
+        const fields = keyRaw.split(',');
+        const selected = Number(fields[1]), resolved = Number(fields[2]);
+        if (fields.length !== 3 || !Number.isInteger(selected) || selected < 0 || selected > 9 ||
+            !Number.isInteger(resolved) || resolved < 1 || resolved > 9) return null;
+        globalScale = {selected, resolved};
+    }
+    return { ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
 }
 
 /** Poll one compact snapshot, never once per pad or once per display frame. */
@@ -60,9 +71,10 @@ export function refreshHarmonyPads(track: number, now = Date.now()): void {
     snapshot = parseHarmonySnapshot(raw || port.getParam('midi_fx1:pad_render'));
     settings = snapshot?.settings || [0,3,0,4,2];
     const input = snapshot?.input;
-    if (input && (keyboardState.scale !== input.resolved - 1 || keyboardState.rootPc !== input.root)) {
-        keyboardState.scale = input.resolved - 1;
-        keyboardState.rootPc = input.root;
+    const scale = snapshot?.globalScale || input;
+    if (scale && (keyboardState.scale !== scale.resolved - 1 || (input && keyboardState.rootPc !== input.root))) {
+        keyboardState.scale = scale.resolved - 1;
+        if (input) keyboardState.rootPc = input.root;
         markUiStateDirty();
         appState.dirty = true;
     }
@@ -70,13 +82,13 @@ export function refreshHarmonyPads(track: number, now = Date.now()): void {
 
 /** Supported input scales for the active follower; other modules keep all scales. */
 export function followerInputScaleCount(track: number): number {
-    return watchedTrack === track && snapshot?.input ? 9 : 13;
+    return watchedTrack === track && snapshot ? 9 : 13;
 }
 
 /** User edits write once; inferred snapshots never write back or disable Infer. */
 export function setFollowerInputScale(track: number, scale: number): void {
     const labels = ['Major','Natural Minor','Dorian','Phrygian','Lydian','Mixolydian','Locrian','Harmonic Minor','Melodic Minor'];
-    if (watchedTrack !== track || !snapshot?.input || !labels[scale]) return;
+    if (watchedTrack !== track || !snapshot || !labels[scale]) return;
     portFor(track).setParam('midi_fx1:follower_scale', labels[scale]);
     polledAt = -Infinity;
 }

@@ -106,3 +106,16 @@ setFollowerInputRoot(0,2);
 assert.deepEqual(writes.splice(0),[['midi_fx1:follower_root_policy','Explicit'],['midi_fx1:follower_explicit_root','D']]);
 assert.equal(parseHarmonySnapshot('0,0,0,0,0,0,3,0,4,2|arp1,0|input1,0,1,1,2741,2'),null,'Reject chord roles outside input scale');
 console.log('Follower input colors: fourths, piano, inline, inferred scale, and user scale/root writes pass');
+
+// Conductor selection and editing use the same global input collection.
+rawView='0,0,0,0,0,0,3,0,4,2|arp1,0|key1,4,4';
+portFor(1).getParam=()=>rawView;
+portFor(1).setParam=(key,value)=>writes.push([key,value]);
+refreshHarmonyPads(1,testTime+=100);
+assert.equal(keyboardState.scale,3,'Conductor inherits the global Phrygian input scale');
+setFollowerInputScale(1,0);
+assert.deepEqual(writes.pop(),['midi_fx1:follower_scale','Major'],'Conductor Key control edits shared follower scale');
+rawView='0,0,0,0,0,0,3,0,4,2|arp1,0|input1,0,1,1,2741,145|key1,1,1';
+refreshHarmonyPads(0,testTime+=100);assert.equal(keyboardState.scale,0);
+refreshHarmonyPads(1,testTime+=100);assert.equal(keyboardState.scale,0,'Track switch preserves the shared scale');
+console.log('Global keyboard scale: conductor and follower selection, shared edits, no per-track layout changes pass');
