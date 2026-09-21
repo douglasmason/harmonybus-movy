@@ -78,6 +78,18 @@ jobs:
               'src/keyboard/harmony-pads.ts',
               'src/keyboard/pad-palette.ts',
               'browser-test/hb-pad-colors.mjs',
+              'browser-test/screenshot.mjs',
+              'browser-test/screenshots/baseline/main-default.png',
+              'browser-test/screenshots/baseline/main-tempo-touched.png',
+              'browser-test/screenshots/baseline/main-swing-touched.png',
+              'browser-test/screenshots/baseline/main-root-touched.png',
+              'browser-test/screenshots/baseline/main-key-overlay.png',
+              'browser-test/screenshots/baseline/main-mode-overlay.png',
+              'browser-test/screenshots/baseline/main-layout-overlay.png',
+              'browser-test/screenshots/baseline/main-ext-sync.png',
+              'browser-test/screenshots/baseline/main-link-on.png',
+              'browser-test/screenshots/baseline/main-quant.png',
+
 
               'src/track/pad-route.ts',
               'engine/crates/movy-dsp/src/pad_route.rs',

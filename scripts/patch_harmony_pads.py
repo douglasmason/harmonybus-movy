@@ -105,3 +105,7 @@ def patch_harmony_pads(root: Path) -> None:
         setFollowerInputScale(appState.activeTrack.index, n);
     }''')
     path.write_text(source)
+    path = root / 'browser-test/screenshot.mjs'
+    source = path.read_text().replace('mainPageState.overlayKnob = 7; mainPageState.overlaySel = 1;',
+        'mainPageState.overlayKnob = 6; mainPageState.overlaySel = 3;')
+    path.write_text(source)
