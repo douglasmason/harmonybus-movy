@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 053a8e36c9e9a7b15bd3c02a6a7509a5a46c3b92
-  HB_MOVY_VERSION: 0.34.1-hbclean.65
-  HB_MOVY_TAG: v0.34.1-hbclean.65
+  HB_REF: 04dcb904bbf151a79b9f09b9552328a9dad6c0de
+  HB_MOVY_VERSION: 0.34.1-hbclean.66
+  HB_MOVY_TAG: v0.34.1-hbclean.66
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -310,7 +310,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Preserve recorded follower degrees across global input root and scale changes. Green playback pads show projected inputs before auto-chord and arp rendering. Source context survives save/load, Capture, and recording tails. Pair with HarmonyBus 0.2.156."
+              --notes "Finish captured knob releases before model reads and automation handling; give short approach touches the native K6-style button burst without a second trigger. Pair with HarmonyBus 0.2.157 for the new 350 ms default threshold."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

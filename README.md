@@ -1,3 +1,5 @@
+> hbclean.66 / HB 0.2.157: captured performance touch releases return immediately after cleanup, bypassing generic knob reads. Short approach taps show the native button burst; the default tap/hold threshold is 350 ms.
+
 > hbclean.65 with HB 0.2.156: follower recordings retain their input degrees across global root/scale changes. Green pads show remapped inputs before auto-chord/arp. Saved source pitches remain unchanged; chromatic approaches retain explicit roles. Legacy notes adopt the first active follower input key after upgrade.
 
 > hbclean.64 restores green recorded-input playback highlights above harmony pad backgrounds, in fourths, piano and Inline layouts. Note-off restores the background.

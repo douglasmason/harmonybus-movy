@@ -532,3 +532,28 @@ try {
     assert(gestureWrites.some(([key,value])=>key==='motion_gesture_1'&&value==='Cancel'),'Teardown cancels pending step taps');
 } finally {Date.now=stepClock;resetHbPerformance();}
 console.log('Timed steps: captured owner, duration, read-free release and teardown cancellation pass');
+
+// Release dispatch owns the event: no generic model or parameter reads afterward.
+await import('../dist/esm/app/globals.js');
+const {onMidiMessageInternal}=globalThis;
+const releaseClock=Date.now;let releaseNow=500000;Date.now=()=>releaseNow;
+try {
+    const slot=focusKey('approach_chrom_next');
+    page.knobTouch(slot,true);releaseNow+=300;
+    const savedGet=port.getParam;
+    port.getParam=()=>{throw new Error('Release must not query any parameters');};
+    onMidiMessageInternal([0x80,slot,64]);
+    port.getParam=savedGet;
+    assert.deepEqual(writes.at(-1),['midi_fx1:performance_gesture_below','Up,300']);
+    assert.equal(page.ctl.state.touched,-1);
+    assert.equal(page.ctl.state.triggerFiredAt.approach_chrom_next.at(-1),releaseNow);
+    const count=writes.length;
+    onMidiMessageInternal([0x80,slot,0]);
+    assert.equal(writes.length,count,'Second release cannot refire the trigger');
+    page.knobTouch(slot,true);releaseNow+=350;
+    const burst=page.ctl.state.triggerFiredAt.approach_chrom_next.at(-1);
+    onMidiMessageInternal([0x90,slot,0]);
+    assert.deepEqual(writes.at(-1),['midi_fx1:performance_gesture_below','Up,350']);
+    assert.equal(page.ctl.state.triggerFiredAt.approach_chrom_next.at(-1),burst,'Momentary release does not flash a trigger');
+} finally {Date.now=releaseClock;}
+console.log('Release priority: both MIDI forms, read-free dispatch, immediate touch clear, short-tap native animation and hold boundary pass');
