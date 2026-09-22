@@ -11,9 +11,9 @@ import { seqState } from '../seq/state.js';
 import { visualEngineTick } from '../seq/engine.js';
 import { PAD_PALETTE } from './pad-palette.js';
 
-export type HarmonySnapshot = { current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; tonic?: number; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
+export type HarmonySnapshot = { current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
 let snapshot: HarmonySnapshot | null = null;
-let settings = [0,0,0,4,2];
+let settings = [0,3,0,4,2];
 let watchedTrack = -1;
 let polledAt = -Infinity;
 const colors = [127, 3, 7, 126, 13, 125, 22, 25];
@@ -29,6 +29,17 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
     const tonicSection = sections.find(section => section.startsWith('tonic1,'));
     const tonic = tonicSection ? Number(tonicSection.split(',')[1]) : undefined;
     if (tonicSection && (tonicSection.split(',').length !== 2 || !Number.isInteger(tonic) || tonic! < 0 || tonic! > 4095)) return null;
+    const fullSection = sections.find(section => section.startsWith('full1,'));
+    let fullLookahead: number | undefined;
+    if (fullSection) {
+        const fields = fullSection.split(',');
+        const mask = Number(fields[2]);
+        if (fields.length !== 3 || !['0','1'].includes(fields[1]) || !Number.isInteger(mask) || mask < 0 || mask > 4095) return null;
+        fullLookahead = fields[1] === '1' ? mask : 0;
+    }
+    const bothSection = sections.find(section => section.startsWith('both1,'));
+    const bothColor = bothSection ? Number(bothSection.split(',')[1]) : undefined;
+    if (bothSection && (bothSection.split(',').length !== 2 || !Number.isInteger(bothColor) || bothColor! < 0 || bothColor! > 9)) return null;
     const arp = sections.find(section => section.startsWith('arp1,'));
     const inputRaw = sections.find(section => section.startsWith('input1,'));
     const keyRaw = sections.find(section => section.startsWith('key1,'));
@@ -36,7 +47,7 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
     if (parts.length !== 10 || parts.some(value => !Number.isInteger(value)) ||
         [...parts.slice(0, 3), parts[4]].some(value => value < 0 || value > 4095) ||
         (parts[3] !== 0 && parts[3] !== 1) ||
-        parts.slice(5).some((value,index) => value < 0 || value >= [5,8,3,9,9][index])) return null;
+        parts.slice(5).some((value,index) => value < 0 || value >= [7,8,4,9,9][index])) return null;
     let arpInputs: number[] | undefined;
     if (arp) {
         const [version, active, ...notes] = arp.split(',');
@@ -62,7 +73,7 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
             !Number.isInteger(resolved) || resolved < 1 || resolved > 9) return null;
         globalScale = {selected, resolved};
     }
-    return { ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
+    return { ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
 }
 
 /** Poll one compact snapshot, never once per pad or once per display frame. */
@@ -100,6 +111,7 @@ export function setFollowerInputScale(track: number, scale: number): void {
 
 /** Peaks at phase zero. Independent half-cycle shifts need not sum to one. */
 export function harmonyPulse(phase: number, shape: number): number {
+    if (shape === 3) return 1;
     const wrapped = ((phase % 1) + 1) % 1;
     const distance = Math.min(wrapped, 1 - wrapped);
     if (shape === 2) return distance < 0.2 ? 1 : 0;
@@ -128,18 +140,26 @@ function paletteMix(background: number, current: number, effective: number, firs
     return best;
 }
 
+/** Only harmony colors mix. Quantized pulse-off restores the scale background. */
+function harmonyMix(background: number, current: number, future: number, first: number, second: number): number {
+    first = Math.round(first * 12); second = Math.round(second * 12);
+    const total = first + second;
+    return total ? paletteMix(0, current, future, first / total, second / total) : background;
+}
+
 export function colorHarmonyPitch(pitch: number, inputRoot: number, track: number,
     scale: number, current: number, effective: number, mode: number,
-    phase: number, shape: number, currentColor: number, effectiveColor: number, animate: boolean, outputTonic?: number): number {
+    phase: number, shape: number, currentColor: number, effectiveColor: number, animate: boolean, outputTonic?: number, bothColor?: number): number {
     if (pitch < 0) return 0;
     const pitchClass = pitch % 12;
     if (outputTonic !== undefined && (outputTonic & (1 << pitchClass))) return trackColor(track);
     const background = outputTonic === undefined && pitchClass === inputRoot ? trackColor(track) : (scale & (1 << pitchClass)) ? C_LIGHTGREY : 0;
-    const first = (mode === 1 || mode === 3) && (current & (1 << pitchClass)) ? (animate ? harmonyPulse(phase, shape) : 1) : 0;
+    const first = (mode === 1 || mode === 3 || mode === 6) && (current & (1 << pitchClass)) ? (animate ? harmonyPulse(phase, shape) : 1) : 0;
     const second = mode !== 1 && (effective & (1 << pitchClass)) ? (animate ? harmonyPulse(phase + 0.5, shape) : 1) : 0;
     if (!first && !second) return background;
-    const weight = outputTonic === undefined ? 1 : 0.5 / Math.max(1, first + second);
-    return paletteMix(background, currentColor, effectiveColor, first * weight, second * weight);
+    if ((mode === 3 || mode === 6) && bothColor !== undefined &&
+        (current & effective & (1 << pitchClass))) currentColor = effectiveColor = bothColor;
+    return harmonyMix(background, currentColor, effectiveColor, first, second);
 }
 
 /** Null leaves Standard's existing pressed/last-played/step-edit behavior intact. */
@@ -162,7 +182,7 @@ export function harmonyPadColor(pitch: number, track: number, held = false): num
     const beat = seqState.playing ? visualEngineTick() / 96 : Date.now() * seqState.bpmX100 / 6000000;
     // Every mask identifies INPUT keys by their effective RENDERED voices.
     const current = view?.current || 0;
-    const effective = mode === 0 || mode === 2 ? (view?.effective || 0) : (view?.ready ? view.lookahead : 0);
+    const effective = mode === 0 || mode === 2 ? (view?.effective || 0) : (mode >= 5 ? (view?.fullLookahead ?? 0) : (view?.ready ? view.lookahead : 0));
     const resolveColor = (choice: number): number => choice === 8 ? trackColor(track) : colors[choice];
     const selectedColor = mode === 0 || mode === 2 ? (view?.effectiveColor ?? 8) : settings[4];
     if ((mode === 0 || mode === 2) && view?.input) {
@@ -170,13 +190,13 @@ export function harmonyPadColor(pitch: number, track: number, held = false): num
         const outputScale = view.scale;
         const outputTonic = view.tonic ?? (1 << input.root);
         if (outputTonic & bit) return trackColor(track);
-        if (input.chord & bit) return paletteMix((outputScale & bit) ? C_LIGHTGREY : 0, resolveColor(selectedColor), 0, 0.5 * (period ? harmonyPulse(beat / period, settings[2]) : 1), 0);
+        if (input.chord & bit) return harmonyMix((outputScale & bit) ? C_LIGHTGREY : 0, resolveColor(selectedColor), 0, period ? harmonyPulse(beat / period, settings[2]) : 1, 0);
         if (outputScale & bit) return C_LIGHTGREY;
         return isPianoLayout(keyboardState.mode, keyboardState.layout) ? C_DARKGREY : 0;
     }
     return colorHarmonyPitch(pitch, keyboardState.rootPc, track, scale, current, effective,
         mode, period ? beat / period : 0, settings[2],
-        resolveColor(settings[3]), resolveColor(selectedColor), period > 0, view?.tonic);
+        resolveColor(settings[3]), resolveColor(selectedColor), period > 0, view?.tonic, view?.bothColor ? resolveColor(view.bothColor - 1) : undefined);
 }
 
 /** Editing the keyboard tonic selects the same explicit input root in HB. */

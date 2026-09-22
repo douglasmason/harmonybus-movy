@@ -126,7 +126,7 @@ keyboardState.rootPc=0; keyboardState.scale=0; keyboardState.octave[0]=4;
 for (const [mode,layout] of [[0,0],[0,1],[1,0],[1,1]]) {
     keyboardState.mode=mode; keyboardState.layout=layout;
     const map=padMapFor(0), inputPitch=map.find(pitch=>pitch>=0);
-    for(let colorMode=0;colorMode<=4;colorMode++) {
+    for(let colorMode=0;colorMode<=6;colorMode++) {
         portFor(0).getParam=()=>`0,0,2741,0,0,${colorMode},3,0,4,2|arp1,0|input1,0,1,1,2741,145`;
         refreshHarmonyPads(0,testTime+=100);
         activeFromStr(`${inputPitch},,,,,,,,,,,,,,,`);
@@ -176,15 +176,54 @@ for (const mode of [0, 2]) {
 console.log('Equivalent chord-tone inputs retain equal tint across major/minor scales');
 
 // Output membership owns grey and tonic, independently of the input scale.
-for (const mode of [0, 1, 2, 3, 4]) {
-    effectivePort.getParam = () => `145,145,4095,1,145,${mode},0,0,4,2|colors2,8|tonic1,2048|input1,0,1,1,2741,145`;
+for (const mode of [0, 1, 2, 3, 4, 5, 6]) {
+    effectivePort.getParam = () => `145,145,4095,1,145,${mode},0,0,4,2|colors2,8|tonic1,2048|full1,1,145|input1,0,1,1,2741,145`;
     refreshHarmonyPads(2, testTime += 100);
     assert.equal(harmonyPadColor(61, 2), C_LIGHTGREY, 'Chromatic input rendering a scale non-chord tone is grey');
     assert.equal(harmonyPadColor(71, 2), trackColor(2), 'Input rendering the tonic gets full track color');
-    assert.notEqual(harmonyPadColor(60, 2), trackColor(2), 'Input tonic mapped away from output tonic gets blended');
-    effectivePort.getParam = () => `145,145,4091,1,145,${mode},0,0,4,2|colors2,8|tonic1,1|input1,0,1,1,2741,145`;
+    assert.equal(harmonyPadColor(60, 2), harmonyPadColor(64, 2), 'Non-tonic chord inputs share pure harmony color');
+    effectivePort.getParam = () => `145,145,4091,1,145,${mode},0,0,4,2|colors2,8|tonic1,1|full1,1,145|input1,0,1,1,2741,145`;
     refreshHarmonyPads(2, testTime += 100);
     assert.notEqual(harmonyPadColor(62, 2), C_LIGHTGREY, 'Scale input rendering outside output scale does not retain grey');
 }
 assert.equal(parseHarmonySnapshot('0,0,0,0,0,0,0,0,4,2|tonic1,4096'), null);
 console.log('Output scale and tonic drive backgrounds independently of input scale');
+
+// Harmony overlays do not mix grey, even partway through a smooth pulse.
+for (const phase of [0, 0.125, 0.25]) {
+    assert.equal(colorHarmonyPitch(64,0,2,2741,16,0,1,phase,0,127,125,true,1),127);
+    assert.equal(colorHarmonyPitch(64,0,2,0,16,0,1,phase,0,127,125,true,1),127);
+}
+assert.equal(colorHarmonyPitch(64,0,2,2741,16,0,1,0.5,0,127,125,true,1),C_LIGHTGREY);
+assert.equal(colorHarmonyPitch(64,0,2,2741,16,16,6,0.25,0,127,125,true,1),
+    colorHarmonyPitch(64,0,2,0,16,16,6,0.25,0,127,125,true,1), 'Current/future mixture is independent of grey');
+for (const mode of [4,5,6]) {
+    effectivePort.getParam=()=>`16,16,2741,0,0,${mode},0,0,0,5|colors2,8|tonic1,1|full1,1,128|input1,0,1,1,2741,16`;
+    refreshHarmonyPads(2,testTime+=100);
+    assert.equal(harmonyPadColor(67,2),mode===4?C_LIGHTGREY:125,'Full preview appears before timed lookahead is ready');
+    assert.equal(harmonyPadColor(64,2),mode===6?127:C_LIGHTGREY,'Both Full also shows current');
+}
+effectivePort.getParam=()=>`16,16,2741,0,0,5,0,0,0,5|tonic1,1|full1,0,128|input1,0,1,1,2741,16`;
+refreshHarmonyPads(2,testTime+=100);
+assert.equal(harmonyPadColor(67,2),C_LIGHTGREY,'Unknown model never shows speculative full preview');
+assert.equal(parseHarmonySnapshot('0,0,0,0,0,7,0,0,4,2'),null);
+assert.equal(parseHarmonySnapshot('0,0,0,0,0,5,0,0,4,2|full1,1,4096'),null);
+console.log('Pure harmony colors, pulse-off scale background and full lookahead modes pass');
+
+for (const mode of [3,6]) {
+    for (const phase of [0,0.125,0.25,0.5,0.75]) {
+        assert.equal(harmonyPulse(phase,3),1,'None is steady at every phase');
+        assert.equal(colorHarmonyPitch(64,0,2,2741,16,16,mode,phase,3,127,125,true,1,13),13,'Both Color replaces overlap with the chosen color');
+        assert.equal(colorHarmonyPitch(64,0,2,2741,16,0,mode,phase,3,127,125,true,1,13),127,'Current-only keeps Current Color');
+        assert.equal(colorHarmonyPitch(64,0,2,2741,0,16,mode,phase,3,127,125,true,1,13),125,'Future-only keeps Lookahead Color');
+        assert.equal(colorHarmonyPitch(60,0,2,2741,1,1,mode,phase,3,127,125,true,1,13),trackColor(2),'Tonic retains priority');
+    }
+    effectivePort.getParam=()=>`16,16,2741,1,16,${mode},4,3,0,5|tonic1,1|full1,1,16|both1,5|input1,0,1,1,2741,16`;
+    refreshHarmonyPads(2,testTime+=100);
+    assert.equal(harmonyPadColor(64,2),13,'Both Color travels through the snapshot');
+    effectivePort.getParam=()=>`16,16,2741,1,16,${mode},4,3,0,5|tonic1,1|full1,1,16|both1,0|input1,0,1,1,2741,16`;
+    refreshHarmonyPads(2,testTime+=100);
+    assert.equal(harmonyPadColor(64,2),colorHarmonyPitch(64,0,2,2741,16,16,mode,0,3,127,125,true,1),'Blend remains the default mixture');
+}
+assert.equal(parseHarmonySnapshot('0,0,0,0,0,3,0,3,4,2|both1,10'),null);
+console.log('Both Color override, Blend default, and None pulse shape pass');
