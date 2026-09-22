@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 2ea4bf21aec815ae2220f01211ca131e15538553
-  HB_MOVY_VERSION: 0.34.1-hbclean.68
-  HB_MOVY_TAG: v0.34.1-hbclean.68
+  HB_REF: 387ac2453aa906098e4a13d87bc950e4499c7c68
+  HB_MOVY_VERSION: 0.34.1-hbclean.69
+  HB_MOVY_TAG: v0.34.1-hbclean.69
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -84,6 +84,9 @@ jobs:
               'src/mixer/track-volume.ts',
               'browser-test/logic/track-volume.mjs',
               'src/seq/pads.ts',
+              'src/seq/step-edit.ts',
+              'src/seq/router.ts',
+              'browser-test/logic/seq-edit.mjs',
               'src/undo/ui-fields.ts',
               'src/seq/main-page.ts',
               'src/seq/main-page-vm.ts',
@@ -329,7 +332,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Track-volume gesture also scales HB routed note velocity; original recordings remain unchanged. New sets, history and preferences live outside the module directory and survive custom reinstalls. Existing module-local data is not imported. Requires HarmonyBus 0.2.159."
+              --notes "Stabilize held peeks, restore held-arrow step moves, unify effective pad colors, and expose Step Row in Operations. Preserve the durable user-data location. Requires HarmonyBus 0.2.160."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

@@ -11,9 +11,9 @@ import { seqState } from '../seq/state.js';
 import { visualEngineTick } from '../seq/engine.js';
 import { PAD_PALETTE } from './pad-palette.js';
 
-export type HarmonySnapshot = { current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
+export type HarmonySnapshot = { current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
 let snapshot: HarmonySnapshot | null = null;
-let settings = [0,3,0,4,2];
+let settings = [0,0,0,4,2];
 let watchedTrack = -1;
 let polledAt = -Infinity;
 const colors = [127, 3, 7, 126, 13, 125, 22, 25];
@@ -23,6 +23,9 @@ const mixes = new Map<string, number>();
 export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null {
     if (!raw) return null;
     const [harmony, ...sections] = raw.trim().split('|');
+    const colorSection = sections.find(section => section.startsWith('colors2,'));
+    const effectiveColor = colorSection ? Number(colorSection.split(',')[1]) : 8;
+    if (!Number.isInteger(effectiveColor) || effectiveColor < 0 || effectiveColor > 8) return null;
     const arp = sections.find(section => section.startsWith('arp1,'));
     const inputRaw = sections.find(section => section.startsWith('input1,'));
     const keyRaw = sections.find(section => section.startsWith('key1,'));
@@ -30,7 +33,7 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
     if (parts.length !== 10 || parts.some(value => !Number.isInteger(value)) ||
         [...parts.slice(0, 3), parts[4]].some(value => value < 0 || value > 4095) ||
         (parts[3] !== 0 && parts[3] !== 1) ||
-        parts.slice(5).some((value,index) => value < 0 || value >= [5,8,3,8,8][index])) return null;
+        parts.slice(5).some((value,index) => value < 0 || value >= [5,8,3,9,9][index])) return null;
     let arpInputs: number[] | undefined;
     if (arp) {
         const [version, active, ...notes] = arp.split(',');
@@ -56,7 +59,7 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
             !Number.isInteger(resolved) || resolved < 1 || resolved > 9) return null;
         globalScale = {selected, resolved};
     }
-    return { ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
+    return { ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
 }
 
 /** Poll one compact snapshot, never once per pad or once per display frame. */
@@ -68,7 +71,7 @@ export function refreshHarmonyPads(track: number, now = Date.now()): void {
     const port = portFor(track);
     const raw = port.getParam('midi_fx1:pad_view');
     snapshot = parseHarmonySnapshot(raw || port.getParam('midi_fx1:pad_render'));
-    settings = snapshot?.settings || [0,3,0,4,2];
+    settings = snapshot?.settings || [0,0,0,4,2];
     const input = snapshot?.input;
     const scale = snapshot?.globalScale || input;
     if (scale && (keyboardState.scale !== scale.resolved - 1 || (input && keyboardState.rootPc !== input.root))) {
@@ -145,26 +148,28 @@ export function harmonyPadColor(pitch: number, track: number, held = false): num
         if (!mode && !view.input) return pitch % 12 === keyboardState.rootPc ? trackColor(track) :
             inScaleFor(pitch, keyboardState.rootPc, keyboardState.scale) ? C_LIGHTGREY : 0;
     }
-    if (!mode && view?.input) {
-        if (held && view.arpInputs === undefined) return C_WHITE;
-        const input = view.input, bit = 1 << (pitch % 12);
-        if (pitch % 12 === input.root) return trackColor(track);
-        if (input.chord & bit) return paletteMix(C_LIGHTGREY, trackColor(track), 0, 0.5, 0);
-        if (input.scale & bit) return C_LIGHTGREY;
-        return isPianoLayout(keyboardState.mode, keyboardState.layout) ? C_DARKGREY : 0;
-    }
-    if (!mode) return null;
+    if (!mode && !view?.input) return null;
+    if (held && view?.arpInputs === undefined) return C_WHITE;
     let scale = view?.scale || 0;
     if (!view) for (let note = 0; note < 12; note++)
         if (inScaleFor(note, keyboardState.rootPc, keyboardState.scale)) scale |= 1 << note;
-    const period = periods[settings[1]];
+    const period = mode === 0 && view?.effectiveColor === undefined ? 0 : periods[settings[1]];
     const beat = seqState.playing ? visualEngineTick() / 96 : Date.now() * seqState.bpmX100 / 6000000;
     // Every mask identifies INPUT keys by their effective RENDERED voices.
     const current = view?.current || 0;
-    const effective = mode === 2 ? (view?.effective || 0) : (view?.ready ? view.lookahead : 0);
+    const effective = mode === 0 || mode === 2 ? (view?.effective || 0) : (view?.ready ? view.lookahead : 0);
+    const resolveColor = (choice: number): number => choice === 8 ? trackColor(track) : colors[choice];
+    const selectedColor = mode === 0 || mode === 2 ? (view?.effectiveColor ?? 8) : settings[4];
+    if ((mode === 0 || mode === 2) && view?.input) {
+        const bit = 1 << (pitch % 12), input = view.input;
+        if (pitch % 12 === input.root) return trackColor(track);
+        if (input.chord & bit) return paletteMix((input.scale & bit) ? C_LIGHTGREY : 0, resolveColor(selectedColor), 0, 0.5 * (period ? harmonyPulse(beat / period, settings[2]) : 1), 0);
+        if (input.scale & bit) return C_LIGHTGREY;
+        return isPianoLayout(keyboardState.mode, keyboardState.layout) ? C_DARKGREY : 0;
+    }
     return colorHarmonyPitch(pitch, keyboardState.rootPc, track, scale, current, effective,
         mode, period ? beat / period : 0, settings[2],
-        colors[settings[3]], colors[settings[4]], period > 0);
+        resolveColor(settings[3]), resolveColor(selectedColor), period > 0);
 }
 
 /** Editing the keyboard tonic selects the same explicit input root in HB. */
