@@ -38,7 +38,19 @@ int main(int argument_count, char **arguments) {
         char serialized_state[512];
         assert(api->get_param(instances[track], "state", serialized_state,
                               sizeof(serialized_state)) > 0);
-        assert(strcmp(serialized_state, arguments[preset]) == 0);
+        /* Loading a legacy seed adds the explicit global humanize defaults.
+           All existing musical settings still round-trip byte for byte. */
+        char expected_state[512],round_trip[512],amount[16];
+        snprintf(expected_state,sizeof(expected_state),"%s;hu1,0,0,0",arguments[preset]);
+        assert(strcmp(serialized_state, expected_state) == 0);
+        const char *keys[]={"humanize_timing","humanize_velocity","humanize_gate"};
+        for(int key=0;key<3;key++){
+            api->get_param(instances[track],keys[key],amount,sizeof(amount));
+            assert(!strcmp(amount,"0"));
+        }
+        api->set_param(instances[track],"state",serialized_state);
+        api->get_param(instances[track],"state",round_trip,sizeof(round_trip));
+        assert(!strcmp(serialized_state,round_trip));
     }
     for (int track = 0; track < 16; track++) api->destroy_instance(instances[track]);
     puts("HarmonyBus API restored and round-tripped all 16 prepared track states");
