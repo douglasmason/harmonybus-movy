@@ -497,6 +497,8 @@ def main() -> int:
     patch_controls(root)
     from patch_step_move import patch_step_move
     patch_step_move(root)
+    from patch_capture import patch_capture
+    patch_capture(root)
     print("HarmonyBus clean integration applied")
     return 0
 

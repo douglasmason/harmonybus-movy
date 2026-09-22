@@ -43,6 +43,46 @@ static long render(int blocks){
     }
     return energy;
 }
+static void test_capture(void){
+    for(int running=0;running<2;running++)for(int arp=0;arp<2;arp++){
+        set("state","movy1\nbpm 12000\nlink 0\n");
+        set("ch0:midi_fx1:chord_mode","Scale Root");
+        set("ch0:midi_fx1:chord_form","Triad");
+        set("ch0:midi_fx1:arp_playback",arp?"Repeat Arp":"Together");
+        set("ch0:midi_fx1:master_transpose","D");
+        render(64);
+        if(running){set("cmd","play");render(32);}
+        sent_on=sent_off=rejected=0;rendered_mask=0;
+        uint8_t down[]={0x90,68,100},up[]={0x80,68,0};
+        api->on_midi(instance,down,3,0);set("cmd","non 0 60 100");render(128);
+        api->on_midi(instance,up,3,0);set("cmd","nof 0 60");render(128);
+        int played=sent_on;unsigned played_mask=rendered_mask;
+        fprintf(stderr,"capture input running=%d arp=%d on=%d off=%d mask=%u\n",running,arp,played,sent_off,played_mask);
+        assert(played>0&&sent_off==played);
+        set("cmd","cap 0;capdone");
+        char state[32768];api->get_param(instance,"state",state,sizeof(state));
+        char *clip=strstr(state,"cl 0 0 ");assert(clip);
+        char *end=strchr(clip,'\n');assert(end);*end=0;
+        int steps,start,consumed=0,count=0;
+        assert(sscanf(clip,"cl 0 0 %d %d %n",&steps,&start,&consumed)==2);
+        char *voice=clip+consumed;
+        while(*voice){
+            int tick,gate,pitch,velocity,step,rendered=0;
+            assert(sscanf(voice,"%d:%d:%d:%d:%d:%d",&tick,&gate,&pitch,&velocity,&step,&rendered)==6);
+            assert(rendered==1);count++;
+            voice=strchr(voice,';');if(!voice)break;voice++;
+        }
+        assert(count==played);
+        set("cmd","stop");render(64);
+        /* An edited chord/arp must not reinterpret the captured voices. */
+        set("ch0:midi_fx1:chord_form","Ninth");
+        set("ch0:midi_fx1:arp_playback","Repeat Arp");render(16);
+        sent_on=sent_off=rejected=0;rendered_mask=0;
+        set("cmd","play");render(344);set("cmd","stop");render(64);
+        assert(sent_on==played&&sent_off==played&&rendered_mask==played_mask&&rejected==0);
+        printf("capture running=%d arp=%d voices=%d: replay preserves pitches and paired note-on/off counts\n",running,arp,played);
+    }
+}
 int main(int argc,char **argv){
     assert(argc==4);
     void *handle=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL);
@@ -154,5 +194,6 @@ int main(int argc,char **argv){
     assert(strstr(status,"play=1 ")&&strstr(status,"cin=1 "));
     printf("record start: one native Play press/release, count-in waits for native Start\n");
     set("cmd","stop");render(64);
+    test_capture();
     api->destroy_instance(instance);return 0;
 }
