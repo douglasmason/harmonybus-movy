@@ -241,3 +241,20 @@ for (const mode of [0,1,2,3,4,5,6]) {
 assert.equal(colorHarmonyPitch(60,0,2,2741,1,0,1,0,2,127,125,true,16),127);
 assert.equal(colorHarmonyPitch(60,0,2,2741,1,0,1,0.5,2,127,125,true,16),trackColor(2),'Pulse-off restores input-root track color');
 console.log('Input-root backgrounds and harmony-over-root priority pass');
+
+// Input tonic background is global configuration; harmony still overlays it.
+for (let mode=0;mode<=6;mode++) {
+    for (const [choice,expected] of [[8,trackColor(2)],[9,C_LIGHTGREY],[0,127]]) {
+        for (const mask of [0,1]) {
+            effectivePort.getParam=()=>`${mask},${mask},2741,1,${mask},${mode},0,3,0,0|colors2,0|full1,1,${mask}|toniccolor1,${choice}|input1,0,1,1,2741,${mask}`;
+            refreshHarmonyPads(2,testTime+=100);
+            assert.equal(harmonyPadColor(60,2),mask ? 127 : expected);
+            assert.equal(harmonyPadColor(72,2),mask ? 127 : expected);
+            assert.equal(harmonyPadColor(64,2),C_LIGHTGREY);
+        }
+    }
+}
+assert.equal(parseHarmonySnapshot('0,0,0,0,0,0,0,0,4,2|toniccolor1,10'),null);
+assert.equal(parseHarmonySnapshot('0,0,0,0,0,0,0,0,4,2').tonicColor ?? 8,8);
+assert.equal(colorHarmonyPitch(60,0,2,2741,1,0,1,0.75,2,127,125,true,undefined,undefined,C_LIGHTGREY),C_LIGHTGREY);
+console.log('Input tonic: Track default, Grey, named colors, octave identity and harmony priority pass in all modes');
