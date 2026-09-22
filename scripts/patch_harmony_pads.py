@@ -59,6 +59,13 @@ def patch_harmony_pads(root: Path) -> None:
     source = source.replace('keyboardState.scale = sel; setFollowerInputScale(appState.activeTrack.index, sel);',
         'keyboardState.scale = followerScaleIndices(appState.activeTrack.index)[sel]; setFollowerInputScale(appState.activeTrack.index, keyboardState.scale);')
     path.write_text(source)
+    for filename in ['keyboard.mjs', 'params-pages.mjs']:
+        test_path: Path = root / 'browser-test/logic' / filename
+        test_source: str = test_path.read_text()
+        test_source = test_source.replace("'thirteen scales', SCALES.length, 13", "'nineteen scales', SCALES.length, 19")
+        test_source = test_source.replace("'key overlay carries 13 scales', vm.overlay && vm.overlay.options.length, 13", "'key overlay carries 19 scales', vm.overlay && vm.overlay.options.length, 19")
+        test_source = test_source.replace("'scale clamped', keyboardState.scale, 12", "'scale clamped', keyboardState.scale, 18")
+        test_path.write_text(test_source)
     path = root / 'src/seq/scales.ts'
     source = path.read_text()
     source = replace_once(source, '\n];', """

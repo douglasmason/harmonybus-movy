@@ -41,7 +41,7 @@ int main(int argument_count, char **arguments) {
         /* Loading a legacy seed adds the explicit global humanize defaults.
            All existing musical settings still round-trip byte for byte. */
         char expected_state[512],round_trip[512],amount[16];
-        snprintf(expected_state,sizeof(expected_state),"%s;hu1,0,0,0",arguments[preset]);
+        snprintf(expected_state,sizeof(expected_state),"%s;hu1,0,0,0;ss1,0,0",arguments[preset]);
         assert(strcmp(serialized_state, expected_state) == 0);
         const char *keys[]={"humanize_timing","humanize_velocity","humanize_gate"};
         for(int key=0;key<3;key++){

@@ -16,7 +16,7 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 34f028d990e8e5478bef18b48dfa2470b5d9d3d9
+  HB_REF: bd115ef2b69f75c31222603c4841695cef07fd42
   HB_MOVY_VERSION: 0.34.1-hbclean.77
   HB_MOVY_TAG: v0.34.1-hbclean.77
   ASSET_NAME: harmonybus-movy-module.tar.gz
@@ -83,6 +83,7 @@ jobs:
               'src/seq/set-context.ts',
               'src/seq/prefs.ts',
               'src/seq/scales.ts',
+              'browser-test/logic/keyboard.mjs',
               'src/mixer/track-volume.ts',
               'browser-test/logic/track-volume.mjs',
               'src/seq/pads.ts',
