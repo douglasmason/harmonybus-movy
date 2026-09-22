@@ -74,7 +74,7 @@ console.log('Arp pad view: exact raw inputs, no output/octave ghosts, empty pool
 const { keyboardState, padMapFor } = await import('../dist/esm/keyboard/state.js');
 const { C_DARKGREY, C_WHITE } = await import('../dist/esm/seq/colors.js');
 const { setFollowerInputScale, setFollowerInputRoot } = await import('../dist/esm/seq/pads.js');
-let rawView = '0,0,0,0,0,0,3,0,4,2|arp1,0|input1,0,1,1,2741,145';
+let rawView = '0,0,2741,0,0,0,3,0,4,2|arp1,0|input1,0,1,1,2741,145';
 const writes=[];
 portFor(0).getParam = () => rawView;
 portFor(0).setParam = (key,value) => writes.push([key,value]);
@@ -115,7 +115,7 @@ refreshHarmonyPads(1,testTime+=100);
 assert.equal(keyboardState.scale,3,'Conductor inherits the global Phrygian input scale');
 setFollowerInputScale(1,0);
 assert.deepEqual(writes.pop(),['midi_fx1:follower_scale','Major'],'Conductor Key control edits shared follower scale');
-rawView='0,0,0,0,0,0,3,0,4,2|arp1,0|input1,0,1,1,2741,145|key1,1,1';
+rawView='0,0,2741,0,0,0,3,0,4,2|arp1,0|input1,0,1,1,2741,145|key1,1,1';
 refreshHarmonyPads(0,testTime+=100);assert.equal(keyboardState.scale,0);
 refreshHarmonyPads(1,testTime+=100);assert.equal(keyboardState.scale,0,'Track switch preserves the shared scale');
 console.log('Global keyboard scale: conductor and follower selection, shared edits, no per-track layout changes pass');
@@ -158,3 +158,33 @@ const drawEffective=(mode,color) => {
 assert.equal(drawEffective(0,8),drawEffective(2,8),'Standard equals Effective, pulse Off, Track color');
 assert.notEqual(drawEffective(2,0),drawEffective(2,5),'Effective color changes visible output');
 console.log('Effective pad preset, Track option and explicit color selection pass');
+
+// Equivalent rendered chord tones must not gain saturation from being outside
+// the input scale. Cover both thirds, upward #4/5, and the scale reversal.
+for (const mode of [0, 2]) {
+    for (const scaleMask of [2741, 1453]) {
+        for (const color of [0, 5, 8]) {
+            effectivePort.getParam = () => `217,217,4095,0,0,${mode},0,0,4,2|colors2,${color}|input1,0,1,1,${scaleMask},217`;
+            refreshHarmonyPads(2, testTime += 100);
+            assert.equal(harmonyPadColor(63, 2), harmonyPadColor(64, 2), 'Minor/major third inputs receive equal harmony tint');
+            assert.equal(harmonyPadColor(66, 2), harmonyPadColor(67, 2), 'Upward #4/fifth inputs receive equal harmony tint');
+            assert.equal(harmonyPadColor(60, 2), trackColor(2), 'Input root retains full track color');
+            assert.equal(harmonyPadColor(62, 2), C_LIGHTGREY, 'Non-chord scale input remains grey');
+        }
+    }
+}
+console.log('Equivalent chord-tone inputs retain equal tint across major/minor scales');
+
+// Output membership owns grey and tonic, independently of the input scale.
+for (const mode of [0, 1, 2, 3, 4]) {
+    effectivePort.getParam = () => `145,145,4095,1,145,${mode},0,0,4,2|colors2,8|tonic1,2048|input1,0,1,1,2741,145`;
+    refreshHarmonyPads(2, testTime += 100);
+    assert.equal(harmonyPadColor(61, 2), C_LIGHTGREY, 'Chromatic input rendering a scale non-chord tone is grey');
+    assert.equal(harmonyPadColor(71, 2), trackColor(2), 'Input rendering the tonic gets full track color');
+    assert.notEqual(harmonyPadColor(60, 2), trackColor(2), 'Input tonic mapped away from output tonic gets blended');
+    effectivePort.getParam = () => `145,145,4091,1,145,${mode},0,0,4,2|colors2,8|tonic1,1|input1,0,1,1,2741,145`;
+    refreshHarmonyPads(2, testTime += 100);
+    assert.notEqual(harmonyPadColor(62, 2), C_LIGHTGREY, 'Scale input rendering outside output scale does not retain grey');
+}
+assert.equal(parseHarmonySnapshot('0,0,0,0,0,0,0,0,4,2|tonic1,4096'), null);
+console.log('Output scale and tonic drive backgrounds independently of input scale');

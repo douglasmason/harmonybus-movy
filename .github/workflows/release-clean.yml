@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: d9cb485179876ced32f1ea464ddc04afe6722ce3
-  HB_MOVY_VERSION: 0.34.1-hbclean.69
-  HB_MOVY_TAG: v0.34.1-hbclean.69
+  HB_REF: a95f77f8d3e3047d48cf6ac61667497e98f06bca
+  HB_MOVY_VERSION: 0.34.1-hbclean.70
+  HB_MOVY_TAG: v0.34.1-hbclean.70
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -332,7 +332,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Stabilize held peeks, restore held-arrow step moves, unify effective pad colors, and expose Step Row in Operations. Preserve the durable user-data location. Requires HarmonyBus 0.2.160."
+              --notes "Give equivalent chord-tone inputs the same grey/harmony tint across major and minor scales. Play Tools moves to the final HarmonyBus panel. Preserve the durable user-data location. Requires HarmonyBus 0.2.161."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
