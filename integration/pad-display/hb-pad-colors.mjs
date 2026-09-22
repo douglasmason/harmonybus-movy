@@ -275,3 +275,25 @@ assert.equal(padColor(68,68,2,false),beforeLast,'Last played note does not overr
 clearHeldSet(2);
 console.log('Horizontal output groups: equal outputs match, differing outputs alternate, row boundaries reset; no lingering white selection');
 
+
+// Added HB scale IDs map to appended Movy IDs, preserving old pentatonic Sets.
+const { SCALES: keyboardScales } = await import('../dist/esm/seq/scales.js');
+const { overlayOptions, mainPageTouch, mainPageRelease } = await import('../dist/esm/seq/main-page.js');
+const { appState } = await import('../dist/esm/app/state.js');
+const scaleLabels = ['Dorian b2','Lydian Augmented','Lydian Dominant','Mixolydian b6','Locrian #2','Altered'];
+const scaleDegrees = [[0,1,3,5,7,9,10],[0,2,4,6,8,9,11],[0,2,4,6,7,9,10],[0,2,4,5,7,8,10],[0,2,3,5,6,8,10],[0,1,3,4,6,8,10]];
+assert.equal(keyboardScales[9].name,'Maj Penta');
+assert.equal(keyboardScales[12].name,'Chromatic');
+appState.activeTrack.index=2;
+const scaleWrites=[];effectivePort.setParam=(key,value)=>scaleWrites.push([key,value]);
+for(let mode=0;mode<6;mode++){
+    const id=10+mode,mask=scaleDegrees[mode].reduce((bits,pitch)=>bits|(1<<pitch),0);
+    effectivePort.getParam=()=>`0,0,${mask},0,0,2,0,0,4,2|input1,0,${id},${id},${mask},0|key1,${id},${id}`;
+    refreshHarmonyPads(2,testTime+=100);
+    assert.equal(keyboardState.scale,13+mode);
+    assert.deepEqual(keyboardScales[keyboardState.scale].degrees,scaleDegrees[mode]);
+    assert.equal(overlayOptions(5).length,15);
+    setFollowerInputScale(2,13+mode);
+    assert.deepEqual(scaleWrites.pop(),['midi_fx1:follower_scale',scaleLabels[mode]]);
+}
+console.log('All melodic-minor modes: snapshot, stable keyboard IDs, selector and scale writes pass');

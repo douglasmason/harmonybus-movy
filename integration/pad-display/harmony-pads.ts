@@ -69,16 +69,16 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
         const [version, ...rawValues] = inputRaw.split(',');
         const values = rawValues.map(Number);
         if (version !== 'input1' || values.length !== 5 || values.some(v => !Number.isInteger(v)) ||
-            values[0] < 0 || values[0] > 11 || values[1] < 0 || values[1] > 9 ||
-            values[2] < 1 || values[2] > 9 || values.slice(3).some(v => v < 0 || v > 4095)) return null;
+            values[0] < 0 || values[0] > 11 || values[1] < 0 || values[1] > 15 ||
+            values[2] < 1 || values[2] > 15 || values.slice(3).some(v => v < 0 || v > 4095)) return null;
         input = {root: values[0], selected: values[1], resolved: values[2], scale: values[3], chord: values[4]};
     }
     let globalScale: HarmonySnapshot['globalScale'];
     if (keyRaw) {
         const fields = keyRaw.split(',');
         const selected = Number(fields[1]), resolved = Number(fields[2]);
-        if (fields.length !== 3 || !Number.isInteger(selected) || selected < 0 || selected > 9 ||
-            !Number.isInteger(resolved) || resolved < 1 || resolved > 9) return null;
+        if (fields.length !== 3 || !Number.isInteger(selected) || selected < 0 || selected > 15 ||
+            !Number.isInteger(resolved) || resolved < 1 || resolved > 15) return null;
         globalScale = {selected, resolved};
     }
     return { ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
@@ -102,22 +102,29 @@ export function refreshHarmonyPads(track: number, now = Date.now()): void {
     settings = snapshot?.settings || [0,0,0,4,2];
     const input = snapshot?.input;
     const scale = snapshot?.globalScale || input;
-    if (scale && (keyboardState.scale !== scale.resolved - 1 || (input && keyboardState.rootPc !== input.root))) {
-        keyboardState.scale = scale.resolved - 1;
+    if (scale && (keyboardState.scale !== followerKeyboardScales[scale.resolved - 1] || (input && keyboardState.rootPc !== input.root))) {
+        keyboardState.scale = followerKeyboardScales[scale.resolved - 1];
         if (input) keyboardState.rootPc = input.root;
         markUiStateDirty();
         appState.dirty = true;
     }
 }
 
+// Append UI scales after existing pentatonic/blues/chromatic IDs: old Sets keep their meaning.
+const followerKeyboardScales = [0,1,2,3,4,5,6,7,8,13,14,15,16,17,18];
+export function followerScaleIndices(track: number): number[] {
+    return watchedTrack === track && snapshot ? followerKeyboardScales : Array.from({length:19},(_,index)=>index);
+}
+
 /** Supported input scales for the active follower; other modules keep all scales. */
 export function followerInputScaleCount(track: number): number {
-    return watchedTrack === track && snapshot ? 9 : 13;
+    return watchedTrack === track && snapshot ? 15 : 19;
 }
 
 /** User edits write once; inferred snapshots never write back or disable Infer. */
 export function setFollowerInputScale(track: number, scale: number): void {
-    const labels = ['Major','Natural Minor','Dorian','Phrygian','Lydian','Mixolydian','Locrian','Harmonic Minor','Melodic Minor'];
+    const labels = ['Major','Natural Minor','Dorian','Phrygian','Lydian','Mixolydian','Locrian','Harmonic Minor','Melodic Minor','Dorian b2','Lydian Augmented','Lydian Dominant','Mixolydian b6','Locrian #2','Altered'];
+    scale = followerKeyboardScales.indexOf(scale);
     if (watchedTrack !== track || !snapshot || !labels[scale]) return;
     portFor(track).setParam('midi_fx1:follower_scale', labels[scale]);
     polledAt = -Infinity;

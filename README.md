@@ -1,4 +1,4 @@
-## hbclean.76: global recorded-input humanize
+## hbclean.77: global recorded-input humanize
 
 Pair with HarmonyBus 0.2.168. The existing Play Tools panel is now Humanize / Tools, with shared Timing (0–30 ms), Velocity (0–30%) and Gate (0–30%) controls, all initially off. Timing and Gate affect recorded followers; Velocity also affects recorded conductors. Conductor timing stays exact to protect harmonic analysis. Chords move together, variation repeats each loop and differs between tracks. Live notes, the track currently recording, and saved note content remain unchanged. Timing is limited to sequencer tick resolution and clip boundaries; existing quantization and harmony-buffer rules still apply. Velocity changes recorded attacks before the existing render-velocity gain. Humanize consumes no operation lanes. Old Follow Play Reset/Bypass controls retain their original meanings.
 
@@ -210,3 +210,5 @@ Standard pad display shows input roots in track color, other chord-role inputs i
 This synchronization applies to Movy's keyboard. Stock Move's native Key menu still needs a supported host read/write bridge; this build does not claim to synchronize that native menu.
 
 Movy hbclean.74 combines the retrospective Capture fix with live pad previews during modifier holds. Touch and release invalidate the preview for the next LED tick, while held previews retain the bounded 50 ms cadence. Parameter polling and saves remain deferred during performance gestures.
+
+The .77 release supports all seven melodic-minor modes from HarmonyBus 0.2.169 in pad layouts, scale selection, recorded degree projection and input context readouts. Existing pentatonic, blues and chromatic keyboard IDs remain unchanged. Update both modules for the new scales.

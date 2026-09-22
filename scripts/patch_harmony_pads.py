@@ -51,6 +51,25 @@ def patch_harmony_pads(root: Path) -> None:
     source = source.replace('    mainPageState.touchedKnob = down ? k : -1;', '    if (k === K_LAYOUT) return;\n    mainPageState.touchedKnob = down ? k : -1;')
     source = source.replace('    mainPageState.touchedKnob = k;', '    if (k === K_LAYOUT) return;\n    mainPageState.touchedKnob = k;')
     path.write_text(source)
+    source = path.read_text().replace('followerInputScaleCount }', 'followerInputScaleCount, followerScaleIndices }')
+    source = source.replace('SCALE_NAMES.slice(0, followerInputScaleCount(appState.activeTrack.index))',
+        'followerScaleIndices(appState.activeTrack.index).map(index => SCALE_NAMES[index])')
+    source = source.replace('if (k === K_KEY) return keyboardState.scale;',
+        'if (k === K_KEY) return Math.max(0, followerScaleIndices(appState.activeTrack.index).indexOf(keyboardState.scale));')
+    source = source.replace('keyboardState.scale = sel; setFollowerInputScale(appState.activeTrack.index, sel);',
+        'keyboardState.scale = followerScaleIndices(appState.activeTrack.index)[sel]; setFollowerInputScale(appState.activeTrack.index, keyboardState.scale);')
+    path.write_text(source)
+    path = root / 'src/seq/scales.ts'
+    source = path.read_text()
+    source = replace_once(source, '\n];', """
+    { name: 'Dorian b2', degrees: [0,1,3,5,7,9,10] },
+    { name: 'Lydian Aug', degrees: [0,2,4,6,8,9,11] },
+    { name: 'Lydian Dom', degrees: [0,2,4,6,7,9,10] },
+    { name: 'Mixolydian b6', degrees: [0,2,4,5,7,8,10] },
+    { name: 'Locrian #2', degrees: [0,2,3,5,6,8,10] },
+    { name: 'Altered', degrees: [0,1,3,4,6,8,10] },
+];""")
+    path.write_text(source)
     path = root / 'src/seq/main-page-vm.ts'
     source = path.read_text().replace('mainPageState, overlayOptions', 'mainPageState, overlayOptions, PAD_LAYOUT_NAMES, padLayoutIndex')
     source = source.replace("import { MODE_NAMES, layoutNames } from '../keyboard/layouts.js';\n", '')

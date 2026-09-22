@@ -5,7 +5,7 @@ import { padMapFor } from '../keyboard/state.js';
 import { midiNoteName } from '../keyboard/notes.js';
 
 export type ClipInputInfo = { kind: string; source: string; target: string };
-const scales = ['', 'Maj', 'Min', 'Dor', 'Phr', 'Lyd', 'Mix', 'Loc', 'HMin', 'MMin'];
+const scales = ['', 'Maj', 'Min', 'Dor', 'Phr', 'Lyd', 'Mix', 'Loc', 'HMin', 'MMin', 'Dor b2', 'Lyd Aug', 'Lyd Dom', 'Mix b6', 'Loc #2', 'Alt'];
 function keyName(root: number, scale: number): string {
     return root >= 0 && root < 12 && scale > 0 && scale < scales.length
         ? midiNoteName(root).replace(/-?\d+$/, '') + ' ' + scales[scale] : '';

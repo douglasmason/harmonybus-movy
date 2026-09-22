@@ -1,10 +1,12 @@
 //! Saved input coordinates, independent of output harmony and transpose.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct InputKey { pub root: u8, pub scale: u8, pub transpose: i8 }
-pub const SCALES: [[i32;7];9] = [
+pub const SCALES: [[i32;7];15] = [
     [0,2,4,5,7,9,11], [0,2,3,5,7,8,10], [0,2,3,5,7,9,10],
     [0,1,3,5,7,8,10], [0,2,4,6,7,9,11], [0,2,4,5,7,9,10],
     [0,1,3,5,6,8,10], [0,2,3,5,7,8,11], [0,2,3,5,7,9,11],
+    [0,1,3,5,7,9,10], [0,2,4,6,8,9,11], [0,2,4,6,7,9,10],
+    [0,2,4,5,7,8,10], [0,2,3,5,6,8,10], [0,1,3,4,6,8,10],
 ];
 impl InputKey {
     pub fn role(self, pitch: u8, target: Self) -> (i8,i16) {
@@ -17,7 +19,7 @@ impl InputKey {
         (degree,self.project(next,target) as i16+self.transpose as i16)
     }
     pub fn new(root: u8, scale: u8) -> Option<Self> {
-        (root<12 && (1..=9).contains(&scale)).then_some(Self {root,scale,transpose:0})
+        (root<12 && (1..=15).contains(&scale)).then_some(Self {root,scale,transpose:0})
     }
     /// Diatonic degree and octave are invariant. Chromatic notes retain their
     /// semitone distance below the next scale degree, including across C.
@@ -50,7 +52,7 @@ pub fn parse(message: &str) -> Option<(InputKey,u16)> {
 #[cfg(test)] mod tests {
     use super::*;
     #[test] fn every_degree_in_every_key_and_scale() {
-        for root in 0..12 { for scale in 1..=9 { for target_root in 0..12 { for target_scale in 1..=9 {
+        for root in 0..12 { for scale in 1..=15 { for target_root in 0..12 { for target_scale in 1..=15 {
             let source=InputKey::new(root,scale).unwrap();
             let target=InputKey::new(target_root,target_scale).unwrap();
             for degree in 0..7 {
@@ -63,7 +65,7 @@ pub fn parse(message: &str) -> Option<(InputKey,u16)> {
         let major=InputKey::new(0,1).unwrap();let minor=InputKey::new(2,2).unwrap();
         assert_eq!(major.project(64,minor),65); // third: E -> F
         assert_eq!(major.project(63,minor),64); // below third: Eb -> E
-        for root in 0..12 { for scale in 1..=9 { for pitch in 0..128 {
+        for root in 0..12 { for scale in 1..=15 { for pitch in 0..128 {
             let key=InputKey::new(root,scale).unwrap();assert_eq!(key.project(pitch,key),pitch);
         }}}
     }
