@@ -31,7 +31,7 @@ console.log('Harmony pads: pitch classes, root backgrounds, overlap, independent
 
 const port = portFor(4), originalGet = port.getParam;
 let reads = 0;
-port.getParam = key => { assert.equal(key,'midi_fx1:pad_view'); reads++; return '145,580,2741,1,580,3,3,0,4,2'; };
+port.getParam = key => { assert.match(key,/^midi_fx1:pad_view@[0-9a-f]{64}$/); reads++; return '145,580,2741,1,580,3,3,0,4,2'; };
 refreshHarmonyPads(4,0);
 for(let now=1;now<50;now++) refreshHarmonyPads(4,now);
 assert.equal(reads,1,'No per-pad or per-frame polling');
@@ -258,3 +258,20 @@ assert.equal(parseHarmonySnapshot('0,0,0,0,0,0,0,0,4,2|toniccolor1,10'),null);
 assert.equal(parseHarmonySnapshot('0,0,0,0,0,0,0,0,4,2').tonicColor ?? 8,8);
 assert.equal(colorHarmonyPitch(60,0,2,2741,1,0,1,0.75,2,127,125,true,undefined,undefined,C_LIGHTGREY),C_LIGHTGREY);
 console.log('Input tonic: Track default, Grey, named colors, octave identity and harmony priority pass in all modes');
+
+const { distinguishHarmonyPad } = await import('../dist/esm/seq/pads.js');
+const { setHeldSet, clearHeldSet } = await import('../dist/esm/seq/held.js');
+const groups=Array.from({length:32},(_,slot)=>slot<2?0:slot<4?2:slot);
+effectivePort.getParam=()=>`4095,4095,4095,1,4095,2,0,3,0,0|colors2,0|outputs1,${groups.join(',')}|input1,0,1,1,2741,4095`;
+refreshHarmonyPads(2,testTime+=100);
+assert.equal(distinguishHarmonyPad(0,2,127),127);
+assert.equal(distinguishHarmonyPad(1,2,127),127,'Same output keeps identical shade');
+assert.notEqual(distinguishHarmonyPad(2,2,127),127,'Different adjacent output has a neighboring shade');
+assert.equal(distinguishHarmonyPad(3,2,127),distinguishHarmonyPad(2,2,127));
+assert.equal(distinguishHarmonyPad(8,2,127),127,'Each physical row begins independently');
+const beforeLast=padColor(68,68,2,false);
+setHeldSet(2,[padMapFor(2)[0]]);
+assert.equal(padColor(68,68,2,false),beforeLast,'Last played note does not override pad colors');
+clearHeldSet(2);
+console.log('Horizontal output groups: equal outputs match, differing outputs alternate, row boundaries reset; no lingering white selection');
+

@@ -10,12 +10,20 @@ def patch_harmony_pads(root: Path) -> None:
         (root / 'src/keyboard' / name).write_text((assets / name).read_text())
     path: Path = root / 'src/seq/pads.ts'
     source: str = path.read_text()
-    source = "import { harmonyPadColor } from '../keyboard/harmony-pads.js';\nexport { setFollowerInputScale, setFollowerInputRoot, harmonyPadColor, colorHarmonyPitch, harmonyPulse, parseHarmonySnapshot, refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + source
+    source = "import { harmonyPadColor, distinguishHarmonyPad } from '../keyboard/harmony-pads.js';\nexport { distinguishHarmonyPad, setFollowerInputScale, setFollowerInputRoot, harmonyPadColor, colorHarmonyPitch, harmonyPulse, parseHarmonySnapshot, refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + source
     source = replace_once(source, '    if (isPlaying) return C_GREEN;', '''    if (isPlaying) return C_GREEN;
-    const harmonyColor = harmonyPadColor(pitch, track, holdNotes !== null ? holdNotes.includes(pitch) : noteHeld(track, pitch));
-    if (harmonyColor !== null) return harmonyColor;''')
+    const harmonyColor = harmonyPadColor(pitch, track, holdNotes?.includes(pitch) ?? false);
+    if (harmonyColor !== null) return holdNotes !== null ? harmonyColor : distinguishHarmonyPad(idx, track, harmonyColor);''')
+    source = replace_once(source, 'const white = holdNotes !== null ? holdNotes.includes(pitch) : noteHeld(track, pitch);', 'const white = holdNotes?.includes(pitch) ?? false;')
+    source = source.replace("import { noteHeld } from './held.js';\n", '')
+    path.write_text(source)
+    path = root / 'browser-test/logic/seq-leds.mjs'
+    source = path.read_text()
+    source = source.replace('    setHeldSet(0, [padPitch(0, 72, padMin)]);', '    const unselectedColor = padColor(72, padMin, 0, false);\n    setHeldSet(0, [padPitch(0, 72, padMin)]);')
+    source = replace_once(source, "eq('held-set = white',   padColor(72, padMin, 0, false), 120);", "eq('last played keeps background', padColor(72, padMin, 0, false), unselectedColor);")
     path.write_text(source)
     path = root / 'src/app/tick.ts'
+
     source = "import { refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + path.read_text()
     source = replace_once(source, '        const map       = padMapFor(track);', '        refreshHarmonyPads(track);\n        const map       = padMapFor(track);')
     path.write_text(source)

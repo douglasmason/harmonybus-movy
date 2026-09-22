@@ -1,6 +1,6 @@
 /* Read-only pitch-class visualization. No MIDI generation or modifier consumption. */
 import { performanceTouchActive } from '../renderer/performance-touch.js';
-import { keyboardState } from './state.js';
+import { keyboardState, padMapFor } from './state.js';
 import { isPianoLayout } from './layouts.js';
 import { markUiStateDirty } from '../seq/ui-dirty.js';
 import { appState } from '../app/state.js';
@@ -11,8 +11,9 @@ import { seqState } from '../seq/state.js';
 import { visualEngineTick } from '../seq/engine.js';
 import { PAD_PALETTE } from './pad-palette.js';
 
-export type HarmonySnapshot = { current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
+export type HarmonySnapshot = { current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
 let snapshot: HarmonySnapshot | null = null;
+let requestedPads: number[] = [];
 let settings = [0,3,0,4,2];
 let watchedTrack = -1;
 let polledAt = -Infinity;
@@ -43,6 +44,9 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
     const tonicColorSection = sections.find(section => section.startsWith('toniccolor1,'));
     const tonicColor = tonicColorSection ? Number(tonicColorSection.split(',')[1]) : 8;
     if (tonicColorSection && (tonicColorSection.split(',').length !== 2 || !Number.isInteger(tonicColor) || tonicColor < 0 || tonicColor > 9)) return null;
+    const outputSection = sections.find(section => section.startsWith('outputs1,'));
+    const outputGroups = outputSection?.split(',').slice(1).map(Number);
+    if (outputGroups && (outputGroups.length !== 32 || outputGroups.some(value => !Number.isInteger(value) || value < -1 || value > 31))) return null;
     const arp = sections.find(section => section.startsWith('arp1,'));
     const inputRaw = sections.find(section => section.startsWith('input1,'));
     const keyRaw = sections.find(section => section.startsWith('key1,'));
@@ -76,7 +80,7 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
             !Number.isInteger(resolved) || resolved < 1 || resolved > 9) return null;
         globalScale = {selected, resolved};
     }
-    return { ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
+    return { ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
 }
 
 /** Poll one compact snapshot, never once per pad or once per display frame. */
@@ -86,7 +90,9 @@ export function refreshHarmonyPads(track: number, now = Date.now()): void {
     if (now >= polledAt && now - polledAt < 50) return;
     polledAt = now;
     const port = portFor(track);
-    const raw = port.getParam('midi_fx1:pad_view');
+    requestedPads = Array.from(padMapFor(track));
+    const request = requestedPads.map(note => (note < 0 ? 255 : note).toString(16).padStart(2, '0')).join('');
+    const raw = port.getParam('midi_fx1:pad_view@' + request) || port.getParam('midi_fx1:pad_view');
     snapshot = parseHarmonySnapshot(raw || port.getParam('midi_fx1:pad_render'));
     settings = snapshot?.settings || [0,0,0,4,2];
     const input = snapshot?.input;
@@ -210,4 +216,37 @@ export function setFollowerInputRoot(track: number, root: number): void {
     port.setParam('midi_fx1:follower_root_policy', 'Explicit');
     port.setParam('midi_fx1:follower_explicit_root', names[((root % 12) + 12) % 12]);
     polledAt = -Infinity;
+}
+
+/** A stable neighboring shade from the hardware palette, without changing hue family. */
+const adjacentShades = new Map<number, number>();
+function adjacentShade(color: number): number {
+    const cached = adjacentShades.get(color); if (cached !== undefined) return cached;
+    const original = PAD_PALETTE[color], magnitude = Math.hypot(...original);
+    if (!magnitude) return color;
+    let best = color, bestError = Infinity;
+    for (let candidate=1;candidate<PAD_PALETTE.length;candidate++) {
+        const rgb = PAD_PALETTE[candidate], size = Math.hypot(...rgb);
+        if (size < magnitude*0.35 || size > magnitude*1.25 || rgb.every((value,index)=>value===original[index])) continue;
+        const similarity = rgb.reduce((sum,value,index)=>sum+value*original[index],0)/(size*magnitude);
+        if (similarity < 0.94) continue;
+        const error = rgb.reduce((sum,value,index)=>sum+(value-original[index]*0.82)**2,0);
+        if (error < bestError) { best=candidate;bestError=error; }
+    }
+    adjacentShades.set(color,best);return best;
+}
+
+/** Alternate only at output changes within a same-color horizontal run. */
+export function distinguishHarmonyPad(index: number, track: number, color: number): number {
+    if (watchedTrack !== track || !snapshot?.outputGroups || !color) return color;
+    const map=padMapFor(track), groups=snapshot.outputGroups;
+    if (requestedPads.some((note,slot)=>note!==map[slot]) || groups[index]<0) return color;
+    let alternate=false, previousColor=-1, previousGroup=-1;
+    for(let slot=index-index%8;slot<=index;slot++) {
+        const base=slot===index?color:harmonyPadColor(map[slot],track);
+        if (base===null || base===0 || groups[slot]<0 || base!==previousColor) alternate=false;
+        else if(groups[slot]!==previousGroup) alternate=!alternate;
+        previousColor=base ?? -1;previousGroup=groups[slot];
+    }
+    return alternate?adjacentShade(color):color;
 }

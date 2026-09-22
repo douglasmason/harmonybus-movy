@@ -16,7 +16,7 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 096b3e168f5a4fd83687e02b2c1911ed2e384b9a
+  HB_REF: 0c5258b9a38f377a0256ec77914966a3d354b9c8
   HB_MOVY_VERSION: 0.34.1-hbclean.73
   HB_MOVY_TAG: v0.34.1-hbclean.73
   ASSET_NAME: harmonybus-movy-module.tar.gz
@@ -76,6 +76,7 @@ jobs:
               'scripts/test-seq.sh',
               'scripts/recover-sets.mjs',
               'scripts/test-versions.sh',
+              'browser-test/logic/seq-leds.mjs',
               'browser-test/logic/old-set.mjs',
               'browser-test/logic/set-state.mjs',
               'browser-test/logic/versions.mjs',
@@ -332,7 +333,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Add global Input Tonic Color: Track by default, Grey matching scale tones, or a named color. Harmony overlays retain priority. Preserve the durable user-data location. Requires HarmonyBus 0.2.166."
+              --notes "Add global Input Tonic Color: Track by default, Grey matching scale tones, or a named color. Harmony overlays retain priority. Remove the lingering white last-played-note highlight and distinguish adjacent same-color pads with different rendered outputs. Preserve the durable user-data location. Requires HarmonyBus 0.2.166."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
