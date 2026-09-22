@@ -132,7 +132,10 @@ console.log('HB performance release: no polling during touch, direct captured re
 
 const padSlot = focusKey('pad_display');
 assert.equal(page.pageTitle,'Pads Global');
-assert.equal(page.ctl.page.keys.length,6);
+assert.equal(page.ctl.page.keys.length,7);
+assert(page.ctl.page.keys.includes('pad_both_color'));
+assert.equal(values.get('pad_both_color'),'Blend');
+assert.equal(values.get('pad_pulse_rate'),'1/4');
 values.set('pad_display','Standard');
 for(let tick=0;tick<64;tick++)page.tick();
 page.knobTouch(padSlot,true);
@@ -141,7 +144,7 @@ page.knobTurn(padSlot,4);
 page.knobTouch(padSlot,false);
 assert.equal(values.get('pad_display'),'Current');
 assert(uiStateDirty(),'Global pad edits participate in Set saving');
-console.log('HB Pads Global: six controls, correct title, knob editing and saved-state dirty tracking pass');
+console.log('HB Pads Global: seven controls, correct title, knob editing and saved-state dirty tracking pass');
 
 // Lane selection must refresh both shared editors before the next encoder turn.
 const realNow = Date.now;
