@@ -499,6 +499,8 @@ def main() -> int:
     patch_step_move(root)
     from patch_capture import patch_capture
     patch_capture(root)
+    from patch_input_info import patch_input_info
+    patch_input_info(root)
     print("HarmonyBus clean integration applied")
     return 0
 

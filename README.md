@@ -1,3 +1,7 @@
+## hbclean.75: quiet recorded-input context
+
+Clip Parameters replaces its static Click hint with a read-only INPUT cell for nonempty melodic clips: Fixed, Mapped, Render, or Mixed. Touch INPUT to see source/current scales or the pitch behavior. The wheel still applies the selected clip edit. An OFFPAD count appears only while recorded pitches have no exact pad in the visible layout; touch it for note names. No pad colors, pitch mapping, or playback behavior change. Metadata is queried at most four times per second, only while this panel is open. Compatible with HarmonyBus 0.2.167.
+
 > Capture fix (pending release): retrospective Capture preserves the already-rendered identity of conductor chord/arp voices, matching normal Record. Captured voices replay directly instead of generating new chords/arps from every saved voice. Applies while stopped or playing, through tempo reselection and save/reload. Follower inputs retain their source-key behavior. Existing captures saved by older versions cannot be reliably identified and are not rewritten.
 
 > hbclean.68 / HB 0.2.159: hold a track button and turn Volume to adjust both local audio gain and HB Render To velocity. Recorded notes stay unchanged; Undo/Redo restores both values. Velocity changes affect subsequent note attacks, including arp/echo hits. No new panel.
