@@ -149,11 +149,10 @@ function harmonyMix(background: number, current: number, future: number, first: 
 
 export function colorHarmonyPitch(pitch: number, inputRoot: number, track: number,
     scale: number, current: number, effective: number, mode: number,
-    phase: number, shape: number, currentColor: number, effectiveColor: number, animate: boolean, outputTonic?: number, bothColor?: number): number {
+    phase: number, shape: number, currentColor: number, effectiveColor: number, animate: boolean, _outputTonic?: number, bothColor?: number): number {
     if (pitch < 0) return 0;
     const pitchClass = pitch % 12;
-    if (outputTonic !== undefined && (outputTonic & (1 << pitchClass))) return trackColor(track);
-    const background = outputTonic === undefined && pitchClass === inputRoot ? trackColor(track) : (scale & (1 << pitchClass)) ? C_LIGHTGREY : 0;
+    const background = pitchClass === inputRoot ? trackColor(track) : (scale & (1 << pitchClass)) ? C_LIGHTGREY : 0;
     const first = (mode === 1 || mode === 3 || mode === 6) && (current & (1 << pitchClass)) ? (animate ? harmonyPulse(phase, shape) : 1) : 0;
     const second = mode !== 1 && (effective & (1 << pitchClass)) ? (animate ? harmonyPulse(phase + 0.5, shape) : 1) : 0;
     if (!first && !second) return background;
@@ -188,10 +187,9 @@ export function harmonyPadColor(pitch: number, track: number, held = false): num
     if ((mode === 0 || mode === 2) && view?.input) {
         const bit = 1 << (pitch % 12), input = view.input;
         const outputScale = view.scale;
-        const outputTonic = view.tonic ?? (1 << input.root);
-        if (outputTonic & bit) return trackColor(track);
-        if (input.chord & bit) return harmonyMix((outputScale & bit) ? C_LIGHTGREY : 0, resolveColor(selectedColor), 0, period ? harmonyPulse(beat / period, settings[2]) : 1, 0);
-        if (outputScale & bit) return C_LIGHTGREY;
+        const background = pitch % 12 === input.root ? trackColor(track) : (outputScale & bit) ? C_LIGHTGREY : 0;
+        if (input.chord & bit) return harmonyMix(background, resolveColor(selectedColor), 0, period ? harmonyPulse(beat / period, settings[2]) : 1, 0);
+        if (pitch % 12 === input.root || (outputScale & bit)) return background;
         return isPianoLayout(keyboardState.mode, keyboardState.layout) ? C_DARKGREY : 0;
     }
     return colorHarmonyPitch(pitch, keyboardState.rootPc, track, scale, current, effective,

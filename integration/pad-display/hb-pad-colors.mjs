@@ -168,26 +168,26 @@ for (const mode of [0, 2]) {
             refreshHarmonyPads(2, testTime += 100);
             assert.equal(harmonyPadColor(63, 2), harmonyPadColor(64, 2), 'Minor/major third inputs receive equal harmony tint');
             assert.equal(harmonyPadColor(66, 2), harmonyPadColor(67, 2), 'Upward #4/fifth inputs receive equal harmony tint');
-            assert.equal(harmonyPadColor(60, 2), trackColor(2), 'Input root retains full track color');
+            assert.equal(harmonyPadColor(60, 2), harmonyPadColor(64, 2), 'Harmony overlays the input-root background');
             assert.equal(harmonyPadColor(62, 2), C_LIGHTGREY, 'Non-chord scale input remains grey');
         }
     }
 }
 console.log('Equivalent chord-tone inputs retain equal tint across major/minor scales');
 
-// Output membership owns grey and tonic, independently of the input scale.
+// Output-scale membership owns grey; only input roots get track-color backgrounds.
 for (const mode of [0, 1, 2, 3, 4, 5, 6]) {
     effectivePort.getParam = () => `145,145,4095,1,145,${mode},0,0,4,2|colors2,8|tonic1,2048|full1,1,145|input1,0,1,1,2741,145`;
     refreshHarmonyPads(2, testTime += 100);
     assert.equal(harmonyPadColor(61, 2), C_LIGHTGREY, 'Chromatic input rendering a scale non-chord tone is grey');
-    assert.equal(harmonyPadColor(71, 2), trackColor(2), 'Input rendering the tonic gets full track color');
+    assert.equal(harmonyPadColor(71, 2), C_LIGHTGREY, 'Output tonic does not paint other input pads with track color');
     assert.equal(harmonyPadColor(60, 2), harmonyPadColor(64, 2), 'Non-tonic chord inputs share pure harmony color');
     effectivePort.getParam = () => `145,145,4091,1,145,${mode},0,0,4,2|colors2,8|tonic1,1|full1,1,145|input1,0,1,1,2741,145`;
     refreshHarmonyPads(2, testTime += 100);
     assert.notEqual(harmonyPadColor(62, 2), C_LIGHTGREY, 'Scale input rendering outside output scale does not retain grey');
 }
 assert.equal(parseHarmonySnapshot('0,0,0,0,0,0,0,0,4,2|tonic1,4096'), null);
-console.log('Output scale and tonic drive backgrounds independently of input scale');
+console.log('Output-scale backgrounds respect input-root track color');
 
 // Harmony overlays do not mix grey, even partway through a smooth pulse.
 for (const phase of [0, 0.125, 0.25]) {
@@ -216,7 +216,7 @@ for (const mode of [3,6]) {
         assert.equal(colorHarmonyPitch(64,0,2,2741,16,16,mode,phase,3,127,125,true,1,13),13,'Both Color replaces overlap with the chosen color');
         assert.equal(colorHarmonyPitch(64,0,2,2741,16,0,mode,phase,3,127,125,true,1,13),127,'Current-only keeps Current Color');
         assert.equal(colorHarmonyPitch(64,0,2,2741,0,16,mode,phase,3,127,125,true,1,13),125,'Future-only keeps Lookahead Color');
-        assert.equal(colorHarmonyPitch(60,0,2,2741,1,1,mode,phase,3,127,125,true,1,13),trackColor(2),'Tonic retains priority');
+        assert.equal(colorHarmonyPitch(60,0,2,2741,1,1,mode,phase,3,127,125,true,1,13),13,'Harmony overlap overrides input-tonic background');
     }
     effectivePort.getParam=()=>`16,16,2741,1,16,${mode},4,3,0,5|tonic1,1|full1,1,16|both1,5|input1,0,1,1,2741,16`;
     refreshHarmonyPads(2,testTime+=100);
@@ -227,3 +227,17 @@ for (const mode of [3,6]) {
 }
 assert.equal(parseHarmonySnapshot('0,0,0,0,0,3,0,3,4,2|both1,10'),null);
 console.log('Both Color override, Blend default, and None pulse shape pass');
+
+// Track color is pinned to input roots and is strictly a background layer.
+for (const mode of [0,1,2,3,4,5,6]) {
+    const drawRoot = (mask, outputTonic) => {
+        effectivePort.getParam=()=>`${mask},${mask},2741,1,${mask},${mode},0,3,0,0|colors2,0|tonic1,${outputTonic}|full1,1,${mask}|both1,1|input1,0,1,1,2741,${mask}`;
+        refreshHarmonyPads(2,testTime+=100);
+        return [harmonyPadColor(60,2),harmonyPadColor(72,2),harmonyPadColor(64,2)];
+    };
+    assert.deepEqual(drawRoot(1,16),[127,127,C_LIGHTGREY],'Harmony overrides input roots; output tonic is not special');
+    assert.deepEqual(drawRoot(0,16),[trackColor(2),trackColor(2),C_LIGHTGREY],'Input roots reappear between harmonies');
+}
+assert.equal(colorHarmonyPitch(60,0,2,2741,1,0,1,0,2,127,125,true,16),127);
+assert.equal(colorHarmonyPitch(60,0,2,2741,1,0,1,0.5,2,127,125,true,16),trackColor(2),'Pulse-off restores input-root track color');
+console.log('Input-root backgrounds and harmony-over-root priority pass');
