@@ -127,12 +127,12 @@ const afterRelease = writes.length;
 releasePerformanceTouch(performanceSlot);
 assert.equal(writes.length, afterRelease);
 port.getParam = originalGet;
-assert.equal(module.capabilities.ui_hierarchy.levels.follower_play.knobs.length, 8);
+assert.equal(module.capabilities.ui_hierarchy.levels.follower_play.knobs.length, 7);
 console.log('HB performance release: no polling during touch, direct captured release, no duplicate Off pass');
 
 const padSlot = focusKey('pad_display');
 assert.equal(page.pageTitle,'Pads Global');
-assert.equal(page.ctl.page.keys.length,5);
+assert.equal(page.ctl.page.keys.length,6);
 values.set('pad_display','Standard');
 for(let tick=0;tick<64;tick++)page.tick();
 page.knobTouch(padSlot,true);
@@ -141,7 +141,7 @@ page.knobTurn(padSlot,4);
 page.knobTouch(padSlot,false);
 assert.equal(values.get('pad_display'),'Current');
 assert(uiStateDirty(),'Global pad edits participate in Set saving');
-console.log('HB Pads Global: five controls, correct title, knob editing and saved-state dirty tracking pass');
+console.log('HB Pads Global: six controls, correct title, knob editing and saved-state dirty tracking pass');
 
 // Lane selection must refresh both shared editors before the next encoder turn.
 const realNow = Date.now;
@@ -170,7 +170,7 @@ try {
     focusKey('motion_probability');
     assert.equal(page.pageTitle, 'Timing / Trigger');
     assert.equal(page.ctl.describePage().cells.find(cell => cell.key === 'motion_lane').raw, '2');
-    const punchSlot = focusKey('motion_punch');
+    const punchSlot = focusKey('hb_step_row');
     const before = writes.length;
     page.knobTouch(punchSlot, true);page.knobTurn(punchSlot, 1);page.knobTouch(punchSlot, false);
     assert.equal(writes.length, before, 'Knob touch does not activate an operation');
@@ -193,6 +193,18 @@ for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_
     page.ctl.renderOverlays({fillRect:()=>{},print:(_x,_y,label)=>text.push(label),textWidth:label=>label.length*6}, {clearScreen:()=>clears++});
     assert.equal(clears, 1, 'Native list replaces the grid while shown');
     assert(text.some(label => String(label).includes(peek.options[peek.index])), 'Selected choice is rendered as text');
+    const heldClock = Date.now;
+    let elapsed = 0;
+    Date.now = () => heldClock() + elapsed;
+    try {
+        for (let frame = 0; frame < 80; frame++) {
+            elapsed += 50;
+            page.knobTouch(slot, true); // duplicate hardware touch while held
+            page.tick();
+            assert(page.ctl.enumPeek(), 'Held peek survives several expiry periods');
+            assert.equal(page.ctl.state.touched, slot);
+        }
+    } finally { Date.now = heldClock; }
     page.knobTurn(slot, -1);
     peek = page.ctl.enumPeek();
     assert.equal(peek.options[peek.index], page.ctl.state.values[key]);
@@ -452,10 +464,10 @@ port.getParam = (key) => {
     return harmonyGet(key);
 };
 focusKey('hpath_0');
-assert.equal(page.pageTitle,'Harmony Flow');
-assert.deepEqual(page.ctl.page.keys.map(key=>page.ctl.state.values[key]),['C E G','C','Am','Bm']);
+assert.equal(page.pageTitle,'Global');
+assert.deepEqual(page.ctl.page.keys.slice(4).map(key=>page.ctl.state.values[key]),['C E G','C','Am','Bm']);
 harmonyFrame='hp1|F A C|F|G7|A7';harmonyNow+=40;page.tick();
-assert.deepEqual(page.ctl.page.keys.map(key=>page.ctl.state.values[key]),['F A C','F','G7','A7']);
+assert.deepEqual(page.ctl.page.keys.slice(4).map(key=>page.ctl.state.values[key]),['F A C','F','G7','A7']);
 assert.equal(harmonyReads,2);
 focusKey('fpath_0_0_0');focusKey('hpath_0');
 assert.equal(harmonyReads,3,'Changing analysis pages refreshes the new snapshot immediately');

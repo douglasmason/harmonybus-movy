@@ -493,6 +493,10 @@ def main() -> int:
     patch_recorded_operations(root)
     patch_render_velocity(root)
     patch_durable_data(root)
+    from patch_controls import patch_controls
+    patch_controls(root)
+    from patch_step_move import patch_step_move
+    patch_step_move(root)
     print("HarmonyBus clean integration applied")
     return 0
 

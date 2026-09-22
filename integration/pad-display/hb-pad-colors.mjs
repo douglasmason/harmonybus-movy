@@ -146,3 +146,15 @@ for (const [mode,layout] of [[0,0],[0,1],[1,0],[1,1]]) {
     }
 }
 console.log('Recorded input highlights: every layout/color mode, exact pitch, note-off and track isolation pass');
+
+assert.equal(parseHarmonySnapshot('145,580,2741,1,580,2,0,0,8,8|colors2,8').effectiveColor,8);
+assert.equal(parseHarmonySnapshot('145,580,2741,1,580,2,0,0,8,8|colors2,9'),null);
+const effectivePort=portFor(2);
+const drawEffective=(mode,color) => {
+    effectivePort.getParam=()=>`145,145,2741,0,0,${mode},0,0,4,2|colors2,${color}|input1,0,1,1,2741,145`;
+    refreshHarmonyPads(2,testTime+=100);
+    return harmonyPadColor(64,2,false);
+};
+assert.equal(drawEffective(0,8),drawEffective(2,8),'Standard equals Effective, pulse Off, Track color');
+assert.notEqual(drawEffective(2,0),drawEffective(2,5),'Effective color changes visible output');
+console.log('Effective pad preset, Track option and explicit color selection pass');
