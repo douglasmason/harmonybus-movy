@@ -1,3 +1,7 @@
+## hbclean.76: global recorded-input humanize
+
+Pair with HarmonyBus 0.2.168. The existing Play Tools panel is now Humanize / Tools, with shared Timing (0–30 ms), Velocity (0–30%) and Gate (0–30%) controls, all initially off. Timing and Gate affect recorded followers; Velocity also affects recorded conductors. Conductor timing stays exact to protect harmonic analysis. Chords move together, variation repeats each loop and differs between tracks. Live notes, the track currently recording, and saved note content remain unchanged. Timing is limited to sequencer tick resolution and clip boundaries; existing quantization and harmony-buffer rules still apply. Velocity changes recorded attacks before the existing render-velocity gain. Humanize consumes no operation lanes. Old Follow Play Reset/Bypass controls retain their original meanings.
+
 ## hbclean.75: quiet recorded-input context
 
 Clip Parameters replaces its static Click hint with a read-only INPUT cell for nonempty melodic clips: Fixed, Mapped, Render, or Mixed. Touch INPUT to see source/current scales or the pitch behavior. The wheel still applies the selected clip edit. An OFFPAD count appears only while recorded pitches have no exact pad in the visible layout; touch it for note names. No pad colors, pitch mapping, or playback behavior change. Metadata is queried at most four times per second, only while this panel is open. Compatible with HarmonyBus 0.2.167.

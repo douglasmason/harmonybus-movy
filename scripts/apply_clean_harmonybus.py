@@ -501,6 +501,8 @@ def main() -> int:
     patch_capture(root)
     from patch_input_info import patch_input_info
     patch_input_info(root)
+    from patch_humanize import patch_humanize
+    patch_humanize(root)
     print("HarmonyBus clean integration applied")
     return 0
 

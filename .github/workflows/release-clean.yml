@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 0545e48dbe781889f2bfdf6227e4999add8ee41d
-  HB_MOVY_VERSION: 0.34.1-hbclean.75
-  HB_MOVY_TAG: v0.34.1-hbclean.75
+  HB_REF: 666581100410ec6d5941d534dd7e43fc7e5aa93a
+  HB_MOVY_VERSION: 0.34.1-hbclean.76
+  HB_MOVY_TAG: v0.34.1-hbclean.76
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -125,6 +125,7 @@ jobs:
               'src/undo/verbs.ts',
               'engine/crates/seq-core/src/lib.rs',
               'engine/crates/seq-core/src/follower_input.rs',
+              'engine/crates/seq-core/src/humanize.rs',
               'engine/crates/seq-core/src/recorded_actions.rs',
               'engine/crates/seq-core/src/capture.rs',
               'engine/crates/seq-core/src/hb_clip_performance.rs',
@@ -337,7 +338,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Add quiet recorded-input context and conditional off-layout note readouts to Clip Parameters. Preserve pad colors, playback pitches, Capture fixes and durable user data. Tested with HarmonyBus 0.2.167."
+              --notes "Add global recorded-input humanize from HarmonyBus 0.2.168: signed follower timing, velocity and gate variation. Preserve conductor timing, grouped chords, live inputs and stored notes. All controls default off."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
