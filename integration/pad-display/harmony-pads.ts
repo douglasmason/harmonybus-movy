@@ -1,5 +1,5 @@
 /* Read-only pitch-class visualization. No MIDI generation or modifier consumption. */
-import { performanceTouchActive } from '../renderer/performance-touch.js';
+import { performancePreviewRevision } from '../renderer/performance-touch.js';
 import { keyboardState, padMapFor } from './state.js';
 import { isPianoLayout } from './layouts.js';
 import { markUiStateDirty } from '../seq/ui-dirty.js';
@@ -14,6 +14,7 @@ import { PAD_PALETTE } from './pad-palette.js';
 export type HarmonySnapshot = { current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
 let snapshot: HarmonySnapshot | null = null;
 let requestedPads: number[] = [];
+let previewRevision = -1;
 let settings = [0,3,0,4,2];
 let watchedTrack = -1;
 let polledAt = -Infinity;
@@ -86,8 +87,12 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
 /** Poll one compact snapshot, never once per pad or once per display frame. */
 export function refreshHarmonyPads(track: number, now = Date.now()): void {
     if (track !== watchedTrack) { watchedTrack = track; snapshot = null; polledAt = -Infinity; }
-    if (performanceTouchActive()) return;
-    if (now >= polledAt && now - polledAt < 50) return;
+    // Gestures invalidate the preview but never perform reads on the MIDI
+    // callback. The next LED tick reads once; sustained holds keep the usual
+    // bounded cadence so harmony/one-shot changes remain visible too.
+    const revision = performancePreviewRevision();
+    if (revision === previewRevision && now >= polledAt && now - polledAt < 50) return;
+    previewRevision = revision;
     polledAt = now;
     const port = portFor(track);
     requestedPads = Array.from(padMapFor(track));

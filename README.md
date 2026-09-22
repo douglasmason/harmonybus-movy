@@ -1,3 +1,5 @@
+> Capture fix (pending release): retrospective Capture preserves the already-rendered identity of conductor chord/arp voices, matching normal Record. Captured voices replay directly instead of generating new chords/arps from every saved voice. Applies while stopped or playing, through tempo reselection and save/reload. Follower inputs retain their source-key behavior. Existing captures saved by older versions cannot be reliably identified and are not rewritten.
+
 > hbclean.68 / HB 0.2.159: hold a track button and turn Volume to adjust both local audio gain and HB Render To velocity. Recorded notes stay unchanged; Undo/Redo restores both values. Velocity changes affect subsequent note attacks, including arp/echo hits. No new panel.
 
 **Update-safe storage:** hbclean.68 writes sets, saved chains, version history and preferences under `/data/UserData/movy/`, outside the replaceable module folder. Future custom GitHub/archive installations can replace Movy's code without deleting this data. Existing module-local data is left alone if present but is not imported into the new location; this change protects new saves rather than recovering old ones.
@@ -198,3 +200,5 @@ On a HarmonyBus follower in MIDI FX 1, the keyboard scale and follower input sca
 Standard pad display shows input roots in track color, other chord-role inputs in grey mixed with track color, other scale inputs in grey, and chromatic inputs dark. Piano keeps playable chromatic keys dim grey and gaps black. Held inputs show white; latched arp highlights still identify exact raw input notes. Fourths, Piano, and Inline all use their existing pad-to-note maps. Explicit harmony animation modes remain available.
 
 This synchronization applies to Movy's keyboard. Stock Move's native Key menu still needs a supported host read/write bridge; this build does not claim to synchronize that native menu.
+
+Movy hbclean.74 combines the retrospective Capture fix with live pad previews during modifier holds. Touch and release invalidate the preview for the next LED tick, while held previews retain the bounded 50 ms cadence. Parameter polling and saves remain deferred during performance gestures.

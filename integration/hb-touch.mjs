@@ -574,3 +574,37 @@ try {
     assert.equal(page.ctl.state.triggerFiredAt.approach_chrom_next.at(-1),burst,'Momentary release does not flash a trigger');
 } finally {Date.now=releaseClock;}
 console.log('Release priority: both MIDI forms, read-free dispatch, immediate touch clear, short-tap native animation and hold boundary pass');
+
+// Pad reads are bounded during a hold, but gesture edges bypass the interval
+// and the release quiet period. Other controller polling stays deferred.
+const { refreshHarmonyPads, harmonyPadColor } = await import('../dist/esm/seq/pads.js');
+const { portFor: previewPortFor } = await import('../dist/esm/track/registry.js');
+const previewPort = previewPortFor(4), oldPreviewGet = previewPort.getParam;
+const previewClock = Date.now; let previewNow = 900000, previewReads = 0, previewMask = 1;
+Date.now = () => previewNow;
+previewPort.getParam = () => { previewReads++; return `${previewMask},${previewMask},2741,0,0,2,0,3,0,0|colors2,0|input1,0,1,1,2741,${previewMask}`; };
+try {
+    refreshHarmonyPads(4,previewNow);
+    const baseline = harmonyPadColor(60,4);
+    for(const duration of [50,400]) {
+        const slot=focusKey('approach_chrom_next');
+        previewNow++;page.knobTouch(slot,true);previewMask=16;
+        const before=previewReads;
+        refreshHarmonyPads(4,previewNow);
+        assert.equal(previewReads,before+1,'Touch updates preview on next tick, inside 50 ms interval');
+        assert.notEqual(harmonyPadColor(60,4),baseline,'Held modifier changes the pad preview');
+        refreshHarmonyPads(4,previewNow+1);assert.equal(previewReads,before+1,'No unbounded polling while held');
+        previewNow+=duration;refreshHarmonyPads(4,previewNow);
+        assert.equal(previewReads,before+2,'Preview continues refreshing during sustained touch');
+        previewNow++;page.knobTouch(slot,false);previewMask=1;
+        assert(performanceTouchActive(),'Background work remains in release quiet period');
+        refreshHarmonyPads(4,previewNow);
+        assert.equal(previewReads,before+3,'Release immediately invalidates preview despite quiet period');
+        assert.equal(harmonyPadColor(60,4),baseline,'Release restores the preview');
+    }
+    const slot=focusKey('approach_chrom_next');page.knobTouch(slot,true);
+    refreshHarmonyPads(4,++previewNow);const beforeCancel=previewReads;
+    releasePerformanceTouch(slot,true);refreshHarmonyPads(4,++previewNow);
+    assert.equal(previewReads,beforeCancel+1,'Cancelled gestures also invalidate preview');
+} finally { previewPort.getParam=oldPreviewGet;Date.now=previewClock; }
+console.log('Modifier previews: immediate tap/hold/release/cancel feedback, bounded held polling and deferred background reads pass');

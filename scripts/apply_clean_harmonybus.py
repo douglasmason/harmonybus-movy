@@ -8,7 +8,7 @@ The integration covers:
 4. Upstream transport LINK defaults on for new/legacy Sets; saved explicit values still win.
 5. Runtime clip metadata gives HarmonyBus actual conductor cycle lengths and phases.
 
-Recording, Capture, pad routing and saved chain persistence remain stock upstream.
+Pad routing and saved chain persistence retain upstream behavior. Capture preserves HarmonyBus rendered-note identity, matching Record.
 An explicit clip edit adds Quantize + Fill Gaps using shared playback timing.
 """
 from __future__ import annotations
@@ -497,6 +497,8 @@ def main() -> int:
     patch_controls(root)
     from patch_step_move import patch_step_move
     patch_step_move(root)
+    from patch_capture import patch_capture
+    patch_capture(root)
     print("HarmonyBus clean integration applied")
     return 0
 

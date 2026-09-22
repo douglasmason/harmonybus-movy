@@ -9,11 +9,15 @@ def patch_performance_touch(root: Path) -> None:
     path.write_text('''/* Physical knob slots own their release, even across a page/track change. */
 const releases = new Map<number, () => void>();
 let quietUntil = 0;
+let previewRevision = 0;
+export function performancePreviewRevision(): number { return previewRevision; }
 export function ownPerformanceTouch(slot: number, release: () => void): void {
     releases.set(slot, release);
+    previewRevision++;
 }
 export function finishPerformanceTouch(slot: number): void {
     releases.delete(slot);
+    previewRevision++;
     quietUntil = Date.now() + 100;
 }
 export function releasePerformanceTouch(slot: number): void {
