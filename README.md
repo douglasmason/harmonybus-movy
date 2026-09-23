@@ -1,3 +1,5 @@
+> hbclean.80: start HarmonyBus pad polling before the initial melodic-pad paint and retain the last complete harmony snapshot across transient host reads. Full Lookahead colors no longer have any accidental dependency on visiting Pads Global. Tested with HarmonyBus 0.2.174.
+
 > hbclean.79: retain recorded Chord Form operation outcomes (operation 19) and validate them through the production bridge. Tested with HarmonyBus 0.2.173. Raw Auto Chord recording, Tempo, track selection lights and Pause note releases from .78 remain in place.
 
 > hbclean.78: normal Record and retrospective Capture preserve raw Auto Chord inputs for both roles. Previously baked recordings remain literal. Selected track button is steady white; a muted selection alternates white/dim track color. Clip metadata includes slot identity and rendering-relevant note/operation content for HB 0.2.171 retained predictions. HB Humanize / Tools Tempo drives the existing shared transport control, including a final retry for older whole-second host timestamp polling. No stored sets are rewritten.

@@ -98,7 +98,11 @@ export function refreshHarmonyPads(track: number, now = Date.now()): void {
     requestedPads = Array.from(padMapFor(track));
     const request = requestedPads.map(note => (note < 0 ? 255 : note).toString(16).padStart(2, '0')).join('');
     const raw = port.getParam('midi_fx1:pad_view@' + request) || port.getParam('midi_fx1:pad_view');
-    snapshot = parseHarmonySnapshot(raw || port.getParam('midi_fx1:pad_render'));
+    const next = parseHarmonySnapshot(raw || port.getParam('midi_fx1:pad_render'));
+    // The shared host parameter slot can miss a read while chains restore or
+    // another page is polling. A failed read is not an empty harmony model:
+    // retain the last complete frame and retry on the normal bounded cadence.
+    if (next) snapshot = next;
     settings = snapshot?.settings || [0,0,0,4,2];
     const input = snapshot?.input;
     const scale = snapshot?.globalScale || input;

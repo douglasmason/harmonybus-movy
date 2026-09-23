@@ -25,7 +25,11 @@ def patch_harmony_pads(root: Path) -> None:
     path = root / 'src/app/tick.ts'
 
     source = "import { refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + path.read_text()
-    source = replace_once(source, '        const map       = padMapFor(track);', '        refreshHarmonyPads(track);\n        const map       = padMapFor(track);')
+    source = replace_once(source, '    /* Chromatic instrument-pad init batch.', '''    // Warm HarmonyBus before the initial paint. Pad colors must never depend
+    // on opening its parameter panel or on a later unrelated repaint.
+    if (!seqState.sessionMode && !isDrum) refreshHarmonyPads(appState.activeTrack.index);
+
+    /* Chromatic instrument-pad init batch.''')
     path.write_text(source)
     (root / 'browser-test/hb-pad-colors.mjs').write_text((assets / 'hb-pad-colors.mjs').read_text())
 

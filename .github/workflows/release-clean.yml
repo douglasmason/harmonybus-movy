@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: c8005966dd4c9f036b827d1d4e10b77c676b28df
-  HB_MOVY_VERSION: 0.34.1-hbclean.79
-  HB_MOVY_TAG: v0.34.1-hbclean.79
+  HB_REF: b04e49d024906c6905bf97294aa097decd51008e
+  HB_MOVY_VERSION: 0.34.1-hbclean.80
+  HB_MOVY_TAG: v0.34.1-hbclean.80
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -343,7 +343,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Support HarmonyBus 0.2.173 Chord Form operation recording, shell/rootless forms and independent learned clip prediction. Preserve raw Auto Chord inputs, selected-track lights, shared Tempo and Pause note-release fixes."
+              --notes "Initialize HarmonyBus pad snapshots before the first melodic-pad paint and retain the last complete snapshot across transient host read misses. Full Lookahead colors no longer depend on visiting Pads Global. Pair with HarmonyBus 0.2.174."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

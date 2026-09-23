@@ -62,6 +62,17 @@ assert.equal(parseHarmonySnapshot('145,580,2741,1'),null,'Reject old pitch-mask 
 portFor(0).getParam = () => '0,0,0,0,0,0,3,0,4,2|arp1,1,60';
 refreshHarmonyPads(0,testTime+=100);
 const {harmonyPadColor}=await import('../dist/esm/seq/pads.js');
+// A busy/restoring host slot must not erase a complete lookahead frame. The
+// next tick retries without requiring the user to visit Pads Global.
+portFor(4).getParam = () => '16,16,2741,0,0,5,0,0,0,5|full1,1,128';
+refreshHarmonyPads(4,testTime+=100);
+const retainedLookahead = harmonyPadColor(67,4);
+portFor(4).getParam = () => null;
+refreshHarmonyPads(4,testTime+=100);
+assert.equal(harmonyPadColor(67,4),retainedLookahead,'Transient read miss retains full-lookahead colors');
+portFor(4).getParam=originalGet;
+refreshHarmonyPads(0,testTime+=100);
+console.log('Harmony pad startup: valid snapshot survives transient host reads without panel navigation');
 assert.equal(harmonyPadColor(60,0),11);
 assert.notEqual(harmonyPadColor(72,0),11);
 assert.notEqual(harmonyPadColor(64,0),11);
