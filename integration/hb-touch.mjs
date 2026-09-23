@@ -17,6 +17,7 @@ const port = {
         const bare = key.split(':').at(-1);
         if (bare === 'ui_hierarchy') return JSON.stringify(module.capabilities.ui_hierarchy);
         if (bare === 'chain_params') return JSON.stringify(module.capabilities.chain_params.map(parameter => {
+            if (parameter.key === 'motion_amount' && values.get('motion_operation') === 'Chord Form') return {...parameter,name:'Form',type:'enum',options:module.capabilities.chain_params.find(p=>p.key==='chord_form').options,options_as_string:true};
             if (parameter.key === 'motion_offset' && values.get('motion_operation') === 'MIDI Echo') return {...parameter,name:'Decay %',min:0};
             if (['motion_from','motion_through'].includes(parameter.key)) return {...parameter,options:Array.from({length:Number(values.get('motion_every'))},(_,index)=>String(index+1))};
             return parameter;
@@ -26,6 +27,7 @@ const port = {
     },
     setParam(key, value) {
         writes.push([key, value]);const bare=key.split(':').at(-1);values.set(bare, value);
+        if (bare === 'motion_operation' && value === 'Chord Form') values.set('motion_amount','Seventh');
         if (bare === 'motion_every') {
             values.set('motion_from',String(Math.min(Number(values.get('motion_from')),Number(value))));
             values.set('motion_through',String(Math.min(Number(values.get('motion_through')),Number(value))));
@@ -218,6 +220,13 @@ for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_
 }
 const operationSlot = focusKey('motion_operation');
 page.knobTurn(operationSlot, 100);page.knobTouch(operationSlot, false);
+assert.equal(values.get('motion_operation'), 'Chord Form');
+const formSlot=page.ctl.page.keys.indexOf('motion_amount');
+assert.equal(page.ctl.metaAt(formSlot).name,'Form');
+assert.equal(page.ctl.metaAt(formSlot).type,'enum');
+page.knobTurn(formSlot,100);page.knobTouch(formSlot,false);
+assert.equal(values.get('motion_amount'),'Rootless 9');
+page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
 assert.equal(values.get('motion_operation'), 'MIDI Echo');
 assert.equal(page.ctl.metaAt(page.ctl.page.keys.indexOf('motion_offset')).name, 'Decay %');
 page.knobTurn(operationSlot, -1);page.knobTouch(operationSlot, false);
