@@ -68,19 +68,19 @@ static void test_capture(void){
         char *voice=clip+consumed;
         while(*voice){
             int tick,gate,pitch,velocity,step,rendered=0;
-            assert(sscanf(voice,"%d:%d:%d:%d:%d:%d",&tick,&gate,&pitch,&velocity,&step,&rendered)==6);
-            assert(rendered==1);count++;
+            assert(sscanf(voice,"%d:%d:%d:%d:%d:%d",&tick,&gate,&pitch,&velocity,&step,&rendered)==5);
+            assert(rendered==0&&pitch==60);count++;
             voice=strchr(voice,';');if(!voice)break;voice++;
         }
-        assert(count==played);
+        assert(count==1);
         set("cmd","stop");render(64);
-        /* An edited chord/arp must not reinterpret the captured voices. */
+        /* Capture retains the input, so a changed form regenerates on replay. */
         set("ch0:midi_fx1:chord_form","Ninth");
-        set("ch0:midi_fx1:arp_playback","Repeat Arp");render(16);
+        set("ch0:midi_fx1:arp_playback","Together");render(16);
         sent_on=sent_off=rejected=0;rendered_mask=0;
         set("cmd","play");render(344);set("cmd","stop");render(64);
-        assert(sent_on==played&&sent_off==played&&rendered_mask==played_mask&&rejected==0);
-        printf("capture running=%d arp=%d voices=%d: replay preserves pitches and paired note-on/off counts\n",running,arp,played);
+        assert(sent_on==5&&sent_off==5&&rendered_mask==((1u<<2)|(1u<<6)|(1u<<9)|(1u<<1)|(1u<<4))&&rejected==0);
+        printf("capture running=%d arp=%d: one input regenerates five ninth voices with paired releases\n",running,arp);
     }
 }
 int main(int argc,char **argv){
@@ -140,23 +140,28 @@ int main(int argc,char **argv){
     int count=0;unsigned pitches=0;char *voice=clip+consumed;
     while(*voice){
         int tick,gate,pitch,velocity,step,rendered=0;
-        assert(sscanf(voice,"%d:%d:%d:%d:%d:%d",&tick,&gate,&pitch,&velocity,&step,&rendered)==6);
-        assert(rendered==1);pitches|=1u<<(pitch%12);count++;
+        assert(sscanf(voice,"%d:%d:%d:%d:%d:%d",&tick,&gate,&pitch,&velocity,&step,&rendered)==5);
+        assert(rendered==0);pitches|=1u<<(pitch%12);count++;
         voice=strchr(voice,';');if(!voice)break;voice++;
     }
-    assert(count==3&&pitches==((1u<<0)|(1u<<4)|(1u<<7)));
-    // A changed chord form must not regenerate the three saved voices on replay.
+    assert(count==1&&pitches==(1u<<0));
+    // A changed chord form regenerates the single saved input on replay.
     set("ch0:midi_fx1:chord_form","Ninth");
     set("ch0:midi_fx1:master_transpose","F");render(32);
     sent_on=sent_off=rejected=0;rendered_mask=0;
     set("cmd","play");long replay=render(345);set("cmd","stop");render(32);
     printf("replay local_pcm=%ld routed_on=%d routed_off=%d rejected=%d\n",replay,sent_on,sent_off,rejected);
-    assert(replay>0&&sent_on==3&&sent_off==3&&rejected==0);
-    assert(rendered_mask==((1u<<5)|(1u<<9)|(1u<<0)));
-    // Changing master again moves the same recorded triad, without regeneration.
+    assert(replay>0&&sent_on==5&&sent_off==5&&rejected==0);
+    assert(rendered_mask==((1u<<5)|(1u<<9)|(1u<<0)|(1u<<4)|(1u<<7)));
+    // Master transpose applies once to the regenerated ninth.
     set("ch0:midi_fx1:master_transpose","D");render(16);rendered_mask=0;
     set("cmd","play");render(345);set("cmd","stop");render(32);
-    assert(rendered_mask==((1u<<2)|(1u<<6)|(1u<<9)));
+    assert(rendered_mask==((1u<<2)|(1u<<6)|(1u<<9)|(1u<<1)|(1u<<4)));
+    /* Previously recorded output remains literal, even with Ninth selected. */
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 16 0 0:24:60:100:0:1;0:24:64:100:0:1;0:24:67:100:0:1\n");
+    sent_on=sent_off=0;rendered_mask=0;
+    set("cmd","play");render(345);set("cmd","stop");render(32);
+    assert(sent_on==3&&sent_off==3&&rendered_mask==((1u<<2)|(1u<<6)|(1u<<9)));
     // Real hosted HB subscribers: audible only from the receiver chain,
     // while the original cable-2 host callback still receives all notes.
     for(int t=0;t<16;t++){snprintf(parameter,sizeof(parameter),"ch%d:mix",t);set(parameter,"1,0,1,0,0");}
