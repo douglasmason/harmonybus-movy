@@ -1,3 +1,5 @@
+> hbclean.79: retain recorded Chord Form operation outcomes (operation 19) and validate them through the production bridge. Tested with HarmonyBus 0.2.173. Raw Auto Chord recording, Tempo, track selection lights and Pause note releases from .78 remain in place.
+
 > hbclean.78: normal Record and retrospective Capture preserve raw Auto Chord inputs for both roles. Previously baked recordings remain literal. Selected track button is steady white; a muted selection alternates white/dim track color. Clip metadata includes slot identity and rendering-relevant note/operation content for HB 0.2.171 retained predictions. HB Humanize / Tools Tempo drives the existing shared transport control, including a final retry for older whole-second host timestamp polling. No stored sets are rewritten.
 
 ## hbclean.77: global recorded-input humanize

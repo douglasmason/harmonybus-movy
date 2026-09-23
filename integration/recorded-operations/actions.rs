@@ -10,7 +10,7 @@ pub fn parse(message:&str)->Option<(u8,Actions)>{
     if fields.next().is_some() || actions[16]>2{return None;}
     for word in &actions[..16] {
         if word>>63==0 && *word>u32::MAX as u64 {return None;}
-        if word>>63!=0 && (((word>>32)&31)>18 || ((word>>37)&15)>8){return None;}
+        if word>>63!=0 && (((word>>32)&31)>19 || ((word>>37)&15)>8){return None;}
     }
     Some((pitch,actions))
 }
@@ -24,6 +24,10 @@ pub fn payload(pitch:u8,actions:Actions)->String{
     #[test] fn preserves_64_bit_words_and_rejects_partial(){
         let actions=[1u64<<63;17];let mut valid=actions;valid[16]=2;
         assert_eq!(parse(&format!("ra1,{}",payload(60,valid))),Some((60,valid)));
+        valid[0]=(1u64<<63)|(19u64<<32)|12000;
+        assert_eq!(parse(&format!("ra1,{}",payload(60,valid))),Some((60,valid)));
+        valid[0]=(1u64<<63)|(20u64<<32)|12000;
+        assert_eq!(parse(&format!("ra1,{}",payload(60,valid))),None);
         assert_eq!(parse("ra1,60,1,2"),None);
         assert_eq!(parse(&format!("ra1,{},3",payload(60,valid))),None);
     }
