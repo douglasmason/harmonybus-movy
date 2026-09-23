@@ -7,6 +7,7 @@ use std::fmt::{self, Write};
 pub struct Snapshot {
     pub tick: u64,
     pub track: u8,
+    pub slot: u8,
     pub period: u64,
     pub origin: u64,
     pub revision: u64,
@@ -28,6 +29,7 @@ pub fn snapshot(engine: &Engine, track_index: usize) -> Snapshot {
         running: engine.playing, ..Snapshot::default() };
     let track = &engine.tracks[track_index];
     let Some(clip) = track.playing() else { return result; };
+    result.slot = track.playing_slot.unwrap() as u8;
     if track.muted || !clip.exists() { return result; }
     let start = clip.loop_start_ticks();
     let end = clip.loop_end_ticks();
@@ -46,8 +48,22 @@ pub fn snapshot(engine: &Engine, track_index: usize) -> Snapshot {
                   clip.transpose as i64 as u64, clip.quant as u64] { hash(&mut revision, value); }
     for note in &clip.notes {
         if note.tick >= start && note.tick < end {
-            for value in [note.tick as u64, note.gate as u64, note.pitch as u64, note.vel as u64, note.step as u64] { hash(&mut revision,value); }
+            for value in [note.tick as u64, note.gate as u64, note.pitch as u64, note.vel as u64, note.step as u64, note.rendered as u64] { hash(&mut revision,value); }
+            if let Some(key) = note.input_key {
+                for value in [1, key.root as u64, key.scale as u64, key.transpose as i64 as u64] { hash(&mut revision,value); }
+            } else { hash(&mut revision,0); }
+            if let Some(actions) = note.actions { for value in actions { hash(&mut revision,value); } }
         }
+    }
+    if let Some(key) = clip.input_key {
+        for value in [key.root as u64, key.scale as u64, key.transpose as i64 as u64] { hash(&mut revision,value); }
+    }
+    for lock in &clip.locks {
+        for value in [lock.lane as u64, lock.step as u64, lock.val as u64] { hash(&mut revision,value); }
+    }
+    for interval in &clip.operation_intervals {
+        for value in [interval.start as u64, interval.length as u64, interval.origin as u64,
+            interval.age, interval.lane as u64, interval.operation as u64, interval.amount as i64 as u64, interval.grid as u64] { hash(&mut revision,value); }
     }
     // Probability and multi-pass conditions need a longer/non-deterministic model.
     // Do not claim their nominal clip loop is an exact repeating harmony cycle.
@@ -68,7 +84,7 @@ impl Write for Message {
 impl Snapshot {
     pub fn message(self) -> Message {
         let mut message = Message { bytes: [0;192], len:0 };
-        write!(&mut message,"{},{},{},{},{},{},{},{}",self.tick,self.period,self.origin,self.revision,self.active,self.running as u8,PPQN,self.track).unwrap();
+        write!(&mut message,"{},{},{},{},{},{},{},{},{}",self.tick,self.period,self.origin,self.revision,self.active,self.running as u8,PPQN,self.track,self.slot).unwrap();
         message
     }
 }
@@ -183,6 +199,6 @@ mod tests {
         assert_eq!(snapshot(&engine,0).period,576);
         engine.tracks[0].muted=true;
         assert_eq!(snapshot(&engine,0).active,0);
-        assert!(first.message().as_c_str().to_bytes().ends_with(b",96,0"));
+        assert!(first.message().as_c_str().to_bytes().ends_with(b",96,0,0"));
     }
 }

@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: bd115ef2b69f75c31222603c4841695cef07fd42
-  HB_MOVY_VERSION: 0.34.1-hbclean.77
-  HB_MOVY_TAG: v0.34.1-hbclean.77
+  HB_REF: 13cbd0742399e2148edeff62b3ce828706736f66
+  HB_MOVY_VERSION: 0.34.1-hbclean.78
+  HB_MOVY_TAG: v0.34.1-hbclean.78
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -69,6 +69,9 @@ jobs:
               ['git', '-C', str(root), 'ls-files', '--others', '--exclude-standard'], text=True
           ).splitlines()
           expected = {
+              'src/chain/set-param.ts',
+              'src/undo/apply.ts',
+              'src/seq/tempo-override.ts',
               'browser-test/hb-data-survival.mjs',
               'scripts/lib/test-set.sh',
               'scripts/test-chains.sh',
