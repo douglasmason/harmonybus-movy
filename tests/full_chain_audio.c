@@ -199,6 +199,25 @@ int main(int argc,char **argv){
     assert(strstr(status,"play=1 ")&&strstr(status,"cin=1 "));
     printf("record start: one native Play press/release, count-in waits for native Start\n");
     set("cmd","stop");render(64);
+    /* Pause during live gestures, before the physical release reaches HB. */
+    for(int kind=0;kind<4;kind++){
+        set("state","movy1\nbpm 12000\nlink 0\n");
+        set("ch0:mix","1,0,0,0,0");
+        set("ch0:midi_fx1:render_channel","4");
+        set("ch0:midi_fx1:chord_mode",kind?"Scale Root":"Off");
+        set("ch0:midi_fx1:arp_playback",kind==2?"Repeat Arp":kind==3?"Strum":"Together");
+        set("ch0:midi_fx1:arp_phase","Free");
+        set("ch0:midi_fx1:strum_spread","400");
+        set("cmd","play");render(16);
+        sent_on=sent_off=0;
+        api->on_midi(instance,down,3,0);
+        assert(render(16)>0&&sent_on>0);
+        set("cmd","stop");render(64);
+        assert(render(64)==0&&sent_off>=sent_on);
+        api->on_midi(instance,up,3,0);render(16);
+        assert(render(16)==0);
+        printf("pause kind=%d: local audio silent, routed voices released before physical pad release\n",kind);
+    }
     test_capture();
     api->destroy_instance(instance);return 0;
 }
