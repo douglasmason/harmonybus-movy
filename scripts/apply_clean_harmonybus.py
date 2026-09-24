@@ -510,6 +510,8 @@ def main() -> int:
     from patch_track_navigation import patch_track_navigation
     patch_track_navigation(root)
     (root / 'browser-test/hb-track-navigation.mjs').write_text((integration_root / 'hb-track-navigation.mjs').read_text())
+    from patch_track_pulse import patch_track_pulse
+    patch_track_pulse(root)
     print("HarmonyBus clean integration applied")
     return 0
 

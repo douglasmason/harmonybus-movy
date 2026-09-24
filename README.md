@@ -1,5 +1,7 @@
 > Selected track buttons stay steadily white even when muted; other tracks retain mute dimming. New pad defaults: Input Tonic = Grey, Play Color = Track.
 
+> hbclean.85: selected track buttons use the hardware smooth slow pulse between track color and white, retaining the muted dim color.
+
 > hbclean.84: the selected track button pulses white over its track color; muted tracks retain a dim color phase.
 
 > hbclean.83: switching tracks while a hosted module panel is open follows the same module and panel on the new track. Missing modules retain the destination track view. HarmonyBus remains 0.2.176.
