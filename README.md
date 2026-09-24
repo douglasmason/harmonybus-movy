@@ -1,3 +1,5 @@
+> hbclean.81: pair with HarmonyBus 0.2.175. A conductor timeline now completes only after the wrap boundary's MIDI has been processed, so restart learning locks after the first complete traversal instead of potentially invalidating an incomplete pass and waiting another cycle. Independent startup pad polling from .80 remains in place.
+
 > hbclean.80: start HarmonyBus pad polling before the initial melodic-pad paint and retain the last complete harmony snapshot across transient host reads. Full Lookahead colors no longer have any accidental dependency on visiting Pads Global. Tested with HarmonyBus 0.2.174.
 
 > hbclean.79: retain recorded Chord Form operation outcomes (operation 19) and validate them through the production bridge. Tested with HarmonyBus 0.2.173. Raw Auto Chord recording, Tempo, track selection lights and Pause note releases from .78 remain in place.
