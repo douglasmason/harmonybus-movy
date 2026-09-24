@@ -308,3 +308,25 @@ for(let mode=0;mode<6;mode++){
     assert.deepEqual(scaleWrites.pop(),['midi_fx1:follower_scale',scaleLabels[mode]]);
 }
 console.log('All melodic-minor modes: snapshot, stable keyboard IDs, selector and scale writes pass');
+
+// Shared current/effective color and configurable exact-input play overlay.
+const playPalette = [127,3,7,11,13,125,22,25,trackColor(0),C_LIGHTGREY,C_WHITE,null];
+keyboardState.mode=0; keyboardState.layout=0; keyboardState.rootPc=0;
+for (let choice=0;choice<12;choice++) {
+    const view = `145,145,2741,0,0,2,0,3,5,2|colors2,0|playcolor1,${choice}|input1,0,1,1,2741,145`;
+    portFor(0).getParam=()=>view;refreshHarmonyPads(0,testTime+=100);
+    assert.equal(harmonyPadColor(64,0),125,'Effective uses Current Color on new hosts');
+    const normal=padColor(68,68,0,false);
+    assert.equal(padColor(68,68,0,true),playPalette[choice]??normal,'Playback color or Off background');
+    globalThis.setLED=(pad,color)=>{immediateColor=color;};
+    noteOn(68,68,0,100);
+    assert.equal(immediateColor,playPalette[choice]??normal,'Immediate live press matches playback');
+    noteOff(68,68);
+    assert.equal(immediateColor,normal,'Release restores background');
+    portFor(0).getParam=()=>view+'|arp1,1,64';refreshHarmonyPads(0,testTime+=100);
+    assert.equal(harmonyPadColor(64,0),playPalette[choice]??125,'Retained raw input uses same play setting');
+}
+globalThis.setLED=previousLED;
+for (const invalid of ['12','-1','foo','1,2'])
+    assert.equal(parseHarmonySnapshot('145,145,2741,0,0,2,0,3,5,2|playcolor1,'+invalid),null);
+console.log('Play color: all choices, Off, live press/release, recorded and retained input pass');

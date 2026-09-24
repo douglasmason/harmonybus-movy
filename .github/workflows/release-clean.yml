@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: eb27b2a54c6d68385127d21060cf58667fe254e3
-  HB_MOVY_VERSION: 0.34.1-hbclean.81
-  HB_MOVY_TAG: v0.34.1-hbclean.81
+  HB_REF: 22b5f13d53af745ac644b4bfe590853ec316d629
+  HB_MOVY_VERSION: 0.34.1-hbclean.82
+  HB_MOVY_TAG: v0.34.1-hbclean.82
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -343,7 +343,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Pair with HarmonyBus 0.2.175: conductor timelines now finalize after wrap-boundary MIDI, preventing an incomplete restart model from consuming a second learning pass. Retains the independent startup pad polling from hbclean.80."
+              --notes "Pair with HarmonyBus 0.2.176: configurable live and recorded Play Color, including Off; Effective shares Current Color and replaces Standard as the default."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

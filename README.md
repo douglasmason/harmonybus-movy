@@ -1,3 +1,7 @@
+> Selected track buttons stay steadily white even when muted; other tracks retain mute dimming. New pad defaults: Input Tonic = Grey, Play Color = Track.
+
+> hbclean.82: pair with HarmonyBus 0.2.176 for the global Play Color knob. Live presses, recorded playback and retained inputs share the selected color; Off exposes their harmony/background. Effective shares Current Color, freeing the existing knob slot. Standard is removed from the HB selector. Update both modules.
+
 > hbclean.81: pair with HarmonyBus 0.2.175. A conductor timeline now completes only after the wrap boundary's MIDI has been processed, so restart learning locks after the first complete traversal instead of potentially invalidating an incomplete pass and waiting another cycle. Independent startup pad polling from .80 remains in place.
 
 > hbclean.80: start HarmonyBus pad polling before the initial melodic-pad paint and retain the last complete harmony snapshot across transient host reads. Full Lookahead colors no longer have any accidental dependency on visiting Pads Global. Tested with HarmonyBus 0.2.174.
@@ -194,7 +198,7 @@ For example, with C as the follower reference, Relative travel and Scale content
 
 The input-key root always has track color as its background. Other pads whose rendered voices all belong to the effective scale have dim-white backgrounds; chromatic results are dark. Current defaults to cyan and Lookahead/Effective to yellow. Overlay pulses leave the background visible between peaks. Last-played, held and immediate pad-down feedback cannot override this scheme.
 
-Pad Pulse Rate: Off, 1/16, 1/8, 1/4 (default), 1/2, 1 Bar, 2 Bars, 4 Bars. Shape: Smooth (default), Triangle, Square. Both colors have eight choices. Off makes overlays steady, blending shared tones. Move's fixed palette approximates blends in discrete steps. All instances save the same shared display settings; a stale track restore cannot overwrite a live change.
+Pad Pulse Rate: Off, 1/16, 1/8, 1/4 (default), 1/2, 1 Bar, 2 Bars, 4 Bars. Shape: Smooth, Triangle, Square, None (default, flat-line graphic). Both colors have eight choices. Off makes overlays steady, blending shared tones. Move's fixed palette approximates blends in discrete steps. All instances save the same shared display settings; a stale track restore cannot overwrite a live change.
 
 Polling is read-only, at most once per 50 ms, and paused during performance-touch gestures. Pulses follow the master transport when running, or tempo when stopped. Standard returns only the lightweight shared settings, without calculating note previews. Drum and session pads retain their normal display. The five controls are Pad Colors, Pulse Rate, Pulse Shape, Current Color and Lookahead Color. Only the rendering classification varies by track. Stock Schwung can show this panel, but its native pad LEDs require host support; Movy hbclean.43 supplies that integration.
 

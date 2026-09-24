@@ -41,7 +41,10 @@ int main(int argument_count, char **arguments) {
         /* Loading a legacy seed adds the explicit global humanize defaults.
            All existing musical settings still round-trip byte for byte. */
         char expected_state[512],round_trip[512],amount[16];
-        snprintf(expected_state,sizeof(expected_state),"%s;hu1,0,0,0;ss1,0,0",arguments[preset]);
+        char seed[512];snprintf(seed,sizeof(seed),"%s",arguments[preset]);
+        char *pad_marker=strstr(seed,";pp1,8");assert(pad_marker);*pad_marker=0;
+        snprintf(expected_state,sizeof(expected_state),"%s;pc2,4;pp1,8;hu1,0,0,0;ss1,0,0",seed);
+        assert(g_pad_settings[0]==2&&g_pad_tonic_color==9&&g_pad_play_color==8);
         assert(strcmp(serialized_state, expected_state) == 0);
         const char *keys[]={"humanize_timing","humanize_velocity","humanize_gate"};
         for(int key=0;key<3;key++){

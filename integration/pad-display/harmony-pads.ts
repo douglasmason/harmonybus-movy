@@ -11,7 +11,7 @@ import { seqState } from '../seq/state.js';
 import { visualEngineTick } from '../seq/engine.js';
 import { PAD_PALETTE } from './pad-palette.js';
 
-export type HarmonySnapshot = { current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
+export type HarmonySnapshot = { current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; playColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
 let snapshot: HarmonySnapshot | null = null;
 let requestedPads: number[] = [];
 let previewRevision = -1;
@@ -28,6 +28,9 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
     const colorSection = sections.find(section => section.startsWith('colors2,'));
     const effectiveColor = colorSection ? Number(colorSection.split(',')[1]) : 8;
     if (!Number.isInteger(effectiveColor) || effectiveColor < 0 || effectiveColor > 8) return null;
+    const playSection = sections.find(section => section.startsWith('playcolor1,'));
+    const playColor = playSection ? Number(playSection.split(',')[1]) : undefined;
+    if (playSection && (playSection.split(',').length !== 2 || !Number.isInteger(playColor) || playColor! < 0 || playColor! > 11)) return null;
     const tonicSection = sections.find(section => section.startsWith('tonic1,'));
     const tonic = tonicSection ? Number(tonicSection.split(',')[1]) : undefined;
     if (tonicSection && (tonicSection.split(',').length !== 2 || !Number.isInteger(tonic) || tonic! < 0 || tonic! > 4095)) return null;
@@ -81,7 +84,7 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
             !Number.isInteger(resolved) || resolved < 1 || resolved > 15) return null;
         globalScale = {selected, resolved};
     }
-    return { ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
+    return { ...(playColor !== undefined ? {playColor} : {}), ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
 }
 
 /** Poll one compact snapshot, never once per pad or once per display frame. */
@@ -186,7 +189,17 @@ export function colorHarmonyPitch(pitch: number, inputRoot: number, track: numbe
     return harmonyMix(background, currentColor, effectiveColor, first, second);
 }
 
-/** Null leaves Standard's existing pressed/last-played/step-edit behavior intact. */
+/** Null disables the play overlay and exposes the normal harmony background. */
+export function harmonyPlayColor(track: number): number | null {
+    const choice = watchedTrack === track ? snapshot?.playColor : undefined;
+    if (choice === undefined || choice === 3) return C_GREEN;
+    if (choice === 11) return null;
+    if (choice === 10) return C_WHITE;
+    if (choice === 9) return C_LIGHTGREY;
+    return choice === 8 ? trackColor(track) : colors[choice];
+}
+
+/** Null leaves non-HarmonyBus tracks using their existing pad background. */
 export function harmonyPadColor(pitch: number, track: number, held = false): number | null {
     if (pitch < 0) return 0;
     const mode = settings[0];
@@ -195,7 +208,10 @@ export function harmonyPadColor(pitch: number, track: number, held = false): num
     const tonicColor = tonicChoice === 9 ? C_LIGHTGREY : tonicChoice === 8 ? trackColor(track) : colors[tonicChoice];
     // Exact raw input notes own highlights; generated output never lights pads.
     if (view?.arpInputs !== undefined) {
-        if (view.arpInputs.includes(pitch)) return C_GREEN;
+        if (view.arpInputs.includes(pitch)) {
+            const playColor = harmonyPlayColor(track);
+            if (playColor !== null) return playColor;
+        }
         if (!mode && !view.input) return pitch % 12 === keyboardState.rootPc ? tonicColor :
             inScaleFor(pitch, keyboardState.rootPc, keyboardState.scale) ? C_LIGHTGREY : 0;
     }
@@ -210,7 +226,7 @@ export function harmonyPadColor(pitch: number, track: number, held = false): num
     const current = view?.current || 0;
     const effective = mode === 0 || mode === 2 ? (view?.effective || 0) : (mode >= 5 ? (view?.fullLookahead ?? 0) : (view?.ready ? view.lookahead : 0));
     const resolveColor = (choice: number): number => choice === 8 ? trackColor(track) : colors[choice];
-    const selectedColor = mode === 0 || mode === 2 ? (view?.effectiveColor ?? 8) : settings[4];
+    const selectedColor = mode === 0 || mode === 2 ? (view?.playColor !== undefined ? settings[3] : (view?.effectiveColor ?? 8)) : settings[4];
     if ((mode === 0 || mode === 2) && view?.input) {
         const bit = 1 << (pitch % 12), input = view.input;
         const outputScale = view.scale;
