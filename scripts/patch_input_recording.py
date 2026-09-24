@@ -25,10 +25,10 @@ def patch_input_recording(root: Path) -> None:
     source = path.read_text()
     start = source.index("// Track buttons: sounding note")
     end = source.index("/* Four buttons, always", start)
-    source = source[:start] + """// Selection has a stable white marker independent of sounding notes and pads.
-// Selection stays white even when muted; other tracks retain mute dimming.
-export function trackButtonColor(track: number, selected: boolean, muted: boolean, _blink = true): number {
-    if (selected) return C_WHITE;
+    source = source[:start] + """// Selected track alternates white with its own color, independent of notes.
+// Muted tracks retain their dim track-color phase.
+export function trackButtonColor(track: number, selected: boolean, muted: boolean, blink = true): number {
+    if (selected && blink) return C_WHITE;
     return muted ? trackColorDim(track) : trackColor(track);
 }
 
@@ -39,7 +39,8 @@ export function trackButtonColor(track: number, selected: boolean, muted: boolea
         "selected track button")
     path.write_text(source)
     path = root / "browser-test/logic/seq-leds.mjs"
-    source = path.read_text().replace("active = white pulse", "selected = steady white").replace("muted+active still white", "muted selection white phase")
+    source = path.read_text().replace("active = white pulse", "selected white pulse").replace("muted+active still white", "muted selection white phase")
     anchor: str = "    eq('muted selection white phase', trackButtonColor(2, true, true), 120);"
-    source = replace_once(source, anchor, anchor + "\n    eq('muted selection stays white', trackButtonColor(2, true, true, false), 120);", "muted selected cue")
+    source = replace_once(source, anchor, anchor + "\n    eq('muted selection returns to dim track color', trackButtonColor(2, true, true, false), trackColorDim(2));", "muted selected cue")
+    source = replace_once(source, "    eq('selected white pulse', trackButtonColor(1, true, false), 120);", "    eq('selected white pulse', trackButtonColor(1, true, false), 120);\n    eq('selected returns to track color', trackButtonColor(1, true, false, false), trackColor(1));", 'selected track color phase')
     path.write_text(source)
