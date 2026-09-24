@@ -98,6 +98,7 @@ jobs:
               'src/seq/main-page-vm.ts',
               'browser-test/logic/params-pages.mjs',
               'src/keyboard/harmony-pads.ts',
+              'src/keyboard/handler.ts',  # immediate Play Color matches periodic LEDs
               'src/keyboard/pad-palette.ts',
               'browser-test/hb-pad-colors.mjs',
               'browser-test/hb-input-info.mjs',
