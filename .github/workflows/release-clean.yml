@@ -17,8 +17,8 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   HB_REF: 22b5f13d53af745ac644b4bfe590853ec316d629
-  HB_MOVY_VERSION: 0.34.1-hbclean.82
-  HB_MOVY_TAG: v0.34.1-hbclean.82
+  HB_MOVY_VERSION: 0.34.1-hbclean.83
+  HB_MOVY_TAG: v0.34.1-hbclean.83
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -116,6 +116,8 @@ jobs:
               'browser-test/screenshots/baseline/main-quant.png',
 
 
+              'src/track/switch.ts',
+              'browser-test/hb-track-navigation.mjs',
               'src/track/pad-route.ts',
               'engine/crates/movy-dsp/src/pad_route.rs',
               'src/seq/ui-state.ts',
@@ -299,6 +301,7 @@ jobs:
         working-directory: movy
         run: |
           SCHWUNG="$SCHWUNG_ROOT" node build/browser.mjs
+          HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-track-navigation.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-touch.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-analysis.mjs
 

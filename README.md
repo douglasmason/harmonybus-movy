@@ -1,5 +1,7 @@
 > Selected track buttons stay steadily white even when muted; other tracks retain mute dimming. New pad defaults: Input Tonic = Grey, Play Color = Track.
 
+> hbclean.83: switching tracks while a hosted module panel is open follows the same module and panel on the new track. Missing modules retain the destination track view. HarmonyBus remains 0.2.176.
+
 > hbclean.82: pair with HarmonyBus 0.2.176 for the global Play Color knob. Live presses, recorded playback and retained inputs share the selected color; Off exposes their harmony/background. Effective shares Current Color, freeing the existing knob slot. Standard is removed from the HB selector. Update both modules.
 
 > hbclean.81: pair with HarmonyBus 0.2.175. A conductor timeline now completes only after the wrap boundary's MIDI has been processed, so restart learning locks after the first complete traversal instead of potentially invalidating an incomplete pass and waiting another cycle. Independent startup pad polling from .80 remains in place.
