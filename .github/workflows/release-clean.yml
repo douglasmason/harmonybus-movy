@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 03d298968f651c7b25a0f7af91e9c649e9f9b07c
-  HB_MOVY_VERSION: 0.34.1-hbclean.87
-  HB_MOVY_TAG: v0.34.1-hbclean.87
+  HB_REF: 00779cad069d593ea11474691eb1f9c2b51d9486
+  HB_MOVY_VERSION: 0.34.1-hbclean.88
+  HB_MOVY_TAG: v0.34.1-hbclean.88
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -349,7 +349,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Pair with HarmonyBus 0.2.179: piano gaps become approaches below the mapped lower pad in Closest Split Chromatic. Other travel modes retain empty gaps. Includes hbclean.86 knob-release feedback and color defaults; coloring rules are unchanged."
+              --notes "Pair with HarmonyBus 0.2.180: eight assignable Follow Touch knobs, tap/hold lane gestures, touch-ordered enclosure and independent Chromatic travel (On by default). Saved configurations remain compatible."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

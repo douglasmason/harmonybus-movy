@@ -1,5 +1,7 @@
 > Selected track buttons stay steadily white even when muted; other tracks retain mute dimming. New pad defaults: Input Tonic = Grey, Play Color = Track.
 
+> hbclean.88 / HarmonyBus 0.2.180: Follow Touch provides eight assignable operation-lane knobs, defaulting to 1, 2, 3, 4, 13, 14, 15, 16. Turn to choose a lane; tap to trigger or hold for momentary operation. New sets place Scale Above and Chrom Below on lanes 15 and 16. Their tap order selects the three-note enclosure. Chromatic is independently switchable for every Travel mode and defaults to On. Saved assignments and travel sounds remain compatible.
+
 > hbclean.87: with HarmonyBus 0.2.179, the six piano gap positions play chromatic approaches to their lower pads in Closest Split Chromatic travel. Mapping uses effective harmony at render time. Other travel modes retain empty gaps; coloring rules are unchanged. Independent onset ownership supports overlapping approach/resolution notes and recorded playback. Step-hold note editing retains empty gaps. Includes hbclean.86 touch/release improvements and new-set color defaults.
 
 > hbclean.86: pad-control knobs capture both MIDI release formats and paint cached touch/release feedback before optional host reads. Encoder turns and final writes remain active. New Sets use Both Full Lookahead, Yellow current, Red lookahead, Orange both, Green play, Grey input tonic, 1/4 pulse rate and None pulse shape. Pair with HarmonyBus 0.2.178. Piano layout and coloring rules are unchanged.
