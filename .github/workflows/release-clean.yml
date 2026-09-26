@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: cea2f6ee239d76211dc20529b4d8a9ab15dec922
-  HB_MOVY_VERSION: 0.34.1-hbclean.86
-  HB_MOVY_TAG: v0.34.1-hbclean.86
+  HB_REF: 01534ed81a5d676d27f4589f497a0fb4871a11ba
+  HB_MOVY_VERSION: 0.34.1-hbclean.87
+  HB_MOVY_TAG: v0.34.1-hbclean.87
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -288,6 +288,7 @@ jobs:
         working-directory: movy/engine
         run: |
           cargo test -p seq-core --lib
+          cargo test -p movy-dsp piano_gap_tests --lib
           HB_TIMING_TRACE=/tmp/hb-timing.trace cargo test -p movy-dsp hb_loop --lib
 
       - name: Replay real sequencer timing through HarmonyBus
@@ -348,7 +349,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Pair with HarmonyBus 0.2.178: immediate pad-control knob release feedback, cached touch frames before preview polling, and the requested color defaults in new Sets. Piano layout and coloring rules are unchanged."
+              --notes "Pair with HarmonyBus 0.2.179: piano gaps become approaches below the mapped lower pad in Closest Split Chromatic. Other travel modes retain empty gaps. Includes hbclean.86 knob-release feedback and color defaults; coloring rules are unchanged."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

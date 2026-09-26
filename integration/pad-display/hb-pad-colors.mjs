@@ -330,3 +330,20 @@ globalThis.setLED=previousLED;
 for (const invalid of ['12','-1','foo','1,2'])
     assert.equal(parseHarmonySnapshot('145,145,2741,0,0,2,0,3,5,2|playcolor1,'+invalid),null);
 console.log('Play color: all choices, Off, live press/release, recorded and retained input pass');
+
+// Gaps are enabled only by a supporting Closest Split Chromatic follower.
+const { pianoApproachTarget, pianoApproachIdentity } = await import('../dist/esm/seq/pads.js');
+const { padPitch: pianoPadPitch } = await import('../dist/esm/seq/pads.js');
+keyboardState.mode=0;keyboardState.layout=1;keyboardState.octave[0]=4;keyboardState.rootPc=0;
+for(const enabled of [false,true,false]) {
+    portFor(0).getParam=()=>`0,0,2741,0,0,6,3,3,2,0|input1,0,1,1,2741,145|piano1,${Number(enabled)}`;
+    refreshHarmonyPads(0,testTime+=100);
+    for(let index=0;index<32;index++) {
+        const gap=[8,11,15,24,27,31].includes(index);
+        const target=enabled&&gap?padMapFor(0)[index-8]:-1;
+        assert.equal(pianoApproachTarget(0,index),target);
+        assert.equal(pianoPadPitch(0,index,0),target<0?padMapFor(0)[index]:pianoApproachIdentity(target));
+        if(gap) assert.equal(padColor(index,0,0,false,[]),0,'Existing gap coloring is unchanged');
+    }
+}
+console.log('Piano gaps: opt-in follower capability, exact lower-pad targets, independent identities, travel switch and unchanged colors pass');

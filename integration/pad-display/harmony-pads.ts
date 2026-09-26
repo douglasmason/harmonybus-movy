@@ -11,7 +11,7 @@ import { seqState } from '../seq/state.js';
 import { visualEngineTick } from '../seq/engine.js';
 import { PAD_PALETTE } from './pad-palette.js';
 
-export type HarmonySnapshot = { current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; playColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
+export type HarmonySnapshot = { pianoApproach?: boolean; current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; playColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
 let snapshot: HarmonySnapshot | null = null;
 let requestedPads: number[] = [];
 let previewRevision = -1;
@@ -84,7 +84,9 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
             !Number.isInteger(resolved) || resolved < 1 || resolved > 15) return null;
         globalScale = {selected, resolved};
     }
-    return { ...(playColor !== undefined ? {playColor} : {}), ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
+    const piano = sections.find(section => section.startsWith('piano1,'));
+    if (piano && !['piano1,0','piano1,1'].includes(piano)) return null;
+    return { ...(piano ? {pianoApproach: piano === 'piano1,1'} : {}), ...(playColor !== undefined ? {playColor} : {}), ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
 }
 
 /** Poll one compact snapshot, never once per pad or once per display frame. */
@@ -281,4 +283,17 @@ export function distinguishHarmonyPad(index: number, track: number, color: numbe
         previousColor=base ?? -1;previousGroup=groups[slot];
     }
     return alternate?adjacentShade(color):color;
+}
+
+/** Only real piano gaps become approaches; out-of-range keys remain silent. */
+export function pianoApproachTarget(track: number, index: number): number {
+    if (seqState.holdStep >= 0 || watchedTrack !== track || !snapshot?.pianoApproach || !isPianoLayout(keyboardState.mode, keyboardState.layout)) return -1;
+    if (index < 0 || index >= 32 || ![1,3].includes(index >> 3) || ![0,3,7].includes(index % 8)) return -1;
+    const map = padMapFor(track);
+    return map[index] === -1 && map[index - 8] >= 0 ? map[index - 8] : -1;
+}
+
+/** Separate onset ownership lets an approach overlap its resolving pad. */
+export function pianoApproachIdentity(target: number): number {
+    return target < 64 ? target + 36 : target - 36;
 }

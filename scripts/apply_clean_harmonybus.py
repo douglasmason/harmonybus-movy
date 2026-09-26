@@ -514,6 +514,8 @@ def main() -> int:
     patch_track_pulse(root)
     from patch_pad_control_touch import patch_pad_control_touch
     patch_pad_control_touch(root)
+    from patch_piano_approach import patch_piano_approach
+    patch_piano_approach(root)
     print("HarmonyBus clean integration applied")
     return 0
 
