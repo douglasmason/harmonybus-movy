@@ -1,5 +1,7 @@
 > Selected track buttons stay steadily white even when muted; other tracks retain mute dimming. New pad defaults: Input Tonic = Grey, Play Color = Track.
 
+> hbclean.86: pad-control knobs capture both MIDI release formats and paint cached touch/release feedback before optional host reads. Encoder turns and final writes remain active. New Sets use Both Full Lookahead, Yellow current, Red lookahead, Orange both, Green play, Grey input tonic, 1/4 pulse rate and None pulse shape. Pair with HarmonyBus 0.2.178. Piano layout and coloring rules are unchanged.
+
 > hbclean.85: selected track buttons use the hardware smooth slow pulse between track color and white, retaining the muted dim color.
 
 > hbclean.84: the selected track button pulses white over its track color; muted tracks retain a dim color phase.

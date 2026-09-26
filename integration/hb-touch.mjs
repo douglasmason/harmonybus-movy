@@ -138,15 +138,16 @@ assert.equal(page.ctl.page.keys.length,8);
 assert(page.ctl.page.keys.includes('pad_both_color'));
 assert(page.ctl.page.keys.includes('pad_tonic_color'));
 assert.equal(values.get('pad_tonic_color'),'Grey');
-assert.equal(values.get('pad_play_color'),'Track');
+assert.equal(values.get('pad_play_color'),'Green');
 assert.equal(values.get('pad_pulse_shape'),'None');
 assert(!page.ctl.page.keys.includes('pad_effective_color'));
 assert(page.ctl.page.keys.includes('pad_play_color'));
 assert(!module.capabilities.chain_params.find(p=>p.key==='pad_display').options.includes('Standard'));
-assert.equal(values.get('pad_both_color'),'Blend');
+assert.equal(values.get('pad_both_color'),'Orange');
 assert.equal(values.get('pad_pulse_rate'),'1/4');
-assert.equal(values.get('pad_display'),'Effective');
+assert.equal(values.get('pad_display'),'Both Full Lookahead');
 values.set('pad_display','Effective');
+page.ctl.state.values.pad_display='Effective';
 for(let tick=0;tick<64;tick++)page.tick();
 page.knobTouch(padSlot,true);
 assert.equal(page.ctl.describePage().header.left,'Pad Colors');
@@ -623,3 +624,50 @@ try {
     assert.equal(previewReads,beforeCancel+1,'Cancelled gestures also invalidate preview');
 } finally { previewPort.getParam=oldPreviewGet;Date.now=previewClock; }
 console.log('Modifier previews: immediate tap/hold/release/cancel feedback, bounded held polling and deferred background reads pass');
+
+// Ordinary pad controls capture release too, without becoming action buttons.
+// Both real MIDI release encodings must clear the original page immediately.
+const padClock=Date.now;let padNow=1200000;Date.now=()=>padNow;
+try {
+    for(const key of ['pad_display','pad_pulse_rate','pad_pulse_shape','pad_current_color','pad_play_color','pad_lookahead_color','pad_both_color','pad_tonic_color']) {
+        for(const status of [0x80,0x90]) {
+            padNow+=200;
+            const slot=focusKey(key);
+            const previous=String(values.get(key));
+            page.knobTouch(slot,true);
+            assert.equal(page.ctl.state.touched,slot);
+            assert(page.needsTouchPaint);
+            page.tick();
+            assert(!page.needsTouchPaint,'First cached frame is consumed even during a captured hold');
+            const writeStart=writes.length;
+            const options=page.ctl.metaAt(slot).options;
+            const direction=options.indexOf(previous)===options.length-1?-1:1;
+            page.knobTurn(slot,direction*4);
+            const expected=String(page.ctl.state.values[key]);
+            assert.notEqual(expected,previous,`${key}: captured touch must still allow turns`);
+            const getBefore=port.getParam;
+            port.getParam=()=>{throw new Error('Pad release must not read the device');};
+            try {
+                padNow+=5;
+                onMidiMessageInternal([status,slot,status===0x80?64:0]);
+                assert.equal(page.ctl.state.touched,-1,`${key}: ${status.toString(16)} release`);
+                assert.equal(page.ctl.state.peek,null);
+                assert(page.needsTouchPaint);
+                page.tick();page.render('HB');
+            } finally {port.getParam=getBefore;}
+            assert(writes.slice(writeStart).some(([parameter])=>parameter==='midi_fx1:'+key),'Final value is written');
+            assert.equal(String(values.get(key)),expected,'Release flushes the final encoder value');
+        }
+    }
+    padNow+=200;
+    const first=focusKey('pad_current_color');
+    const second=page.ctl.page.keys.indexOf('pad_lookahead_color');
+    page.knobTouch(first,true);page.knobTouch(second,true);
+    onMidiMessageInternal([0x80,second,64]);
+    assert.equal(page.ctl.state.touched,first,'Another held knob retains its label');
+    focusKey('arp_gate');
+    onMidiMessageInternal([0x80,first,64]);
+    padNow+=200;
+    assert(!performanceTouchActive(),'Changing panels cannot strand a captured pad-control touch');
+} finally {Date.now=padClock;}
+console.log('Pad controls: all eight knobs, both release encodings, cached feedback, live turns, final writes and page changes pass');

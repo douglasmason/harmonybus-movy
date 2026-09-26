@@ -59,18 +59,18 @@ def patch_fresh_set(path: Path) -> None:
     marker: str = "/* Defaults match init(): C tonic, Major, Chromatic/4ths, C3 on every track. */"
     helper: str = r'''/* HarmonyBus clean-build defaults. These are used ONLY for a Set with no
  * Movy UI blob. Once saved, ordinary upstream chain persistence owns the state. */
-const HB_FRESH_CONDUCTOR = 'hb16,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,1,0,-3,60,0,0,0,0;cp1,1,0,0,0,0,0,0,2,1,0;ds1,0;cq1,0,0;ph1,1;np1,0;pp1,8';
+const HB_FRESH_CONDUCTOR = 'hb16,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,1,0,-3,60,0,0,0,0;cp1,1,0,0,0,0,0,0,2,1,0;ds1,0;cq1,0,0;ph1,1;np1,0;pd1,6,3,3,2,0;pb1,2;pc2,2;pp1,3';
 const HB_FRESH_FOLLOWERS = [
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,0,0,1,0,-3,60,1,0,0,0;pp1,8',
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,1,0,-3,60,1,0,0,0;pp1,8',
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,0,0,1,0,-3,60,1,0,0,0;pp1,8',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,0,0,1,0,-3,60,1,0,0,0;pd1,6,3,3,2,0;pb1,2;pc2,2;pp1,3',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,1,0,-3,60,1,0,0,0;pd1,6,3,3,2,0;pb1,2;pc2,2;pp1,3',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,0,0,1,0,-3,60,1,0,0,0;pd1,6,3,3,2,0;pb1,2;pc2,2;pp1,3',
 ];
 
 const HB_FRESH_RECEIVERS = [
-    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,0,0,0,0,0,1,0,-3,60,0,0,0,0;pp1,8',
-    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,1,0,0,0,0,1,0,-3,60,0,0,0,0;pp1,8',
-    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,2,0,0,0,0,1,0,-3,60,0,0,0,0;pp1,8',
-    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,3,0,0,0,0,1,0,-3,60,0,0,0,0;pp1,8',
+    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,0,0,0,0,0,1,0,-3,60,0,0,0,0;pd1,6,3,3,2,0;pb1,2;pc2,2;pp1,3',
+    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,1,0,0,0,0,1,0,-3,60,0,0,0,0;pd1,6,3,3,2,0;pb1,2;pc2,2;pp1,3',
+    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,2,0,0,0,0,1,0,-3,60,0,0,0,0;pd1,6,3,3,2,0;pb1,2;pc2,2;pp1,3',
+    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,3,0,0,0,0,1,0,-3,60,0,0,0,0;pd1,6,3,3,2,0;pb1,2;pc2,2;pp1,3',
 ];
 
 function freshHarmonyBusChains() {
@@ -512,6 +512,8 @@ def main() -> int:
     (root / 'browser-test/hb-track-navigation.mjs').write_text((integration_root / 'hb-track-navigation.mjs').read_text())
     from patch_track_pulse import patch_track_pulse
     patch_track_pulse(root)
+    from patch_pad_control_touch import patch_pad_control_touch
+    patch_pad_control_touch(root)
     print("HarmonyBus clean integration applied")
     return 0
 
