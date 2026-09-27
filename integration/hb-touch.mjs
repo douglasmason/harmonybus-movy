@@ -731,3 +731,67 @@ assert(page.ctl.pages.some(p=>p.keys?.includes('motion_cycle')),'Cycle remains a
 assert.equal(module.capabilities.ui_hierarchy.levels.motion_conditions.knobs[4],'motion_auto_off');
 assert.equal(module.capabilities.ui_hierarchy.levels.follower_source.knobs.length,6);
 console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on Timing, no overflow panel');
+
+// Exercise the real app tick, not just page.tick(): a release frame must reach
+// the display before engine/status/step-row reads can block the UI thread.
+{
+    const { tick } = await import('../dist/esm/app/tick.js');
+    const { createModel } = await import('../dist/esm/model/index.js');
+    const { installMockEngine } = await import('./mock-engine.mjs');
+    const { seqEngineTick, resetSeqEngine } = await import('../dist/esm/seq/engine.js');
+    const { sessionTick, sessionReady, resetSetSession } = await import('../dist/esm/seq/set-session.js');
+    const { VIEW_CHAIN, VIEW_KNOBS } = await import('../dist/esm/app/state.js');
+    const { portFor } = await import('../dist/esm/track/registry.js');
+    const { schwungPageFor } = await import('../dist/esm/renderer/schwung-grid.js');
+    const { trackRef } = await import('../dist/esm/track/ref.js');
+    const { resetSeqState } = await import('../dist/esm/seq/state.js');
+    const { resetSetSave } = await import('../dist/esm/seq/set-save.js');
+    installMockFs();installMockEngine();resetSeqEngine();resetSeqState();resetSetSession();resetSetSave();
+    const bootClock=Date.now;let bootNow=bootClock();Date.now=()=>bootNow;
+    for(let i=0;i<200;i++){bootNow+=50;seqEngineTick();sessionTick();}
+    Date.now=bootClock;
+    assert(sessionReady());
+    setFlag('chtracks',0);
+    resetPorts();schwungGridReload();
+    globalThis.shadow_get_param=(_track,key)=>port.getParam(key);
+    globalThis.shadow_set_param=(_track,key,value)=>{port.setParam(key,value);return true;};
+    appState.activeTrack=trackRef(0);appState.trackChainIndex[0]=0;
+    appState.trackModels[0]=['midi_fx1','synth','fx1','fx2'].map(key=>createModel(portFor(0),key));
+    for(const model of appState.trackModels[0]) for(let i=0;i<80;i++)model.tick();
+    appState.initLedsDone=true;appState.shiftHeld=false;stepPageState.selected=false;
+    const livePage=schwungPageFor(0,'midi_fx1');
+    let frames=0;
+    globalThis.clear_screen=()=>frames++;
+    for(const view of [VIEW_CHAIN,VIEW_KNOBS]) {
+        appState.currentView=view;
+        for(const key of ['pad_current_color','follow_touch_9','follow_touch_7']) {
+            livePage.goToPage(livePage.ctl.pages.findIndex(p=>p.keys?.includes(key)));
+            const slot=livePage.ctl.page.keys.indexOf(key);
+            appState.dirty=true;tick();tick(); // establish the complete cached frame
+            for(const status of [0x80,0x90]) {
+                livePage.knobTouch(slot,true);
+                tick();tick(); // held frame plus mandatory full tick
+                onMidiMessageInternal([status,slot,status===0x80?64:0]);
+                const shadowRead=globalThis.shadow_get_param, engineRead=globalThis.host_module_get_param;
+                const clock=Date.now;let now=clock(),reads=0;
+                globalThis.shadow_get_param=(...args)=>{reads++;now+=100;return shadowRead(...args);};
+                globalThis.host_module_get_param=(...args)=>{reads++;now+=100;return engineRead(...args);};
+                Date.now=()=>now;
+                try {
+                    const before=frames;
+                    tick();
+                    assert.equal(reads,0,`${key}: entire release frame must avoid host reads in view ${view}`);
+                    assert(frames>before,'The cached frame is actually drawn');
+                    assert.equal(livePage.ctl.state.touched,-1);
+                    assert(!livePage.needsTouchPaint);
+                    // Even an immediate new edge cannot starve normal work.
+                    livePage.knobTouch(slot,true);reads=0;now+=100;
+                    tick();
+                    assert(reads>0,'A full tick follows the priority frame, even with another touch');
+                    onMidiMessageInternal([status,slot,0]);tick();tick();
+                } finally {Date.now=clock;globalThis.shadow_get_param=shadowRead;globalThis.host_module_get_param=engineRead;}
+            }
+        }
+    }
+    console.log('App touch frames: both views, both release formats, pad/operation knobs, zero blocking reads and no starvation pass');
+}
