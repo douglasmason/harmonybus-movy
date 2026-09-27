@@ -81,3 +81,19 @@ function followModulePanel(track: number, panel: ModulePanel | null): boolean {
     source = replace_once(source, '    readonly pageCount: number;', '    readonly moduleId: string | null;\n    readonly pageCount: number;')
     source = replace_once(source, '        get pageIndex()', '        get moduleId() { return hostedModuleId; },\n        get pageIndex()')
     path.write_text(source)
+
+    # Upstream app-loop scenarios exercise synth controls. Verify the new boot
+    # selection first, then explicitly navigate to their instrument fixture.
+    path = root / 'browser-test/app-loop.mjs'
+    source = path.read_text()
+    marker: str = "const { appState, VIEW_KNOBS, VIEW_CHAIN, VIEW_BROWSE, VIEW_FILE_BROWSE } = await import('../dist/esm/app/state.js');"
+    source = replace_once(source, marker, marker + '''
+const initFirstSlot = globalThis.init;
+globalThis.init = (...args) => {
+    initFirstSlot(...args);
+    if (!appState.trackChainIndex.every(index => index === 0))
+        throw new Error('Startup must select the first chain slot on every track');
+    // The scenarios below operate the synth after choosing its slot.
+    appState.trackChainIndex.fill(1);
+};''')
+    path.write_text(source)
