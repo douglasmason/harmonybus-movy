@@ -10,11 +10,13 @@ const module = JSON.parse(readFileSync(process.env.HB_MODULE, 'utf8'));
 const runtimeChainParams = JSON.stringify(module.capabilities.chain_params);
 const values = new Map(module.capabilities.chain_params.map(param => [param.key, param.default ?? param.options?.[0] ?? '0']));
 const { uiStateDirty, clearUiDirty } = await import('../dist/esm/seq/set-save.js');
+const touchOperationLabels = new Map([[5,'Next Once'],[6,'Next Latch']]);
 const writes = [];
 const port = {
     track: { index: 0 },
     getParam(key) {
         const bare = key.split(':').at(-1);
+        if (bare === 'follow_touch_labels') return Array.from({length:10},(_,index)=>{const lane=Number(values.get('follow_touch_'+(index+1)));return lane+':'+(touchOperationLabels.get(lane)||'Velocity');}).join('|');
         if (bare === 'ui_hierarchy') return JSON.stringify(module.capabilities.ui_hierarchy);
         if (bare === 'chain_params') return JSON.stringify(module.capabilities.chain_params.map(parameter => {
             if (parameter.key === 'motion_amount' && values.get('motion_operation') === 'Chord Form') return {...parameter,name:'Form',type:'enum',options:module.capabilities.chain_params.find(p=>p.key==='chord_form').options,options_as_string:true};
@@ -722,14 +724,45 @@ page.knobTouch(mapSlot,true);page.knobTurn(mapSlot,1);onMidiMessageInternal([0x8
 assert.equal(Number(values.get('follow_touch_9')),6);
 page.knobTouch(mapSlot,true);assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_6','Touch']);
 page.knobTouch(mapSlot,false);
-console.log('Map Touch: Follow Map location, lane-5 default and assignable operation gesture pass');
+const latchMapSlot=focusKey('follow_touch_10');
+assert.equal(page.pageTitle,'Foll Map');
+assert.equal(Number(values.get('follow_touch_10')),6);
+page.knobTouch(latchMapSlot,true);
+assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_6','Touch']);
+page.knobTouch(latchMapSlot,false);
+// Numeric option N is the lane name, not zero-based option N+1.
+for (const key of ['follow_touch_9','follow_touch_10','motion_lane']) {
+    const slot=focusKey(key);
+    for (const lane of [1,5,6,16]) {
+        values.set(key,String(lane));page.ctl.revalue();
+        page.knobTouch(slot,true);
+        const display=page.ctl.describePage();
+        assert.equal(display.cells[slot].value,String(lane),key+' card');
+        assert.equal(display.header.right,String(lane),key+' touch header');
+        assert.equal(display.cells[slot].options[display.cells[slot].enumIndex],String(lane),key+' peek selection');
+        page.knobTouch(slot,false);
+    }
+}
+const labelClock=Date.now;let labelNow=labelClock()+1000;Date.now=()=>labelNow;
+try {
+    values.set('follow_touch_9','5');values.set('follow_touch_10','6');
+    const slot=focusKey('follow_touch_9');page.tick();
+    assert.equal(page.ctl.metaAt(slot).label,'Next Once');
+    assert.equal(page.ctl.metaAt(slot+1).label,'Next Latch');
+    touchOperationLabels.set(5,'Pan');labelNow+=501;page.tick();
+    assert.equal(page.ctl.metaAt(slot).label,'Pan','Label follows operation edits');
+    page.knobTouch(slot,true);page.knobTurn(slot,1);
+    assert.equal(page.ctl.metaAt(slot).label,'Next Latch','Label follows reassignment');
+    page.knobTouch(slot,false);
+} finally {Date.now=labelClock;touchOperationLabels.set(5,'Next Once');}
+console.log('Map Touch: two knobs, global lanes 5/6, operation labels, reassignment and identical card/header/peek numbers pass');
 
 const autoOffSlot=focusKey('motion_auto_off');
 assert.equal(page.pageTitle,'Conditions');
 assert.equal(page.ctl.page.keys.length,8);
 assert(page.ctl.pages.some(p=>p.keys?.includes('motion_cycle')),'Cycle remains available on Timing');
 assert.equal(module.capabilities.ui_hierarchy.levels.motion_conditions.knobs[4],'motion_auto_off');
-assert.equal(module.capabilities.ui_hierarchy.levels.follower_source.knobs.length,6);
+assert.equal(module.capabilities.ui_hierarchy.levels.follower_source.knobs.length,7);
 console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on Timing, no overflow panel');
 
 // Exercise the real app tick, not just page.tick(): a release frame must reach
@@ -764,7 +797,7 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
     globalThis.clear_screen=()=>frames++;
     for(const view of [VIEW_CHAIN,VIEW_KNOBS]) {
         appState.currentView=view;
-        for(const key of ['pad_current_color','follow_touch_9','follow_touch_7']) {
+        for(const key of ['pad_current_color','follow_touch_9','follow_touch_10','follow_touch_7']) {
             livePage.goToPage(livePage.ctl.pages.findIndex(p=>p.keys?.includes(key)));
             const slot=livePage.ctl.page.keys.indexOf(key);
             appState.dirty=true;tick();tick(); // establish the complete cached frame

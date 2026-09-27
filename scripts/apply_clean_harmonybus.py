@@ -518,6 +518,8 @@ def main() -> int:
     patch_piano_approach(root)
     from patch_follow_touch import patch_follow_touch
     patch_follow_touch(root)
+    from patch_touch_labels import patch_touch_labels
+    patch_touch_labels(root)
     from patch_touch_frame import patch_touch_frame
     patch_touch_frame(root)
     print("HarmonyBus clean integration applied")
