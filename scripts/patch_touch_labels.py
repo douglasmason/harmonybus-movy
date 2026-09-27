@@ -7,7 +7,6 @@ def patch_touch_labels(root: Path) -> None:
     """Use one bounded label snapshot; touch/release/render remain read-free."""
     path: Path = root / 'src/renderer/schwung-page.ts'
     source: str = "import { appState } from '../app/state.js';\n" + path.read_text()
-    source = source.replace('/^follow_touch_[1-9]$/', '/^follow_touch_(?:[1-9]|10)$/')
     source = replace_once(source, '    const lib = schwungLib();', '''    let touchLabelsAt = -Infinity;
     let touchLabelsPage = -1;
     function refreshTouchLabels(force = false): void {
@@ -19,15 +18,17 @@ def patch_touch_labels(root: Path) -> None:
         if (fields.length !== 10) return;
         ctl.page.keys.forEach((key: string, slot: number) => {
             const match = /^follow_touch_(\\d+)$/.exec(key);
-            if (!match) return;
-            const field = fields[Number(match[1]) - 1];
+            if (!match && key !== 'motion_hold_6') return;
+            const field = fields[match ? Number(match[1]) - 1 : 9];
             const split = field.indexOf(':');
             const lane = Number(field.slice(0, split));
             if (split < 1 || lane < 1 || lane > 16 || !field.slice(split + 1)) return;
             const meta = ctl.metaAt(slot);
             if (meta) { meta.label = field.slice(split + 1); meta.short_name = meta.label; }
-            ctl.state.values[key] = String(lane);
-            readCache.set(qualify(key), String(lane));
+            if (match) {
+                ctl.state.values[key] = String(lane);
+                readCache.set(qualify(key), String(lane));
+            }
         });
         appState.dirty = true;
     }
@@ -43,4 +44,5 @@ def patch_touch_labels(root: Path) -> None:
         announce: () => {},''')
     source = replace_once(source, '        const contractNow = Date.now();', '        refreshTouchLabels();\n        const contractNow = Date.now();')
     source = replace_once(source, '                ctl.revalue();\n                laneTouchSlots.add(slot);', '                ctl.revalue();\n                refreshTouchLabels(true);\n                laneTouchSlots.add(slot);')
+    source = source.replace("key.startsWith('pad_') && meta.options?.length", "(key.startsWith('pad_') || key === 'motion_hold_6') && meta.options?.length")
     path.write_text(source)

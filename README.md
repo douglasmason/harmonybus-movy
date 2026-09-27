@@ -1,6 +1,6 @@
 > Selected track buttons stay steadily white even when muted; other tracks retain mute dimming. New pad defaults: Input Tonic = Grey, Play Color = Track.
 
-> hbclean.91 / HarmonyBus 0.2.182: Follow Map adds the lane-6 knob beside lane 5. Both display operation descriptions (Next Once / Next Latch by default) and lane numbers. Numeric enum names now agree across the card, touched header and peek.
+> hbclean.91 / HarmonyBus 0.2.183: Follow Map adds a plain lane-6 Off/On toggle beside the assignable lane-5 touch knob. Descriptions read Next Once / Next Latch by default. Touching lane 6 only shows its description; turning switches it off/on. Numeric enum names now agree across the card, touched header and peek.
 
 > hbclean.90 / HarmonyBus 0.2.181: Touch/release frames now draw before synchronous engine and LED status reads. The next tick resumes normal work, so repeated touches cannot starve playback control or pad previews.
 

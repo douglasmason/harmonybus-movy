@@ -16,7 +16,7 @@ const port = {
     track: { index: 0 },
     getParam(key) {
         const bare = key.split(':').at(-1);
-        if (bare === 'follow_touch_labels') return Array.from({length:10},(_,index)=>{const lane=Number(values.get('follow_touch_'+(index+1)));return lane+':'+(touchOperationLabels.get(lane)||'Velocity');}).join('|');
+        if (bare === 'follow_touch_labels') return Array.from({length:10},(_,index)=>{const lane=index===9?6:Number(values.get('follow_touch_'+(index+1)));return lane+':'+(touchOperationLabels.get(lane)||'Velocity');}).join('|');
         if (bare === 'ui_hierarchy') return JSON.stringify(module.capabilities.ui_hierarchy);
         if (bare === 'chain_params') return JSON.stringify(module.capabilities.chain_params.map(parameter => {
             if (parameter.key === 'motion_amount' && values.get('motion_operation') === 'Chord Form') return {...parameter,name:'Form',type:'enum',options:module.capabilities.chain_params.find(p=>p.key==='chord_form').options,options_as_string:true};
@@ -724,14 +724,18 @@ page.knobTouch(mapSlot,true);page.knobTurn(mapSlot,1);onMidiMessageInternal([0x8
 assert.equal(Number(values.get('follow_touch_9')),6);
 page.knobTouch(mapSlot,true);assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_6','Touch']);
 page.knobTouch(mapSlot,false);
-const latchMapSlot=focusKey('follow_touch_10');
+const latchMapSlot=focusKey('motion_hold_6');
 assert.equal(page.pageTitle,'Foll Map');
-assert.equal(Number(values.get('follow_touch_10')),6);
-page.knobTouch(latchMapSlot,true);
-assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_6','Touch']);
-page.knobTouch(latchMapSlot,false);
+const toggleWrites=writes.length;
+page.knobTouch(latchMapSlot,true);page.knobTouch(latchMapSlot,false);
+assert.equal(writes.length,toggleWrites,'Lane 6 touch only describes; never activates');
+page.ctl.commitEnum('motion_hold_6',0);page.ctl.revalue();
+page.knobTurn(latchMapSlot,4);page.knobTouch(latchMapSlot,false);
+assert.equal(values.get('motion_hold_6'),'On','Turn enables persistent lane 6');
+page.knobTurn(latchMapSlot,-4);page.knobTouch(latchMapSlot,false);
+assert.equal(values.get('motion_hold_6'),'Off','Turn disables persistent lane 6');
 // Numeric option N is the lane name, not zero-based option N+1.
-for (const key of ['follow_touch_9','follow_touch_10','motion_lane']) {
+for (const key of ['follow_touch_9','motion_lane']) {
     const slot=focusKey(key);
     for (const lane of [1,5,6,16]) {
         values.set(key,String(lane));page.ctl.revalue();
@@ -745,7 +749,7 @@ for (const key of ['follow_touch_9','follow_touch_10','motion_lane']) {
 }
 const labelClock=Date.now;let labelNow=labelClock()+1000;Date.now=()=>labelNow;
 try {
-    values.set('follow_touch_9','5');values.set('follow_touch_10','6');
+    values.set('follow_touch_9','5');values.set('motion_hold_6','Off');
     const slot=focusKey('follow_touch_9');page.tick();
     assert.equal(page.ctl.metaAt(slot).label,'Next Once');
     assert.equal(page.ctl.metaAt(slot+1).label,'Next Latch');
@@ -755,7 +759,7 @@ try {
     assert.equal(page.ctl.metaAt(slot).label,'Next Latch','Label follows reassignment');
     page.knobTouch(slot,false);
 } finally {Date.now=labelClock;touchOperationLabels.set(5,'Next Once');}
-console.log('Map Touch: two knobs, global lanes 5/6, operation labels, reassignment and identical card/header/peek numbers pass');
+console.log('Map Touch: lane-5 touch and lane-6 toggle, operation labels, reassignment and identical card/header/peek numbers pass');
 
 const autoOffSlot=focusKey('motion_auto_off');
 assert.equal(page.pageTitle,'Conditions');
@@ -797,7 +801,7 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
     globalThis.clear_screen=()=>frames++;
     for(const view of [VIEW_CHAIN,VIEW_KNOBS]) {
         appState.currentView=view;
-        for(const key of ['pad_current_color','follow_touch_9','follow_touch_10','follow_touch_7']) {
+        for(const key of ['pad_current_color','follow_touch_9','motion_hold_6','follow_touch_7']) {
             livePage.goToPage(livePage.ctl.pages.findIndex(p=>p.keys?.includes(key)));
             const slot=livePage.ctl.page.keys.indexOf(key);
             appState.dirty=true;tick();tick(); // establish the complete cached frame
