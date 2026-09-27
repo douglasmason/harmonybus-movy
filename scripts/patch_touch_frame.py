@@ -69,3 +69,33 @@ function paintTouchFrame(): boolean {
                 renderChainView(vm, chainIdx, jogHintVisible(), 'T' + (appState.activeTrack.index + 1),
                                 undefined, undefined as any, body));''')
     p.write_text(s)
+
+    # Share the normal melodic-pad painter with gesture feedback. A captured
+    # release must not postpone pad LEDs behind the next full engine tick.
+    s = p.read_text()
+    start: int = s.index('        const track     = appState.activeTrack.index;', s.index('/* Per-tick chromatic pad update:'))
+    end: int = s.index('\n    }', start)
+    pad_body: str = s[start:end]
+    s = s[:start] + '        paintMelodicPads();' + s[end:]
+    helper: str = '''
+function paintMelodicPads(): void {
+''' + pad_body + '''
+}
+let gesturePadRevision = 0;
+function paintGesturePads(): void {
+    const revision = performancePreviewRevision();
+    if (revision === gesturePadRevision || globalThis.overtakeParked === true ||
+        !sessionReady() || seqState.sessionMode || !appState.initLedsDone ||
+        (appState.trackModels[appState.activeTrack.index]?.[1]?.getDrumPadCount() ?? 0) > 0) return;
+    gesturePadRevision = revision;
+    // The gesture write has already reached the owning track. Read the native
+    // mapping once, then send changed pad colors before unrelated host polls.
+    refreshHarmonyPads(appState.activeTrack.index);
+    paintMelodicPads();
+}
+'''
+    s = replace_once(s, 'function paintTouchFrame(): boolean {', helper + '\nfunction paintTouchFrame(): boolean {')
+    s = s.replace('import { performanceTouchActive }', 'import { performanceTouchActive, performancePreviewRevision }')
+    s = replace_once(s, '    frame.draw();', '    frame.draw();\n    paintGesturePads();')
+    s = replace_once(s, '    if (paintTouchFrame()) return;', '    if (paintTouchFrame()) return;\n    paintGesturePads();')
+    p.write_text(s)

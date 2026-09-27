@@ -17,8 +17,8 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   HB_REF: 7126151aba51d6dbd72229316eae4398631b4afa
-  HB_MOVY_VERSION: 0.34.1-hbclean.92
-  HB_MOVY_TAG: v0.34.1-hbclean.92
+  HB_MOVY_VERSION: 0.34.1-hbclean.93
+  HB_MOVY_TAG: v0.34.1-hbclean.93
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -352,7 +352,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Pair with HarmonyBus 0.2.181: global operation-knob assignments, Map Touch default lane 5 (Next until chord change), persistent Next on lane 6, and Auto Off on Conditions without a new panel. Chromatic logic follows the selected harmony."
+              --notes "Open the first chain slot at startup. Refresh native HarmonyBus pad colors on touch/release before general engine polling, including lane 16. Compatible with HarmonyBus 0.2.185."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

@@ -1,3 +1,5 @@
+> hbclean.93: Touch and release feedback refreshes native HarmonyBus pad colors before general engine polling, including lane 16. Includes the first-slot startup default.
+
 > hbclean.92: Open the first chain slot (HarmonyBus) at startup and reinitialization instead of the second-slot instrument. Manual slot navigation and module-panel continuity between tracks are preserved.
 
 > Selected track buttons stay steadily white even when muted; other tracks retain mute dimming. New pad defaults: Input Tonic = Grey, Play Color = Track.

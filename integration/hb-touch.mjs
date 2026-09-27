@@ -790,7 +790,12 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
     assert(sessionReady());
     setFlag('chtracks',0);
     resetPorts();schwungGridReload();
-    globalThis.shadow_get_param=(_track,key)=>port.getParam(key);
+    let gesturePreviewHeld = false;
+    const padWrites = [];
+    globalThis.setLED = (...args) => padWrites.push(args);
+    globalThis.shadow_get_param=(_track,key)=>key.startsWith('midi_fx1:pad_view')
+        ? `${gesturePreviewHeld ? 4095 : 0},0,0,1,4095,1,0,0,2,0`
+        : port.getParam(key);
     globalThis.shadow_set_param=(_track,key,value)=>{port.setParam(key,value);return true;};
     appState.activeTrack=trackRef(0);appState.trackChainIndex[0]=0;
     appState.trackModels[0]=['midi_fx1','synth','fx1','fx2'].map(key=>createModel(portFor(0),key));
@@ -801,23 +806,28 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
     globalThis.clear_screen=()=>frames++;
     for(const view of [VIEW_CHAIN,VIEW_KNOBS]) {
         appState.currentView=view;
-        for(const key of ['pad_current_color','follow_touch_9','motion_hold_6','follow_touch_7']) {
+        for(const key of ['pad_current_color','follow_touch_9','motion_hold_6','follow_touch_7','follow_touch_8']) {
             livePage.goToPage(livePage.ctl.pages.findIndex(p=>p.keys?.includes(key)));
             const slot=livePage.ctl.page.keys.indexOf(key);
             appState.dirty=true;tick();tick(); // establish the complete cached frame
             for(const status of [0x80,0x90]) {
+                gesturePreviewHeld=true;
                 livePage.knobTouch(slot,true);
                 tick();tick(); // held frame plus mandatory full tick
+                gesturePreviewHeld=false;padWrites.length=0;
                 onMidiMessageInternal([status,slot,status===0x80?64:0]);
                 const shadowRead=globalThis.shadow_get_param, engineRead=globalThis.host_module_get_param;
                 const clock=Date.now;let now=clock(),reads=0;
-                globalThis.shadow_get_param=(...args)=>{reads++;now+=100;return shadowRead(...args);};
-                globalThis.host_module_get_param=(...args)=>{reads++;now+=100;return engineRead(...args);};
+                const readKeys=[];
+                globalThis.shadow_get_param=(...args)=>{reads++;readKeys.push(args[1]);now+=100;return shadowRead(...args);};
+                globalThis.host_module_get_param=(...args)=>{assert(padWrites.length>0,'Pad LEDs must update before engine polling');reads++;now+=100;return engineRead(...args);};
                 Date.now=()=>now;
                 try {
                     const before=frames;
                     tick();
-                    assert.equal(reads,0,`${key}: entire release frame must avoid host reads in view ${view}`);
+                    assert(readKeys.length>=1,`${key}: release frame obtains native pad colors in view ${view}`);
+                    assert(readKeys[0].startsWith('midi_fx1:pad_view@'),'No unrelated polling before feedback');
+                    assert(padWrites.length>0,`${key}: changed pad colors reach LEDs in the release frame`);
                     assert(frames>before,'The cached frame is actually drawn');
                     assert.equal(livePage.ctl.state.touched,-1);
                     assert(!livePage.needsTouchPaint);
@@ -830,5 +840,5 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
             }
         }
     }
-    console.log('App touch frames: both views, both release formats, pad/operation knobs, zero blocking reads and no starvation pass');
+    console.log('App touch frames: both views, both release formats, pad/operation knobs including lane 16, same-frame native pad refresh and no starvation pass');
 }
