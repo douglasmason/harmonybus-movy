@@ -17,8 +17,8 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   HB_REF: 7126151aba51d6dbd72229316eae4398631b4afa
-  HB_MOVY_VERSION: 0.34.1-hbclean.91
-  HB_MOVY_TAG: v0.34.1-hbclean.91
+  HB_MOVY_VERSION: 0.34.1-hbclean.92
+  HB_MOVY_TAG: v0.34.1-hbclean.92
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -69,6 +69,8 @@ jobs:
               ['git', '-C', str(root), 'ls-files', '--others', '--exclude-standard'], text=True
           ).splitlines()
           expected = {
+              'src/app/init.ts',
+              'src/app/state.ts',
               'build/browser.mjs',  # expose the real app tick to release-latency tests
               'src/chain/set-param.ts',
               'src/undo/apply.ts',

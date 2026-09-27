@@ -5,6 +5,17 @@ from patch_responsive_persistence import replace_once
 
 def patch_track_navigation(root: Path) -> None:
     """Transfer navigation only; each controller retains its own track port."""
+    # Open the first chain slot (HarmonyBus) on launch and reinitialization.
+    # Runtime navigation continues to own the selection after that.
+    startup_seams: tuple[tuple[str, str], ...] = (
+        ('src/app/state.ts', 'trackChainIndex:  new Array(TRACK_COUNT).fill(1)'),
+        ('src/app/init.ts', 'appState.trackChainIndex = new Array(TRACK_COUNT).fill(1)'),
+    )
+    for relative_path, before in startup_seams:
+        startup_path: Path = root / relative_path
+        startup_source: str = startup_path.read_text()
+        startup_path.write_text(replace_once(startup_source, before,
+            before.replace('.fill(1)', '.fill(0)')))
     path: Path = root / 'src/track/switch.ts'
     source: str = path.read_text()
     source = replace_once(source, 'appState, VIEW_BROWSE', 'appState, VIEW_BROWSE, VIEW_KNOBS')

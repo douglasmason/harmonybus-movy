@@ -1,3 +1,5 @@
+> hbclean.92: Open the first chain slot (HarmonyBus) at startup and reinitialization instead of the second-slot instrument. Manual slot navigation and module-panel continuity between tracks are preserved.
+
 > Selected track buttons stay steadily white even when muted; other tracks retain mute dimming. New pad defaults: Input Tonic = Grey, Play Color = Track.
 
 > hbclean.91 / HarmonyBus 0.2.183: Follow Map adds a plain lane-6 Off/On toggle beside the assignable lane-5 touch knob. Descriptions read Next Once / Next Latch by default. Touching lane 6 only shows its description; turning switches it off/on. Numeric enum names now agree across the card, touched header and peek.
