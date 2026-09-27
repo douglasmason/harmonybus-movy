@@ -72,7 +72,7 @@ export function beginHbLaneTouch(owner: PerformancePort, lane: number): (cancel?
                 touchReadOnly = true;
                 try { ctl.onKnobTouch(slot, true); } finally { touchReadOnly = false; }
             }
-            if (/^follow_touch_[1-8]$/.test(ctl.keyAt(slot))) {
+            if (/^follow_touch_[1-9]$/.test(ctl.keyAt(slot))) {
                 const key = ctl.keyAt(slot);
                 const current = Number(lanePort.performanceGet(key)) || 1;
                 ctl.commitEnum(key, Math.max(0, Math.min(15, current - 1 + delta)));
@@ -88,7 +88,7 @@ export function beginHbLaneTouch(owner: PerformancePort, lane: number): (cancel?
             if (touchActions.has(slot)) return;
             // Flush''')
     s = replace_once(s, '                if (padControlTouches.has(slot))', '                if (laneTouchSlots.has(slot)) { releasePerformanceTouch(slot); return; }\n                if (padControlTouches.has(slot))')
-    s = replace_once(s, '            // These enums are presentation settings', '''            if (/^follow_touch_[1-8]$/.test(key)) {
+    s = replace_once(s, '            // These enums are presentation settings', '''            if (/^follow_touch_[1-9]$/.test(key)) {
                 const lane = Math.max(1, Math.min(16, Number(lanePort.performanceGet(key)) || 1)) - 1;
                 const release = beginHbLaneTouch(lanePort, lane);
                 const started = Date.now();

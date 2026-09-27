@@ -709,3 +709,25 @@ try {
     assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_1','Up,400']);
 } finally {Date.now=followClock;}
 console.log('Follow Touch: eight defaults, forced tap/hold, clip lanes, rotary reassignment and shared knob/step ownership pass');
+
+// Map Touch uses the same gesture/assignment path on Follow Map.
+const mapSlot=focusKey('follow_touch_9');
+assert.equal(page.pageTitle,'Foll Map');
+assert.equal(Number(values.get('follow_touch_9')),5);
+page.knobTouch(mapSlot,true);
+assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_5','Touch']);
+page.knobTouch(mapSlot,false);
+assert(writes.at(-1)[1].startsWith('Up,'));
+page.knobTouch(mapSlot,true);page.knobTurn(mapSlot,1);onMidiMessageInternal([0x80,mapSlot,0]);
+assert.equal(Number(values.get('follow_touch_9')),6);
+page.knobTouch(mapSlot,true);assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_6','Touch']);
+page.knobTouch(mapSlot,false);
+console.log('Map Touch: Follow Map location, lane-5 default and assignable operation gesture pass');
+
+const autoOffSlot=focusKey('motion_auto_off');
+assert.equal(page.pageTitle,'Conditions');
+assert.equal(page.ctl.page.keys.length,8);
+assert(page.ctl.pages.some(p=>p.keys?.includes('motion_cycle')),'Cycle remains available on Timing');
+assert.equal(module.capabilities.ui_hierarchy.levels.motion_conditions.knobs[4],'motion_auto_off');
+assert.equal(module.capabilities.ui_hierarchy.levels.follower_source.knobs.length,6);
+console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on Timing, no overflow panel');
