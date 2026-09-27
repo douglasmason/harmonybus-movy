@@ -69,6 +69,7 @@ jobs:
               ['git', '-C', str(root), 'ls-files', '--others', '--exclude-standard'], text=True
           ).splitlines()
           expected = {
+              'build/browser.mjs',  # expose the real app tick to release-latency tests
               'src/chain/set-param.ts',
               'src/undo/apply.ts',
               'src/seq/tempo-override.ts',
