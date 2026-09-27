@@ -826,7 +826,7 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
                     const before=frames;
                     tick();
                     assert(readKeys.length>=1,`${key}: release frame obtains native pad colors in view ${view}`);
-                    assert(readKeys[0].startsWith('midi_fx1:pad_view@'),'No unrelated polling before feedback');
+                    assert(readKeys[0] === 'midi_fx1:pad_view','No unrelated polling before feedback');
                     assert(padWrites.length>0,`${key}: changed pad colors reach LEDs in the release frame`);
                     assert(frames>before,'The cached frame is actually drawn');
                     assert.equal(livePage.ctl.state.touched,-1);

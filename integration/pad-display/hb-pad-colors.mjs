@@ -31,7 +31,7 @@ console.log('Harmony pads: pitch classes, root backgrounds, overlap, independent
 
 const port = portFor(4), originalGet = port.getParam;
 let reads = 0;
-port.getParam = key => { assert.match(key,/^midi_fx1:pad_view@[0-9a-f]{64}$/); reads++; return '145,580,2741,1,580,3,3,0,4,2'; };
+port.getParam = key => { assert.equal(key,'midi_fx1:pad_view'); reads++; return '145,580,2741,1,580,3,3,0,4,2'; };
 refreshHarmonyPads(4,0);
 for(let now=1;now<50;now++) refreshHarmonyPads(4,now);
 assert.equal(reads,1,'No per-pad or per-frame polling');
@@ -88,7 +88,7 @@ const { setFollowerInputScale, setFollowerInputRoot } = await import('../dist/es
 let rawView = '0,0,2741,0,0,0,3,0,4,2|arp1,0|input1,0,1,1,2741,145';
 const writes=[];
 portFor(0).getParam = () => rawView;
-portFor(0).setParam = (key,value) => writes.push([key,value]);
+portFor(0).setParam = (key,value) => { if (key !== 'midi_fx1:pad_preview_inputs') writes.push([key,value]); };
 keyboardState.octave[0]=4;
 for (const [mode,layout] of [[0,0],[0,1],[1,0],[1,1]]) {
     keyboardState.mode=mode; keyboardState.layout=layout;
@@ -347,3 +347,43 @@ for(const enabled of [false,true,false]) {
     }
 }
 console.log('Piano gaps: opt-in follower capability, exact lower-pad targets, independent identities, travel switch and unchanged colors pass');
+
+// Approach rows work in every supported scale/root; the upper row resolves
+// the pad beneath it rather than inventing a second scale coordinate system.
+{
+    const { buildPadMap, degreeToPitch } = await import('../dist/esm/keyboard/layouts.js');
+    const { SCALES } = await import('../dist/esm/seq/scales.js');
+    const { pianoApproachTarget } = await import('../dist/esm/seq/pads.js');
+    const { keyboardState } = await import('../dist/esm/keyboard/state.js');
+    keyboardState.mode=1;keyboardState.layout=2;keyboardState.octave[0]=4;
+    const flags=Array(32).fill(-1);flags[8]=4;flags[9]=1;flags[10]=16;flags[11]=17;flags[12]=0;
+    let request='';
+    portFor(0).setParam=(key,value)=>{assert.equal(key,'midi_fx1:pad_preview_inputs');request=value;return true;};
+    portFor(0).getParam=key=>{assert.equal(key,'midi_fx1:pad_view');return '0,0,0,0,0,6,0,3,2,0|piano1,1|both1,2|gapcolors1,'+flags.join(',');};
+    for(let scaleIndex=0;scaleIndex<SCALES.length;scaleIndex++)for(let root=0;root<12;root++) {
+        keyboardState.scale=scaleIndex;keyboardState.rootPc=root;
+        const base=48+root, map=buildPadMap(1,2,scaleIndex,base);
+        refreshHarmonyPads(0,testTime+=100);
+        for(let column=0;column<8;column++) {
+            assert.equal(map[column],degreeToPitch(base,SCALES[scaleIndex].degrees,column));
+            assert.equal(map[16+column],degreeToPitch(base,SCALES[scaleIndex].degrees,SCALES[scaleIndex].degrees.length+column));
+            assert.equal(pianoApproachTarget(0,8+column),map[column]);
+            assert.equal(pianoApproachTarget(0,24+column),map[16+column]);
+        }
+    }
+    refreshHarmonyPads(0,testTime+=100);
+    assert.match(request,/^[0-9a-f]{64}:[0-9a-f]{64}$/);
+    assert.equal(padColor(76,68,0,false),C_LIGHTGREY,'Approach overlapping scale is grey');
+    assert.equal(padColor(77,68,0,false),7,'Current harmony approach uses Current Yellow');
+    assert.equal(padColor(78,68,0,false),127,'Next harmony approach uses Lookahead Red');
+    assert.equal(padColor(79,68,0,false),3,'Shared approach uses Both Orange');
+    assert.equal(padColor(80,68,0,false),0,'Unique chromatic approach stays dark');
+    assert.equal(padColor(76,68,0,true),11,'Played approach uses Play Color');
+    keyboardState.mode=0;keyboardState.layout=1;keyboardState.scale=0;keyboardState.rootPc=0;
+    refreshHarmonyPads(0,testTime+=100);
+    assert.equal(padColor(76,68,0,false),C_LIGHTGREY,'Piano gap uses the same membership rules');
+    portFor(0).getParam=()=> '0,0,0,0,0,6,0,3,2,0|piano1,0';
+    refreshHarmonyPads(0,testTime+=100);
+    assert.equal(padColor(76,68,0,false),0,'Disabled/unmapped gap stays dark');
+    console.log('Approach layout: every input root/scale, exact lower-pad targets, native membership colors and inactive gaps pass');
+}

@@ -6,10 +6,12 @@ from patch_responsive_persistence import replace_once
 def patch_piano_approach(root: Path) -> None:
     path = root / 'src/seq/pads.ts'
     source = path.read_text()
-    source = "import { pianoApproachTarget, pianoApproachIdentity } from '../keyboard/harmony-pads.js';\nexport { pianoApproachTarget, pianoApproachIdentity } from '../keyboard/harmony-pads.js';\n" + source
+    source = "import { pianoApproachTarget, pianoApproachIdentity, harmonyApproachColor } from '../keyboard/harmony-pads.js';\nexport { pianoApproachTarget, pianoApproachIdentity } from '../keyboard/harmony-pads.js';\n" + source
     source = replace_once(source, '    return padMapFor(track)[padNote - padMin] ?? -1;', '''    const index = padNote - padMin;
     const target = pianoApproachTarget(track, index);
     return target < 0 ? padMapFor(track)[index] ?? -1 : pianoApproachIdentity(target);''')
+    source = replace_once(source, '    if (pitch < 0) return C_BLACK;',
+        '    if (pitch < 0) return harmonyApproachColor(idx, track, isPlaying);')
     path.write_text(source)
     path = root / 'src/track/pad-route.ts'
     source = "import { pianoApproachTarget } from '../keyboard/harmony-pads.js';\n" + path.read_text()

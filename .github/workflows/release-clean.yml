@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 7126151aba51d6dbd72229316eae4398631b4afa
-  HB_MOVY_VERSION: 0.34.1-hbclean.93
-  HB_MOVY_TAG: v0.34.1-hbclean.93
+  HB_REF: 1969a61deeca1ade3bb68ddcad1c45e09523b2ee
+  HB_MOVY_VERSION: 0.34.1-hbclean.94
+  HB_MOVY_TAG: v0.34.1-hbclean.94
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -71,6 +71,9 @@ jobs:
           expected = {
               'src/app/init.ts',
               'src/app/state.ts',
+              'src/keyboard/layouts.ts',
+              'browser-test/screenshots/baseline/main-mode-overlay.png',
+              'browser-test/screenshots/baseline/main-layout-overlay.png',
               'build/browser.mjs',  # expose the real app tick to release-latency tests
               'src/chain/set-param.ts',
               'src/undo/apply.ts',
@@ -352,7 +355,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Open the first chain slot at startup. Refresh native HarmonyBus pad colors on touch/release before general engine polling, including lane 16. Compatible with HarmonyBus 0.2.185."
+              --notes "Pair with HarmonyBus 0.2.186 for rendered chromatic approach colors. Add Approach layout with scale rows and mapped chromatic approach rows in any supported key/scale. Preserve first-slot startup and early release feedback."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

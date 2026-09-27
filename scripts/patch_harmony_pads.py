@@ -49,7 +49,7 @@ def patch_harmony_pads(root: Path) -> None:
     source = source.replace('        setRootPc(keyboardState.rootPc + n);', '        setRootPc(keyboardState.rootPc + n);\n        setFollowerInputRoot(appState.activeTrack.index, keyboardState.rootPc);')
     path.write_text(source)
     source = path.read_text()
-    source = source.replace("import { MODE_NAMES, layoutNames } from '../keyboard/layouts.js';", "export const PAD_LAYOUT_NAMES = ['Chromatic 4ths', 'Piano', 'In Key 4ths', 'Inline'];\nexport function padLayoutIndex(): number { return (keyboardState.mode === 1 ? 2 : 0) + Math.min(keyboardState.layout, 1); }")
+    source = source.replace("import { MODE_NAMES, layoutNames } from '../keyboard/layouts.js';", "export const PAD_LAYOUT_NAMES = ['Chromatic 4ths', 'Piano', 'In Key 4ths', 'Inline', 'Approach'];\nexport function padLayoutIndex(): number { return keyboardState.layout === 2 ? 4 : (keyboardState.mode === 1 ? 2 : 0) + Math.min(keyboardState.layout, 1); }")
     source = source.replace('if (k === K_KEY) return SCALE_NAMES;', 'if (k === K_KEY) return SCALE_NAMES.slice(0, followerInputScaleCount(appState.activeTrack.index));')
     source = source.replace('const OVERLAY_KNOBS = [K_KEY, K_MODE, K_LAYOUT];', 'const OVERLAY_KNOBS = [K_KEY, K_MODE];')
     source = source.replace('    if (k === K_MODE) return MODE_NAMES;\n    return layoutNames(keyboardState.mode);', '    return k === K_MODE ? PAD_LAYOUT_NAMES : [];')
@@ -59,7 +59,7 @@ def patch_harmony_pads(root: Path) -> None:
         // over; the clamp is here so adding a third option later can't strand it.
         keyboardState.layout = Math.min(keyboardState.layout, layoutNames(sel).length - 1);
     } else keyboardState.layout = sel;''', '''        keyboardState.mode = sel >= 2 ? 1 : 0;
-        keyboardState.layout = sel % 2;
+        keyboardState.layout = sel === 4 ? 2 : sel % 2;
     }''')
     source = source.replace('    mainPageState.touchedKnob = down ? k : -1;', '    if (k === K_LAYOUT) return;\n    mainPageState.touchedKnob = down ? k : -1;')
     source = source.replace('    mainPageState.touchedKnob = k;', '    if (k === K_LAYOUT) return;\n    mainPageState.touchedKnob = k;')
@@ -111,7 +111,7 @@ def patch_harmony_pads(root: Path) -> None:
     source = source[:start] + '''    // One selector preserves the four existing mode/layout combinations.
     const { PAD_LAYOUT_NAMES, padLayoutIndex } = await import('../../dist/esm/seq/main-page.js');
     eq('combined layout names', JSON.stringify(PAD_LAYOUT_NAMES),
-        '["Chromatic 4ths","Piano","In Key 4ths","Inline"]');
+        '["Chromatic 4ths","Piano","In Key 4ths","Inline","Approach"]');
     for (let index = 0; index < 4; index++) {
         keyboardState.mode = index >= 2 ? 1 : 0; keyboardState.layout = index % 2;
         mainPageTouch(6, true);
@@ -132,8 +132,8 @@ def patch_harmony_pads(root: Path) -> None:
     source = source.replace("eq('mode cell shows Chromatic', vm.rows[1][2].displayValue, 'Chromatic');", "eq('combined layout cell', vm.rows[1][2].displayValue, 'Chromatic 4ths');")
     source = source.replace("eq('layout cell shows 4th', vm.rows[1][3].displayValue, '4th');", "eq('former layout cell is empty', vm.rows[1][3], null);")
     source = source.replace("eq('in-key mode cell', vm.rows[1][2].displayValue, 'In Key');", "eq('in-key layout cell', vm.rows[1][2].displayValue, 'In Key 4ths');")
-    source = source.replace("JSON.stringify(vm.rows[1][3].options), '[\"4th\",\"Inline\"]'", "JSON.stringify(vm.rows[1][2].options), '[\"Chromatic 4ths\",\"Piano\",\"In Key 4ths\",\"Inline\"]'")
-    source = source.replace("JSON.stringify(vm.overlay?.options), '[\"Chromatic\",\"In Key\"]'", "JSON.stringify(vm.overlay?.options), '[\"Chromatic 4ths\",\"Piano\",\"In Key 4ths\",\"Inline\"]'")
+    source = source.replace("JSON.stringify(vm.rows[1][3].options), '[\"4th\",\"Inline\"]'", "JSON.stringify(vm.rows[1][2].options), '[\"Chromatic 4ths\",\"Piano\",\"In Key 4ths\",\"Inline\",\"Approach\"]'")
+    source = source.replace("JSON.stringify(vm.overlay?.options), '[\"Chromatic\",\"In Key\"]'", "JSON.stringify(vm.overlay?.options), '[\"Chromatic 4ths\",\"Piano\",\"In Key 4ths\",\"Inline\",\"Approach\"]'")
     source = source.replace("JSON.stringify(vm.overlay?.options), '[\"4th\",\"Piano\"]'", "JSON.stringify(vm.overlay?.options), '[]'")
     path.write_text(source)
     path = root / 'src/undo/ui-fields.ts'
@@ -150,4 +150,22 @@ def patch_harmony_pads(root: Path) -> None:
     path = root / 'browser-test/screenshot.mjs'
     source = path.read_text().replace('mainPageState.overlayKnob = 7; mainPageState.overlaySel = 1;',
         'mainPageState.overlayKnob = 6; mainPageState.overlaySel = 3;')
+    path.write_text(source)
+
+    path = root / 'src/keyboard/layouts.ts'
+    source = path.read_text()
+    source = replace_once(source, 'export const LAYOUT_INLINE = 1;', 'export const LAYOUT_INLINE = 1;\nexport const LAYOUT_APPROACH = 2;')
+    source = source.replace("['4th', 'Piano']", "['4th', 'Piano', 'Approach']").replace("['4th', 'Inline']", "['4th', 'Inline', 'Approach']")
+    source = replace_once(source, '        if (mode === MODE_IN_KEY) {', '        if (layout === LAYOUT_APPROACH) {\n            pitch = row & 1 ? -1 : degreeToPitch(base, degrees, (row >> 1) * degrees.length + col);\n        } else if (mode === MODE_IN_KEY) {')
+    path.write_text(source)
+    path = root / 'src/seq/main-page-vm.ts'
+    source = path.read_text().replace('normalizedValue: li / 3', 'normalizedValue: li / (PAD_LAYOUT_NAMES.length - 1)')
+    path.write_text(source)
+
+    path = root / 'browser-test/logic/keyboard.mjs'
+    source = path.read_text().replace("'[\"4th\",\"Piano\"]'", "'[\"4th\",\"Piano\",\"Approach\"]'").replace("'[\"4th\",\"Inline\"]'", "'[\"4th\",\"Inline\",\"Approach\"]'")
+    path.write_text(source)
+
+    path = root / 'browser-test/logic/params-pages.mjs'
+    source = path.read_text().replace("eq('layout clamped', keyboardState.layout, 1);", "eq('layout clamped', keyboardState.layout, 2);")
     path.write_text(source)
