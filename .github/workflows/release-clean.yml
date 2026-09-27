@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 1969a61deeca1ade3bb68ddcad1c45e09523b2ee
-  HB_MOVY_VERSION: 0.34.1-hbclean.94
-  HB_MOVY_TAG: v0.34.1-hbclean.94
+  HB_REF: 1bbb6d403ceff2f57c78767697199b7391916c06
+  HB_MOVY_VERSION: 0.34.1-hbclean.95
+  HB_MOVY_TAG: v0.34.1-hbclean.95
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -355,7 +355,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Pair with HarmonyBus 0.2.186 for rendered chromatic approach colors. Add Approach layout with scale rows and mapped chromatic approach rows in any supported key/scale. Preserve first-slot startup and early release feedback."
+              --notes "Pair with HarmonyBus 0.2.187 for the temporary Auto Chord Repeat operation. Existing Follow Touch assignments can target the new operation; panel settings remain intact on release."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

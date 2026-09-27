@@ -1,3 +1,5 @@
+> hbclean.95 / HarmonyBus 0.2.187: Auto Chord Repeat is available in the operation selector. Assign it to a Follow Touch lane for tap-latch or momentary repeat using the existing Auto Chord/Arp details. Turning it off restores panel settings. Mode boundaries release held notes; press again to play in the new mode.
+
 > hbclean.94 / HarmonyBus 0.2.186: Approach layout alternates scale-tone rows with chromatic approaches above them. Piano gaps and approach rows show native rendered scale/current/next membership. Movy root/scale controls stay linked to the follower input.
 
 > hbclean.93: Touch and release feedback refreshes native HarmonyBus pad colors before general engine polling, including lane 16. Includes the first-slot startup default.

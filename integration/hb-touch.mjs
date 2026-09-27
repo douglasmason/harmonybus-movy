@@ -6,6 +6,7 @@ const { schwungLibAvailable } = await import('../dist/esm/renderer/schwung-lib.j
 assert(schwungLibAvailable(), 'This test requires the real Schwung controller');
 const { createSchwungPage } = await import('../dist/esm/renderer/schwung-page.js');
 const module = JSON.parse(readFileSync(process.env.HB_MODULE, 'utf8'));
+assert(module.capabilities.chain_params.find(parameter => parameter.key === 'motion_operation').options.includes('Auto Chord Repeat'));
 // Generated metadata is verified against the real DSP in the native suite.
 const runtimeChainParams = JSON.stringify(module.capabilities.chain_params);
 const values = new Map(module.capabilities.chain_params.map(param => [param.key, param.default ?? param.options?.[0] ?? '0']));
