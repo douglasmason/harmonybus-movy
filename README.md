@@ -1,3 +1,5 @@
+> **hbclean.106 / HarmonyBus 0.2.198:** Expanded secondary controls and three scale policies, separate connector and tritone controls, and backward-compatible ra3 operation recording.
+
 > hbclean.105 / HarmonyBus 0.2.197: fixed Ops 1–8 / 9–16, named Pitch Play / Pitch Cadences, Chord Play and Harmony Play settings, tritone-sub approaches and three-press cadences. Expanded recordings preserve named operations and read old clips. Install both modules.
 
 > hbclean.104 / HarmonyBus 0.2.196: Backdoor II/V, chromatic-target cadences and expanded chord families. Whole Tone/Augmented scales synchronize with HB and preserve saved-note projection; recorded actions retain the new operation roles. Install both modules.

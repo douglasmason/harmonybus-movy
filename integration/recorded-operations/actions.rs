@@ -1,20 +1,25 @@
 //! Immutable note-relative operation outcomes; exact u64 words never visit JS.
-pub const LANES:usize=33;
+pub const LANES:usize=37;
 pub type Actions = [u64;LANES+1];
+pub fn operation(word:u64)->u64{((word>>32)&31)|((word>>46)&32)}
 pub fn parse(message:&str)->Option<(u8,Actions)>{
     let mut fields=message.split(',');
-    if !matches!(fields.next()?,"ra1"|"ra2") {return None;}
+    if !matches!(fields.next()?,"ra1"|"ra2"|"ra3") {return None;}
     let pitch=fields.next()?.parse::<u8>().ok()?;
     if pitch>127{return None;}
     let mut actions=[0;LANES+1];
     let words=fields.map(|word|word.parse::<u64>().ok()).collect::<Option<Vec<_>>>()?;
-    if words.len()!=17 && words.len()!=LANES+1{return None;}
-    if words.len()==17 {actions[..16].copy_from_slice(&words[..16]);actions[LANES]=words[16];}
-    else {actions.copy_from_slice(&words);}
-    if actions[LANES]>123 || (actions[LANES]>>2)&3>2{return None;}
+    if words.len()!=17 && words.len()!=34 && words.len()!=LANES+1{return None;}
+    if words.len()<LANES+1 {
+        let old_lanes=words.len()-1;
+        actions[..old_lanes].copy_from_slice(&words[..old_lanes]);
+        actions[LANES]=words[old_lanes]|2048;
+        for word in &mut actions[..old_lanes] {if *word>>63!=0&&operation(*word)==26 {*word=(*word&!((31u64<<32)|(1u64<<51)))|(31u64<<32);}}
+    } else {actions.copy_from_slice(&words);}
+    if actions[LANES]&!8063!=0 || (actions[LANES]>>2)&3>2 || (((actions[LANES]>>4)&7)|((actions[LANES]>>5)&8))>10{return None;}
     for word in &actions[..LANES] {
         if word>>63==0 && *word>u32::MAX as u64 {return None;}
-        if word>>63!=0 && ((((word>>32)&31)>30 || ((word>>32)&31)==20) || ((word>>37)&15)>8){return None;}
+        if word>>63!=0 && ((operation(*word)>34 || operation(*word)==20) || ((word>>37)&15)>8){return None;}
     }
     Some((pitch,actions))
 }
@@ -43,8 +48,19 @@ pub fn payload(pitch:u8,actions:Actions)->String{
             valid[LANES]=invalid;
             assert_eq!(parse(&format!("ra1,{}",payload(60,valid))),None);
         }
+        for op in 31..=34u64 {
+            let mut current=[0u64;LANES+1];
+            current[36]=(1u64<<63)|((op&31)<<32)|((op&32)<<46)|1000;
+            for role in 0..=10u64 {for flags in [0,512,4608,1024,2048] {
+                current[LANES]=((role&7)<<4)|((role&8)<<5)|flags;
+                assert_eq!(parse(&format!("ra3,{}",payload(60,current))),Some((60,current)));
+            }}
+        }
+        let mut previous=vec![0u64;34];previous[18]=(1u64<<63)|(26u64<<32)|1000;previous[33]=3;
+        let migrated=parse(&format!("ra2,60,{}",previous.iter().map(u64::to_string).collect::<Vec<_>>().join(","))).unwrap().1;
+        assert_eq!(operation(migrated[18]),31);assert_eq!(migrated[LANES],2051);assert_eq!(migrated[33],0);
         let legacy=format!("ra1,60,{}",[0u64;17].iter().map(u64::to_string).collect::<Vec<_>>().join(","));
-        assert_eq!(parse(&legacy),Some((60,[0;LANES+1])));
+        assert_eq!(parse(&legacy),Some((60,{let mut expected=[0;LANES+1];expected[LANES]=2048;expected})));
         assert_eq!(parse("ra1,60,1,2"),None);
         assert_eq!(parse(&format!("ra1,{},3",payload(60,valid))),None);
     }

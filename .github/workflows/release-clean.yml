@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 726da94d1e63d22e324be8792d3f66d03b823509
-  HB_MOVY_VERSION: 0.34.1-hbclean.105
-  HB_MOVY_TAG: v0.34.1-hbclean.105
+  HB_REF: 99caf2849caa2d96a2b9b4eea77af97a7a736123
+  HB_MOVY_VERSION: 0.34.1-hbclean.106
+  HB_MOVY_TAG: v0.34.1-hbclean.106
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -361,7 +361,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Fix Ops 1-16 to Step Seq 1-16 and add named Pitch Play, Chord Play and Harmony Play controls outside those slots. Support tritone approaches, three-press cadences and expanded operation recording with legacy playback. Repair the native audio-chain release test."
+              --notes "Support expanded secondary II-VII controls, Parent Scale / Simple Chord / Simple Scale policies, separate connector and tritone controls, and ra3 recording with legacy playback. Step operation banks remain fixed."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

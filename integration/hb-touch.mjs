@@ -239,7 +239,7 @@ for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_
 }
 const operationSlot = focusKey('motion_operation');
 page.knobTurn(operationSlot, 100);page.knobTouch(operationSlot, false);
-for (const operation of ['Tritone II-V-Target','Backdoor II-V-Target','II-V-Target','Tritone II','Chrom Above']) {
+for (const operation of ['Secondary VII','Secondary IV','Secondary III','Tritone V','Tritone II-V-Target','Backdoor II-V-Target','II-V-Target','Tritone II','Chrom Above']) {
     assert.equal(values.get('motion_operation'), operation);
     page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
 }
@@ -701,7 +701,7 @@ console.log('Pad controls: all eight knobs, both release encodings, cached feedb
 // Fixed controls span two step banks and independent named controls.
 const followClock=Date.now;let followNow=1500000;Date.now=()=>followNow;
 try {
-    for(const lane of [1,8,9,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33]) {
+    for(const lane of [1,8,9,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37]) {
         const slot=focusKey('motion_control_'+lane);
         values.set('motion_gesture_binding_'+lane,'1,1,3,0,350,0');
         const start=writes.length;

@@ -34,7 +34,7 @@ def patch_named_controls(root: Path) -> None:
     path = root / 'src/renderer/hb-performance.ts'
     source = path.read_text()
     source = source.replace("const assignments=keys.map(key=>key&&/^follow_touch_[1-9]$/.test(key)?Number(values[key])-1:-1);", "const assignments=keys.map(key=>key&&/^motion_control_[0-9]+$/.test(key)?Number(key.slice(15))-1:key&&/^follow_touch_[1-9]$/.test(key)?Number(values[key])-1:-1);")
-    source = source.replace('lane>=0&&lane<16?1<<index:0', 'lane>=0&&lane<33?1<<index:0')
+    source = source.replace('lane>=0&&lane<16?1<<index:0', 'lane>=0&&lane<37?1<<index:0')
     source = source.replace('    const lights=wanted?readLaneLights(owner):null;', '    const userLights=wanted?readLaneLights(owner):null;\n    const namedLights=assignments.some(lane=>lane>=16)?readNamedLights(owner):null;')
     source = source.replace('        if(!lights)continue;\n        const active=', '        const lights=lane>=16?namedLights:userLights;const localLane=lane>=16?lane-16:lane;\n        if(!lights)continue;\n        const active=')
     start: int = source.index('export function paintHbOperationKnobs')
@@ -45,7 +45,7 @@ function readNamedLights(owner:PerformancePort):LaneLights|null {
     const key=owner.performanceTrack ?? owner,now=Date.now(),cached=namedLaneLights.get(key);
     if(cached&&now>=cached.at&&now-cached.at<50)return cached;
     const row=owner.performanceGet('motion_named_lights').split(',').map(Number);
-    if(row.length!==20||!row.every(Number.isFinite))return null;
+    if(row.length!==24||!row.every(Number.isFinite))return null;
     const state={at:now,active:row[0],persistent:row[1],down:row[2],operations:row.slice(3)};
     namedLaneLights.set(key,state);return state;
 }
