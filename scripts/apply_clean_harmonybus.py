@@ -528,6 +528,8 @@ def main() -> int:
     patch_double_tap(root)
     from patch_named_controls import patch_named_controls
     patch_named_controls(root)
+    from patch_perf_measurement import patch_perf_measurement
+    patch_perf_measurement(root)
     print("HarmonyBus clean integration applied")
     return 0
 
