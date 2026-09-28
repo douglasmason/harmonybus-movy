@@ -30,7 +30,9 @@ int main(int argument_count, char **arguments) {
         assert(instances[track]->player.config.chromatic_quality == 3);
         assert(instances[track]->retrigger_held == 1);
         assert(instances[track]->chromatic_map == 1);
-        assert(instances[track]->motion.lanes[14].operation == HB_MO_ABOVE);
+        assert(instances[track]->motion.lanes[12].operation == HB_MO_SECONDARY_VI);
+        assert(instances[track]->motion.lanes[13].operation == HB_MO_ABOVE);
+        assert(instances[track]->motion.lanes[14].operation == HB_MO_SECONDARY_V);
         assert(instances[track]->motion.lanes[15].operation == HB_MO_BELOW);
         assert(instances[track]->render_channel == expected_channel);
         assert(instances[track]->source_channel == (track >= 12 ? quartet_position : 0));
