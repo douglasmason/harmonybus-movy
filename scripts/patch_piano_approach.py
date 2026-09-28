@@ -145,7 +145,7 @@ pub fn piano_emit(pitch:u8, normal:u8, actions:Option<Actions>, source:Option<cr
             let (_,actions)=piano_emit(96,96,Some(words),None,None,12);
             assert_eq!(actions.unwrap()[LANES]>>4,secondary);
         }
-        let mut invalid=[0;LANES+1];invalid[LANES]=11;
+        let mut invalid=[0;LANES+1];invalid[LANES]=12;
         assert!(parse(&format!("ra1,{}",payload(60,invalid))).is_none());
     }
 }
