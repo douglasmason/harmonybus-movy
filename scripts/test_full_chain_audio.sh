@@ -9,9 +9,15 @@ FIXTURE_ROOT="$(mktemp -d)"
 trap 'rm -rf "$FIXTURE_ROOT"' EXIT
 mkdir -p "$FIXTURE_ROOT/chain" "$FIXTURE_ROOT/movy" "$FIXTURE_ROOT/sound_generators/probe" "$FIXTURE_ROOT/midi_fx/harmonybus"
 CHAIN_SOURCE="$SCHWUNG_SOURCE/src/modules/chain/dsp"
+# Match upstream's private lane implementation without exporting host symbols.
+for component in lane_store lane_serial lane_edit; do
+  cc -O1 -fPIC -fvisibility=hidden -c "$SCHWUNG_SOURCE/src/host/$component.c" \
+    -I"$SCHWUNG_SOURCE/src" -I"$SCHWUNG_SOURCE/src/host" -o "$FIXTURE_ROOT/$component.o"
+done
 cc -O1 -shared -fPIC "$CHAIN_SOURCE/chain_host.c" "$CHAIN_SOURCE/chain_json.c" \
   "$CHAIN_SOURCE/chain_params.c" "$CHAIN_SOURCE/chain_mod.c" "$CHAIN_SOURCE/chain_midi.c" \
   "$CHAIN_SOURCE/chain_patch.c" "$CHAIN_SOURCE/chain_reorder.c" "$CHAIN_SOURCE/chain_bus.c" \
+  "$CHAIN_SOURCE/chain_lanes.c" "$FIXTURE_ROOT/lane_store.o" "$FIXTURE_ROOT/lane_serial.o" "$FIXTURE_ROOT/lane_edit.o" \
   "$SCHWUNG_SOURCE/src/host/unified_log.c" -I"$SCHWUNG_SOURCE/src" -lm -ldl -lpthread -o "$FIXTURE_ROOT/chain/dsp.so"
 cc -O1 -shared -fPIC -include sys/mman.h -include unistd.h \
   "$HB_SOURCE/modules/harmonybus/dsp/harmonybus.c" "$HB_SOURCE/src/harmony_core.c" \

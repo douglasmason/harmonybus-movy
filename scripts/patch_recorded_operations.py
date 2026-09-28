@@ -71,7 +71,7 @@ def patch_recorded_operations(root: Path) -> None:
             if self.engine.follower_inputs[track].is_none(){continue;}
             for _ in 0..64 {
                 let Some(message)=self.chains.get_param(track,"midi_fx1:hb_record_action") else {break;};
-                if !message.starts_with("ra1,"){break;}
+                if !message.starts_with("ra1,") && !message.starts_with("ra2,"){break;}
                 self.engine.recorded_action(track,&message);
             }
         }

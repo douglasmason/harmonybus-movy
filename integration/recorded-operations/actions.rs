@@ -1,16 +1,20 @@
 //! Immutable note-relative operation outcomes; exact u64 words never visit JS.
-pub type Actions = [u64;17];
+pub const LANES:usize=33;
+pub type Actions = [u64;LANES+1];
 pub fn parse(message:&str)->Option<(u8,Actions)>{
     let mut fields=message.split(',');
-    if fields.next()? != "ra1" {return None;}
+    if !matches!(fields.next()?,"ra1"|"ra2") {return None;}
     let pitch=fields.next()?.parse::<u8>().ok()?;
     if pitch>127{return None;}
-    let mut actions=[0;17];
-    for word in &mut actions {*word=fields.next()?.parse().ok()?;}
-    if fields.next().is_some() || (actions[16]>106 || actions[16]&3>2 || (actions[16]>>2)&3>2){return None;}
-    for word in &actions[..16] {
+    let mut actions=[0;LANES+1];
+    let words=fields.map(|word|word.parse::<u64>().ok()).collect::<Option<Vec<_>>>()?;
+    if words.len()!=17 && words.len()!=LANES+1{return None;}
+    if words.len()==17 {actions[..16].copy_from_slice(&words[..16]);actions[LANES]=words[16];}
+    else {actions.copy_from_slice(&words);}
+    if actions[LANES]>123 || (actions[LANES]>>2)&3>2{return None;}
+    for word in &actions[..LANES] {
         if word>>63==0 && *word>u32::MAX as u64 {return None;}
-        if word>>63!=0 && ((((word>>32)&31)>25 || ((word>>32)&31)==20) || ((word>>37)&15)>8){return None;}
+        if word>>63!=0 && ((((word>>32)&31)>30 || ((word>>32)&31)==20) || ((word>>37)&15)>8){return None;}
     }
     Some((pitch,actions))
 }
@@ -22,23 +26,25 @@ pub fn payload(pitch:u8,actions:Actions)->String{
 #[cfg(test)] mod tests{
     use super::*;
     #[test] fn preserves_64_bit_words_and_rejects_partial(){
-        let actions=[1u64<<63;17];let mut valid=actions;valid[16]=2;
+        let actions=[1u64<<63;LANES+1];let mut valid=actions;valid[LANES]=2;
         assert_eq!(parse(&format!("ra1,{}",payload(60,valid))),Some((60,valid)));
         valid[0]=(1u64<<63)|(19u64<<32)|12000;
         assert_eq!(parse(&format!("ra1,{}",payload(60,valid))),Some((60,valid)));
         valid[0]=(1u64<<63)|(20u64<<32)|12000;
         assert_eq!(parse(&format!("ra1,{}",payload(60,valid))),None);
-        for operation in 21..=25u64 {
+        for operation in 21..=30u64 {
             valid[0]=(1u64<<63)|(operation<<32)|12000;
-            for secondary in 0..=6u64 {for alias in 0..=2u64 {
-                valid[16]=(secondary<<4)|(alias<<2)|2;
+            for secondary in 0..=7u64 {for alias in 0..=2u64 {
+                valid[LANES]=(secondary<<4)|(alias<<2)|3;
                 assert_eq!(parse(&format!("ra1,{}",payload(60,valid))),Some((60,valid)));
             }}
         }
-        for invalid in [11,12,75,107,112,128] {
-            valid[16]=invalid;
+        for invalid in [12,15,124,127,128] {
+            valid[LANES]=invalid;
             assert_eq!(parse(&format!("ra1,{}",payload(60,valid))),None);
         }
+        let legacy=format!("ra1,60,{}",[0u64;17].iter().map(u64::to_string).collect::<Vec<_>>().join(","));
+        assert_eq!(parse(&legacy),Some((60,[0;LANES+1])));
         assert_eq!(parse("ra1,60,1,2"),None);
         assert_eq!(parse(&format!("ra1,{},3",payload(60,valid))),None);
     }

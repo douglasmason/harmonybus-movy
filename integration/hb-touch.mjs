@@ -171,13 +171,13 @@ try {
     assert.equal(page.ctl.pages.filter(candidate => candidate.keys?.includes('motion_lane')).length, 3);
     const originalSetParam = port.setParam;
     const laneAmounts = ['3', '17', '-2', '0'];
-    values.set('motion_lane', '1');
+    values.set('motion_lane', 'Step Seq 1: Off');
     values.set('motion_amount', laneAmounts[0]);
     port.setParam = (key, value) => {
         const bare = key.split(':').at(-1);
-        if (bare === 'motion_amount') laneAmounts[Number(values.get('motion_lane')) - 1] = String(value);
+        if (bare === 'motion_amount') laneAmounts[Number(String(values.get('motion_lane')).match(/Step Seq (\d+)/)[1]) - 1] = String(value);
         originalSetParam(key, value);
-        if (bare === 'motion_lane') values.set('motion_amount', laneAmounts[Number(value) - 1]);
+        if (bare === 'motion_lane') values.set('motion_amount', laneAmounts[Number(String(value).match(/Step Seq (\d+)/)[1]) - 1]);
     };
     const laneSlot = focusKey('motion_operation');
     assert.equal(page.pageTitle, 'Operation');
@@ -186,13 +186,13 @@ try {
     editorReads.length=0;
     page.knobTurn(selectedSlot, 1);
     assert.deepEqual(editorReads,['midi_fx1:motion_editor'],'Lane edit uses exactly one host read');
-    assert.equal(values.get('motion_lane'), '2');
+    assert.equal(values.get('motion_lane'), 'Step Seq 2: Off');
     page.knobTurn(amountSlot, 1);
     page.knobTouch(amountSlot, false);
     assert.equal(values.get('motion_amount'), '18', 'Immediate turn edits lane 2 from its own value');
     focusKey('motion_probability');
     assert.equal(page.pageTitle, 'Timing / Trigger');
-    assert.equal(page.ctl.describePage().cells.find(cell => cell.key === 'motion_lane').raw, '2');
+    assert.equal(page.ctl.describePage().cells.find(cell => cell.key === 'motion_lane').raw, 'Step Seq 2: Off');
     const punchSlot = focusKey('hb_step_row');
     const before = writes.length;
     page.knobTouch(punchSlot, true);page.knobTurn(punchSlot, 1);page.knobTouch(punchSlot, false);
@@ -239,6 +239,10 @@ for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_
 }
 const operationSlot = focusKey('motion_operation');
 page.knobTurn(operationSlot, 100);page.knobTouch(operationSlot, false);
+for (const operation of ['Tritone II-V-Target','Backdoor II-V-Target','II-V-Target','Tritone II','Chrom Above']) {
+    assert.equal(values.get('motion_operation'), operation);
+    page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
+}
 assert.equal(values.get('motion_operation'), 'Backdoor V');
 page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
 assert.equal(values.get('motion_operation'), 'Backdoor II');
@@ -553,7 +557,7 @@ console.log('Slow host: cached touch frames, no repeated contracts, no partial d
 // Timed knob gestures preserve press order and the original owner on release.
 const gestureClock=Date.now;let gestureNow=100000;Date.now=()=>gestureNow;
 try {
-    for(const [key,wire] of [['follow_touch_7','motion_gesture_15'],['follow_touch_8','motion_gesture_16']]){
+    for(const [key,wire] of [['motion_control_15','motion_gesture_15'],['motion_control_16','motion_gesture_16']]){
         const slot=focusKey(key);const before=writes.length;
         page.knobTouch(slot,true);page.knobTouch(slot,true);
         assert.deepEqual(writes.at(-1),['midi_fx1:'+wire,'Touch']);
@@ -565,7 +569,7 @@ try {
         assert.deepEqual(writes.at(-1),['midi_fx1:'+wire,'Up,350'],'Release uses captured control after page change');
     }
     const {cancelPerformanceTouches}=await import('../dist/esm/renderer/schwung-page.js');
-    const slot=focusKey('follow_touch_7');page.knobTouch(slot,true);cancelPerformanceTouches();
+    const slot=focusKey('motion_control_15');page.knobTouch(slot,true);cancelPerformanceTouches();
     assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_15','Cancel'],'Teardown must never become a short tap');
 } finally {Date.now=gestureClock;}
 console.log('Timed knob gestures: short/long duration, duplicate press, captured release and cancellation pass');
@@ -593,7 +597,7 @@ await import('../dist/esm/app/globals.js');
 const {onMidiMessageInternal}=globalThis;
 const releaseClock=Date.now;let releaseNow=500000;Date.now=()=>releaseNow;
 try {
-    const slot=focusKey('follow_touch_8');
+    const slot=focusKey('motion_control_16');
     page.knobTouch(slot,true);releaseNow+=300;
     const savedGet=port.getParam;
     port.getParam=()=>{throw new Error('Release must not query any parameters');};
@@ -601,15 +605,15 @@ try {
     port.getParam=savedGet;
     assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_16','Up,300']);
     assert.equal(page.ctl.state.touched,-1);
-    assert.equal(page.ctl.state.triggerFiredAt.follow_touch_8.at(-1),releaseNow);
+    assert.equal(page.ctl.state.triggerFiredAt.motion_control_16.at(-1),releaseNow);
     const count=writes.length;
     onMidiMessageInternal([0x80,slot,0]);
     assert.equal(writes.length,count,'Second release cannot refire the trigger');
     page.knobTouch(slot,true);releaseNow+=350;
-    const burst=page.ctl.state.triggerFiredAt.follow_touch_8.at(-1);
+    const burst=page.ctl.state.triggerFiredAt.motion_control_16.at(-1);
     onMidiMessageInternal([0x90,slot,0]);
     assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_16','Up,350']);
-    assert.equal(page.ctl.state.triggerFiredAt.follow_touch_8.at(-1),burst,'Momentary release does not flash a trigger');
+    assert.equal(page.ctl.state.triggerFiredAt.motion_control_16.at(-1),burst,'Momentary release does not flash a trigger');
 } finally {Date.now=releaseClock;}
 console.log('Release priority: both MIDI forms, read-free dispatch, immediate touch clear, short-tap native animation and hold boundary pass');
 
@@ -625,7 +629,7 @@ try {
     refreshHarmonyPads(4,previewNow);
     const baseline = harmonyPadColor(60,4);
     for(const duration of [50,400]) {
-        const slot=focusKey('follow_touch_8');
+        const slot=focusKey('motion_control_16');
         previewNow++;page.knobTouch(slot,true);previewMask=16;
         const before=previewReads;
         refreshHarmonyPads(4,previewNow);
@@ -640,7 +644,7 @@ try {
         assert.equal(previewReads,before+3,'Release immediately invalidates preview despite quiet period');
         assert.equal(harmonyPadColor(60,4),baseline,'Release restores the preview');
     }
-    const slot=focusKey('follow_touch_8');page.knobTouch(slot,true);
+    const slot=focusKey('motion_control_16');page.knobTouch(slot,true);
     refreshHarmonyPads(4,++previewNow);const beforeCancel=previewReads;
     releasePerformanceTouch(slot,true);refreshHarmonyPads(4,++previewNow);
     assert.equal(previewReads,beforeCancel+1,'Cancelled gestures also invalidate preview');
@@ -694,57 +698,35 @@ try {
 } finally {Date.now=padClock;}
 console.log('Pad controls: all eight knobs, both release encodings, cached feedback, live turns, final writes and page changes pass');
 
-// All eight assignments use the actual controller and physical release route.
+// Fixed controls span two step banks and independent named controls.
 const followClock=Date.now;let followNow=1500000;Date.now=()=>followNow;
 try {
-    for(const [index,lane] of [1,2,3,4,13,14,15,16].entries()) {
-        const key='follow_touch_'+(index+1),slot=focusKey(key);
-        assert.equal(Number(values.get(key)),lane);
-        values.set('motion_gesture_binding_'+lane,`${index>=4?12+(index-4):1},1,3,0,350,0`);
+    for(const lane of [1,8,9,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33]) {
+        const slot=focusKey('motion_control_'+lane);
+        values.set('motion_gesture_binding_'+lane,'1,1,3,0,350,0');
         const start=writes.length;
         page.knobTouch(slot,true);
         assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_'+lane,'Touch']);
         const get=port.getParam;port.getParam=()=>{throw Error('Touch release must be read-free');};
-        try {followNow+=100;onMidiMessageInternal([index%2?0x90:0x80,slot,0]);} finally {port.getParam=get;}
+        try {followNow+=100;onMidiMessageInternal([lane%2?0x90:0x80,slot,0]);} finally {port.getParam=get;}
         assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_'+lane,'Up,100']);
-        assert.equal(writes.length,start+2);
-        followNow+=500;
+        assert.equal(writes.length,start+2);followNow+=500;
     }
-    const slot=focusKey('follow_touch_1');page.knobTouch(slot,true);
-    page.knobTurn(slot,2);page.ctl.revalue();
-    assert(writes.some(([k,v])=>k==='midi_fx1:motion_gesture_1'&&v==='Cancel'));
-    assert.equal(Number(values.get('follow_touch_1')),3,'Turning selects a lane');
-    onMidiMessageInternal([0x80,slot,0]);
+    const slot=focusKey('motion_control_1');values.set('motion_control_1','10');page.ctl.revalue();
+    page.knobTouch(slot,true);page.knobTurn(slot,2);page.knobTouch(slot,false);
+    assert(writes.some(([key,value])=>key==='midi_fx1:motion_gesture_1'&&value==='Cancel'));
+    assert(Number(values.get('motion_control_1'))>10,'Turning changes amount');
     followNow+=500;page.knobTouch(slot,true);
-    assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_3','Touch']);
-    followNow+=400;onMidiMessageInternal([0x80,slot,0]);
-    values.set('follow_touch_1',1);page.ctl.revalue();
-    // Two assignments to a lane and its step share one down/final up.
-    values.set('follow_touch_2',1);page.ctl.revalue();
-    const first=focusKey('follow_touch_1'),second=page.ctl.page.keys.indexOf('follow_touch_2');
-    const start=writes.length;page.knobTouch(first,true);page.knobTouch(second,true);
-    hbPerformanceStep([0x90,16,100],page);
-    assert.equal(writes.length,start+1);
-    onMidiMessageInternal([0x80,first,0]);releaseHbPerformanceStep([0x80,16,0]);
-    assert.equal(writes.length,start+1,'Another owner still holds the lane');
-    followNow+=400;onMidiMessageInternal([0x90,second,0]);
+    assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_1','Touch']);
+    const before=writes.length;hbPerformanceStep([0x90,16,100],page);
+    assert.equal(writes.length,before,'Knob and step share one native owner');
+    onMidiMessageInternal([0x80,slot,0]);assert.equal(writes.length,before);
+    followNow+=400;releaseHbPerformanceStep([0x80,16,0]);
     assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_1','Up,400']);
+    const mapSlot=focusKey('motion_control_33');assert.equal(page.pageTitle,'Foll Map');
+    page.knobTouch(mapSlot,true);assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_33','Touch']);page.knobTouch(mapSlot,false);
 } finally {Date.now=followClock;}
-console.log('Follow Touch: eight defaults, forced tap/hold, clip lanes, rotary reassignment and shared knob/step ownership pass');
-
-// Map Touch uses the same gesture/assignment path on Follow Map.
-const mapSlot=focusKey('follow_touch_9');
-assert.equal(page.pageTitle,'Foll Map');
-assert.equal(Number(values.get('follow_touch_9')),5);
-page.knobTouch(mapSlot,true);
-assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_5','Touch']);
-page.knobTouch(mapSlot,false);
-assert(writes.at(-1)[1].startsWith('Up,'));
-page.knobTouch(mapSlot,true);page.knobTurn(mapSlot,1);onMidiMessageInternal([0x80,mapSlot,0]);
-assert.equal(Number(values.get('follow_touch_9')),6);
-page.knobTouch(mapSlot,true);assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_6','Touch']);
-page.knobTouch(mapSlot,false);
-console.log('Map Touch: lane-5 touch without a separate latch toggle, operation labels, reassignment and identical card/header/peek numbers pass');
+console.log('Named controls: two step banks, Pitch Play, cadence/chord/harmony controls, amount turns and shared step ownership pass');
 
 const autoOffSlot=focusKey('motion_auto_off');
 assert.equal(page.pageTitle,'Conditions');
@@ -791,7 +773,7 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
     globalThis.clear_screen=()=>frames++;
     for(const view of [VIEW_CHAIN,VIEW_KNOBS]) {
         appState.currentView=view;
-        for(const key of ['pad_current_color','follow_touch_9','follow_touch_7','follow_touch_8']) {
+        for(const key of ['pad_current_color','motion_control_33','motion_control_15','motion_control_16']) {
             livePage.goToPage(livePage.ctl.pages.findIndex(p=>p.keys?.includes(key)));
             const slot=livePage.ctl.page.keys.indexOf(key);
             appState.dirty=true;tick();tick(); // establish the complete cached frame
@@ -849,7 +831,7 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
         assert.deepEqual(messages.at(-1),['motion_gesture_1','Up,60,900060']);assert.equal(reads,beforeReads);
         now+=100;release=beginHbLaneTouch(owner,0);now+=40;release();
         assert.deepEqual(messages.at(-1),['motion_gesture_1','Up,40,900200']);
-        function paint(){now+=60;ledFrameReset();paintHbPerformance(owner);paintHbOperationKnobs(owner,['follow_touch_1'],{'follow_touch_1':'1'});}
+        function paint(){now+=60;ledFrameReset();paintHbPerformance(owner);paintHbOperationKnobs(owner,['motion_control_1'],{'motion_control_1':'1'});}
         active=1;persistent=1;seqLedsInvalidate();paint();paint();
         for(const note of [0,16])assert(packets.some(p=>p[1]===0x9a&&p[2]===note&&p[3]===11),'Persistent knob and step use native smooth pulse');
         assert(packets.some(p=>p[1]===0xba&&p[2]===71&&p[3]===11),'Knob CC indicator pulses too');

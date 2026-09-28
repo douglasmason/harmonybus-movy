@@ -7,7 +7,7 @@
         engine
     }
     fn actions()->crate::recorded_actions::Actions {
-        let mut actions=[1u64<<63;17];actions[0]|=3u64<<32|1000;actions[16]=1;actions
+        let mut actions=[1u64<<63;crate::recorded_actions::LANES+1];actions[0]|=3u64<<32|1000;actions[crate::recorded_actions::LANES]=1;actions
     }
     #[test] fn note_actions_survive_timing_order_storage_and_reassignment(){
         for late in [false,true] {

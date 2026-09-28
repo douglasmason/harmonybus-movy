@@ -30,10 +30,12 @@ int main(int argument_count, char **arguments) {
         assert(instances[track]->player.config.chromatic_quality == 3);
         assert(instances[track]->retrigger_held == 1);
         assert(instances[track]->chromatic_map == 1);
-        assert(instances[track]->motion.lanes[12].operation == HB_MO_SECONDARY_VI);
-        assert(instances[track]->motion.lanes[13].operation == HB_MO_ABOVE);
-        assert(instances[track]->motion.lanes[14].operation == HB_MO_SECONDARY_V);
-        assert(instances[track]->motion.lanes[15].operation == HB_MO_BELOW);
+        for (int lane = 0; lane < HB_MOTION_USER_LANES; lane++)
+            assert(instances[track]->motion.lanes[lane].operation == HB_MO_OFF);
+        assert(instances[track]->motion.lanes[16].operation == HB_MO_BELOW);
+        assert(instances[track]->motion.lanes[17].operation == HB_MO_ABOVE);
+        assert(instances[track]->motion.lanes[18].operation == HB_MO_CHROM_ABOVE);
+        assert(instances[track]->motion.lanes[24].operation == HB_MO_TRITONE_II);
         assert(instances[track]->render_channel == expected_channel);
         assert(instances[track]->source_channel == (track >= 12 ? quartet_position : 0));
         assert(g_bus.boundary_buffer_ms == -3);
@@ -49,7 +51,7 @@ int main(int argument_count, char **arguments) {
         char expected_state[512],round_trip[512],amount[16];
         char seed[512];snprintf(seed,sizeof(seed),"%s",arguments[preset]);
         char *pad_marker=strstr(seed,";pd1,");assert(pad_marker);*pad_marker=0;
-        snprintf(expected_state,sizeof(expected_state),"%s;pd1,6,3,3,2,0;pb1,2;pc2,2;pp1,3;hu1,0,0,0;ss1,0,0;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5",seed);
+        snprintf(expected_state,sizeof(expected_state),"%s;pd1,6,3,3,2,0;pb1,2;pc2,2;pp1,3;hu1,0,0,0;ss1,0,0;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;named1",seed);
         assert(g_pad_settings[0]==6&&g_pad_tonic_color==9&&g_pad_play_color==3);
         assert(strcmp(serialized_state, expected_state) == 0);
         const char *keys[]={"humanize_timing","humanize_velocity","humanize_gate"};
