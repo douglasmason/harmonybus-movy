@@ -31,6 +31,7 @@ from patch_pressure_recording import patch_pressure_recording
 from patch_arp_pressure import patch_arp_pressure
 from patch_performance_touch import patch_performance_touch
 from patch_motion_controls import patch_motion_controls
+from patch_native_track_colors import patch_native_track_colors
 from patch_performance_steps import patch_performance_steps
 from patch_performance_mode import patch_performance_mode
 from patch_clip_performance import patch_clip_performance
@@ -478,6 +479,7 @@ def main() -> int:
     patch_pressure_recording(root)
     patch_performance_touch(root)
     patch_motion_controls(root)
+    patch_native_track_colors(root)
     patch_performance_steps(root)
     patch_performance_mode(root)
     patch_clip_performance(root)

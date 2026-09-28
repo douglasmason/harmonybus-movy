@@ -17,8 +17,8 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   HB_REF: 851f0b2580ccdb19427559fbec2fb19c345aa0b0
-  HB_MOVY_VERSION: 0.34.1-hbclean.96
-  HB_MOVY_TAG: v0.34.1-hbclean.96
+  HB_MOVY_VERSION: 0.34.1-hbclean.97
+  HB_MOVY_TAG: v0.34.1-hbclean.97
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -134,6 +134,10 @@ jobs:
               'src/seq/ui-dirty.ts',
               'src/seq/set-save.ts',
               'src/seq/set-session.ts',
+              'src/seq/colors.ts',
+              'src/seq/native-track-colors.ts',
+              'src/app/resume.ts',
+              'browser-test/native-track-colors.mjs',
               'browser-test/logic/set-session.mjs',
               'src/seq/clip-page.ts',
               'src/seq/clip-page-vm.ts',
@@ -258,7 +262,9 @@ jobs:
 
       - name: Upstream test — track colors
         working-directory: movy
-        run: node browser-test/track-colors.mjs
+        run: |
+          node browser-test/track-colors.mjs
+          node browser-test/native-track-colors.mjs
 
       - name: Upstream test — ABI parity
         working-directory: movy
@@ -355,7 +361,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Pair with HarmonyBus 0.2.188 for responsive Operations settings: one host snapshot per lane, operation or condition-selector turn, replacing repeated page reads while preserving pending edits and menu highlights."
+              --notes "Mirror the saved native Move four-track colors across all four Movy banks on set changes and return from the native view. Use the closest MIDI LED palette colors, preserve dim/pulse behavior, and keep file reads outside knob/pad interaction."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
