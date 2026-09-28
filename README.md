@@ -1,4 +1,4 @@
-> hbclean.102 / HarmonyBus 0.2.194: Default lanes 13–16 are Secondary VI, Scale Above, Secondary V and Chrom Below, on the existing Follow Touch knobs 5–8. Explicit saved operations are preserved.
+> hbclean.103 / HarmonyBus 0.2.195: Unified operation gestures: tap to arm, hold momentarily, double-tap persistently. Knob and step LEDs pulse for persistent activation and stay solid for armed/held activation. The separate Next Latch control is removed.
 
 > hbclean.98 / HarmonyBus 0.2.189: Choose Inversion → Top Note on the existing Chords panel to anchor the generated voicing to the rendered played melody. Chord Mode selects the supporting chord and Voicing selects spacing. Includes the native bank color sync from hbclean.97.
 

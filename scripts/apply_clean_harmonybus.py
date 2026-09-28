@@ -524,6 +524,8 @@ def main() -> int:
     patch_touch_labels(root)
     from patch_touch_frame import patch_touch_frame
     patch_touch_frame(root)
+    from patch_double_tap import patch_double_tap
+    patch_double_tap(root)
     print("HarmonyBus clean integration applied")
     return 0
 

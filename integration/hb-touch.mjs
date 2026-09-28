@@ -11,7 +11,7 @@ assert(module.capabilities.chain_params.find(parameter => parameter.key === 'mot
 const runtimeChainParams = JSON.stringify(module.capabilities.chain_params);
 const values = new Map(module.capabilities.chain_params.map(param => [param.key, param.default ?? param.options?.[0] ?? '0']));
 const { uiStateDirty, clearUiDirty } = await import('../dist/esm/seq/set-save.js');
-const touchOperationLabels = new Map([[5,'Next Once'],[6,'Next Latch']]);
+const touchOperationLabels = new Map([[5,'Next Harmony'],[6,'Next Harmony']]);
 const writes = [];
 const editorReads = [];
 const operationMetadata = () => module.capabilities.chain_params.map(parameter => {
@@ -318,7 +318,7 @@ const ledOwner={performanceSet:()=>{},performanceGet:()=>{statusReads++;return '
 const savedNow=Date.now;Date.now=()=>5000;
 try {
     for(let frame=0;frame<100;frame++)assert(paintHbPerformance(ledOwner));
-    assert.equal(statusReads,1,'Idle LED frames do not poll the DSP repeatedly');
+    assert.equal(statusReads,2,'One capability probe and cached fallback: idle LED frames do not poll the DSP repeatedly');
     assert(!paintHbPerformance(null));
 } finally {Date.now=savedNow;resetHbPerformance();}
 console.log('HB step controls: sixteen assignable holds/triggers, duplicate edges, captured releases, teardown and bounded LED polling pass');
@@ -740,49 +740,14 @@ page.knobTouch(mapSlot,true);page.knobTurn(mapSlot,1);onMidiMessageInternal([0x8
 assert.equal(Number(values.get('follow_touch_9')),6);
 page.knobTouch(mapSlot,true);assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_6','Touch']);
 page.knobTouch(mapSlot,false);
-const latchMapSlot=focusKey('motion_hold_6');
-assert.equal(page.pageTitle,'Foll Map');
-const toggleWrites=writes.length;
-page.knobTouch(latchMapSlot,true);page.knobTouch(latchMapSlot,false);
-assert.equal(writes.length,toggleWrites,'Lane 6 touch only describes; never activates');
-page.ctl.commitEnum('motion_hold_6',0);page.ctl.revalue();
-page.knobTurn(latchMapSlot,4);page.knobTouch(latchMapSlot,false);
-assert.equal(values.get('motion_hold_6'),'On','Turn enables persistent lane 6');
-page.knobTurn(latchMapSlot,-4);page.knobTouch(latchMapSlot,false);
-assert.equal(values.get('motion_hold_6'),'Off','Turn disables persistent lane 6');
-// Numeric option N is the lane name, not zero-based option N+1.
-for (const key of ['follow_touch_9','motion_lane']) {
-    const slot=focusKey(key);
-    for (const lane of [1,5,6,16]) {
-        values.set(key,String(lane));page.ctl.revalue();
-        page.knobTouch(slot,true);
-        const display=page.ctl.describePage();
-        assert.equal(display.cells[slot].value,String(lane),key+' card');
-        assert.equal(display.header.right,String(lane),key+' touch header');
-        assert.equal(display.cells[slot].options[display.cells[slot].enumIndex],String(lane),key+' peek selection');
-        page.knobTouch(slot,false);
-    }
-}
-const labelClock=Date.now;let labelNow=labelClock()+1000;Date.now=()=>labelNow;
-try {
-    values.set('follow_touch_9','5');values.set('motion_hold_6','Off');
-    const slot=focusKey('follow_touch_9');page.tick();
-    assert.equal(page.ctl.metaAt(slot).label,'Next Once');
-    assert.equal(page.ctl.metaAt(slot+1).label,'Next Latch');
-    touchOperationLabels.set(5,'Pan');labelNow+=501;page.tick();
-    assert.equal(page.ctl.metaAt(slot).label,'Pan','Label follows operation edits');
-    page.knobTouch(slot,true);page.knobTurn(slot,1);
-    assert.equal(page.ctl.metaAt(slot).label,'Next Latch','Label follows reassignment');
-    page.knobTouch(slot,false);
-} finally {Date.now=labelClock;touchOperationLabels.set(5,'Next Once');}
-console.log('Map Touch: lane-5 touch and lane-6 toggle, operation labels, reassignment and identical card/header/peek numbers pass');
+console.log('Map Touch: lane-5 touch without a separate latch toggle, operation labels, reassignment and identical card/header/peek numbers pass');
 
 const autoOffSlot=focusKey('motion_auto_off');
 assert.equal(page.pageTitle,'Conditions');
 assert.equal(page.ctl.page.keys.length,8);
 assert(page.ctl.pages.some(p=>p.keys?.includes('motion_cycle')),'Cycle remains available on Timing');
 assert.equal(module.capabilities.ui_hierarchy.levels.motion_conditions.knobs[4],'motion_auto_off');
-assert.equal(module.capabilities.ui_hierarchy.levels.follower_source.knobs.length,7);
+assert.equal(module.capabilities.ui_hierarchy.levels.follower_source.knobs.length,6);
 console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on Timing, no overflow panel');
 
 // Exercise the real app tick, not just page.tick(): a release frame must reach
@@ -822,7 +787,7 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
     globalThis.clear_screen=()=>frames++;
     for(const view of [VIEW_CHAIN,VIEW_KNOBS]) {
         appState.currentView=view;
-        for(const key of ['pad_current_color','follow_touch_9','motion_hold_6','follow_touch_7','follow_touch_8']) {
+        for(const key of ['pad_current_color','follow_touch_9','follow_touch_7','follow_touch_8']) {
             livePage.goToPage(livePage.ctl.pages.findIndex(p=>p.keys?.includes(key)));
             const slot=livePage.ctl.page.keys.indexOf(key);
             appState.dirty=true;tick();tick(); // establish the complete cached frame
@@ -858,3 +823,38 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
     }
     console.log('App touch frames: both views, both release formats, pad/operation knobs including lane 16, same-frame native pad refresh and no starvation pass');
 }
+
+// Modern gestures carry absolute timestamps; both physical sources share the
+// lane's final release. Native C tests verify the resulting musical state.
+{
+    const {beginHbLaneTouch,paintHbOperationKnobs}=await import('../dist/esm/renderer/schwung-page.js');
+    const savedClock=Date.now,savedSend=globalThis.move_midi_internal_send;
+    let now=900000,reads=0,active=0,persistent=0,down=0;const messages=[],packets=[];
+    Date.now=()=>now;globalThis.move_midi_internal_send=packet=>packets.push([...packet]);
+    const owner={performanceTrack:15,
+        performanceGet(key){reads++;return key.startsWith('motion_gesture_binding_')?`1,50,3,2,350,${active},${persistent}`:
+            key==='motion_lights'?[active,persistent,down,1,...Array(15).fill(0)].join(','):'';},
+        performanceSet(key,value){messages.push([key,value]);},
+    };
+    try {
+        resetHbPerformance();
+        let release=beginHbLaneTouch(owner,0);hbPerformanceStep([0x90,16,100],owner);
+        assert.deepEqual(messages.at(-1),['motion_gesture_1','Touch,900000']);
+        const before=messages.length;release();assert.equal(messages.length,before);
+        const beforeReads=reads;now+=60;releaseHbPerformanceStep([0x80,16,0]);
+        assert.deepEqual(messages.at(-1),['motion_gesture_1','Up,60,900060']);assert.equal(reads,beforeReads);
+        now+=100;release=beginHbLaneTouch(owner,0);now+=40;release();
+        assert.deepEqual(messages.at(-1),['motion_gesture_1','Up,40,900200']);
+        function paint(){now+=60;ledFrameReset();paintHbPerformance(owner);paintHbOperationKnobs(owner,['follow_touch_1'],{'follow_touch_1':'1'});}
+        active=1;persistent=1;seqLedsInvalidate();paint();paint();
+        for(const note of [0,16])assert(packets.some(p=>p[1]===0x9a&&p[2]===note&&p[3]===11),'Persistent knob and step use native smooth pulse');
+        assert(packets.some(p=>p[1]===0xba&&p[2]===71&&p[3]===11),'Knob CC indicator pulses too');
+        packets.length=0;down=1;paint();
+        for(const note of [0,16])assert(packets.some(p=>p[1]===0x90&&p[2]===note&&p[3]===11),'Momentary hold is solid');
+        packets.length=0;down=0;persistent=0;paint();
+        assert(!packets.some(p=>(p[1]&15)!==0),'Armed single tap stays solid');
+        packets.length=0;active=0;paint();
+        for(const note of [0,16])assert(packets.some(p=>p[1]===0x90&&p[2]===note&&p[3]===0),'Native deactivation turns both LEDs off');
+    } finally {resetHbPerformance();Date.now=savedClock;globalThis.move_midi_internal_send=savedSend;}
+}
+console.log('Modern gestures: shared knob/step timestamp ownership, read-free release, solid armed/held LEDs, smooth persistent pulse and automatic off pass');
