@@ -1,3 +1,5 @@
+> hbclean.107: Starts inside HarmonyBus so the main dial changes panels immediately. Adds mixed-cadence controls, extended recorded-operation compatibility and role-default presets; requires HarmonyBus 0.2.199.
+
 > **hbclean.106 / HarmonyBus 0.2.198:** Expanded secondary controls and three scale policies, separate connector and tritone controls, and backward-compatible ra3 operation recording.
 
 > hbclean.105 / HarmonyBus 0.2.197: fixed Ops 1–8 / 9–16, named Pitch Play / Pitch Cadences, Chord Play and Harmony Play settings, tritone-sub approaches and three-press cadences. Expanded recordings preserve named operations and read old clips. Install both modules.

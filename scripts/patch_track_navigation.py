@@ -16,6 +16,14 @@ def patch_track_navigation(root: Path) -> None:
         startup_source: str = startup_path.read_text()
         startup_path.write_text(replace_once(startup_source, before,
             before.replace('.fill(1)', '.fill(0)')))
+    for relative_path in ('src/app/state.ts', 'src/app/init.ts'):
+        startup_path = root / relative_path
+        startup_source = startup_path.read_text()
+        startup_source = startup_source.replace('appState, VIEW_CHAIN }', 'appState, VIEW_CHAIN, VIEW_KNOBS }')
+        startup_source = startup_source.replace('fill(VIEW_CHAIN)', 'fill(VIEW_KNOBS)')
+        startup_source = startup_source.replace('currentView:      VIEW_CHAIN', 'currentView:      VIEW_KNOBS')
+        startup_source = startup_source.replace('appState.currentView     = VIEW_CHAIN', 'appState.currentView     = VIEW_KNOBS')
+        startup_path.write_text(startup_source)
     path: Path = root / 'src/track/switch.ts'
     source: str = path.read_text()
     source = replace_once(source, 'appState, VIEW_BROWSE', 'appState, VIEW_BROWSE, VIEW_KNOBS')
@@ -93,7 +101,10 @@ globalThis.init = (...args) => {
     initFirstSlot(...args);
     if (!appState.trackChainIndex.every(index => index === 0))
         throw new Error('Startup must select the first chain slot on every track');
+    if (appState.currentView !== VIEW_KNOBS || !appState.trackView.every(view => view === VIEW_KNOBS))
+        throw new Error('Startup must enter the module panel, not the chain picker');
     // The scenarios below operate the synth after choosing its slot.
+    appState.currentView = VIEW_CHAIN;appState.trackView.fill(VIEW_CHAIN);
     appState.trackChainIndex.fill(1);
 };''')
     path.write_text(source)

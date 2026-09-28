@@ -27,6 +27,7 @@ int main(int argument_count, char **arguments) {
         }
         assert(instances[track]->player.config.mode == (expected_role == 0 ? 1 : 0));
         assert(instances[track]->player.config.phase == 1);
+        assert(instances[track]->policy_overrides == 0);
         assert(instances[track]->player.config.chromatic_quality == 3);
         assert(instances[track]->retrigger_held == 1);
         assert(instances[track]->chromatic_map == 1);
@@ -43,15 +44,15 @@ int main(int argument_count, char **arguments) {
         assert(instances[track]->content_map == (expected_role == 1 ? 1 : 0));
         assert(g_bus.anticipation == 0);
         assert(g_bus.analysis_release_ms == 60);
-        char serialized_state[512];
+        char serialized_state[1024];
         assert(api->get_param(instances[track], "state", serialized_state,
                               sizeof(serialized_state)) > 0);
         /* Loading a legacy seed adds the explicit global humanize defaults.
            All existing musical settings still round-trip byte for byte. */
-        char expected_state[512],round_trip[512],amount[16];
-        char seed[512];snprintf(seed,sizeof(seed),"%s",arguments[preset]);
+        char expected_state[1024],round_trip[1024],amount[16];
+        char seed[1024];snprintf(seed,sizeof(seed),"%s",arguments[preset]);
         char *pad_marker=strstr(seed,";pd1,");assert(pad_marker);*pad_marker=0;
-        snprintf(expected_state,sizeof(expected_state),"%s;pd1,6,3,3,2,0;pb1,2;pc2,2;pp1,3;hu1,0,0,0;ss1,0,0;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;named1",seed);
+        snprintf(expected_state,sizeof(expected_state),"%s;pd1,6,3,3,2,0;pb1,2;pc2,2;pp1,3;hu1,0,0,0;ss1,0,0;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,1,0,0,0,0,0,0,0,0,0,0,3,0,1,0,0,0,0,0;named1",seed);
         assert(g_pad_settings[0]==6&&g_pad_tonic_color==9&&g_pad_play_color==3);
         assert(strcmp(serialized_state, expected_state) == 0);
         const char *keys[]={"humanize_timing","humanize_velocity","humanize_gate"};

@@ -15,7 +15,7 @@ const touchOperationLabels = new Map([[5,'Next Harmony'],[6,'Next Harmony']]);
 const writes = [];
 const editorReads = [];
 const operationMetadata = () => module.capabilities.chain_params.map(parameter => {
-            if (parameter.key === 'motion_amount' && values.get('motion_operation') === 'Chord Form') return {...parameter,name:'Form',type:'enum',options:module.capabilities.chain_params.find(p=>p.key==='chord_form').options,options_as_string:true};
+            if (parameter.key === 'motion_amount' && values.get('motion_operation') === 'Chord Form') return {...parameter,name:'Form',type:'enum',options:module.capabilities.chain_params.find(p=>p.key==='chord_form').options.filter(option=>option!=='Role Default'),options_as_string:true};
             if (parameter.key === 'motion_offset' && values.get('motion_operation') === 'MIDI Echo') return {...parameter,name:'Decay %',min:0};
             if (['motion_from','motion_through'].includes(parameter.key)) return {...parameter,options:Array.from({length:Number(values.get('motion_every'))},(_,index)=>String(index+1))};
             return parameter;
@@ -239,7 +239,7 @@ for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_
 }
 const operationSlot = focusKey('motion_operation');
 page.knobTurn(operationSlot, 100);page.knobTouch(operationSlot, false);
-for (const operation of ['Secondary VII','Secondary IV','Secondary III','Tritone V','Tritone II-V-Target','Backdoor II-V-Target','II-V-Target','Tritone II','Chrom Above']) {
+for (const operation of ['III7-VI7-II7-V7-I','vii dim/V-V-I','V/vi-vi-ii-V-I','V/ii-ii-V-I','ii/V-V/V-V-I','V/V-V-I','I-VI7-ii-V-I','ii halfdim-V-i','IV-iv-I','iii-vi-ii-V-I','vi-V-I','bIII-IV-I','bVI-V-I','bVI-bVII-I','Secondary VII','Secondary IV','Secondary III','Tritone V','Tritone II-V-Target','Backdoor II-V-Target','II-V-Target','Tritone II','Chrom Above']) {
     assert.equal(values.get('motion_operation'), operation);
     page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
 }
@@ -701,7 +701,7 @@ console.log('Pad controls: all eight knobs, both release encodings, cached feedb
 // Fixed controls span two step banks and independent named controls.
 const followClock=Date.now;let followNow=1500000;Date.now=()=>followNow;
 try {
-    for(const lane of [1,8,9,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37]) {
+    for(const lane of [1,8,9,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51]) {
         const slot=focusKey('motion_control_'+lane);
         values.set('motion_gesture_binding_'+lane,'1,1,3,0,350,0');
         const start=writes.length;
@@ -844,3 +844,17 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
     } finally {resetHbPerformance();Date.now=savedClock;globalThis.move_midi_internal_send=savedSend;}
 }
 console.log('Modern gestures: shared knob/step timestamp ownership, read-free release, solid armed/held LEDs, smooth persistent pulse and automatic off pass');
+
+// Role-default panels edit the advertised shared key; local enums can relinquish overrides.
+for (const key of ['conductor_default_chord_form','follower_default_chord_form','gap_scale','local_minor']) {
+    const slot=focusKey(key),before=writes.length;
+    page.knobTurn(slot,1);page.knobTouch(slot,false);
+    assert(writes.slice(before).some(([wire])=>wire==='midi_fx1:'+key),key+' targets its own scope');
+}
+const localForm=focusKey('chord_form');
+page.knobTurn(localForm,100);page.knobTouch(localForm,false);
+assert.equal(values.get('chord_form'),'Role Default');
+const sources=focusKey('chord_scope'),beforeSources=writes.length;
+page.knobTurn(sources,1);page.knobTouch(sources,false);
+assert.equal(writes.length,beforeSources,'Setting Sources is read only');
+console.log('Role defaults, local override reset choice and visible read-only scope pass');
