@@ -361,7 +361,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Mirror the saved native Move four-track colors across all four Movy banks on set changes and return from the native view. Use the closest MIDI LED palette colors, preserve dim/pulse behavior, and keep file reads outside knob/pad interaction."
+              --notes "Fix Ops 1-16 to Step Seq 1-16 and add named Pitch Play, Chord Play and Harmony Play controls outside those slots. Support tritone approaches, three-press cadences and expanded operation recording with legacy playback. Repair the native audio-chain release test."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
