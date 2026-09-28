@@ -108,3 +108,10 @@ globalThis.init = (...args) => {
     appState.trackChainIndex.fill(1);
 };''')
     path.write_text(source)
+
+    # Track selection restores the destination's saved view, now Knobs at boot.
+    path = root / 'browser-test/logic/session-shift.mjs'
+    source = path.read_text()
+    source = replace_once(source, "eq('and opens no page', appState.currentView, VIEW_CHAIN);",
+        "eq('and restores the destination view', appState.currentView, appState.trackView[3]);")
+    path.write_text(source)

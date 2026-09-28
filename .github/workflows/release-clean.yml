@@ -73,6 +73,7 @@ jobs:
               'browser-test/perf.mjs',  # paired warm-up for the existing scaling budget
               'src/app/init.ts',
               'src/app/state.ts',
+              'browser-test/logic/session-shift.mjs',  # destination startup view is now Knobs
               'src/keyboard/layouts.ts',
               'browser-test/screenshots/baseline/main-mode-overlay.png',
               'browser-test/screenshots/baseline/main-layout-overlay.png',

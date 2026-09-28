@@ -852,7 +852,8 @@ for (const key of ['conductor_default_chord_form','follower_default_chord_form',
     assert(writes.slice(before).some(([wire])=>wire==='midi_fx1:'+key),key+' targets its own scope');
 }
 const localForm=focusKey('chord_form');
-page.knobTurn(localForm,100);page.knobTouch(localForm,false);
+const roleClock=Date.now;let roleNow=roleClock();Date.now=()=>roleNow;
+try {for(let turn=0;turn<128;turn++){roleNow+=100;page.knobTurn(localForm,1);page.knobTouch(localForm,false);roleNow+=100;page.tick();}}finally{Date.now=roleClock;}
 assert.equal(values.get('chord_form'),'Role Default');
 const sources=focusKey('chord_scope'),beforeSources=writes.length;
 page.knobTurn(sources,1);page.knobTouch(sources,false);
