@@ -52,9 +52,6 @@ def patch_piano_approach(root: Path) -> None:
                     }
                     let m = if on { [0x90, pitch, vel] } else { [0x80, pitch, 0] };''')
     path.write_text(source)
-    path = root / 'engine/crates/seq-core/src/recorded_actions.rs'
-    source = path.read_text().replace('actions[16]>2', '(actions[16]>10 || actions[16]&3>2)')
-    path.write_text(source)
     path = root / 'engine/crates/seq-core/src/follower_input.rs'
     source = path.read_text()
     source = replace_once(source, '''        let offset=pitch as i32+self.transpose as i32-self.root as i32;''', '''        let mut mapped = self.project_unbounded(pitch as i32, target);
@@ -88,7 +85,7 @@ def patch_piano_approach(root: Path) -> None:
 pub fn piano_emit(pitch:u8, normal:u8, actions:Option<Actions>, source:Option<crate::follower_input::InputKey>,
     target:Option<crate::follower_input::InputKey>, transpose:i32) -> (u8,Option<Actions>) {
     let Some(mut words)=actions else {return (normal,actions);};
-    let shift=match words[16]>>2 {1=>-36,2=>36,_=>return (normal,actions)};
+    let shift=match (words[16]>>2)&3 {1=>-36,2=>36,_=>return (normal,actions)};
     let resolution=pitch as i32+shift;
     let mut resolution=match (source,target) {
         (Some(source),Some(target))=>source.project_unbounded(resolution,target),
@@ -97,7 +94,7 @@ pub fn piano_emit(pitch:u8, normal:u8, actions:Option<Actions>, source:Option<cr
     while resolution<0 {resolution+=12;}
     while resolution>127 {resolution-=12;}
     let (identity,marker)=if resolution<64 {(resolution+36,4)}else{(resolution-36,8)};
-    words[16]=(words[16]&3)|marker;
+    words[16]=(words[16]&!12)|marker;
     (identity as u8,Some(words))
 }
 '''
@@ -137,12 +134,17 @@ pub fn piano_emit(pitch:u8, normal:u8, actions:Option<Actions>, source:Option<cr
                 let (note,actions)=piano_emit(stored,0,Some(words),Some(source),Some(target),transpose);
                 let actions=actions.unwrap();
                 assert_eq!(parse(&format!("ra1,{}",payload(note,actions))),Some((note,actions)));
-                let shift=if actions[16]>>2==1 {-36}else{36};
+                let shift=if (actions[16]>>2)&3==1 {-36}else{36};
                 let mut expected=source.project_unbounded(resolution-transpose,target)+transpose;
                 while expected<0 {expected+=12;}while expected>127 {expected-=12;}
                 assert_eq!(note as i32+shift,expected);
             }}
         }}
+        for secondary in 1..=4u64 {
+            let mut words=[0;17];words[16]=(secondary<<4)|4;
+            let (_,actions)=piano_emit(96,96,Some(words),None,None,12);
+            assert_eq!(actions.unwrap()[16]>>4,secondary);
+        }
         let mut invalid=[0;17];invalid[16]=11;
         assert!(parse(&format!("ra1,{}",payload(60,invalid))).is_none());
     }

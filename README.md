@@ -1,4 +1,4 @@
-> hbclean.99 / HarmonyBus 0.2.191: Approach pads and Chromatic Below operations retain their chromatic chord family on diatonic rendered roots. Fresh sets default Chromatic Keys to Dim / Dim7; saved settings are preserved.
+> hbclean.100 / HarmonyBus 0.2.192: Secondary VI / II / V and linked approach cadences, with recorded piano identities preserved. New choices use the existing Operations and Chords panels.
 
 > hbclean.98 / HarmonyBus 0.2.189: Choose Inversion → Top Note on the existing Chords panel to anchor the generated voicing to the rendered played melody. Chord Mode selects the supporting chord and Voicing selects spacing. Includes the native bank color sync from hbclean.97.
 

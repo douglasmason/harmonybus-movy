@@ -239,8 +239,12 @@ for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_
 }
 const operationSlot = focusKey('motion_operation');
 page.knobTurn(operationSlot, 100);page.knobTouch(operationSlot, false);
-assert.equal(values.get('motion_operation'), 'Auto Chord Repeat');
+assert.equal(values.get('motion_operation'), 'Secondary VI');
 page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
+assert.equal(values.get('motion_operation'), 'Secondary V');
+page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
+assert.equal(values.get('motion_operation'), 'Secondary II');
+page.knobTurn(operationSlot,-2);page.knobTouch(operationSlot,false);
 assert.equal(values.get('motion_operation'), 'Chord Form');
 const formSlot=page.ctl.page.keys.indexOf('motion_amount');
 assert.equal(page.ctl.metaAt(formSlot).name,'Form');
