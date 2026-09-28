@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: f336eb7b2a152eba9fb0f4a83399ccb3218c4026
-  HB_MOVY_VERSION: 0.34.1-hbclean.95
-  HB_MOVY_TAG: v0.34.1-hbclean.95
+  HB_REF: 851f0b2580ccdb19427559fbec2fb19c345aa0b0
+  HB_MOVY_VERSION: 0.34.1-hbclean.96
+  HB_MOVY_TAG: v0.34.1-hbclean.96
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -355,7 +355,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Pair with HarmonyBus 0.2.187 for the temporary Auto Chord Repeat operation. Existing Follow Touch assignments can target the new operation; panel settings remain intact on release."
+              --notes "Pair with HarmonyBus 0.2.188 for responsive Operations settings: one host snapshot per lane, operation or condition-selector turn, replacing repeated page reads while preserving pending edits and menu highlights."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

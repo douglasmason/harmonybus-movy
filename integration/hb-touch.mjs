@@ -13,18 +13,22 @@ const values = new Map(module.capabilities.chain_params.map(param => [param.key,
 const { uiStateDirty, clearUiDirty } = await import('../dist/esm/seq/set-save.js');
 const touchOperationLabels = new Map([[5,'Next Once'],[6,'Next Latch']]);
 const writes = [];
-const port = {
-    track: { index: 0 },
-    getParam(key) {
-        const bare = key.split(':').at(-1);
-        if (bare === 'follow_touch_labels') return Array.from({length:10},(_,index)=>{const lane=index===9?6:Number(values.get('follow_touch_'+(index+1)));return lane+':'+(touchOperationLabels.get(lane)||'Velocity');}).join('|');
-        if (bare === 'ui_hierarchy') return JSON.stringify(module.capabilities.ui_hierarchy);
-        if (bare === 'chain_params') return JSON.stringify(module.capabilities.chain_params.map(parameter => {
+const editorReads = [];
+const operationMetadata = () => module.capabilities.chain_params.map(parameter => {
             if (parameter.key === 'motion_amount' && values.get('motion_operation') === 'Chord Form') return {...parameter,name:'Form',type:'enum',options:module.capabilities.chain_params.find(p=>p.key==='chord_form').options,options_as_string:true};
             if (parameter.key === 'motion_offset' && values.get('motion_operation') === 'MIDI Echo') return {...parameter,name:'Decay %',min:0};
             if (['motion_from','motion_through'].includes(parameter.key)) return {...parameter,options:Array.from({length:Number(values.get('motion_every'))},(_,index)=>String(index+1))};
             return parameter;
-        }));
+        });
+const port = {
+    track: { index: 0 },
+    getParam(key) {
+        editorReads.push(key);
+        const bare = key.split(':').at(-1);
+        if (bare === 'motion_editor') return JSON.stringify({params:operationMetadata(),values:Object.fromEntries(values)});
+        if (bare === 'follow_touch_labels') return Array.from({length:10},(_,index)=>{const lane=index===9?6:Number(values.get('follow_touch_'+(index+1)));return lane+':'+(touchOperationLabels.get(lane)||'Velocity');}).join('|');
+        if (bare === 'ui_hierarchy') return JSON.stringify(module.capabilities.ui_hierarchy);
+        if (bare === 'chain_params') return JSON.stringify(operationMetadata());
         if (key === 'midi_fx1_module') return 'harmonybus';
         return values.get(bare) ?? '';
     },
@@ -179,7 +183,9 @@ try {
     assert.equal(page.pageTitle, 'Operation');
     const selectedSlot = page.ctl.page.keys.indexOf('motion_lane');
     const amountSlot = page.ctl.page.keys.indexOf('motion_amount');
+    editorReads.length=0;
     page.knobTurn(selectedSlot, 1);
+    assert.deepEqual(editorReads,['midi_fx1:motion_editor'],'Lane edit uses exactly one host read');
     assert.equal(values.get('motion_lane'), '2');
     page.knobTurn(amountSlot, 1);
     page.knobTouch(amountSlot, false);
@@ -199,7 +205,10 @@ console.log('HB operations: three shared pages, shared lane cursor, immediate va
 for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_grid', 'motion_advance', 'motion_every']) {
     const slot = focusKey(key);
     page.knobTouch(slot, true);
+    editorReads.length=0;
     page.knobTurn(slot, 1);
+    if (['motion_lane','motion_operation','motion_every'].includes(key))
+        assert.deepEqual(editorReads,['midi_fx1:motion_editor'],key + ': one host read per turn');
     let peek = page.ctl.enumPeek();
     assert(peek, key + ': turning must open the Schwung option list');
     assert.equal(peek.key, key);

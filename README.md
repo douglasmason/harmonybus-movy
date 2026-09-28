@@ -1,3 +1,5 @@
+> hbclean.96 / HarmonyBus 0.2.188: Operations settings use one native editor snapshot per lane, operation or condition-selector turn. Tests measure 28/39 host reads reduced to 1, with dependent values and peek highlights updated together. Pending edits still reach the old lane before switching.
+
 > hbclean.95 / HarmonyBus 0.2.187: Auto Chord Repeat is available in the operation selector. Assign it to a Follow Touch lane for tap-latch or momentary repeat using the existing Auto Chord/Arp details. Turning it off restores panel settings. Mode boundaries release held notes; press again to play in the new mode.
 
 > hbclean.94 / HarmonyBus 0.2.186: Approach layout alternates scale-tone rows with chromatic approaches above them. Piano gaps and approach rows show native rendered scale/current/next membership. Movy root/scale controls stay linked to the follower input.
