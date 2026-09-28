@@ -239,6 +239,10 @@ for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_
 }
 const operationSlot = focusKey('motion_operation');
 page.knobTurn(operationSlot, 100);page.knobTouch(operationSlot, false);
+assert.equal(values.get('motion_operation'), 'Backdoor V');
+page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
+assert.equal(values.get('motion_operation'), 'Backdoor II');
+page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
 assert.equal(values.get('motion_operation'), 'Secondary VI');
 page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
 assert.equal(values.get('motion_operation'), 'Secondary V');

@@ -75,9 +75,9 @@ def patch_harmony_pads(root: Path) -> None:
     for filename in ['keyboard.mjs', 'params-pages.mjs']:
         test_path: Path = root / 'browser-test/logic' / filename
         test_source: str = test_path.read_text()
-        test_source = test_source.replace("'thirteen scales', SCALES.length, 13", "'nineteen scales', SCALES.length, 19")
-        test_source = test_source.replace("'key overlay carries 13 scales', vm.overlay && vm.overlay.options.length, 13", "'key overlay carries 19 scales', vm.overlay && vm.overlay.options.length, 19")
-        test_source = test_source.replace("'scale clamped', keyboardState.scale, 12", "'scale clamped', keyboardState.scale, 18")
+        test_source = test_source.replace("'thirteen scales', SCALES.length, 13", "'twenty-one scales', SCALES.length, 21")
+        test_source = test_source.replace("'key overlay carries 13 scales', vm.overlay && vm.overlay.options.length, 13", "'key overlay carries 21 scales', vm.overlay && vm.overlay.options.length, 21")
+        test_source = test_source.replace("'scale clamped', keyboardState.scale, 12", "'scale clamped', keyboardState.scale, 20")
         test_path.write_text(test_source)
     path = root / 'src/seq/scales.ts'
     source = path.read_text()
@@ -88,6 +88,8 @@ def patch_harmony_pads(root: Path) -> None:
     { name: 'Mixolydian b6', degrees: [0,2,4,5,7,8,10] },
     { name: 'Locrian #2', degrees: [0,2,3,5,6,8,10] },
     { name: 'Altered', degrees: [0,1,3,4,6,8,10] },
+    { name: 'Whole Tone', degrees: [0,2,4,6,8,10] },
+    { name: 'Augmented', degrees: [0,3,4,7,8,11] },
 ];""")
     path.write_text(source)
     path = root / 'src/seq/main-page-vm.ts'

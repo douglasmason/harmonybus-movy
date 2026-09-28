@@ -61,11 +61,11 @@ def patch_piano_approach(root: Path) -> None:
     }
     pub fn project_unbounded(self, pitch: i32, target: Self) -> i32 {
         let offset=pitch+self.transpose as i32-self.root as i32;''')
-    source = replace_once(source, '''        let mut mapped=octave*12+target.root as i32+SCALES[target.scale as usize-1][degree]+alteration-self.transpose as i32;
+    source = replace_once(source, '''        let mut mapped=octave*12+target.root as i32+target.degree_interval(degree)+alteration-self.transpose as i32;
         // Preserve pitch class at MIDI limits instead of clamping to C/G.
         while mapped<0 { mapped+=12; }
         while mapped>127 { mapped-=12; }
-        mapped as u8''', '''        octave*12+target.root as i32+SCALES[target.scale as usize-1][degree]+alteration-self.transpose as i32''')
+        mapped as u8''', '''        octave*12+target.root as i32+target.degree_interval(degree)+alteration-self.transpose as i32''')
     path.write_text(source)
     path = root / 'engine/crates/seq-core/src/engine.rs'
     source = path.read_text()
@@ -129,7 +129,7 @@ pub fn piano_emit(pitch:u8, normal:u8, actions:Option<Actions>, source:Option<cr
             let mut words=[0;17];words[16]=if resolution<64 {4}else{8};
             let source=InputKey {root:0,scale:1,transpose:transpose as i8};
             let stored=(identity-transpose) as u8;
-            for root in 0..12 {for scale in 1..=15 {
+            for root in 0..12 {for scale in 1..=17 {
                 let target=InputKey::new(root,scale).unwrap();
                 let (note,actions)=piano_emit(stored,0,Some(words),Some(source),Some(target),transpose);
                 let actions=actions.unwrap();
@@ -140,7 +140,7 @@ pub fn piano_emit(pitch:u8, normal:u8, actions:Option<Actions>, source:Option<cr
                 assert_eq!(note as i32+shift,expected);
             }}
         }}
-        for secondary in 1..=4u64 {
+        for secondary in 1..=6u64 {
             let mut words=[0;17];words[16]=(secondary<<4)|4;
             let (_,actions)=piano_emit(96,96,Some(words),None,None,12);
             assert_eq!(actions.unwrap()[16]>>4,secondary);

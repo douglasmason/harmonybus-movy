@@ -7,10 +7,10 @@ pub fn parse(message:&str)->Option<(u8,Actions)>{
     if pitch>127{return None;}
     let mut actions=[0;17];
     for word in &mut actions {*word=fields.next()?.parse().ok()?;}
-    if fields.next().is_some() || (actions[16]>74 || actions[16]&3>2 || (actions[16]>>2)&3>2){return None;}
+    if fields.next().is_some() || (actions[16]>106 || actions[16]&3>2 || (actions[16]>>2)&3>2){return None;}
     for word in &actions[..16] {
         if word>>63==0 && *word>u32::MAX as u64 {return None;}
-        if word>>63!=0 && ((((word>>32)&31)>23 || ((word>>32)&31)==20) || ((word>>37)&15)>8){return None;}
+        if word>>63!=0 && ((((word>>32)&31)>25 || ((word>>32)&31)==20) || ((word>>37)&15)>8){return None;}
     }
     Some((pitch,actions))
 }
@@ -28,14 +28,14 @@ pub fn payload(pitch:u8,actions:Actions)->String{
         assert_eq!(parse(&format!("ra1,{}",payload(60,valid))),Some((60,valid)));
         valid[0]=(1u64<<63)|(20u64<<32)|12000;
         assert_eq!(parse(&format!("ra1,{}",payload(60,valid))),None);
-        for operation in 21..=23u64 {
+        for operation in 21..=25u64 {
             valid[0]=(1u64<<63)|(operation<<32)|12000;
-            for secondary in 0..=4u64 {for alias in 0..=2u64 {
+            for secondary in 0..=6u64 {for alias in 0..=2u64 {
                 valid[16]=(secondary<<4)|(alias<<2)|2;
                 assert_eq!(parse(&format!("ra1,{}",payload(60,valid))),Some((60,valid)));
             }}
         }
-        for invalid in [11,12,75,80,128] {
+        for invalid in [11,12,75,107,112,128] {
             valid[16]=invalid;
             assert_eq!(parse(&format!("ra1,{}",payload(60,valid))),None);
         }
