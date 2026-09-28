@@ -1,3 +1,5 @@
+> hbclean.99 / HarmonyBus 0.2.191: Approach pads and Chromatic Below operations retain their chromatic chord family on diatonic rendered roots. Fresh sets default Chromatic Keys to Dim / Dim7; saved settings are preserved.
+
 > hbclean.98 / HarmonyBus 0.2.189: Choose Inversion → Top Note on the existing Chords panel to anchor the generated voicing to the rendered played melody. Chord Mode selects the supporting chord and Voicing selects spacing. Includes the native bank color sync from hbclean.97.
 
 > hbclean.97: Movy mirrors the saved native four-track colors across all banks: 1/5/9/13, 2/6/10/14, 3/7/11/15 and 4/8/12/16. Reads occur on set changes and return from the native view. Native colors are approximated with the closest available MIDI LED palette entries; selection pulses and muted dimming remain separate. No HarmonyBus update is required beyond 0.2.188.
