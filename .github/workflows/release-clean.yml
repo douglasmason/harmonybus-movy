@@ -69,6 +69,8 @@ jobs:
               ['git', '-C', str(root), 'ls-files', '--others', '--exclude-standard'], text=True
           ).splitlines()
           expected = {
+              'src/model/wav-peaks.ts',  # bound background read work per UI tick
+              'browser-test/perf.mjs',  # paired warm-up for the existing scaling budget
               'src/app/init.ts',
               'src/app/state.ts',
               'src/keyboard/layouts.ts',
