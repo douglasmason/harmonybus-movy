@@ -119,7 +119,9 @@ console.log('HB buttons: momentary modifiers, release after page change, every a
 
 assert.equal(page.ctl.pages.filter(candidate => candidate.keys?.includes('arp_phase')).length, 1);
 assert.equal(module.capabilities.ui_hierarchy.levels.arp_player.knobs.length, 8);
-assert(module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_clear'));
+assert(module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_start'));
+assert(!module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_clear'));
+assert(module.capabilities.ui_hierarchy.levels.follower_play_tools.knobs.includes('arp_clear'));
 assert(module.capabilities.ui_hierarchy.levels.chord_player.knobs.includes('strum_spread'));
 assert.equal(module.capabilities.ui_hierarchy.levels.chord_player.knobs.length,8);
 
@@ -859,3 +861,8 @@ const sources=focusKey('chord_scope'),beforeSources=writes.length;
 page.knobTurn(sources,1);page.knobTouch(sources,false);
 assert.equal(writes.length,beforeSources,'Setting Sources is read only');
 console.log('Role defaults, local override reset choice and visible read-only scope pass');
+
+for (const key of ['motif_record','motif_slot','motif_preset','motif_rhythm','render_rhythm_mode','render_rhythm_pattern','arp_start']) {
+    assert(focusKey(key)>=0, `${key}: reachable through the real controller`);
+}
+console.log('Motif, Render Rhythm and arp-anchor controls are reachable through the real controller');
