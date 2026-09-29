@@ -387,3 +387,43 @@ console.log('Piano gaps: opt-in follower capability, exact lower-pad targets, in
     assert.equal(padColor(76,68,0,false),0,'Disabled/unmapped gap stays dark');
     console.log('Approach layout: every input root/scale, exact lower-pad targets, native membership colors and inactive gaps pass');
 }
+
+// A slow color calculation must not advance pulse phase from bottom to top.
+{
+    const {withHarmonyPadFrame,harmonyPadColor}=await import('../dist/esm/seq/pads.js');
+    const {seqState}=await import('../dist/esm/seq/state.js');
+    const clock=Date.now;let pulseTime=100000;
+    seqState.playing=false;seqState.bpmX100=12000;
+    portFor(0).getParam=()=> '4095,4095,4095,1,4095,6,3,0,2,0|full1,1,4095';
+    refreshHarmonyPads(0,testTime+=100);
+    Date.now=()=>{const sampled=pulseTime;pulseTime+=75;return sampled;};
+    try {
+        const colors=withHarmonyPadFrame(()=>Array.from({length:32},()=>harmonyPadColor(60,0)));
+        assert.equal(new Set(colors).size,1,'All pads use one time even with slow computation');
+        assert.equal(pulseTime,100075,'Pulse time is sampled once per complete frame');
+        harmonyPadColor(60,0);assert(pulseTime>100075,'Immediate feedback resumes live time');
+    } finally {Date.now=clock;}
+}
+
+// Model the native consumer inspecting each published host call. A 32-pad
+// transition must be exposed in one run, not 32 independently visible writes.
+{
+    const {sendPadLedFrame,ledFrameReset,ledBudgetTake}=await import('../dist/esm/seq/led-cache.js');
+    const send=globalThis.move_midi_internal_send;
+    const frames=[];
+    globalThis.move_midi_internal_send=packets=>{frames.push([...packets]);return true;};
+    const changes=Array.from({length:32},(_,index)=>({note:68+index,color:index%2?7:13}));
+    try {
+        ledFrameReset();assert(sendPadLedFrame(changes));
+        assert.equal(frames.length,1);assert.equal(frames[0].length,128);
+        assert.deepEqual(frames[0],changes.flatMap(({note,color})=>[0x09,0x90,note,color]));
+        assert(ledBudgetTake(8));assert(!ledBudgetTake(1),'Existing 40-packet limit is preserved');
+        frames.length=0;ledFrameReset();ledBudgetTake(9);
+        assert(!sendPadLedFrame(changes));assert.equal(frames.length,0,'No partial frame when budget is short');
+        ledFrameReset();globalThis.move_midi_internal_send=()=>false;
+        assert(!sendPadLedFrame(changes),'Queue rejection must not acknowledge delivery');
+        ledFrameReset();globalThis.move_midi_internal_send=send;
+        assert(sendPadLedFrame([]),'Empty diff sends nothing');
+    } finally {globalThis.move_midi_internal_send=send;}
+}
+console.log('Pad frames: one timestamp, one host publication, unchanged budget and rejection feedback pass');

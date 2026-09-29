@@ -160,3 +160,34 @@ try {
     }
 } finally {Date.now=savedNow;globalThis.shadow_get_param=liveRead;}
 console.log('Live display snapshots: Next Harm, Chord Timing and Follower Root update together at 25Hz without per-cell reads');
+
+// Rejected Full Both Lookahead frames must retry intact; accepted frames
+// disappear from the app's next color diff.
+{
+    const read=globalThis.shadow_get_param,send=globalThis.move_midi_internal_send,clock=Date.now;
+    const {keyboardState}=await import('../dist/esm/keyboard/state.js');
+    const {seqState}=await import('../dist/esm/seq/state.js');
+    let frameTime=clock()+400000, reject=false, next=false;
+    const batches=[];
+    Date.now=()=>frameTime;
+    seqState.playing=false;seqState.sessionMode=false;
+    keyboardState.mode=0;keyboardState.layout=0;
+    setFlag('hbsteprow',0);page.reload();page.goToPage(0);
+    globalThis.shadow_get_param=(slot,key)=>key==='midi_fx1:pad_view'
+        ? `${next?0:4095},4095,4095,1,4095,6,0,3,2,0|full1,1,${next?4095:0}`
+        : read(slot,key);
+    globalThis.move_midi_internal_send=packets=>{
+        if(packets.length>4&&packets[2]>=68&&packets[2]<100){batches.push([...packets]);return !reject;}
+        return send(packets);
+    };
+    try {
+        for(let tick=0;tick<4;tick++){frameTime+=100;globalThis.tick();}
+        batches.length=0;next=true;reject=true;frameTime+=100;globalThis.tick();
+        assert.equal(batches.length,1,'Complete changed pad grid is submitted once');
+        const rejected=batches[0];assert.equal(rejected.length,128,'All 32 pads travel in one host call');
+        reject=false;frameTime+=100;globalThis.tick();
+        assert.equal(batches.length,2);assert.deepEqual(batches[1],rejected,'Rejected colors remain dirty and retry intact');
+        frameTime+=100;globalThis.tick();assert.equal(batches.length,2,'Accepted colors are cached');
+    } finally {globalThis.shadow_get_param=read;globalThis.move_midi_internal_send=send;Date.now=clock;}
+}
+console.log('Full Both Lookahead: actual app batches all rows and retries rejected color frames intact');

@@ -776,6 +776,12 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
     let gesturePreviewHeld = false;
     const padWrites = [];
     globalThis.setLED = (...args) => padWrites.push(args);
+    globalThis.move_midi_internal_send = packets => {
+        for(let offset=0;offset<packets.length;offset+=4)
+            if(packets[offset+1]===0x90&&packets[offset+2]>=68&&packets[offset+2]<100)
+                padWrites.push([packets[offset+2],packets[offset+3],true]);
+        return true;
+    };
     globalThis.shadow_get_param=(_track,key)=>key.startsWith('midi_fx1:pad_view')
         ? `${gesturePreviewHeld ? 4095 : 0},0,0,1,4095,1,0,0,2,0`
         : port.getParam(key);

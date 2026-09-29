@@ -10,7 +10,7 @@ def patch_harmony_pads(root: Path) -> None:
         (root / 'src/keyboard' / name).write_text((assets / name).read_text())
     path: Path = root / 'src/seq/pads.ts'
     source: str = path.read_text()
-    source = "import { harmonyPadColor, harmonyPlayColor, distinguishHarmonyPad } from '../keyboard/harmony-pads.js';\nexport { distinguishHarmonyPad, setFollowerInputScale, setFollowerInputRoot, harmonyPadColor, colorHarmonyPitch, harmonyPulse, parseHarmonySnapshot, refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + source
+    source = "import { harmonyPadColor, harmonyPlayColor, distinguishHarmonyPad } from '../keyboard/harmony-pads.js';\nexport { withHarmonyPadFrame, distinguishHarmonyPad, setFollowerInputScale, setFollowerInputRoot, harmonyPadColor, colorHarmonyPitch, harmonyPulse, parseHarmonySnapshot, refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + source
     source = replace_once(source, '    if (isPlaying) return C_GREEN;', '''    if (isPlaying) {
         const playColor = harmonyPlayColor(track);
         if (playColor !== null) return playColor;

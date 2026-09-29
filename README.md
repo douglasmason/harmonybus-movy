@@ -1,3 +1,5 @@
+> **hbclean.117 / HarmonyBus 0.2.205:** Fix the bottom-to-top pad refresh during Full Both Lookahead transitions. Publish each changed pad grid in one host call, sample animation time once for the grid, preserve unsent colors for retry, and keep one LED budget for the entire app tick (the sequencer no longer resets it halfway through). HB itself is unchanged.
+
 > **hbclean.116 / HarmonyBus 0.2.205:** Preview opening conductor harmony before Play; reserve complete pad-light changes and prioritize metronome LEDs without overwriting Perform or motif editing. Role Defaults changes labels and values together; Foll Notes and Pads Global move to the end.
 
 > **hbclean.115 / HarmonyBus 0.2.204:** Edit opens Chords for a Chord/Arp State lane. Chords and Arp share Edit Target, with atomic destination changes and a lane label. Preserved track settings return when the operation ends.

@@ -18,8 +18,8 @@ env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 881b7fc9ae4290622f0eb6f2c341c9db28be40ef
   HB_REF: 97e5eb0c859e1d2c8854e5bb432feec8035898e3
-  HB_MOVY_VERSION: 0.34.1-hbclean.116
-  HB_MOVY_TAG: v0.34.1-hbclean.116
+  HB_MOVY_VERSION: 0.34.1-hbclean.117
+  HB_MOVY_TAG: v0.34.1-hbclean.117
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -150,6 +150,7 @@ jobs:
               'src/seq/constants.ts',
               'src/seq/leds.ts',
               'src/seq/led-cache.ts',
+              'src/types/schwung.d.ts',
               'src/seq/ui-dirty.ts',
               'src/seq/set-save.ts',
               'src/seq/set-session.ts',

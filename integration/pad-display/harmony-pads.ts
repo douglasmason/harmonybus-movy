@@ -21,6 +21,23 @@ let polledAt = -Infinity;
 const colors = [127, 3, 7, 126, 13, 125, 22, 25];
 const periods = [0, 0.25, 0.5, 1, 2, 4, 8, 16];
 const mixes = new Map<string, number>();
+let padFrame: {now:number;beat:number} | null = null;
+function harmonyNow(): number { return padFrame?.now ?? Date.now(); }
+function harmonyBeat(): number {
+    if(padFrame)return padFrame.beat;
+    const now=harmonyNow();
+    return seqState.playing ? visualEngineTick(now) / 96 : now * seqState.bpmX100 / 6000000;
+}
+
+/** All pitches and approach pads in a paint use the same pulse phase. */
+export function withHarmonyPadFrame<T>(paint: () => T): T {
+    const previous = padFrame;
+    if(!padFrame){
+        const now=Date.now();
+        padFrame={now,beat:seqState.playing?visualEngineTick(now)/96:now*seqState.bpmX100/6000000};
+    }
+    try { return paint(); } finally { padFrame = previous; }
+}
 
 export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null {
     if (!raw) return null;
@@ -232,7 +249,7 @@ export function harmonyPadColor(pitch: number, track: number, held = false): num
     if (!view) for (let note = 0; note < 12; note++)
         if (inScaleFor(note, keyboardState.rootPc, keyboardState.scale)) scale |= 1 << note;
     const period = mode === 0 && view?.effectiveColor === undefined ? 0 : periods[settings[1]];
-    const beat = seqState.playing ? visualEngineTick() / 96 : Date.now() * seqState.bpmX100 / 6000000;
+    const beat = harmonyBeat();
     // Every mask identifies INPUT keys by their effective RENDERED voices.
     const current = view?.current || 0;
     const effective = mode === 0 || mode === 2 ? (view?.effective || 0) : (mode >= 5 ? (view?.fullLookahead ?? 0) : (view?.ready ? view.lookahead : 0));
@@ -319,7 +336,7 @@ export function harmonyApproachColor(index: number, track: number, held = false)
     const flags = snapshot.gapColors?.[index] ?? -1;
     if (flags < 0) return 0; // Older HB has no approach-membership snapshot.
     const mode = settings[0], period = periods[settings[1]];
-    const beat = seqState.playing ? visualEngineTick() / 96 : Date.now() * seqState.bpmX100 / 6000000;
+    const beat = harmonyBeat();
     const selected = mode === 0 || mode === 2 ? 2 : mode >= 5 ? 16 : 8;
     const resolve = (choice: number): number => choice === 8 ? trackColor(track) : colors[choice];
     return colorHarmonyPitch(0, 1, track, flags & 4 ? 1 : 0, flags & 1,
