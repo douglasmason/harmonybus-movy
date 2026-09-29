@@ -13,7 +13,7 @@ const writes=[],songEdits=[];let refuseSave=false;
 setEditGuard(command=>songEdits.push(command));
 const port={performanceTrack:appState.activeTrack.index,ctl:{page:{keys:['motif_slot']}},
  performanceGet(key){return key==='motif_row'?row.join(','):key==='motif_slot'?'1':'REC 1 Step 1';},
- performanceSet(key,value){writes.push([key,value]);if(key==='motif_record')row[0]=row[0]<0?0:refuseSave?row[0]:-1;if(key==='motif_cancel')row[0]=-1;if(key==='motif_step')row[2]=Number(value)-1;if(key==='motif_arrow')row[2]+=Number(value);}
+ performanceSet(key,value){writes.push([key,value]);if(key==='motif_record')row[0]=row[0]<0?0:refuseSave?row[0]:-1;if(key==='motif_cancel')row[0]=-1;if(key==='motif_copy')row[0]=0;if(key==='motif_step')row[2]=Number(value)-1;if(key==='motif_arrow')row[2]+=Number(value);}
 };
 const originalLength=seqState.lenSteps;
 assert(motifs.motifStep([0x90,16,100],port));assert.deepEqual(writes.at(-1),['motif_arm','1']);
@@ -38,6 +38,13 @@ appState.activeTrack.index=originalTrack;
 const writesBeforeResume=writes.length;motifs.motifAction(port,'motif_record');
 assert(motifs.motifEditing());assert.equal(writes.length,writesBeforeResume);
 refuseSave=false;motifs.motifFinish();assert.equal(row[0],-1);
+const beforeCopy=writes.length;
+assert(motifs.motifAction(port,'motif_copy'));assert(motifs.motifEditing());
+assert.deepEqual(writes.slice(beforeCopy),[['motif_copy','Copy to Slot']],'Copy adopts backend draft without toggling it closed');
+motifs.motifFinish();
+row[0]=-2;row[2]=1;row[5]=2;row[6]=row[7]=row[8]=2;
+ledFrameReset();motifs.paintMotif(port);assert(!recorder.stepRecActive(),'Tap guidance must not take the song editing destination');
+assert.deepEqual(songEdits,[]);row[0]=-1;
 feedback.motifSplash(0,60,4,1000);
 assert.equal(feedback.motifFeedbackColor(118,1,60,'pitch',1100),118,'Feedback belongs to its track');
 assert.equal(feedback.motifFeedbackColor(118,0,60,'pitch',1500),118,'Feedback restores base color');

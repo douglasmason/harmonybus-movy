@@ -20,6 +20,7 @@ let status = '';
 let viewOwner: MotifPort | null = null;
 let viewAt = -Infinity;
 let viewRow: number[] = [];
+let viewStatus = '';
 const seenFlash=new Map<number,number>();
 function acceptFlash(port: MotifPort,values: number[]): void {
     const track=port.performanceTrack;if(track===undefined||values.length!==41)return;
@@ -53,6 +54,13 @@ export function motifFinish(cancel = false): void {
     detachMotif();
 }
 export function motifAction(port: MotifPort, key: string): boolean {
+    if(key==='motif_copy'){
+        if(owner||seqState.recording||seqState.countingIn||seqState.stepAutoMode){seqToast('Finish recording/edit');return true;}
+        port.performanceSet('motif_copy','Copy to Slot');
+        const draft=port.performanceGet('motif_row').split(',').map(Number);
+        if(draft[0]>=0)return motifAction(port,'motif_record');
+        return true;
+    }
     if (key === 'motif_record') {
         if (owner) { motifFinish();return true; }
         if(seqState.recording||seqState.countingIn||seqState.stepAutoMode){seqToast('Finish clip recording/edit');return true;}
@@ -83,7 +91,7 @@ export function motifAction(port: MotifPort, key: string): boolean {
     return false;
 }
 export function motifPage(port: MotifPort | null): boolean {
-    return !!port?.ctl?.page?.keys?.includes('motif_slot');
+    return !!port?.ctl?.page?.keys?.some((key: string)=>key==='motif_slot'||key==='motif_preset');
 }
 export function motifStep(data: number[], port: MotifPort | null): boolean {
     const kind=data[0]&0xf0,step=data[1]-16;
@@ -92,7 +100,7 @@ export function motifStep(data: number[], port: MotifPort | null): boolean {
     if(!down&&slotReleases.delete(step))return true;
     if(owner)return false; // Normal step-rec routing owns editing gestures.
     if(!motifPage(port)||!port)return false;
-    if(down){port.performanceSet('motif_arm',String(step+1));slotReleases.add(step);markUiStateDirty();appState.dirty=true;}
+    if(down){port.performanceSet('motif_slot',String(step+1));port.performanceSet('motif_arm',String(step+1));slotReleases.add(step);markUiStateDirty();appState.dirty=true;}
     return true;
 }
 export function paintMotif(port: MotifPort | null): boolean {
@@ -111,9 +119,20 @@ export function paintMotif(port: MotifPort | null): boolean {
         }
         return true;
     }
-    if(!motifPage(port)||!port)return false;
-    if(viewOwner!==port||Date.now()-viewAt>=60){viewOwner=port;viewAt=Date.now();viewRow=port.performanceGet('motif_row').split(',').map(Number);acceptFlash(port,viewRow);}
+    if(!motifPage(port)||!port){viewRow=[];viewStatus='';return false;}
+    if(viewOwner!==port||Date.now()-viewAt>=60){viewOwner=port;viewAt=Date.now();viewRow=port.performanceGet('motif_row').split(',').map(Number);acceptFlash(port,viewRow);
+        const nextStatus=viewRow[0]===-2?port.performanceGet('motif_status'):'';
+        if(nextStatus!==viewStatus){viewStatus=nextStatus;appState.dirty=true;}}
     const values=viewRow;
+    if(values[0]===-2){
+        const cursor=values[2],anchor=values[5],offset=Math.min(1,Math.floor(cursor/16))*16;
+        for(let button=0;button<16;button++){
+            const step=offset+button,kind=values[6+step];
+            const color=step===anchor?13:kind===4?25:kind===3?C_DARKGREY:kind?22:C_BLACK;
+            cachedSetAnimLED(16+button,color,118,step===cursor?ANIM_PULSE_SLOW:ANIM_NONE);
+        }
+        return true;
+    }
     const occupied=values[4]??0,armed=values[3]??-1,selected=values[1]??0;
     for(let step=0;step<16;step++){
         const color=armed===step?13:selected===step?TRACK_COLOR[appState.activeTrack.index]:(occupied&(1<<step))?85:C_BLACK;
@@ -122,7 +141,10 @@ export function paintMotif(port: MotifPort | null): boolean {
     return true;
 }
 export function drawMotif(): boolean {
-    if(!owner)return false;
+    if(!owner){
+        if(viewRow[0]!==-2||viewOwner?.performanceTrack!==appState.activeTrack.index)return false;
+        fill_rect(0,0,128,8,1);fontPrint(1,1,viewStatus,0);return true;
+    }
     sample();fill_rect(0,0,128,8,1);fontPrint(1,1,status,0);return true;
 }
-export function resetMotif(): void { motifFinish(true);slotReleases.clear();seenFlash.clear();clearMotifSplash(); }
+export function resetMotif(): void { viewRow=[];viewStatus='';motifFinish(true);slotReleases.clear();seenFlash.clear();clearMotifSplash(); }

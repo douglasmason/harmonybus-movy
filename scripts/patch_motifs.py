@@ -30,9 +30,10 @@ def patch_motifs(root: Path) -> None:
     source = replace_once(source, 'export function stepRecHeaderText(): string {', 'export function stepRecHeaderText(): string {\n    const target=stepRecTarget();if(target)return target.header();')
     path.write_text(source)
     path = root / 'src/renderer/hb-performance.ts'
-    source = "import { motifStep, motifEditing, paintMotif, resetMotif } from './hb-motif.js';\n" + path.read_text()
+    source = "import { motifStep, motifEditing, paintMotif, resetMotif, drawMotif } from './hb-motif.js';\n" + path.read_text()
     source = replace_once(source, '    if (releaseHbPerformanceStep(data)) return true;', '    if (releaseHbPerformanceStep(data)) return true;\n    if (motifStep(data, owner)) return true;\n    if (motifEditing()) return false;')
     source = replace_once(source, '    if (paintedOwner !== owner) {', '    if (paintMotif(owner)) return true;\n    if (paintedOwner !== owner) {')
+    source = replace_once(source, 'export function drawHbPerformanceMode(): void {', 'export function drawHbPerformanceMode(): void {\n    if(drawMotif())return;')
     source = replace_once(source, 'export function resetHbPerformance(): void {', 'export function resetHbPerformance(): void {\n    resetMotif();')
     path.write_text(source)
     path = root / 'src/renderer/schwung-page.ts'
