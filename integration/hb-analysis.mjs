@@ -98,3 +98,35 @@ try {
     }
 } finally {globalThis.fill_rect=previousFill;}
 console.log('Real MIDI knob touch/release redraws arp, follower and lookahead pages without turning');
+
+// A consumed trigger changes DSP status, not parameter values. Exercise the
+// real app dirty gate with a deliberately quiet control model, on both banks.
+const oldStatusRead=globalThis.shadow_get_param,oldSend=globalThis.move_midi_internal_send;
+const feedbackPackets=[];let activeMask=0,statusReads=0;
+globalThis.move_midi_internal_send=packet=>feedbackPackets.push([...packet]);
+globalThis.shadow_get_param=(slot,key)=>{
+    if(key==='midi_fx1:motion_lights'){statusReads++;return [activeMask,0,0,...Array(16).fill(22)].join(',');}
+    if(key==='midi_fx1:motion_named_lights'){statusReads++;return [activeMask,0,0,...Array(35).fill(22)].join(',');}
+    return oldStatusRead(slot,key);
+};
+setFlag('hbsteprow',1);page.reload();
+now=savedNow()+100000;Date.now=()=>now;
+try {
+    for(const key of ['motion_control_1','motion_control_20']){
+        const pageIndex=page.ctl.pages.findIndex(candidate=>candidate.keys?.includes(key));assert(pageIndex>=0);page.goToPage(pageIndex);
+        const knob=page.ctl.page.keys.indexOf(key),lane=Number(key.slice(15))-1;
+        activeMask=2**(lane<16?lane:lane-16);
+        appState.dirty=false;globalThis.tick();
+        assert(feedbackPackets.some(packet=>packet[1]===0x90&&packet[2]===knob&&packet[3]!==0),'Quiet app lights armed trigger');
+        const readsBefore=statusReads;
+        for(let frameIndex=0;frameIndex<5;frameIndex++)page.pollOperationFeedback();
+        assert.equal(statusReads,readsBefore,'Repeated feedback polls share the 50ms snapshot');
+        feedbackPackets.length=0;activeMask=0;now+=50;appState.dirty=false;
+        let rendered=false;const originalRender=page.render;page.render=(...args)=>{rendered=true;originalRender(...args);};
+        try {globalThis.tick();} finally {page.render=originalRender;}
+        assert(feedbackPackets.some(packet=>packet[1]===0x90&&packet[2]===knob&&packet[3]===0),'Consumed trigger clears at the next status poll without knob movement');
+        assert(rendered,'Consumed trigger requests its display update too');
+        feedbackPackets.length=0;now+=100;
+    }
+} finally {Date.now=savedNow;globalThis.shadow_get_param=oldStatusRead;globalThis.move_midi_internal_send=oldSend;}
+console.log('Quiet app: user/named trigger LEDs and display clear within the 50ms poll window; shared reads stay bounded');

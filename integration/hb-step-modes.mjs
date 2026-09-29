@@ -35,6 +35,14 @@ const has=(p,key)=>p.ctl.pages.some(candidate=>candidate.keys?.includes(key));
 assert(!has(page,'motion_control_1'));assert(!has(page,'motif_slot'));
 assert(has(page,'chord_mode'),'Common chord controls remain reachable in Steps');
 const order=key=>page.ctl.pages.findIndex(p=>p.keys?.includes(key));
+const checkCadences=()=>{
+    for(const key of ['motion_control_38','motion_control_45']) {
+        assert(!has(page,key),'Mixed Cadences shortcuts have no panels');
+        assert(page.ctl.state.metaIndex.get(key),'Cadence metadata remains available');
+    }
+    assert.deepEqual(page.ctl.state.metaIndex.get('motion_operation').options,module.capabilities.chain_params.find(p=>p.key==='motion_operation').options,'Lane assignment keeps every operation');
+};
+checkCadences();
 assert(order('follower_explicit_root')<order('chord_mode'));
 assert.equal(order('chord_mode'),3,'Chords follows Main, Global and Follower Root');
 assert.equal(order('arp_playback'),4,'Arp / Strum immediately follows Chords');
@@ -48,6 +56,7 @@ const tap=()=>{down();now+=60;up();};
 try {
     tap();assert.equal(flagValue('hbsteprow'),1);assert(page.ctl.page.keys.includes('motion_control_1'));
     assert(!has(page,'motif_slot'));assert(has(page,'motion_lane'));
+    checkCadences();
     const firstOps=order('motion_control_1');
     assert(firstOps>order('monitor_status'),'Copy-mode operations follow even diagnostics');
     assert(page.ctl.pages.slice(firstOps).every(p=>p.keys?.some(key=>/^motion_(control_|lane$)/.test(key))),'Only operations follow the first operation page');
@@ -57,6 +66,7 @@ try {
     down();resetDuplicate();now+=40;up();assert.equal(flagValue('hbsteprow'),1,'Reset cannot manufacture a tap');
     tap();assert.equal(flagValue('hbsteprow'),2);assert(page.ctl.page.keys.includes('motif_slot'));
     assert(!has(page,'motion_control_1'));assert(has(page,'motif_preset'));
+    checkCadences();
     const firstMotif=order('motif_slot');
     assert(firstMotif>order('monitor_status'),'Copy-mode motifs follow even diagnostics');
     assert(page.ctl.pages.slice(firstMotif).every(p=>p.keys?.some(key=>key.startsWith('motif_'))),'Only motif pages follow the first motif page');
