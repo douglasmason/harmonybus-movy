@@ -7,8 +7,9 @@ def patch_light_priority(root: Path) -> None:
     """Reserve complete pad diffs and preserve the beat on cached touch frames."""
     path: Path = root / 'src/app/tick.ts'
     source: str = path.read_text()
-    source = "import { sendPadLedFrame } from '../seq/led-cache.js';\nimport { withHarmonyPadFrame } from '../keyboard/harmony-pads.js';\n" + source
-    source = replace_once(source, 'function paintMelodicPads(): void {', 'function paintMelodicPads(): void {\n    withHarmonyPadFrame(()=>{\n        const changes: {index:number;note:number;color:number}[]=[];')
+    source = "import { sendPadLedFrame, melodicPadColorCache as chromaticCache } from '../seq/led-cache.js';\nimport { withHarmonyPadFrame } from '../keyboard/harmony-pads.js';\n" + source
+    source = replace_once(source, 'const chromaticCache = new Uint8Array(32);', '// Melodic pad cache is shared with immediate input feedback.')
+    source = replace_once(source, 'function paintMelodicPads(): void {', 'export function paintMelodicPads(): void {\n    withHarmonyPadFrame(()=>{\n        const changes: {index:number;note:number;color:number}[]=[];')
     source = replace_once(source, '''                if (!ledBudgetTake()) continue;   // cache left stale: retries next tick
                 chromaticCache[i] = color;
                 setLED(p, color, true);''', '''                changes.push({index:i,note:p,color});''')
@@ -54,6 +55,15 @@ let gesturePadRevision''')
     source = path.read_text()
     source += '''
 
+/** Shared with immediate pad feedback: an out-of-frame write invalidates the
+ * regular painter's belief about that physical LED, including fast releases
+ * that still see a retained Auto Chord input in the last HB snapshot. */
+export const melodicPadColorCache = new Uint8Array(32);
+export function invalidateMelodicPadColor(note: number, padMin: number): void {
+    const index=note-padMin;
+    if(index>=0&&index<melodicPadColorCache.length)melodicPadColorCache[index]=255;
+}
+
 /** Publish a complete pad diff in one host call; only acknowledge accepted frames.
  * Individual setLED calls expose partial rows to the concurrent MIDI consumer.
  * Keep the same packet budget: batching does not increase output traffic.
@@ -66,6 +76,13 @@ export function sendPadLedFrame(changes: ReadonlyArray<{note:number;color:number
     return move_midi_internal_send(packets)!==false;
 }
 '''
+    path.write_text(source)
+    path = root / 'src/keyboard/handler.ts'
+    source = "import { invalidateMelodicPadColor } from '../seq/led-cache.js';\n" + path.read_text()
+    immediate: str = '    setLED(padNote, padColor('
+    if source.count(immediate) != 2:
+        raise RuntimeError('Expected immediate melodic pad press and release feedback')
+    source = source.replace(immediate, '    invalidateMelodicPadColor(padNote, padMin);\n' + immediate)
     path.write_text(source)
     path = root / 'src/types/schwung.d.ts'
     source = replace_once(path.read_text(), 'declare function move_midi_internal_send(data: number[]): void;', 'declare function move_midi_internal_send(data: number[]): boolean | void;')

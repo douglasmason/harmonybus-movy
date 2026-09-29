@@ -17,9 +17,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 881b7fc9ae4290622f0eb6f2c341c9db28be40ef
-  HB_REF: 97e5eb0c859e1d2c8854e5bb432feec8035898e3
-  HB_MOVY_VERSION: 0.34.1-hbclean.117
-  HB_MOVY_TAG: v0.34.1-hbclean.117
+  HB_REF: 68b2bc1b7942755f2e365add13bff35f2057a467
+  HB_MOVY_VERSION: 0.34.1-hbclean.118
+  HB_MOVY_TAG: v0.34.1-hbclean.118
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -386,7 +386,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Motif step recording, anchor feedback and tap playback UI; shared Render Rhythm for known clip playback; Full Velocity support for pressure-driven arp attacks. Includes all hbclean.107 capture, persistence, lighting and navigation fixes. Pair with HarmonyBus 0.2.200."
+              --notes "Fix stuck green Auto Chord pad highlights after live releases and disabling Auto Chord. Immediate feedback invalidates the shared pad cache so the next complete paint restores the correct background. Includes a regression reproducing the quick-tap stale-snapshot failure. Pair with HarmonyBus 0.2.208."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

@@ -427,3 +427,41 @@ console.log('Piano gaps: opt-in follower capability, exact lower-pad targets, in
     } finally {globalThis.move_midi_internal_send=send;}
 }
 console.log('Pad frames: one timestamp, one host publication, unchanged budget and rejection feedback pass');
+
+// A fast tap can start and finish between paints. Its immediate release can
+// still read HB's previous held-input snapshot; the next paint must repair the
+// physical LED even when the harmony background equals the old paint cache.
+{
+    const {paintMelodicPads}=await import('../dist/esm/app/tick.js');
+    const {seqState}=await import('../dist/esm/seq/state.js');
+    const {ledFrameReset}=await import('../dist/esm/seq/led-cache.js');
+    const {isSounding}=await import('../dist/esm/keyboard/held-notes.js');
+    const originalSet=globalThis.setLED,originalSend=globalThis.move_midi_internal_send;
+    const displayed=new Map();
+    globalThis.setLED=(pad,color)=>displayed.set(pad,color);
+    globalThis.move_midi_internal_send=packets=>{
+        for(let offset=0;offset<packets.length;offset+=4)
+            if(packets[offset+1]===0x90)displayed.set(packets[offset+2],packets[offset+3]);
+        return true;
+    };
+    try {
+        appState.activeTrack.index=0;keyboardState.mode=0;keyboardState.layout=0;
+        keyboardState.octave[0]=4;seqState.holdStep=-1;seqState.activeNotes.fill(0);
+        const pad=68,pitch=padMapFor(0)[0];
+        const base='145,145,2741,0,0,2,0,3,0,0|colors2,0|toniccolor1,9|playcolor1,3|input1,0,1,1,2741,145';
+        for(const releasedArp of ['arp1,1','arp1,0']) {
+            portFor(0).getParam=()=>base+'|arp1,1';
+            refreshHarmonyPads(0,testTime+=100);ledFrameReset();paintMelodicPads();
+            const resting=padColor(pad,pad,0,false);assert.notEqual(resting,11);
+            portFor(0).getParam=()=>base+'|arp1,1,'+pitch;
+            refreshHarmonyPads(0,testTime+=100);
+            noteOn(pad,pad,0,100);noteOff(pad,pad);
+            assert(!isSounding(pad),'Live owner was released');
+            assert.equal(displayed.get(pad),11,'Release briefly sees stale retained-input snapshot');
+            portFor(0).getParam=()=>base+'|'+releasedArp;
+            refreshHarmonyPads(0,testTime+=100);ledFrameReset();paintMelodicPads();
+            assert.equal(displayed.get(pad),resting,'Released/disabled Auto Chord must repaint without another press');
+        }
+    } finally {globalThis.setLED=originalSet;globalThis.move_midi_internal_send=originalSend;}
+}
+console.log('Live pad release: rapid taps and Auto Chord off recover from stale held snapshots');
