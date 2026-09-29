@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { installEnv } from './env.mjs';
 installEnv();
+const {setFlag}=await import('../dist/esm/seq/flags.js');
+setFlag('hbsteprow',2);
 const { seqState }=await import('../dist/esm/seq/state.js');
 const { appState }=await import('../dist/esm/app/state.js');
 const { setEditGuard }=await import('../dist/esm/seq/engine.js');

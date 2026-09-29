@@ -534,6 +534,8 @@ def main() -> int:
     patch_perf_measurement(root)
     patch_motifs(root)
     patch_render_rhythm(root)
+    from patch_step_modes import patch_step_modes
+    patch_step_modes(root)
     print("HarmonyBus clean integration applied")
     return 0
 

@@ -43,6 +43,8 @@ const port = {
         if (bare === 'motion_through' && Number(value)<Number(values.get('motion_from'))) values.set('motion_from',String(value));
     },
 };
+const { setFlag: setInitialMode } = await import('../dist/esm/seq/flags.js');
+setInitialMode('hbsteprow',1);
 const page = createSchwungPage(port, 'midi_fx1');
 for (let tick = 0; tick < 128; tick++) page.tick();
 assert(page.ready);
@@ -71,7 +73,8 @@ assert.equal(writes.length, writesBefore, 'Touch alone must never edit a paramet
 console.log('HB touch: real controller labels, current value, highlighted header, multiple fingers and no writes pass');
 
 function focusKey(key) {
-    const index = page.ctl.pages.findIndex(candidate => candidate.keys?.includes(key));
+    let index = page.ctl.pages.findIndex(candidate => candidate.keys?.includes(key));
+    if(index<0){setInitialMode('hbsteprow',key.startsWith('motif_')?2:1);page.reload();index=page.ctl.pages.findIndex(candidate=>candidate.keys?.includes(key));}
     assert(index >= 0, `${key} must have a knob`);
     page.goToPage(index);
     for (let tick = 0; tick < 64; tick++) page.tick();
@@ -344,7 +347,7 @@ try {
     assert.equal(flagValue('hbsteprow'),0,'Fresh installs retain normal step editing');
     const setting=visibleFlags(false).find(def=>def.key==='hbsteprow');
     assert(setting?.uiOnly&&!setting.perSet,'Step Row is a release-visible global UI preference');
-    assert.deepEqual(setting.labels,['STEPS','PERFORM']);
+    assert.deepEqual(setting.labels,['STEPS','HB OPS','MOTIFS']);
     setHbPerformanceMode(1);
     assert(syncHbPerformanceMode());
     assert(!Object.hasOwn(perSetFlagsSnapshot(),'hbsteprow'),'The choice is not stored in a set');

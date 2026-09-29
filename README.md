@@ -1,3 +1,7 @@
+> **hbclean.109 / HarmonyBus 0.2.200:** In Movy, short-tap **Copy** to cycle **Steps → HB Ops → Motifs**. The selected track opens the matching HB panel. Copy plus steps, clips or bars still copies; Delete and Mute keep their normal editing behavior. Session, Loop, Shift and active recording keep Copy's editing role. Finish motif entry before cycling. Key, scale and routing pages come first; common play controls remain at the end, with operation and motif pages shown in their respective modes. Long touched parameter labels/values are bounded to prevent header overlap, including Chords knob 7. This is a Movy update; HarmonyBus stays at 0.2.200.
+
+> **hbclean.108 / HarmonyBus 0.2.200:** Untimed motif entry uses the normal step recorder with intent, rests, ties and anchors; automatic/tap motif playback, shared Render Rhythm, and played/lowest/highest arp anchors.
+
 > hbclean.107: Starts inside HarmonyBus so the main dial changes panels immediately. Adds mixed-cadence controls, extended recorded-operation compatibility and role-default presets; requires HarmonyBus 0.2.199.
 
 > **hbclean.106 / HarmonyBus 0.2.198:** Expanded secondary controls and three scale policies, separate connector and tritone controls, and backward-compatible ra3 operation recording.

@@ -17,8 +17,8 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   HB_REF: 0f6ca33f957f1ebe9178a9b4b60679cb1db6eac7
-  HB_MOVY_VERSION: 0.34.1-hbclean.108
-  HB_MOVY_TAG: v0.34.1-hbclean.108
+  HB_MOVY_VERSION: 0.34.1-hbclean.109
+  HB_MOVY_TAG: v0.34.1-hbclean.109
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -70,6 +70,11 @@ jobs:
           ).splitlines()
           expected = {
               'browser-test/hb-motifs.mjs',
+              'browser-test/hb-step-modes.mjs',
+              'src/renderer/hb-step-panels.ts',
+              'src/renderer/header.ts',
+              'src/seq/duplicate.ts',
+              'src/seq/router-buttons.ts',
               'engine/crates/seq-core/src/hb_render_rhythm.rs',
               'src/renderer/hb-motif.ts',
               'src/renderer/motif-feedback.ts',
@@ -331,6 +336,7 @@ jobs:
         run: |
           SCHWUNG="$SCHWUNG_ROOT" node build/browser.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-track-navigation.mjs
+          HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-step-modes.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-touch.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-analysis.mjs
 
