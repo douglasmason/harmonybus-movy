@@ -4,10 +4,11 @@ const operations = new Set(['follower_touch', 'operations_9_16', 'pitch_play', '
     'mixed_cadences_1', 'mixed_cadences_2']);
 const motifs = new Set(['motifs', 'motif_tools', 'motif_play']);
 const play = new Set(['follower_play', 'chord_player', 'arp_player', 'follower_play_tools', 'motif_global']);
-const setupOrder = ['global_transpose', 'follower_root', 'track_scales', 'follower_source',
-    'conductor_scale_defaults', 'follower_scale_defaults', 'conductor_chord_defaults',
-    'follower_chord_defaults', 'chord_defaults_status', 'next_harm', 'grid_timing',
-    'pad_display', 'follower_this', 'diagnostics'];
+const setupOrder = ['global_transpose', 'follower_root', 'chord_player', 'arp_player',
+    'track_scales', 'follower_source', 'next_harm', 'grid_timing',
+    'pad_display', 'follower_this'];
+const advancedOrder = ['conductor_chord_defaults', 'follower_chord_defaults',
+    'conductor_scale_defaults', 'follower_scale_defaults', 'chord_defaults_status', 'diagnostics'];
 
 export function hbPanelVisible(condition: any): boolean {
     return condition?.movyStepVisible !== false;
@@ -28,7 +29,9 @@ export function hbStepHierarchy(hierarchy: any, mode: number): any {
     const rank = (key: string): number => {
         const setup = setupOrder.indexOf(key);
         if (setup >= 0) return setup;
-        if (operations.has(key) || motifs.has(key)) return 100;
+        const advanced = advancedOrder.indexOf(key);
+        if (advanced >= 0) return 300 + advanced;
+        if (operations.has(key) || motifs.has(key)) return 400;
         return play.has(key) ? 200 : 90;
     };
     links.sort((a: any, b: any) => rank(a.level) - rank(b.level));
