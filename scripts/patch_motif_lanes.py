@@ -28,13 +28,13 @@ export function motifRecordLight(): boolean {
 }
 export function motifKnobLight(port: PerformancePort, knob: number): boolean {
     if (!motifEditorFor(port.performanceTrack) || knob !== editorLane % 8) return false;
-    cachedSetAnimLED(knob, 22, owner ? 127 : 118, ANIM_PULSE_SLOW);
-    cachedSetAnimLED(71+knob, 22, owner ? 127 : 118, ANIM_PULSE_SLOW, true);
+    cachedSetAnimLED(knob, 22, owner ? C_WHITE : 118, ANIM_PULSE_SLOW);
+    cachedSetAnimLED(71+knob, 22, owner ? C_WHITE : 118, ANIM_PULSE_SLOW, true);
     return true;
 }
 function motifLaneLight(button: number): boolean {
     if (!motifEditorFor(appState.activeTrack.index) || button !== editorLane) return false;
-    cachedSetAnimLED(16+button, 22, owner ? 127 : 118, ANIM_PULSE_SLOW);
+    cachedSetAnimLED(16+button, 22, owner ? C_WHITE : 118, ANIM_PULSE_SLOW);
     return true;
 }''')
     source = source.replace('return owner !== null;', 'return owner !== null || editorPort !== null;')

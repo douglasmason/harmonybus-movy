@@ -49,6 +49,7 @@ motifs.motifAction(port,'motif_edit');
 const packets=[];globalThis.move_midi_internal_send=packet=>packets.push(packet);
 for(let frame=0;frame<3;frame++){ledFrameReset();motifs.paintMotif(port);motifs.motifRecordLight();motifs.motifKnobLight(port,0);}
 for(const [kind,note] of [[0x9a,16],[0xba,86],[0x9a,0],[0xba,71]])assert(packets.some(packet=>packet[1]===kind&&packet[2]===note),'All linked LEDs use the same native pulse channel');
+assert(packets.filter(packet=>packet[1]===0x9a).every(packet=>packet[3]!==127),'RGB feedback never uses the red palette entry as white brightness');
 const quiet=packets.length;ledFrameReset();motifs.paintMotif(port);motifs.motifRecordLight();motifs.motifKnobLight(port,0);assert.equal(packets.length,quiet,'Steady pulses require no repeated MIDI writes');
 motifs.motifAction(port,'motif_close');assert(!motifs.motifRecordLight());assert(!motifs.motifKnobLight(port,0));
 row[0]=-2;row[2]=1;row[5]=2;row[6]=row[7]=row[8]=2;
