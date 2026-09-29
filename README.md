@@ -1,3 +1,5 @@
+> **hbclean.115 / HarmonyBus 0.2.204:** Edit opens Chords for a Chord/Arp State lane. Chords and Arp share Edit Target, with atomic destination changes and a lane label. Preserved track settings return when the operation ends.
+
 > **hbclean.113 / HarmonyBus 0.2.202:** Next Harm, Chord Timing and Follower Root publish complete live display frames at up to 25 Hz rather than staggered per-knob reads. Keeps the independent latch/trigger LED polling fix. Prepared sets retain Full Loop context with the new three-choice selector. Install both modules.
 
 > **hbclean.113:** Native green/lime track colors use explicit green hardware palette entries and matching dim partners instead of RGB-nearest teal or unrelated muted hues. Other colors and selection pulsing retain their existing behavior.

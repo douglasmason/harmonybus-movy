@@ -15,6 +15,7 @@ const touchOperationLabels = new Map([[5,'Next Harmony'],[6,'Next Harmony']]);
 const writes = [];
 const editorReads = [];
 const operationMetadata = () => module.capabilities.chain_params.map(parameter => {
+            if(parameter.key==='chord_edit_target'&&values.get('motion_operation')==='Chord/Arp State')return {...parameter,options:['Track Settings','Lane 1']};
             if (parameter.key === 'motion_amount' && values.get('motion_operation') === 'Chord Form') return {...parameter,name:'Form',type:'enum',options:module.capabilities.chain_params.find(p=>p.key==='chord_form').options.filter(option=>option!=='Role Default'),options_as_string:true};
             if (parameter.key === 'motion_offset' && values.get('motion_operation') === 'MIDI Echo') return {...parameter,name:'Decay %',min:0};
             if (['motion_from','motion_through'].includes(parameter.key)) return {...parameter,options:Array.from({length:Number(values.get('motion_every'))},(_,index)=>String(index+1))};
@@ -34,6 +35,7 @@ const port = {
     },
     setParam(key, value) {
         writes.push([key, value]);const bare=key.split(':').at(-1);values.set(bare, value);
+        if(bare==='motif_edit'&&values.get('motion_operation')==='Chord/Arp State')values.set('chord_edit_target','Lane 1');
         if (bare === 'motion_operation' && value === 'Chord Form') values.set('motion_amount','Seventh');
         if (bare === 'motion_every') {
             values.set('motion_from',String(Math.min(Number(values.get('motion_from')),Number(value))));
@@ -57,8 +59,8 @@ const phaseSlot = page.ctl.page.keys.indexOf('arp_phase');
 const gateSlot = page.ctl.page.keys.indexOf('arp_gate');
 const writesBefore = writes.length;
 page.knobTouch(phaseSlot, true);
-assert.equal(page.ctl.describePage().header.right, 'Auto');
-assert.equal(page.ctl.describePage().header.left, 'Arp Start');
+assert.equal(page.ctl.describePage().header.right, 'First Note Free');
+assert.equal(page.ctl.describePage().header.left, 'Start Timing');
 const rectangles = [];
 globalThis.fill_rect = (...args) => rectangles.push(args);
 page.render('HB');
@@ -66,7 +68,7 @@ assert(rectangles.some(([x,y,width,height,color]) => x===0 && y===0 && width===1
 page.knobTouch(gateSlot, true);
 assert.equal(page.ctl.describePage().header.left, 'Arp Gate');
 page.knobTouch(gateSlot, false);
-assert.equal(page.ctl.describePage().header.left, 'Arp Start');
+assert.equal(page.ctl.describePage().header.left, 'Start Timing');
 page.knobTouch(phaseSlot, false);
 assert.equal(page.ctl.describePage().header.inverted, false);
 assert.equal(writes.length, writesBefore, 'Touch alone must never edit a parameter');
@@ -245,7 +247,7 @@ for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_
 }
 const operationSlot = focusKey('motion_operation');
 page.knobTurn(operationSlot, 100);page.knobTouch(operationSlot, false);
-for (const operation of ['Play Motif','Secondary VII','Secondary IV','Secondary III','Tritone V','Tritone II','Chrom Above']) {
+for (const operation of ['Chord/Arp State','Play Motif','Secondary VII','Secondary IV','Secondary III','Tritone V','Tritone II','Chrom Above']) {
     assert.equal(values.get('motion_operation'), operation);
     page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
 }
@@ -861,11 +863,18 @@ const localForm=focusKey('chord_form');
 const roleClock=Date.now;let roleNow=roleClock();Date.now=()=>roleNow;
 try {for(let turn=0;turn<128;turn++){roleNow+=100;page.knobTurn(localForm,1);page.knobTouch(localForm,false);roleNow+=100;page.tick();}}finally{Date.now=roleClock;}
 assert.equal(values.get('chord_form'),'Role Default');
-const sources=focusKey('chord_scope'),beforeSources=writes.length;
+const sources=focusKey('chord_edit_target'),beforeSources=writes.length;
 page.knobTurn(sources,1);page.knobTouch(sources,false);
-assert.equal(writes.length,beforeSources,'Setting Sources is read only');
-console.log('Role defaults, local override reset choice and visible read-only scope pass');
+assert.equal(writes.length,beforeSources,'A target selector with only Track Settings does not change destination');
+console.log('Role defaults, local override reset choice and edit destination pass');
 
+values.set('motion_operation','Chord/Arp State');
+const stateEdit=focusKey('motif_edit');page.knobTouch(stateEdit,true);page.knobTouch(stateEdit,false);
+assert.equal(page.pageTitle,'Chords');assert.equal(values.get('chord_edit_target'),'Lane 1');
+const targetSlot=focusKey('chord_edit_target');page.knobTurn(targetSlot,-1);page.knobTouch(targetSlot,false);
+assert.equal(values.get('chord_edit_target'),'Track Settings');
+assert.equal(page.ctl.state.values.chord_edit_target,'Track Settings');
+console.log('Chord state Edit opens Chords and atomic destination switching refreshes the controller');
 values.set('motif_lane','1');values.set('motion_operation','Play Motif');
 const editorButton=focusKey('motif_edit');page.knobTouch(editorButton,true);page.knobTouch(editorButton,false);
 assert.equal(page.pageTitle,'Motif Edit');
