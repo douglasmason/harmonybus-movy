@@ -16,9 +16,9 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  HB_REF: 5b3f9480eafbfd3134b46d463343982524b33ba7
-  HB_MOVY_VERSION: 0.34.1-hbclean.107
-  HB_MOVY_TAG: v0.34.1-hbclean.107
+  HB_REF: 0f6ca33f957f1ebe9178a9b4b60679cb1db6eac7
+  HB_MOVY_VERSION: 0.34.1-hbclean.108
+  HB_MOVY_TAG: v0.34.1-hbclean.108
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -69,6 +69,14 @@ jobs:
               ['git', '-C', str(root), 'ls-files', '--others', '--exclude-standard'], text=True
           ).splitlines()
           expected = {
+              'browser-test/hb-motifs.mjs',
+              'engine/crates/seq-core/src/hb_render_rhythm.rs',
+              'src/renderer/hb-motif.ts',
+              'src/renderer/motif-feedback.ts',
+              'src/seq/step-rec-target.ts',
+              'src/seq/step-rec-view.ts',
+              'src/seq/step-rec.ts',
+
               'src/model/wav-peaks.ts',  # bound background read work per UI tick
               'browser-test/perf.mjs',  # paired warm-up for the existing scaling budget
               'src/app/init.ts',
@@ -249,6 +257,10 @@ jobs:
         working-directory: movy
         run: node browser-test/logic.mjs
 
+      - name: Verify motif editor and feedback
+        working-directory: movy
+        run: node browser-test/hb-motifs.mjs
+
       - name: Verify harmony pad colors
         working-directory: movy
         run: node browser-test/hb-pad-colors.mjs
@@ -364,7 +376,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Support expanded secondary II-VII controls, Parent Scale / Simple Chord / Simple Scale policies, separate connector and tritone controls, and ra3 recording with legacy playback. Step operation banks remain fixed."
+              --notes "Motif step recording, anchor feedback and tap playback UI; shared Render Rhythm for known clip playback; Full Velocity support for pressure-driven arp attacks. Includes all hbclean.107 capture, persistence, lighting and navigation fixes. Pair with HarmonyBus 0.2.200."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

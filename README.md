@@ -268,3 +268,12 @@ This synchronization applies to Movy's keyboard. Stock Move's native Key menu st
 Movy hbclean.74 combines the retrospective Capture fix with live pad previews during modifier holds. Touch and release invalidate the preview for the next LED tick, while held previews retain the bounded 50 ms cadence. Parameter polling and saves remain deferred during performance gestures.
 
 The .77 release supports all seven melodic-minor modes from HarmonyBus 0.2.169 in pad layouts, scale selection, recorded degree projection and input context readouts. Existing pentatonic, blues and chromatic keyboard IDs remain unchanged. Update both modules for the new scales.
+### Motifs and Render Rhythm (.108)
+
+The integration reads HB's effective Render Rhythm settings on
+parameter edits/loads and retimes known clip attacks in the sequencer. Beat/Bar
+windows can advance or delay attacks; chord groups, gates and pressure offsets
+stay together. Settings latch at clip-cycle boundaries, and clip storage is not
+edited. Install HarmonyBus 0.2.200 for live output scheduling and the
+shared Inherit / Off / Override controls. The release workflow runs the sequencer tests and builds the device
+artifact before updating the installer pointer.

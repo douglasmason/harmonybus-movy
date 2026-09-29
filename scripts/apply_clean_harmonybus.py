@@ -33,6 +33,8 @@ from patch_performance_touch import patch_performance_touch
 from patch_motion_controls import patch_motion_controls
 from patch_native_track_colors import patch_native_track_colors
 from patch_performance_steps import patch_performance_steps
+from patch_motifs import patch_motifs
+from patch_render_rhythm import patch_render_rhythm
 from patch_performance_mode import patch_performance_mode
 from patch_clip_performance import patch_clip_performance
 from patch_follower_input import patch_follower_input
@@ -530,6 +532,8 @@ def main() -> int:
     patch_named_controls(root)
     from patch_perf_measurement import patch_perf_measurement
     patch_perf_measurement(root)
+    patch_motifs(root)
+    patch_render_rhythm(root)
     print("HarmonyBus clean integration applied")
     return 0
 

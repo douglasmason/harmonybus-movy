@@ -117,11 +117,15 @@ def patch_pressure_recording(root: Path) -> None:
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
     source = path.read_text()
     source = replace_once(source, '                        self.chains.on_midi(chain, &[0xA0, pitch, pressure], MOVE_MIDI_SOURCE_INTERNAL);', '''                        self.engine.live_poly_pressure(chain,pitch,pressure);
+                        self.chains.set_param(chain,"midi_fx1:hb_pressure_full_velocity",if self.pads.full_velocity() {"1"} else {"0"});
                         self.chains.on_midi(chain, &[0xA0, pitch, pressure], MOVE_MIDI_SOURCE_INTERNAL);''')
     source = replace_once(source, '                OutEvent::Click { accent } => {', '''                OutEvent::PolyPressure { track,pitch,value } => {
                     match chain_for(track,self.movy_tracks) {
                         None => { host::midi_send_internal(0xA0|track,pitch,value); }
-                        Some(chain) => { self.chains.on_midi(chain,&[0xA0,pitch,value],MOVE_MIDI_SOURCE_INTERNAL); }
+                        Some(chain) => {
+                            self.chains.set_param(chain,"midi_fx1:hb_pressure_full_velocity",if self.pads.full_velocity() {"1"} else {"0"});
+                            self.chains.on_midi(chain,&[0xA0,pitch,value],MOVE_MIDI_SOURCE_INTERNAL);
+                        }
                     }
                 }
                 OutEvent::Click { accent } => {''')
