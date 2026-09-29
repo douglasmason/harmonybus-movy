@@ -80,6 +80,7 @@ jobs:
               'src/seq/router-buttons.ts',
               'engine/crates/seq-core/src/hb_render_rhythm.rs',
               'src/renderer/hb-motif.ts',
+              'src/renderer/hb-approach.ts',
               'src/renderer/motif-feedback.ts',
               'src/seq/step-rec-target.ts',
               'src/seq/step-rec-view.ts',
