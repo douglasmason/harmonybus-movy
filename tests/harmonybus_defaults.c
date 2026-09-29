@@ -26,7 +26,8 @@ int main(int argument_count, char **arguments) {
             return 1;
         }
         assert(instances[track]->player.config.mode == (expected_role == 0 ? 1 : 0));
-        assert(instances[track]->player.config.phase == 1);
+        assert(instances[track]->player.config.phase == 2);
+        assert(instances[track]->player.config.start == 5);
         assert(instances[track]->policy_overrides == 0);
         assert(instances[track]->player.config.chromatic_quality == 3);
         assert(instances[track]->retrigger_held == 1);
