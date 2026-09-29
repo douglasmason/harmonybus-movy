@@ -498,3 +498,42 @@ console.log('Live pad release: rapid taps and Auto Chord off recover from stale 
     } finally {globalThis.move_midi_internal_send=original;}
 }
 console.log('Real Schwung overtake queue: all 32 harmony colors reach the device');
+
+// Current HB supplies physical pad membership from final emitted output. Raw
+// sequencer inputs and latched arp owners must not override that output state.
+{
+    const {paintMelodicPads}=await import('../dist/esm/app/tick.js');
+    const {seqState}=await import('../dist/esm/seq/state.js');
+    const {ledFrameReset}=await import('../dist/esm/seq/led-cache.js');
+    const {hasHarmonyPlayback,harmonyPadPlaying}=await import('../dist/esm/seq/pads.js');
+    const send=globalThis.move_midi_internal_send,set=globalThis.setLED;
+    const displayed=new Map();
+    globalThis.move_midi_internal_send=packet=>{displayed.set(packet[2],packet[3]);return true;};
+    globalThis.setLED=(pad,color)=>displayed.set(pad,color);
+    const base='145,145,2741,0,0,6,0,3,0,0|colors2,0|toniccolor1,9|playcolor1,3';
+    try {
+        appState.activeTrack.index=0;keyboardState.mode=0;keyboardState.layout=0;keyboardState.octave[0]=4;
+        seqState.holdStep=-1;seqState.activeNotes.fill(0);
+        const source=padMapFor(0)[0];seqState.activeNotes[source]=1;
+        let mask=0;
+        portFor(0).getParam=()=>base+'|arp1,1,'+source+'|playpads1,'+mask;
+        const paint=()=>{refreshHarmonyPads(0,testTime+=100);ledFrameReset();paintMelodicPads();};
+        paint();assert(hasHarmonyPlayback(0));
+        assert.notEqual(displayed.get(68),11,'Recorded input and latched owner are not sounding output');
+        for(mask of [1<<4,(1<<4)|(1<<7),2**31,0]){
+            paint();
+            for(let index=0;index<32;index++){
+                assert.equal(harmonyPadPlaying(0,index),!!((mask>>>index)&1));
+                assert.equal(displayed.get(68+index)===11,!!((mask>>>index)&1),'Only currently rendered pads glow, including the top bit');
+            }
+        }
+        noteOn(68,68,0,100);paint();assert.equal(displayed.get(68),11,'Held input remains immediately green');
+        noteOff(68,68);paint();assert.notEqual(displayed.get(68),11,'Release clears input while recorded source remains active');
+        mask=1<<4;paint();assert.equal(displayed.get(72),11);
+        portFor(0).getParam=()=>base.replace('playcolor1,3','playcolor1,11')+'|playpads1,'+mask;
+        paint();assert.notEqual(displayed.get(72),11,'Play Color Off still disables output overlay');
+        assert.equal(harmonyPadPlaying(1,4),false,'Output is track-local');
+        for(const bad of ['-1','4294967296','1.5','x','1,2'])assert.equal(parseHarmonySnapshot(base+'|playpads1,'+bad),null);
+    } finally {seqState.activeNotes.fill(0);globalThis.move_midi_internal_send=send;globalThis.setLED=set;}
+}
+console.log('Rendered play overlay: source/output separation, chord/arp changes, release, pad 32, track isolation and Off pass');

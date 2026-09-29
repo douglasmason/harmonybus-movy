@@ -1,3 +1,5 @@
+> **hbclean.120 / HarmonyBus 0.2.210:** Play lights follow final rendered notes from live or recorded Auto Chord, arps, motifs and motion effects. Physical pad holds remain immediate; recorded source notes and retained arp pools no longer masquerade as sounding output. Includes the host LED delivery fix.
+
 > **hbclean.119 / HarmonyBus 0.2.208:** Fix dropped harmony colors and stuck play highlights in Schwung overtake mode. Send each pad LED as its own host packet and cache only accepted updates. Verified against the pinned host queue, including pending green highlights replaced by harmony colors.
 
 > **hbclean.118 / HarmonyBus 0.2.208:** Fix stuck green play highlights after quick live taps and switching Auto Chord off. Immediate pad feedback now invalidates the shared pad-color cache, so the next complete repaint restores the harmony background without playing the note again.

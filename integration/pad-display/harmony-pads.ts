@@ -11,7 +11,7 @@ import { seqState } from '../seq/state.js';
 import { visualEngineTick } from '../seq/engine.js';
 import { PAD_PALETTE } from './pad-palette.js';
 
-export type HarmonySnapshot = { gapColors?: number[]; pianoApproach?: boolean; current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; playColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
+export type HarmonySnapshot = { playPads?: number; gapColors?: number[]; pianoApproach?: boolean; current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; playColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
 let snapshot: HarmonySnapshot | null = null;
 let requestedPads: number[] = [];
 let previewRevision = -1;
@@ -68,6 +68,9 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
     const tonicColorSection = sections.find(section => section.startsWith('toniccolor1,'));
     const tonicColor = tonicColorSection ? Number(tonicColorSection.split(',')[1]) : 8;
     if (tonicColorSection && (tonicColorSection.split(',').length !== 2 || !Number.isInteger(tonicColor) || tonicColor < 0 || tonicColor > 9)) return null;
+    const playingSection = sections.find(section => section.startsWith('playpads1,'));
+    const playPads = playingSection ? Number(playingSection.split(',')[1]) : undefined;
+    if (playingSection && (playingSection.split(',').length !== 2 || !Number.isInteger(playPads) || playPads! < 0 || playPads! > 0xffffffff)) return null;
     const outputSection = sections.find(section => section.startsWith('outputs1,'));
     const outputGroups = outputSection?.split(',').slice(1).map(Number);
     if (outputGroups && (outputGroups.length !== 32 || outputGroups.some(value => !Number.isInteger(value) || value < -1 || value > 31))) return null;
@@ -106,7 +109,7 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
     }
     const piano = sections.find(section => section.startsWith('piano1,'));
     if (piano && !['piano1,0','piano1,1'].includes(piano)) return null;
-    return { ...(gapColors ? {gapColors} : {}), ...(piano ? {pianoApproach: piano === 'piano1,1'} : {}), ...(playColor !== undefined ? {playColor} : {}), ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
+    return { ...(playPads !== undefined ? {playPads} : {}), ...(gapColors ? {gapColors} : {}), ...(piano ? {pianoApproach: piano === 'piano1,1'} : {}), ...(playColor !== undefined ? {playColor} : {}), ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
 }
 
 /** Poll one compact snapshot, never once per pad or once per display frame. */
@@ -234,8 +237,8 @@ export function harmonyPadColor(pitch: number, track: number, held = false): num
     const view = watchedTrack === track ? snapshot : null;
     const tonicChoice = view?.tonicColor ?? 8;
     const tonicColor = tonicChoice === 9 ? C_LIGHTGREY : tonicChoice === 8 ? trackColor(track) : colors[tonicChoice];
-    // Exact raw input notes own highlights; generated output never lights pads.
-    if (view?.arpInputs !== undefined) {
+    // Older HB exposes source owners only; current HB supplies actual sounding pads.
+    if (view?.arpInputs !== undefined && view.playPads === undefined) {
         if (view.arpInputs.includes(pitch)) {
             const playColor = harmonyPlayColor(track);
             if (playColor !== null) return playColor;
@@ -329,7 +332,7 @@ export function harmonyApproachColor(index: number, track: number, held = false)
     const target = pianoApproachTarget(track, index);
     if (target < 0 || watchedTrack !== track || !snapshot) return 0;
     const identity = pianoApproachIdentity(target);
-    if (held || snapshot.arpInputs?.includes(identity)) {
+    if (held || (snapshot.playPads === undefined && snapshot.arpInputs?.includes(identity))) {
         const play = harmonyPlayColor(track);
         if (play !== null) return play;
     }
@@ -343,4 +346,16 @@ export function harmonyApproachColor(index: number, track: number, held = false)
         flags & selected ? 1 : 0, mode, period ? beat / period : 0, settings[2],
         resolve(settings[3]), resolve(mode === 0 || mode === 2 ? settings[3] : settings[4]),
         period > 0, undefined, snapshot.bothColor ? resolve(snapshot.bothColor - 1) : undefined);
+}
+
+/** Authoritative output feedback replaces sequencer-source and latched-pool
+ * highlights. Physical pad holds remain immediate in the caller. */
+export function hasHarmonyPlayback(track: number): boolean {
+    return watchedTrack === track && snapshot?.playPads !== undefined;
+}
+export function harmonyPadPlaying(track: number, index: number): boolean {
+    if (!hasHarmonyPlayback(track) || index < 0 || index >= 32) return false;
+    const map = padMapFor(track);
+    if (requestedPads.some((note, slot) => note !== map[slot])) return false;
+    return ((snapshot!.playPads! >>> index) & 1) !== 0;
 }

@@ -17,9 +17,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 881b7fc9ae4290622f0eb6f2c341c9db28be40ef
-  HB_REF: 68b2bc1b7942755f2e365add13bff35f2057a467
-  HB_MOVY_VERSION: 0.34.1-hbclean.119
-  HB_MOVY_TAG: v0.34.1-hbclean.119
+  HB_REF: 1787d49037dad9a516714291b3b1d8bb4a2d9d17
+  HB_MOVY_VERSION: 0.34.1-hbclean.120
+  HB_MOVY_TAG: v0.34.1-hbclean.120
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -386,7 +386,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Fix dropped harmony pad colors and stuck Auto Chord play highlights. Send one LED packet per host call, matching Schwung overtake queue semantics, and cache only accepted packets. Includes real host queue regressions and rapid press/release coverage. Pair with HarmonyBus 0.2.208."
+              --notes "Play lights now distinguish source input from final rendered output. Held pads retain immediate feedback; Auto Chord, arp, motif and recorded notes light their exact rendered pad matches, including gate gaps and releases. Includes the single-packet LED delivery fix. Pair with HarmonyBus 0.2.210."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

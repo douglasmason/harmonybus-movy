@@ -10,8 +10,8 @@ def patch_harmony_pads(root: Path) -> None:
         (root / 'src/keyboard' / name).write_text((assets / name).read_text())
     path: Path = root / 'src/seq/pads.ts'
     source: str = path.read_text()
-    source = "import { harmonyPadColor, harmonyPlayColor, distinguishHarmonyPad } from '../keyboard/harmony-pads.js';\nexport { withHarmonyPadFrame, distinguishHarmonyPad, setFollowerInputScale, setFollowerInputRoot, harmonyPadColor, colorHarmonyPitch, harmonyPulse, parseHarmonySnapshot, refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + source
-    source = replace_once(source, '    if (isPlaying) return C_GREEN;', '''    if (isPlaying) {
+    source = "import { harmonyPadPlaying, harmonyPadColor, harmonyPlayColor, distinguishHarmonyPad } from '../keyboard/harmony-pads.js';\nexport { hasHarmonyPlayback, harmonyPadPlaying, withHarmonyPadFrame, distinguishHarmonyPad, setFollowerInputScale, setFollowerInputRoot, harmonyPadColor, colorHarmonyPitch, harmonyPulse, parseHarmonySnapshot, refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + source
+    source = replace_once(source, '    if (isPlaying) return C_GREEN;', '''    if (isPlaying || harmonyPadPlaying(track, idx)) {
         const playColor = harmonyPlayColor(track);
         if (playColor !== null) return playColor;
     }
@@ -33,12 +33,13 @@ def patch_harmony_pads(root: Path) -> None:
     path.write_text(source)
     path = root / 'src/app/tick.ts'
 
-    source = "import { refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + path.read_text()
+    source = "import { hasHarmonyPlayback, refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + path.read_text()
     source = replace_once(source, '    /* Chromatic instrument-pad init batch.', '''    // Warm HarmonyBus before the initial paint. Pad colors must never depend
     // on opening its parameter panel or on a later unrelated repaint.
     if (!seqState.sessionMode && !isDrum) refreshHarmonyPads(appState.activeTrack.index);
 
     /* Chromatic instrument-pad init batch.''')
+    source = replace_once(source, 'pitch >= 0 && activeHasNote(track, pitch)', '!hasHarmonyPlayback(track) && pitch >= 0 && activeHasNote(track, pitch)')
     path.write_text(source)
     (root / 'browser-test/hb-pad-colors.mjs').write_text((assets / 'hb-pad-colors.mjs').read_text())
 
