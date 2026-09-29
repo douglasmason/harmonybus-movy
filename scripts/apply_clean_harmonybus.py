@@ -550,6 +550,8 @@ def main() -> int:
     patch_light_priority(root)
     from patch_knob_latch import patch_knob_latch
     patch_knob_latch(root)
+    from patch_approach_mode import patch_approach_mode
+    patch_approach_mode(root)
     print("HarmonyBus clean integration applied")
     return 0
 

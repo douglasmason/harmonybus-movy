@@ -1,3 +1,5 @@
+> **hbclean.122 / HarmonyBus 0.2.213:** Copy tap adds Approach mode. Step buttons arm Motifs 1–16; play a scale pad to supply the target. Turn Approach Rows knobs to assign transformations or motif slots, and overlap touches to sequence them in touch order. Approach-pad presses advance that sequence; lower scale pads stay available. Motif Bank pages assign stock/User references without replacing Perform lanes.
+
 > **hbclean.121 / HarmonyBus 0.2.212:** Operation knobs keep their fixed lane: clockwise latches on, counterclockwise off, tap arms one use, hold is momentary. Rendered-only notes blend faint Play Color into the normal pad color; matching live or recorded input uses solid Play Color. Input without sounding output preserves the background. Play Color Off disables both highlights.
 
 > **hbclean.120 / HarmonyBus 0.2.210:** Play lights follow final rendered notes from live or recorded Auto Chord, arps, motifs and motion effects. Physical pad holds remain immediate; recorded source notes and retained arp pools no longer masquerade as sounding output. Includes the host LED delivery fix.

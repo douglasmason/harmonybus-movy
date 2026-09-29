@@ -17,9 +17,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 881b7fc9ae4290622f0eb6f2c341c9db28be40ef
-  HB_REF: 2257db3d644ffded5222f1005c89fad8cbee8b23
-  HB_MOVY_VERSION: 0.34.1-hbclean.121
-  HB_MOVY_TAG: v0.34.1-hbclean.121
+  HB_REF: fab9d734f5708fab3dfc44ccac2b00c53ad89946
+  HB_MOVY_VERSION: 0.34.1-hbclean.122
+  HB_MOVY_TAG: v0.34.1-hbclean.122
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -386,7 +386,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Fixed operation knob turns set permanent latch on/off; taps arm one use and holds are momentary. Rendered output uses a faint Play Color blend while matching live or recorded input uses solid Play Color. Includes single-packet LED delivery. Pair with HarmonyBus 0.2.212."
+              --notes "Copy cycles Steps, Perform and Approach. Approach provides a separate 16-slot motif bank, eight assignable transformation/motif knobs and touch-order sequences for approach rows. Keeps Perform lanes unchanged and saves per-track assignments. Requires HarmonyBus 0.2.213."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

@@ -65,13 +65,25 @@ try {
     onUnit({kind:'step',track:0,step:0});now+=50;up();assert.equal(flagValue('hbsteprow'),1,'Copy source gesture does not cycle');
     down();now+=500;up();assert.equal(flagValue('hbsteprow'),1,'Long unused hold does not cycle');
     down();resetDuplicate();now+=40;up();assert.equal(flagValue('hbsteprow'),1,'Reset cannot manufacture a tap');
+    tap();assert.equal(flagValue('hbsteprow'),2);assert(page.ctl.page.keys.includes('approach_knob_1'));
+    assert(has(page,'approach_bank_1'));assert(has(page,'approach_bank_16'));
+    assert(!has(page,'motion_control_1'),'Approach bank is independent of Perform');
+    assert.equal(page.ctl.metaAt(0).options.length,29);
+    page.knobTouch(0,true);page.knobTouch(1,true);
+    assert(writes.some(([,key,value])=>key==='midi_fx1:approach_touch_1'&&value==='Down'));
+    assert(writes.some(([,key,value])=>key==='midi_fx1:approach_touch_2'&&value==='Down'));
+    page.knobTurn(0,1);page.knobTouch(0,false);page.knobTouch(1,false);
+    assert(writes.some(([,key])=>key==='midi_fx1:approach_knob_1'));
+    const owner=hbPerformancePage();assert(owner);
+    hbPerformanceStep([0x90,16,100],owner);hbPerformanceStep([0x80,16,0],owner);
+    assert(writes.some(([,key,value])=>key==='midi_fx1:approach_trigger'&&value==='1'));
     tap();assert.equal(flagValue('hbsteprow'),0);assert(page.ctl.page.keys.includes('version'));
     assert(!has(page,'motif_record'),'Motif editor has no permanent performance bank');
     tap();assert.equal(flagValue('hbsteprow'),1);
     setFlag('hbsteprow',0);schwungActiveFor(4,'midi_fx1');setFlag('hbsteprow',1);
     switchToTrack(4,beginTrackSwitch());const target=schwungActiveFor(4,'midi_fx1');
     assert(has(target,'motion_control_1'));assert(!has(target,'motif_record'));
-    tap();assert.equal(flagValue('hbsteprow'),0);assert(target.ctl.page.keys.includes('version'));
+    tap();assert.equal(flagValue('hbsteprow'),2);tap();assert.equal(flagValue('hbsteprow'),0);assert(target.ctl.page.keys.includes('version'));
     for(const prop of ['recording','countingIn','sessionMode','loopMode']){seqState[prop]=true;tap();assert.equal(flagValue('hbsteprow'),0,prop);seqState[prop]=false;}
     stepRecDownAt(now);tap();assert.equal(flagValue('hbsteprow'),0,'Step entry blocks mode cycling');stepRecUpAt(now+400);
     appState.shiftHeld=true;tap();assert.equal(flagValue('hbsteprow'),0);appState.shiftHeld=false;

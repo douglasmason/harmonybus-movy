@@ -358,7 +358,7 @@ try {
     assert.equal(flagValue('hbsteprow'),0,'Fresh installs retain normal step editing');
     const setting=visibleFlags(false).find(def=>def.key==='hbsteprow');
     assert(setting?.uiOnly&&!setting.perSet,'Step Row is a release-visible global UI preference');
-    assert.deepEqual(setting.labels,['STEPS','PERFORM']);
+    assert.deepEqual(setting.labels,['STEPS','PERFORM','APPROACH']);
     setHbPerformanceMode(1);
     assert(syncHbPerformanceMode());
     assert(!Object.hasOwn(perSetFlagsSnapshot(),'hbsteprow'),'The choice is not stored in a set');
