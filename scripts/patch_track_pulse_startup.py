@@ -31,3 +31,9 @@ def patch_track_pulse_startup(root: Path) -> None:
     source = replace_once(source, "        ledFrameReset();cachedSetAnimButtonLED(43,7,120,ANIM_PULSE_SLOW);\n        packetIs('unmuted smooth", "        pulseNow+=60;ledFrameReset();cachedSetAnimButtonLED(43,7,120,ANIM_PULSE_SLOW);\n        packetIs('unmuted smooth")
     source = source.replace('globalThis.move_midi_internal_send=savedSend;seqLedsInvalidate();ledFrameReset();', 'Date.now=realPulseClock;globalThis.move_midi_internal_send=savedSend;seqLedsInvalidate();ledFrameReset();')
     path.write_text(source)
+    path = root / 'browser-test/app-loop.mjs'
+    source = path.read_text()
+    source = replace_once(source, '    // Time passing sends nothing further: the pulse is not redrawn per frame.', '''    // Allow the track CC base to drain before checking steady-state traffic.
+    t += 60;advance(2);
+    // Time passing sends nothing further: the pulse is not redrawn per frame.''')
+    path.write_text(source)
