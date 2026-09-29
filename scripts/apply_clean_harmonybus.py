@@ -546,6 +546,8 @@ def main() -> int:
     patch_track_pulse_startup(root)
     from patch_chord_state import patch_chord_state
     patch_chord_state(root)
+    from patch_light_priority import patch_light_priority
+    patch_light_priority(root)
     print("HarmonyBus clean integration applied")
     return 0
 

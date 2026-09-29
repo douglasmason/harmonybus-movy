@@ -1,3 +1,5 @@
+> **hbclean.116 / HarmonyBus 0.2.205:** Preview opening conductor harmony before Play; reserve complete pad-light changes and prioritize metronome LEDs without overwriting Perform or motif editing. Role Defaults changes labels and values together; Foll Notes and Pads Global move to the end.
+
 > **hbclean.115 / HarmonyBus 0.2.204:** Edit opens Chords for a Chord/Arp State lane. Chords and Arp share Edit Target, with atomic destination changes and a lane label. Preserved track settings return when the operation ends.
 
 > **hbclean.113 / HarmonyBus 0.2.202:** Next Harm, Chord Timing and Follower Root publish complete live display frames at up to 25 Hz rather than staggered per-knob reads. Keeps the independent latch/trigger LED polling fix. Prepared sets retain Full Loop context with the new three-choice selector. Install both modules.

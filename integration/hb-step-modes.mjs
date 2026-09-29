@@ -46,7 +46,7 @@ checkCadences();
 assert(order('follower_explicit_root')<order('chord_mode'));
 assert.equal(order('chord_mode'),3,'Chords follows Main, Global and Follower Root');
 assert.equal(order('arp_playback'),4,'Arp / Strum immediately follows Chords');
-for(const key of ['conductor_default_chord_form','follower_default_chord_form','conductor_default_gap_scale','follower_default_gap_scale'])
+for(const key of ['defaults_editor'])
     assert(order(key)>order('render_rhythm_mode'),'Role defaults follow everyday and play controls');
 assert(order('render_channel')<order('chord_mode'));
 let now=10000;const clock=Date.now;Date.now=()=>now;
@@ -58,8 +58,9 @@ try {
     assert(!has(page,'motif_slot'));assert(has(page,'motion_lane'));
     checkCadences();
     const firstOps=order('motion_control_1');
-    assert(firstOps>order('monitor_status'),'Copy-mode operations follow even diagnostics');
-    assert(page.ctl.pages.slice(firstOps).every(p=>p.keys?.some(key=>/^motion_(control_|lane$)/.test(key))),'Only operations follow the first operation page');
+    assert(firstOps>order('monitor_status'),'Copy-mode operations follow main diagnostics');
+    assert(order('pad_display')>firstOps&&order('fpath_0_0_0')>firstOps);
+    assert(page.ctl.pages.slice(firstOps).every(p=>p.keys?.some(key=>/^motion_(control_|lane$)/.test(key)||key==='pad_display'||key==='fpath_0_0_0')),'Only operations and end diagnostics follow the first operation page');
     down();assert.equal(hbPerformancePage(),null,'Copy held exposes native input step editing');
     onUnit({kind:'step',track:0,step:0});now+=50;up();assert.equal(flagValue('hbsteprow'),1,'Copy source gesture does not cycle');
     down();now+=500;up();assert.equal(flagValue('hbsteprow'),1,'Long unused hold does not cycle');
@@ -86,4 +87,15 @@ for(const [left,right] of [['Chord Scope','Conductor role defaults'],['Chromatic
     assert.deepEqual(rectangles[0],[0,0,128,7,1]);
     for(const [x,y,w,h] of rectangles)assert(x>=0&&x+w<=128&&y>=0&&y+h<=7,'Header pixels stay on screen');
 }
+selectTrack(0);appState.currentView=VIEW_KNOBS;seqState.playing=true;seqState.lenSteps=0;
+seqState.sessionMode=false;seqState.loopMode=false;seqState.trackSelectHold=false;
+setFlag('hbsteprow',1);schwungActiveFor(0,'midi_fx1');assert(hbPerformancePage());
+const {seqBeatLedsTick,seqLedsInvalidate}=await import('../dist/esm/seq/leds.js');
+const {ledFrameReset}=await import('../dist/esm/seq/led-cache.js');
+const packets=[];const originalMidi=globalThis.setLED;
+globalThis.setLED=(...args)=>packets.push(args);
+seqLedsInvalidate();ledFrameReset();seqBeatLedsTick();assert.equal(packets.length,0,'Metronome cannot write over Perform');
+setFlag('hbsteprow',0);seqLedsInvalidate();ledFrameReset();seqBeatLedsTick();
+assert(packets.length>0,'Steps keeps its empty-clip metronome');
+globalThis.setLED=originalMidi;seqState.playing=false;
 console.log('Step modes: Copy tap/hold/reset, edit guards, native copy, destination panels/slots, missing HB and bounded header pixels pass');

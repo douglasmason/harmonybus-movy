@@ -15,6 +15,13 @@ const touchOperationLabels = new Map([[5,'Next Harmony'],[6,'Next Harmony']]);
 const writes = [];
 const editorReads = [];
 const operationMetadata = () => module.capabilities.chain_params.map(parameter => {
+            if(parameter.key.startsWith('defaults_control_')){
+                const editor=String(values.get('defaults_editor'));
+                const fields=editor.endsWith('Scales')?['gap_scale','scale_context','dominant_scale','borrowed_scale','local_palette','scope']:['chord_form','chord_quality','chord_inversion','chord_voicing','strum_spread','chromatic_quality'];
+                const field=fields[Number(parameter.key.split('_').at(-1))-1];
+                const key=field==='scope'?'defaults_scope':(editor.startsWith('Follower')?'follower':'conductor')+'_default_'+field;
+                return {...module.capabilities.chain_params.find(candidate=>candidate.key===key),key:parameter.key};
+            }
             if(parameter.key==='chord_edit_target'&&values.get('motion_operation')==='Chord/Arp State')return {...parameter,options:['Track Settings','Lane 1']};
             if (parameter.key === 'motion_amount' && values.get('motion_operation') === 'Chord Form') return {...parameter,name:'Form',type:'enum',options:module.capabilities.chain_params.find(p=>p.key==='chord_form').options.filter(option=>option!=='Role Default'),options_as_string:true};
             if (parameter.key === 'motion_offset' && values.get('motion_operation') === 'MIDI Echo') return {...parameter,name:'Decay %',min:0};
@@ -35,6 +42,7 @@ const port = {
     },
     setParam(key, value) {
         writes.push([key, value]);const bare=key.split(':').at(-1);values.set(bare, value);
+        if(bare==='defaults_editor')for(const parameter of operationMetadata().filter(parameter=>parameter.key.startsWith('defaults_control_')))values.set(parameter.key,parameter.default??parameter.options?.[0]??'All followers');
         if(bare==='motif_edit'&&values.get('motion_operation')==='Chord/Arp State')values.set('chord_edit_target','Lane 1');
         if (bare === 'motion_operation' && value === 'Chord Form') values.set('motion_amount','Seventh');
         if (bare === 'motion_every') {
@@ -854,7 +862,7 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
 console.log('Modern gestures: shared knob/step timestamp ownership, read-free release, solid armed/held LEDs, smooth persistent pulse and automatic off pass');
 
 // Role-default panels edit the advertised shared key; local enums can relinquish overrides.
-for (const key of ['conductor_default_chord_form','follower_default_chord_form','gap_scale','local_minor']) {
+for (const key of ['defaults_control_1','defaults_control_2','gap_scale','local_palette']) {
     const slot=focusKey(key),before=writes.length;
     page.knobTurn(slot,1);page.knobTouch(slot,false);
     assert(writes.slice(before).some(([wire])=>wire==='midi_fx1:'+key),key+' targets its own scope');
@@ -867,6 +875,15 @@ const sources=focusKey('chord_edit_target'),beforeSources=writes.length;
 page.knobTurn(sources,1);page.knobTouch(sources,false);
 assert.equal(writes.length,beforeSources,'A target selector with only Track Settings does not change destination');
 console.log('Role defaults, local override reset choice and edit destination pass');
+
+const defaultsSlot=focusKey('defaults_editor');
+editorReads.length=0;
+page.knobTurn(defaultsSlot,2);page.knobTouch(defaultsSlot,false);
+assert.equal(values.get('defaults_editor'),'Conductor Scales');
+assert.equal(page.ctl.state.metaIndex.get('defaults_control_1').name,module.capabilities.chain_params.find(parameter=>parameter.key==='conductor_default_gap_scale').name);
+assert.equal(page.ctl.state.values.defaults_control_1,values.get('defaults_control_1'));
+assert(editorReads.includes('midi_fx1:motion_editor'),'Defaults selector reloads values and metadata together');
+console.log('Role Defaults changes control meanings and values atomically');
 
 values.set('motion_operation','Chord/Arp State');
 const stateEdit=focusKey('motif_edit');page.knobTouch(stateEdit,true);page.knobTouch(stateEdit,false);

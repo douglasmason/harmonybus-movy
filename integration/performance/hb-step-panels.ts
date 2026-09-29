@@ -7,7 +7,7 @@ const play = new Set(['follower_play', 'chord_player', 'arp_player', 'follower_p
 const setupOrder = ['global_transpose', 'follower_root', 'chord_player', 'arp_player',
     'track_scales', 'follower_source', 'next_harm', 'grid_timing',
     'pad_display', 'follower_this'];
-const advancedOrder = ['conductor_chord_defaults', 'follower_chord_defaults',
+const advancedOrder = ['role_defaults', 'conductor_chord_defaults', 'follower_chord_defaults',
     'conductor_scale_defaults', 'follower_scale_defaults', 'chord_defaults_status', 'diagnostics'];
 
 export function hbPanelVisible(condition: any): boolean {

@@ -73,8 +73,8 @@ pub fn snapshot(engine: &Engine, track_index: usize) -> Snapshot {
     result.revision = revision;
     result
 }
-pub struct Message { bytes: [u8; 192], len: usize }
-impl Write for Message {
+pub struct Message<const CAPACITY: usize = 192> { bytes: [u8; CAPACITY], len: usize }
+impl<const CAPACITY: usize> Write for Message<CAPACITY> {
     fn write_str(&mut self, text: &str) -> fmt::Result {
         if self.len + text.len() >= self.bytes.len() { return Err(fmt::Error); }
         self.bytes[self.len..self.len + text.len()].copy_from_slice(text.as_bytes());
@@ -93,7 +93,7 @@ pub fn block_message(block: u64, frames: usize, sample_rate: u32) -> Message {
     write!(&mut message,"{},{},{}",block,frames,sample_rate).unwrap();
     message
 }
-impl Message { pub fn as_c_str(&self) -> &std::ffi::CStr { std::ffi::CStr::from_bytes_with_nul(&self.bytes[..=self.len]).unwrap() } }
+impl<const CAPACITY: usize> Message<CAPACITY> { pub fn as_c_str(&self) -> &std::ffi::CStr { std::ffi::CStr::from_bytes_with_nul(&self.bytes[..=self.len]).unwrap() } }
 
 #[cfg(test)]
 mod tests {
@@ -200,5 +200,51 @@ mod tests {
         engine.tracks[0].muted=true;
         assert_eq!(snapshot(&engine,0).active,0);
         assert!(first.message().as_c_str().to_bytes().ends_with(b",96,0,0"));
+    }
+}
+
+/// Preview the notes Play will start from, without advancing the engine or MIDI.
+/// Uses the same source-key projection and recorded piano intent as playback.
+pub fn opening_preview(engine: &Engine, track_index: usize) -> Message<12288> {
+    let mut message=Message {bytes:[0;12288],len:0};
+    let track=&engine.tracks[track_index];
+    let slot=engine.song_entry_at(0).map(|entry|entry.0).unwrap_or(track.active_clip);
+    let clip=&track.clips[slot];
+    if engine.playing || track.muted || !clip.exists() {write!(&mut message,"0").unwrap();return message;}
+    let first=clip.notes.iter().filter(|note|note.vel>0&&note.tick>=clip.loop_start_ticks()&&note.tick<clip.loop_end_ticks()).map(|note|note.tick).min();
+    let Some(first)=first else {write!(&mut message,"0").unwrap();return message;};
+    write!(&mut message,"1").unwrap();
+    for note in clip.notes.iter().filter(|note|note.vel>0&&note.tick==first).take(8) {
+        let projected=if note.rendered {note.pitch} else {match (note.input_key,engine.follower_inputs[track_index]) {
+            (Some(source),Some(target))=>source.project(note.pitch,target),_=>note.pitch
+        }};
+        let normal=(projected as i32+engine.clip_transpose(track_index,slot)).clamp(0,127) as u8;
+        let (pitch,actions)=seq_core::recorded_actions::piano_emit(note.pitch,normal,note.actions,note.input_key,engine.follower_inputs[track_index],engine.clip_transpose(track_index,slot));
+        write!(&mut message,";{},{}",pitch,note.rendered as u8).unwrap();
+        if let Some(words)=actions {for word in words {write!(&mut message,",{:x}",word).unwrap();}}
+    }
+    message
+}
+
+#[cfg(test)]
+mod opening_tests {
+    use super::*;
+    #[test]
+    fn stopped_preview_uses_selected_clip_and_never_starts_transport() {
+        let mut engine=Engine::new(48000,12000);
+        engine.tracks[0].active_clip=1;
+        engine.tracks[0].playing_slot=Some(0);
+        engine.tracks[0].clips[0].add_note_raw(0,0,96,48,100);
+        engine.tracks[0].clips[1].add_note_raw(0,0,96,60,100);
+        engine.tracks[0].clips[1].add_note_raw(0,0,96,64,100);
+        engine.tracks[0].clips[1].add_note_raw(4,96,96,67,100);
+        let tick=engine.hb_master_tick();
+        let message=opening_preview(&engine,0);
+        assert_eq!(message.as_c_str().to_str().unwrap(),"1;60,0;64,0");
+        assert!(!engine.playing);assert_eq!(engine.hb_master_tick(),tick);
+        engine.tracks[0].muted=true;
+        assert_eq!(opening_preview(&engine,0).as_c_str().to_str().unwrap(),"0");
+        engine.tracks[0].muted=false;engine.playing=true;
+        assert_eq!(opening_preview(&engine,0).as_c_str().to_str().unwrap(),"0");
     }
 }
