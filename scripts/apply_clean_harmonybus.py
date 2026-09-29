@@ -25,6 +25,7 @@ from patch_arp_pressure import patch_arp_pressure
 from patch_performance_touch import patch_performance_touch
 from patch_motion_controls import patch_motion_controls
 from patch_performance_steps import patch_performance_steps
+from patch_motifs import patch_motifs
 from patch_performance_mode import patch_performance_mode
 from patch_clip_performance import patch_clip_performance
 from patch_harmony_pads import patch_harmony_pads
@@ -470,6 +471,7 @@ def main() -> int:
     patch_performance_mode(root)
     patch_clip_performance(root)
     patch_harmony_pads(root)
+    patch_motifs(root)
     print("HarmonyBus clean integration applied")
     return 0
 

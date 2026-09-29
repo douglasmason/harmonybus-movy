@@ -1,0 +1,50 @@
+name: Motif candidate
+on:
+  push:
+    branches: [feature/motifs]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare pinned Movy
+        run: |
+          git clone https://github.com/DimaDake/schwung-movy.git movy
+          git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
+          python3 scripts/apply_clean_harmonybus.py movy
+      - name: Check UI and edit isolation
+        working-directory: movy
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build:browser
+          node browser-test/hb-motifs.mjs
+          node --input-type=module -e "import {run} from './browser-test/logic/step-record.mjs';import {failureCount} from './browser-test/logic/harness.mjs';await run();if(failureCount())process.exit(1);"
+          npm run build:device
+      - name: Install cross compiler
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          sudo ln -s "$(command -v aarch64-linux-gnu-gcc)" /usr/local/bin/aarch64-unknown-linux-gnu-gcc
+          sudo ln -s "$(command -v aarch64-linux-gnu-strip)" /usr/local/bin/aarch64-unknown-linux-gnu-strip
+          sudo ln -s "$(command -v aarch64-linux-gnu-nm)" /usr/local/bin/aarch64-unknown-linux-gnu-nm
+          rustup target add aarch64-unknown-linux-gnu
+      - name: Build Move DSP
+        working-directory: movy
+        run: ./scripts/build-dsp.sh
+      - name: Package candidate
+        run: |
+          mkdir -p package/movy/configs
+          cp movy/module.json movy/ui.js movy/dist/dsp.so package/movy/
+          cp movy/src/module-configs/*.json package/movy/configs/
+          tar -czf harmonybus-movy-motifs-candidate.tar.gz -C package movy
+      - uses: actions/upload-artifact@v4
+        with:
+          name: harmonybus-movy-motifs-candidate
+          path: harmonybus-movy-motifs-candidate.tar.gz
