@@ -68,7 +68,11 @@ try {
     tap();assert.equal(flagValue('hbsteprow'),2);assert(page.ctl.page.keys.includes('approach_knob_1'));
     assert(has(page,'approach_bank_1'));assert(has(page,'approach_bank_16'));
     assert(!has(page,'motion_control_1'),'Approach bank is independent of Perform');
-    assert.equal(page.ctl.metaAt(0).options.length,29);
+    assert.equal(page.ctl.metaAt(0).options.length,28);
+    assert(page.ctl.metaAt(0).options.includes('Secondary LT'));
+    assert(page.ctl.metaAt(0).options.includes('Secondary VII'));
+    assert(!page.ctl.metaAt(0).options.includes('Scale Above'));
+    assert(!page.ctl.metaAt(0).options.includes('Chromatic Below'));
     page.knobTouch(0,true);page.knobTouch(1,true);
     assert(writes.some(([,key,value])=>key==='midi_fx1:approach_touch_1'&&value==='Down'));
     assert(writes.some(([,key,value])=>key==='midi_fx1:approach_touch_2'&&value==='Down'));

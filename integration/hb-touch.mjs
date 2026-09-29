@@ -717,7 +717,7 @@ console.log('Pad controls: all eight knobs, both release encodings, cached feedb
 // Fixed controls span two step banks and independent named controls.
 const followClock=Date.now;let followNow=1500000;Date.now=()=>followNow;
 try {
-    for(const lane of [1,8,9,16,17,18,19,20,21,22,29,30,31,32,33,35,36,37]) {
+    for(const lane of [1,8,9,16,17,19,20,21,22,29,30,31,32,33,35,36,37]) {
         const slot=focusKey('motion_control_'+lane);
         values.set('motion_gesture_binding_'+lane,'1,1,3,0,350,0');
         const start=writes.length;
