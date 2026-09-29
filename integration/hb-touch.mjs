@@ -73,8 +73,9 @@ assert.equal(writes.length, writesBefore, 'Touch alone must never edit a paramet
 console.log('HB touch: real controller labels, current value, highlighted header, multiple fingers and no writes pass');
 
 function focusKey(key) {
+    if(key.startsWith('motion_')){setInitialMode('hbsteprow',1);page.reload();}
     let index = page.ctl.pages.findIndex(candidate => candidate.keys?.includes(key));
-    if(index<0){setInitialMode('hbsteprow',key.startsWith('motif_')?2:1);page.reload();index=page.ctl.pages.findIndex(candidate=>candidate.keys?.includes(key));}
+    if(index<0){setInitialMode('hbsteprow',1);page.reload();index=page.ctl.pages.findIndex(candidate=>candidate.keys?.includes(key));}
     assert(index >= 0, `${key} must have a knob`);
     page.goToPage(index);
     for (let tick = 0; tick < 64; tick++) page.tick();
@@ -244,7 +245,7 @@ for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_
 }
 const operationSlot = focusKey('motion_operation');
 page.knobTurn(operationSlot, 100);page.knobTouch(operationSlot, false);
-for (const operation of ['III7-VI7-II7-V7-I','vii dim/V-V-I','V/vi-vi-ii-V-I','V/ii-ii-V-I','ii/V-V/V-V-I','V/V-V-I','I-VI7-ii-V-I','ii halfdim-V-i','IV-iv-I','iii-vi-ii-V-I','vi-V-I','bIII-IV-I','bVI-V-I','bVI-bVII-I','Secondary VII','Secondary IV','Secondary III','Tritone V','Tritone II-V-Target','Backdoor II-V-Target','II-V-Target','Tritone II','Chrom Above']) {
+for (const operation of ['Play Motif','Secondary VII','Secondary IV','Secondary III','Tritone V','Tritone II','Chrom Above']) {
     assert.equal(values.get('motion_operation'), operation);
     page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
 }
@@ -347,7 +348,7 @@ try {
     assert.equal(flagValue('hbsteprow'),0,'Fresh installs retain normal step editing');
     const setting=visibleFlags(false).find(def=>def.key==='hbsteprow');
     assert(setting?.uiOnly&&!setting.perSet,'Step Row is a release-visible global UI preference');
-    assert.deepEqual(setting.labels,['STEPS','HB OPS','MOTIFS']);
+    assert.deepEqual(setting.labels,['STEPS','PERFORM']);
     setHbPerformanceMode(1);
     assert(syncHbPerformanceMode());
     assert(!Object.hasOwn(perSetFlagsSnapshot(),'hbsteprow'),'The choice is not stored in a set');
@@ -865,7 +866,10 @@ page.knobTurn(sources,1);page.knobTouch(sources,false);
 assert.equal(writes.length,beforeSources,'Setting Sources is read only');
 console.log('Role defaults, local override reset choice and visible read-only scope pass');
 
-for (const key of ['motif_record','motif_slot','motif_preset','motif_rhythm','render_rhythm_mode','render_rhythm_pattern','arp_start']) {
+values.set('motif_lane','1');values.set('motion_operation','Play Motif');
+const editorButton=focusKey('motif_edit');page.knobTouch(editorButton,true);page.knobTouch(editorButton,false);
+assert.equal(page.pageTitle,'Motif Edit');
+for (const key of ['motif_record','motif_lane','motif_duplicate','motif_close','motif_rhythm','render_rhythm_mode','render_rhythm_pattern','arp_start']) {
     assert(focusKey(key)>=0, `${key}: reachable through the real controller`);
 }
 console.log('Motif, Render Rhythm and arp-anchor controls are reachable through the real controller');

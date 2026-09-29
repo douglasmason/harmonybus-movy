@@ -540,6 +540,10 @@ def main() -> int:
     patch_operation_feedback(root)
     from patch_live_displays import patch_live_displays
     patch_live_displays(root)
+    from patch_motif_lanes import patch_motif_lanes
+    patch_motif_lanes(root)
+    from patch_track_pulse_startup import patch_track_pulse_startup
+    patch_track_pulse_startup(root)
     print("HarmonyBus clean integration applied")
     return 0
 

@@ -64,22 +64,12 @@ try {
     onUnit({kind:'step',track:0,step:0});now+=50;up();assert.equal(flagValue('hbsteprow'),1,'Copy source gesture does not cycle');
     down();now+=500;up();assert.equal(flagValue('hbsteprow'),1,'Long unused hold does not cycle');
     down();resetDuplicate();now+=40;up();assert.equal(flagValue('hbsteprow'),1,'Reset cannot manufacture a tap');
-    tap();assert.equal(flagValue('hbsteprow'),2);assert(page.ctl.page.keys.includes('motif_slot'));
-    assert(!has(page,'motion_control_1'));assert(has(page,'motif_preset'));
-    checkCadences();
-    const firstMotif=order('motif_slot');
-    assert(firstMotif>order('monitor_status'),'Copy-mode motifs follow even diagnostics');
-    assert(page.ctl.pages.slice(firstMotif).every(p=>p.keys?.some(key=>key.startsWith('motif_'))),'Only motif pages follow the first motif page');
-    const tools=page.ctl.pages.findIndex(p=>p.keys?.includes('motif_undo'));page.goToPage(tools);
-    const before=writes.length;assert(hbPerformanceStep([0x90,19,100]));
-    assert(writes.slice(before).some(([track,key,value])=>track===0&&key==='midi_fx1:motif_arm'&&value==='4'),'Motif slots work on Tools as well as main panel');
-    // Target has already been planned in a different mode.
-    setFlag('hbsteprow',0);schwungActiveFor(4,'midi_fx1');setFlag('hbsteprow',2);
+    tap();assert.equal(flagValue('hbsteprow'),0);assert(page.ctl.page.keys.includes('version'));
+    assert(!has(page,'motif_record'),'Motif editor has no permanent performance bank');
+    tap();assert.equal(flagValue('hbsteprow'),1);
+    setFlag('hbsteprow',0);schwungActiveFor(4,'midi_fx1');setFlag('hbsteprow',1);
     switchToTrack(4,beginTrackSwitch());const target=schwungActiveFor(4,'midi_fx1');
-    assert.equal(target.pageTitle,page.pageTitle);assert(has(target,'motif_slot'));assert(!has(target,'motion_control_1'));
-    assert(hbPerformanceStep([0x80,19,0]),'Motif release remains owned across track switch');
-    const targetBefore=writes.length;hbPerformanceStep([0x90,20,100]);hbPerformanceStep([0x80,20,0]);
-    assert(writes.slice(targetBefore).some(([track,key,value])=>track===4&&key==='midi_fx1:motif_arm'&&value==='5'));
+    assert(has(target,'motion_control_1'));assert(!has(target,'motif_record'));
     tap();assert.equal(flagValue('hbsteprow'),0);assert(target.ctl.page.keys.includes('version'));
     for(const prop of ['recording','countingIn','sessionMode','loopMode']){seqState[prop]=true;tap();assert.equal(flagValue('hbsteprow'),0,prop);seqState[prop]=false;}
     stepRecDownAt(now);tap();assert.equal(flagValue('hbsteprow'),0,'Step entry blocks mode cycling');stepRecUpAt(now+400);

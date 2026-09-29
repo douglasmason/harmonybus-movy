@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { installEnv } from './env.mjs';
 installEnv();
 const {setFlag}=await import('../dist/esm/seq/flags.js');
-setFlag('hbsteprow',2);
+setFlag('hbsteprow',1);
 const { seqState }=await import('../dist/esm/seq/state.js');
 const { appState }=await import('../dist/esm/app/state.js');
 const { setEditGuard }=await import('../dist/esm/seq/engine.js');
@@ -14,13 +14,14 @@ let row=[-1,0,0,-1,0,-1,...Array(32).fill(0),0,60,0];
 const writes=[],songEdits=[];let refuseSave=false;
 setEditGuard(command=>songEdits.push(command));
 const port={performanceTrack:appState.activeTrack.index,ctl:{page:{keys:['motif_slot']}},
- performanceGet(key){return key==='motif_row'?row.join(','):key==='motif_slot'?'1':'REC 1 Step 1';},
+ performanceGet(key){return key==='motif_lane'?'1':key==='motif_row'?row.join(','):key==='motif_slot'?'1':'REC 1 Step 1';},
  performanceSet(key,value){writes.push([key,value]);if(key==='motif_record')row[0]=row[0]<0?0:refuseSave?row[0]:-1;if(key==='motif_cancel')row[0]=-1;if(key==='motif_copy')row[0]=0;if(key==='motif_step')row[2]=Number(value)-1;if(key==='motif_arrow')row[2]+=Number(value);}
 };
 const originalLength=seqState.lenSteps;
-assert(motifs.motifStep([0x90,16,100],port));assert.deepEqual(writes.at(-1),['motif_arm','1']);
-assert(motifs.motifStep([0x80,16,0],null),'Slot release stays owned after page navigation');
-assert(motifs.motifAction(port,'motif_record'));assert(recorder.stepRecActive());
+assert(!motifs.motifStep([0x90,16,100],port));
+assert(motifs.motifAction(port,'motif_edit'));assert(!recorder.stepRecActive(),'Opening editor does not start recording');
+assert(motifs.motifEditorFor(appState.activeTrack.index));
+assert(motifs.motifRecordButton(true));assert(motifs.motifRecordButton(false));assert(recorder.stepRecActive());
 recorder.stepRecPad(80,60,100);recorder.stepRecPad(81,64,100);recorder.stepRecPadRelease(80);recorder.stepRecPadRelease(81);
 recorder.stepRecArrow(1);assert.deepEqual(writes.at(-1),['motif_arrow','1']);
 recorder.stepRecStepTap(3);assert.deepEqual(writes.at(-1),['motif_step','4']);
@@ -44,6 +45,12 @@ const beforeCopy=writes.length;
 assert(motifs.motifAction(port,'motif_copy'));assert(motifs.motifEditing());
 assert.deepEqual(writes.slice(beforeCopy),[['motif_copy','Copy to Slot']],'Copy adopts backend draft without toggling it closed');
 motifs.motifFinish();
+motifs.motifAction(port,'motif_edit');
+const packets=[];globalThis.move_midi_internal_send=packet=>packets.push(packet);
+for(let frame=0;frame<3;frame++){ledFrameReset();motifs.paintMotif(port);motifs.motifRecordLight();motifs.motifKnobLight(port,0);}
+for(const [kind,note] of [[0x9a,16],[0xba,86],[0x9a,0],[0xba,71]])assert(packets.some(packet=>packet[1]===kind&&packet[2]===note),'All linked LEDs use the same native pulse channel');
+const quiet=packets.length;ledFrameReset();motifs.paintMotif(port);motifs.motifRecordLight();motifs.motifKnobLight(port,0);assert.equal(packets.length,quiet,'Steady pulses require no repeated MIDI writes');
+motifs.motifAction(port,'motif_close');assert(!motifs.motifRecordLight());assert(!motifs.motifKnobLight(port,0));
 row[0]=-2;row[2]=1;row[5]=2;row[6]=row[7]=row[8]=2;
 ledFrameReset();motifs.paintMotif(port);assert(!recorder.stepRecActive(),'Tap guidance must not take the song editing destination');
 assert.deepEqual(songEdits,[]);row[0]=-1;
