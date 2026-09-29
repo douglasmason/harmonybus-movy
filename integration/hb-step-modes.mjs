@@ -36,8 +36,8 @@ assert(!has(page,'motion_control_1'));assert(!has(page,'motif_slot'));
 assert(has(page,'chord_mode'),'Common chord controls remain reachable in Steps');
 const order=key=>page.ctl.pages.findIndex(p=>p.keys?.includes(key));
 const checkCadences=()=>{
-    for(const key of ['motion_control_38','motion_control_45']) {
-        assert(!has(page,key),'Mixed Cadences shortcuts have no panels');
+    for(const key of ['motion_control_23','motion_control_34','motion_control_38','motion_control_45']) {
+        assert(!has(page,key),'Cadence shortcuts have no separate panels');
         assert(page.ctl.state.metaIndex.get(key),'Cadence metadata remains available');
     }
     assert.deepEqual(page.ctl.state.metaIndex.get('motion_operation').options,module.capabilities.chain_params.find(p=>p.key==='motion_operation').options,'Lane assignment keeps every operation');

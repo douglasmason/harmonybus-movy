@@ -1,7 +1,7 @@
 /* Presentation only: keep the complete parameter metadata for held gestures. */
 const operations = new Set(['follower_touch', 'operations_9_16', 'pitch_play', 'secondary',
-    'pitch_cadences', 'motion_operation', 'motion_timing', 'motion_conditions']);
-const hiddenPanels = new Set(['mixed_cadences_1', 'mixed_cadences_2']);
+    'motion_operation', 'motion_timing', 'motion_conditions']);
+const hiddenPanels = new Set(['mixed_cadences_1', 'mixed_cadences_2', 'pitch_cadences']);
 const motifs = new Set(['motifs', 'motif_tools', 'motif_play']);
 const play = new Set(['follower_play', 'chord_player', 'arp_player', 'follower_play_tools', 'motif_global']);
 const setupOrder = ['global_transpose', 'follower_root', 'chord_player', 'arp_player',
