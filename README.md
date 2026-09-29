@@ -294,4 +294,4 @@ artifact before updating the installer pointer.
 
 0.34.1-hbclean.114: Copy cycles Steps / Perform. A Play Motif lane opens its contextual editor; panel and physical Record share ownership. Record, lane step, and knob pulse together using cached native animation. Requires HB 0.2.203.
 
-Track selection pulse: allow the track-color base to drain before its white animation, and replay LED ownership after startup settles.
+Track selection pulse: allow the track-color base to drain before its white animation, and repaint only the four track buttons after startup settles.

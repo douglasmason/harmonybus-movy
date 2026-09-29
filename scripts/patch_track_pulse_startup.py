@@ -15,9 +15,21 @@ def patch_track_pulse_startup(root: Path) -> None:
     if (button && note >= 40 && note <= 43 && Date.now()-prev.baseAt < 60) return;''')
     source = source.replace('{ base, anim: channel, animColor }', '{ base, anim: channel, animColor, baseAt: prev.baseAt }')
     path.write_text(source)
-    path = root / 'src/app/tick.ts'
-    source = path.read_text()
-    source = replace_once(source, 'let ledRepeatTicks = -1;\nconst LED_REPEAT_TICKS = 45;', 'const LED_REPEAT_TICKS = 45;\nlet ledRepeatTicks = LED_REPEAT_TICKS;')
+    path = root / 'src/seq/led-cache.ts'
+    source = path.read_text() + """
+let startupTrackRetryAt: number | null = null;
+/** Recover a delayed native startup clear without invalidating screen caches. */
+export function retryTrackPulseStartup(): void {
+    if(startupTrackRetryAt===null){startupTrackRetryAt=Date.now()+1500;return;}
+    if(startupTrackRetryAt<0||Date.now()<startupTrackRetryAt)return;
+    startupTrackRetryAt=-1;
+    for(let cc=40;cc<=43;cc++){lastAnimLed.delete(cc+128);lastButtonLed.delete(cc);}
+}
+"""
+    path.write_text(source)
+    path = root / 'src/seq/leds.ts'
+    source = "import { retryTrackPulseStartup } from './led-cache.js';\n" + path.read_text()
+    source = replace_once(source, 'function paintTrackButtons(): void {', 'function paintTrackButtons(): void {\n    retryTrackPulseStartup();')
     path.write_text(source)
     path = root / 'browser-test/logic/seq-leds.mjs'
     source = path.read_text()
