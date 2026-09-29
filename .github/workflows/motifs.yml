@@ -27,6 +27,9 @@ jobs:
           node browser-test/hb-motifs.mjs
           node --input-type=module -e "import {run} from './browser-test/logic/step-record.mjs';import {failureCount} from './browser-test/logic/harness.mjs';await run();if(failureCount())process.exit(1);"
           npm run build:device
+      - name: Test clip timing and ownership
+        working-directory: movy/engine
+        run: cargo test -p seq-core
       - name: Install cross compiler
         run: |
           sudo apt-get update -qq

@@ -155,3 +155,14 @@ Open Settings with Shift+Step 2, select Step Row with the wheel, and use K1 to c
 Hold steps 1–4 to force the corresponding operation lane. Hold 5 for chromatic below or 6 for scale above. Press 7 to arm scale above → chromatic below → target; press 8 for the reverse approach. Enclosures use the next three note/chord onsets, and trigger release does not cancel them. Steps 9–16 are reserved. Changing back to STEPS clears holds and enclosures immediately.
 
 Two HB editing panels share the selected operation lane. Knob touch does not activate these new operations. Source clips remain unchanged; see [the signal path and recording details](https://github.com/douglasmason/harmonybus/blob/main/docs/operations.md). Release gates exercise native loading, recording and UI behavior; physical gestures and audio on Move remain unverified for this release.
+
+### Render Rhythm candidate
+
+The `feature/motifs` integration reads HB's effective Render Rhythm settings on
+parameter edits/loads and retimes known clip attacks in the sequencer. Beat/Bar
+windows can advance or delay attacks; chord groups, gates and pressure offsets
+stay together. Settings latch at clip-cycle boundaries, and clip storage is not
+edited. Install the matching HB candidate for live output scheduling and the
+shared Inherit / Off / Override controls. This is not yet a regular installer
+release; the candidate workflow runs the sequencer tests and builds the device
+artifact.
