@@ -10,6 +10,14 @@ const SONG_RGB: readonly (readonly number[] | null)[] = [null,
     [113,167,231],[34,133,240],[125,87,229],[34,171,240],[150,139,233],
     [178,139,233],[223,139,233],[199,90,214],[247,35,141],[227,95,200],
 ];
+// Native lime/green IDs must stay in the hardware's green family. Raw RGB
+// distance picked Muted Teal (13) for green and unrelated dim hues for lime.
+const NATIVE_GREENS: Readonly<Record<number, readonly [number, number]>> = {
+    8: [9, 81],   // light lime -> Bright Lime / its dim partner
+    9: [10, 83],  // light green -> Dull Green / its dim partner
+    10: [11, 85], // green -> Neon Green / its dim partner
+    11: [9, 81],  // yellow-green -> Bright Lime / its dim partner
+};
 let loadedIdentity = '';
 
 function nearest(rgb: readonly number[], brightness: number): number {
@@ -30,6 +38,8 @@ export function songTrackColors(raw: string): [number, number][] | null {
         const ids = song.tracks.map((track: any) => track?.color);
         if (!ids.every((id: unknown) => typeof id === 'number' && Number.isInteger(id) && id > 0 && id < SONG_RGB.length)) return null;
         return ids.map((id: number) => {
+            const green = NATIVE_GREENS[id];
+            if (green) return [green[0], green[1]];
             const rgb = SONG_RGB[id]!;
             return [nearest(rgb, 1), nearest(rgb, 0.35)];
         });

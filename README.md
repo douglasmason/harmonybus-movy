@@ -1,3 +1,7 @@
+> **hbclean.113 / HarmonyBus 0.2.202:** Next Harm, Chord Timing and Follower Root publish complete live display frames at up to 25 Hz rather than staggered per-knob reads. Keeps the independent latch/trigger LED polling fix. Prepared sets retain Full Loop context with the new three-choice selector. Install both modules.
+
+> **hbclean.113:** Native green/lime track colors use explicit green hardware palette entries and matching dim partners instead of RGB-nearest teal or unrelated muted hues. Other colors and selection pulsing retain their existing behavior.
+
 > **hbclean.112:** Removes Pitch Cadences as well as both Mixed Cadences panels. Motif intent supplies the melodic/harmonic distinction. Includes the Chords/Arp ordering and independent trigger LED refresh from hbclean.110–111. Cadence operation entries remain available pending motif-library consolidation. HarmonyBus stays at 0.2.200.
 
 > **hbclean.111:** Removes the two Mixed Cadences shortcut panels from all Movy step modes. Every cadence operation remains available in the Operation lane selector pending motif-library consolidation. Visible operation LEDs now poll their existing 50 ms status cache independently of screen repainting, so consumed triggers clear and request a display refresh without unrelated knob movement. Includes hbclean.110 panel ordering; HarmonyBus stays at 0.2.200.

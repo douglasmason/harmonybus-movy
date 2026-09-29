@@ -11,6 +11,7 @@ for(let id=1;id<=25;id++){
     assert(PAD_PALETTE[pairs[0][1]].reduce((a,b)=>a+b)<PAD_PALETTE[pairs[0][0]].reduce((a,b)=>a+b));
 }
 for(const raw of ['{',song([1,2,3]),song([1,2,3,26]),song([1,2,3,0]),song([1,2,3,'7']),JSON.stringify({tracks:[{clips:[{color:3}]}]})])assert.equal(songTrackColors(raw),null);
+assert.deepEqual(songTrackColors(song([8,9,10,11])),[[9,81],[10,83],[11,85],[9,81]],'Native greens use green hardware entries and paired dim shades, never Muted Teal');
 let reads=[];
 let saved=song([6,20,19,4]);
 globalThis.host_read_file=path=>{reads.push(path);return path.endsWith('/Example/Song.abl')?saved:null;};
