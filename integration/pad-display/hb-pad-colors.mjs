@@ -505,7 +505,7 @@ console.log('Real Schwung overtake queue: all 32 harmony colors reach the device
     const {paintMelodicPads}=await import('../dist/esm/app/tick.js');
     const {seqState}=await import('../dist/esm/seq/state.js');
     const {ledFrameReset}=await import('../dist/esm/seq/led-cache.js');
-    const {hasHarmonyPlayback,harmonyPadPlaying}=await import('../dist/esm/seq/pads.js');
+    const {harmonyPlaybackColor,hasHarmonyPlayback,harmonyPadPlaying}=await import('../dist/esm/seq/pads.js');
     const send=globalThis.move_midi_internal_send,set=globalThis.setLED;
     const displayed=new Map();
     globalThis.move_midi_internal_send=packet=>{displayed.set(packet[2],packet[3]);return true;};
@@ -520,16 +520,25 @@ console.log('Real Schwung overtake queue: all 32 harmony colors reach the device
         const paint=()=>{refreshHarmonyPads(0,testTime+=100);ledFrameReset();paintMelodicPads();};
         paint();assert(hasHarmonyPlayback(0));
         assert.notEqual(displayed.get(68),11,'Recorded input and latched owner are not sounding output');
+        const resting=Array.from({length:32},(_,i)=>padColor(68+i,68,0,false));
+        resting.forEach((color,i)=>displayed.set(68+i,color));
         for(mask of [1<<4,(1<<4)|(1<<7),2**31,0]){
             paint();
             for(let index=0;index<32;index++){
                 assert.equal(harmonyPadPlaying(0,index),!!((mask>>>index)&1));
-                assert.equal(displayed.get(68+index)===11,!!((mask>>>index)&1),'Only currently rendered pads glow, including the top bit');
+                if (!((mask>>>index)&1)) assert.equal(displayed.get(68+index),resting[index],'Stopped outputs restore their background');
+                else assert.notEqual(displayed.get(68+index),11,'Output-only uses a faint blend');
             }
         }
-        noteOn(68,68,0,100);paint();assert.equal(displayed.get(68),11,'Held input remains immediately green');
+        noteOn(68,68,0,100);paint();assert.equal(displayed.get(68),resting[0],'Input alone keeps its background');
+        mask=1;paint();assert.equal(displayed.get(68),11,'Input and rendered note together give solid green');
+        mask=0;
         noteOff(68,68);paint();assert.notEqual(displayed.get(68),11,'Release clears input while recorded source remains active');
-        mask=1<<4;paint();assert.equal(displayed.get(72),11);
+        mask=1;paint();assert.equal(displayed.get(68),11,'Recorded input plus rendered note gives solid green');
+        mask=1<<4;paint();assert.notEqual(displayed.get(72),11);assert.notEqual(displayed.get(72),resting[4],'Rendered note blends with background');
+        const blended=[5,9,13].map(background=>harmonyPlaybackColor(background,0,4,false));
+        assert.equal(new Set(blended).size,3,'Red, orange and yellow retain distinct blended colors');
+        assert(blended.every(color=>color!==11),'Output-only never uses solid green');
         portFor(0).getParam=()=>base.replace('playcolor1,3','playcolor1,11')+'|playpads1,'+mask;
         paint();assert.notEqual(displayed.get(72),11,'Play Color Off still disables output overlay');
         assert.equal(harmonyPadPlaying(1,4),false,'Output is track-local');

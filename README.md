@@ -1,3 +1,5 @@
+> **hbclean.121 / HarmonyBus 0.2.212:** Operation knobs keep their fixed lane: clockwise latches on, counterclockwise off, tap arms one use, hold is momentary. Rendered-only notes blend faint Play Color into the normal pad color; matching live or recorded input uses solid Play Color. Input without sounding output preserves the background. Play Color Off disables both highlights.
+
 > **hbclean.120 / HarmonyBus 0.2.210:** Play lights follow final rendered notes from live or recorded Auto Chord, arps, motifs and motion effects. Physical pad holds remain immediate; recorded source notes and retained arp pools no longer masquerade as sounding output. Includes the host LED delivery fix.
 
 > **hbclean.119 / HarmonyBus 0.2.208:** Fix dropped harmony colors and stuck play highlights in Schwung overtake mode. Send each pad LED as its own host packet and cache only accepted updates. Verified against the pinned host queue, including pending green highlights replaced by harmony colors.

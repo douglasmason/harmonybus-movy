@@ -730,8 +730,9 @@ try {
     }
     const slot=focusKey('motion_control_1');values.set('motion_control_1','10');page.ctl.revalue();
     page.knobTouch(slot,true);page.knobTurn(slot,2);page.knobTouch(slot,false);
-    assert(writes.some(([key,value])=>key==='midi_fx1:motion_gesture_1'&&value==='Cancel'));
-    assert(Number(values.get('motion_control_1'))>10,'Turning changes amount');
+    assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_1','LatchOn']);
+    assert.equal(Number(values.get('motion_control_1')),10,'Turning keeps the fixed lane and amount');
+    page.knobTurn(slot,-1);assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_1','LatchOff']);
     followNow+=500;page.knobTouch(slot,true);
     assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_1','Touch']);
     const before=writes.length;hbPerformanceStep([0x90,16,100],page);
@@ -742,7 +743,7 @@ try {
     const mapSlot=focusKey('motion_control_33');assert.equal(page.pageTitle,'Foll Map');
     page.knobTouch(mapSlot,true);assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_33','Touch']);page.knobTouch(mapSlot,false);
 } finally {Date.now=followClock;}
-console.log('Named controls: two step banks, Pitch Play, cadence/chord/harmony controls, amount turns and shared step ownership pass');
+console.log('Named controls: two step banks, Pitch Play, cadence/chord/harmony controls, latch turns and shared step ownership pass');
 
 const autoOffSlot=focusKey('motion_auto_off');
 assert.equal(page.pageTitle,'Conditions');
@@ -905,3 +906,26 @@ for (const key of ['motif_record','motif_lane','motif_duplicate','motif_close','
     assert(focusKey(key)>=0, `${key}: reachable through the real controller`);
 }
 console.log('Motif, Render Rhythm and arp-anchor controls are reachable through the real controller');
+
+// Knob-capable HB separates taps from permanent latch turns.
+{
+    const clock=Date.now;let now=2400000;Date.now=()=>now;
+    try {
+        for(const lane of [1,16,33,37]){
+            const slot=focusKey('motion_control_'+lane);
+            values.set('motion_gesture_binding_'+lane,'1,1,3,0,350,0,0,1');
+            for(let tap=0;tap<2;tap++){
+                page.knobTouch(slot,true);assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_'+lane,'Knob,'+now]);
+                now+=40;page.knobTouch(slot,false);assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_'+lane,'Up,40,'+now]);now+=50;
+            }
+            page.knobTouch(slot,true);page.knobTurn(slot,1);
+            assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_'+lane,'LatchOn']);
+            const count=writes.length;now+=500;page.knobTouch(slot,false);
+            assert.equal(writes.length,count,'Releasing the touch cannot undo a turn');
+            page.knobTurn(slot,-1);assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_'+lane,'LatchOff']);
+            page.knobTouch(slot,true);now+=500;page.knobTouch(slot,false);
+            assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_'+lane,'Up,500,'+now]);
+        }
+    } finally {Date.now=clock;}
+}
+console.log('Fixed operation knobs: separate tap protocol, momentary hold, directional latch, captured release across panels pass');

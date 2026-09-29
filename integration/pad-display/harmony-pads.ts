@@ -332,7 +332,7 @@ export function harmonyApproachColor(index: number, track: number, held = false)
     const target = pianoApproachTarget(track, index);
     if (target < 0 || watchedTrack !== track || !snapshot) return 0;
     const identity = pianoApproachIdentity(target);
-    if (held || (snapshot.playPads === undefined && snapshot.arpInputs?.includes(identity))) {
+    if (snapshot.playPads === undefined && (held || snapshot.arpInputs?.includes(identity))) {
         const play = harmonyPlayColor(track);
         if (play !== null) return play;
     }
@@ -342,14 +342,14 @@ export function harmonyApproachColor(index: number, track: number, held = false)
     const beat = harmonyBeat();
     const selected = mode === 0 || mode === 2 ? 2 : mode >= 5 ? 16 : 8;
     const resolve = (choice: number): number => choice === 8 ? trackColor(track) : colors[choice];
-    return colorHarmonyPitch(0, 1, track, flags & 4 ? 1 : 0, flags & 1,
+    const background = colorHarmonyPitch(0, 1, track, flags & 4 ? 1 : 0, flags & 1,
         flags & selected ? 1 : 0, mode, period ? beat / period : 0, settings[2],
         resolve(settings[3]), resolve(mode === 0 || mode === 2 ? settings[3] : settings[4]),
         period > 0, undefined, snapshot.bothColor ? resolve(snapshot.bothColor - 1) : undefined);
+    return harmonyPlaybackColor(background, track, index, held);
 }
 
-/** Authoritative output feedback replaces sequencer-source and latched-pool
- * highlights. Physical pad holds remain immediate in the caller. */
+/** Final output membership is distinct from live and recorded source input. */
 export function hasHarmonyPlayback(track: number): boolean {
     return watchedTrack === track && snapshot?.playPads !== undefined;
 }
@@ -358,4 +358,13 @@ export function harmonyPadPlaying(track: number, index: number): boolean {
     const map = padMapFor(track);
     if (requestedPads.some((note, slot) => note !== map[slot])) return false;
     return ((snapshot!.playPads! >>> index) & 1) !== 0;
+}
+
+/** Source and final output must coincide for the solid play highlight. */
+export function harmonyPlaybackColor(background: number, track: number, index: number, input: boolean): number {
+    const play = harmonyPlayColor(track);
+    if (play === null) return background;
+    if (!hasHarmonyPlayback(track)) return input ? play : background;
+    if (!harmonyPadPlaying(track, index)) return background;
+    return input ? play : paletteMix(background, play, 0, 1 / 3, 0);
 }

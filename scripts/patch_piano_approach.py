@@ -11,7 +11,7 @@ def patch_piano_approach(root: Path) -> None:
     const target = pianoApproachTarget(track, index);
     return target < 0 ? padMapFor(track)[index] ?? -1 : pianoApproachIdentity(target);''')
     source = replace_once(source, '    if (pitch < 0) return C_BLACK;',
-        '    if (pitch < 0) return harmonyApproachColor(idx, track, isPlaying || harmonyPadPlaying(track, idx));')
+        '    if (pitch < 0) return harmonyApproachColor(idx, track, isPlaying);')
     path.write_text(source)
     path = root / 'src/track/pad-route.ts'
     source = "import { pianoApproachTarget } from '../keyboard/harmony-pads.js';\n" + path.read_text()
