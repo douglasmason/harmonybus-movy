@@ -44,15 +44,24 @@ int main(int argument_count, char **arguments) {
         assert(instances[track]->content_map == (expected_role == 1 ? 1 : 0));
         assert(g_bus.anticipation == 0);
         assert(g_bus.analysis_release_ms == 60);
-        char serialized_state[1024];
+        char serialized_state[8192];
         assert(api->get_param(instances[track], "state", serialized_state,
                               sizeof(serialized_state)) > 0);
         /* Loading a legacy seed adds the explicit global humanize defaults.
            All existing musical settings still round-trip byte for byte. */
-        char expected_state[1024],round_trip[1024],amount[16];
+        char expected_state[8192],round_trip[8192],amount[16];
         char seed[1024];snprintf(seed,sizeof(seed),"%s",arguments[preset]);
         char *pad_marker=strstr(seed,";pd1,");assert(pad_marker);*pad_marker=0;
         snprintf(expected_state,sizeof(expected_state),"%s;pd1,6,3,3,2,0;pb1,2;pc2,2;pp1,3;hu1,0,0,0;ss1,0,0;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,1,0,0,0,0,0,0,0,0,0,0,3,0,1,0,0,0,0,0;named1",seed);
+        /* New versioned fields have explicit neutral defaults; preserve the
+           legacy prefix exactly, then verify the complete state round-trip. */
+        strcat(expected_state,";mf1,0,2,0,2,0,0,0:00");
+        for(int slot=0;slot<16;slot++)strcat(expected_state,"0000");
+        strcat(expected_state,";mp1,0,0,1,0;mg1,0,0;rr1,0,0,0,0");
+        assert(instances[track]->player.config.start==0);
+        assert(instances[track]->motif.editor.recording==-1);
+        assert(instances[track]->motif.editor.armed==-1);
+        assert(instances[track]->rhythm_mode==0&&g_motif_rhythm==0&&g_render_window==0);
         assert(g_pad_settings[0]==6&&g_pad_tonic_color==9&&g_pad_play_color==3);
         assert(strcmp(serialized_state, expected_state) == 0);
         const char *keys[]={"humanize_timing","humanize_velocity","humanize_gate"};
