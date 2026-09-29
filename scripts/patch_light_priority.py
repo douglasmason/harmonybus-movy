@@ -22,6 +22,13 @@ let gesturePadRevision''', '''        }
 let gesturePadRevision''')
     source = replace_once(source, '    ledFrameReset();\n    if (paintTouchFrame()) return;', '''    ledFrameReset();
     if(globalThis.overtakeParked!==true)seqBeatLedsTick();
+    if(globalThis.overtakeParked!==true&&sessionReady()&&!seqState.sessionMode&&
+       !stepPageState.selected&&!schwungEditorActive()&&
+       (appState.currentView===VIEW_KNOBS||appState.currentView===VIEW_CHAIN)){
+        const track=appState.activeTrack.index;
+        const model=appState.trackModels[track]?.[appState.trackChainIndex[track]];
+        if(model)schwungCachedFor(track,model.getComponentKey())?.pollOperationFeedback();
+    }
     if (paintTouchFrame()) return;''')
     source = replace_once(source, '    if (globalThis.overtakeParked !== true) seqBeatLedsTick();', '''    if (globalThis.overtakeParked !== true) seqBeatLedsTick();
     if(globalThis.overtakeParked!==true&&sessionReady()&&!seqState.sessionMode&&appState.initLedsDone&&
