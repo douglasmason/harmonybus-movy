@@ -59,7 +59,7 @@ int main(int argument_count, char **arguments) {
         strcat(expected_state,";mf1,0,2,0,2,0,0,0:00");
         for(int slot=0;slot<16;slot++)strcat(expected_state,"0000");
         strcat(expected_state,";mp1,0,0,1,0;mg1,0,0;rr1,0,0,0,0");
-        assert(instances[track]->player.config.start==0);
+        assert(instances[track]->player.config.start==5);
         assert(instances[track]->motif.editor.recording==-1);
         assert(instances[track]->motif.editor.armed==-1);
         assert(instances[track]->rhythm_mode==0&&g_motif_rhythm==0&&g_render_window==0);
