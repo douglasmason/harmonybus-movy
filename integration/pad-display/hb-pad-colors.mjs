@@ -405,8 +405,7 @@ console.log('Piano gaps: opt-in follower capability, exact lower-pad targets, in
     } finally {Date.now=clock;}
 }
 
-// Model the native consumer inspecting each published host call. A 32-pad
-// transition must be exposed in one run, not 32 independently visible writes.
+// Each host call carries one LED; only accepted packets enter the paint cache.
 {
     const {sendPadLedFrame,ledFrameReset,ledBudgetTake}=await import('../dist/esm/seq/led-cache.js');
     const send=globalThis.move_midi_internal_send;
@@ -414,19 +413,21 @@ console.log('Piano gaps: opt-in follower capability, exact lower-pad targets, in
     globalThis.move_midi_internal_send=packets=>{frames.push([...packets]);return true;};
     const changes=Array.from({length:32},(_,index)=>({note:68+index,color:index%2?7:13}));
     try {
-        ledFrameReset();assert(sendPadLedFrame(changes));
-        assert.equal(frames.length,1);assert.equal(frames[0].length,128);
-        assert.deepEqual(frames[0],changes.flatMap(({note,color})=>[0x09,0x90,note,color]));
+        ledFrameReset();assert.deepEqual(sendPadLedFrame(changes),changes);
+        assert.equal(frames.length,32);
+        assert.deepEqual(frames,changes.map(({note,color})=>[0x09,0x90,note,color]));
         assert(ledBudgetTake(8));assert(!ledBudgetTake(1),'Existing 40-packet limit is preserved');
         frames.length=0;ledFrameReset();ledBudgetTake(9);
-        assert(!sendPadLedFrame(changes));assert.equal(frames.length,0,'No partial frame when budget is short');
+        assert.deepEqual(sendPadLedFrame(changes),[]);assert.equal(frames.length,0,'Defer when budget is short');
         ledFrameReset();globalThis.move_midi_internal_send=()=>false;
-        assert(!sendPadLedFrame(changes),'Queue rejection must not acknowledge delivery');
+        assert.deepEqual(sendPadLedFrame(changes),[],'Queue rejection must not acknowledge delivery');
+        ledFrameReset();globalThis.move_midi_internal_send=packet=>packet[2]%2===0;
+        assert.deepEqual(sendPadLedFrame(changes),changes.filter(change=>change.note%2===0),'Partial rejection acknowledges only accepted pads');
         ledFrameReset();globalThis.move_midi_internal_send=send;
-        assert(sendPadLedFrame([]),'Empty diff sends nothing');
+        assert.deepEqual(sendPadLedFrame([]),[],'Empty diff sends nothing');
     } finally {globalThis.move_midi_internal_send=send;}
 }
-console.log('Pad frames: one timestamp, one host publication, unchanged budget and rejection feedback pass');
+console.log('Pad frames: single-packet host calls, unchanged budget and per-pad rejection feedback pass');
 
 // A fast tap can start and finish between paints. Its immediate release can
 // still read HB's previous held-input snapshot; the next paint must repair the
@@ -465,3 +466,35 @@ console.log('Pad frames: one timestamp, one host publication, unchanged budget a
     } finally {globalThis.setLED=originalSet;globalThis.move_midi_internal_send=originalSend;}
 }
 console.log('Live pad release: rapid taps and Auto Chord off recover from stale held snapshots');
+
+// Exercise Schwung's real overtake wrapper, not a permissive MIDI mock. It
+// queues one LED packet per call and flushes at most 16 LEDs per host tick.
+{
+    const {readFileSync}=await import('node:fs');
+    const {resolve}=await import('node:path');
+    const vm=await import('node:vm');
+    const hostSource=readFileSync(resolve(process.env.SCHWUNG_ROOT||'../schwung','src/shadow/shadow_ui.js'),'utf8');
+    const queueSource=hostSource.slice(hostSource.indexOf('const LED_QUEUE_MAX_PER_TICK ='),hostSource.indexOf('/* Knob mapping state'));
+    assert(queueSource.includes('function activateLedQueue()')&&queueSource.includes('function flushLedQueue()'));
+    const displayed=new Map(),host={move_midi_internal_send:packet=>{displayed.set(packet[2],packet[3]);return true;}};
+    vm.runInNewContext(queueSource+'\nactivateLedQueue();globalThis.flushTestLeds=flushLedQueue;',host);
+    const original=globalThis.move_midi_internal_send;
+    const {sendPadLedFrame,ledFrameReset}=await import('../dist/esm/seq/led-cache.js');
+    globalThis.move_midi_internal_send=host.move_midi_internal_send;
+    try {
+        const changes=Array.from({length:32},(_,index)=>({note:68+index,color:index%3===0?13:index%3===1?9:7}));
+        ledFrameReset();sendPadLedFrame(changes);
+        host.flushTestLeds();host.flushTestLeds();
+        assert.equal(displayed.size,32,'Every harmony pad reaches the actual overtake queue without being pressed');
+        for(const change of changes)assert.equal(displayed.get(change.note),change.color);
+        // Replace a pending frame before its second half flushes. All pads must
+        // converge on the latest background/play state without any pad presses.
+        ledFrameReset();sendPadLedFrame(changes.map(change=>({...change,color:11})));
+        host.flushTestLeds();
+        ledFrameReset();sendPadLedFrame(changes);
+        host.flushTestLeds();host.flushTestLeds();
+        for(const change of changes)assert.equal(displayed.get(change.note),change.color);
+
+    } finally {globalThis.move_midi_internal_send=original;}
+}
+console.log('Real Schwung overtake queue: all 32 harmony colors reach the device');

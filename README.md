@@ -1,3 +1,5 @@
+> **hbclean.119 / HarmonyBus 0.2.208:** Fix dropped harmony colors and stuck play highlights in Schwung overtake mode. Send each pad LED as its own host packet and cache only accepted updates. Verified against the pinned host queue, including pending green highlights replaced by harmony colors.
+
 > **hbclean.118 / HarmonyBus 0.2.208:** Fix stuck green play highlights after quick live taps and switching Auto Chord off. Immediate pad feedback now invalidates the shared pad-color cache, so the next complete repaint restores the harmony background without playing the note again.
 
 > **hbclean.117 / HarmonyBus 0.2.205:** Fix the bottom-to-top pad refresh during Full Both Lookahead transitions. Publish each changed pad grid in one host call, sample animation time once for the grid, preserve unsent colors for retry, and keep one LED budget for the entire app tick (the sequencer no longer resets it halfway through). HB itself is unchanged.

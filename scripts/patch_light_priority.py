@@ -16,10 +16,8 @@ def patch_light_priority(root: Path) -> None:
     source = replace_once(source, '''        }
 }
 let gesturePadRevision''', '''        }
-        // One harmony change is one visual update. Defer the complete diff
-        // if another owner has already used the budget; never paint half a chord.
-        if(!sendPadLedFrame(changes))return;
-        for(const change of changes)chromaticCache[change.index]=change.color;
+        // Only cache packets accepted by the host; rejected pads retry next tick.
+        for(const change of sendPadLedFrame(changes))chromaticCache[change.index]=change.color;
     });
 }
 let gesturePadRevision''')
@@ -64,17 +62,19 @@ export function invalidateMelodicPadColor(note: number, padMin: number): void {
     if(index>=0&&index<melodicPadColorCache.length)melodicPadColorCache[index]=255;
 }
 
-/** Publish a complete pad diff in one host call; only acknowledge accepted frames.
- * Individual setLED calls expose partial rows to the concurrent MIDI consumer.
- * Keep the same packet budget: batching does not increase output traffic.
+/** Schwung's overtake wrapper accepts one four-byte LED packet per call.
+ * Reserve the diff budget and acknowledge each accepted packet separately.
+ * The host coalesces pending updates per pad and flushes them across ticks.
  */
-export function sendPadLedFrame(changes: ReadonlyArray<{note:number;color:number}>): boolean {
-    if(!changes.length)return true;
-    if(!ledBudgetTake(changes.length))return false;
-    const packets:number[]=[];
-    for(const change of changes)packets.push(0x09,0x90,change.note,change.color);
-    return move_midi_internal_send(packets)!==false;
+export function sendPadLedFrame<T extends {note:number;color:number}>(changes: ReadonlyArray<T>): T[] {
+    if(!changes.length||!ledBudgetTake(changes.length))return [];
+    const accepted:T[]=[];
+    for(const change of changes){
+        if(move_midi_internal_send([0x09,0x90,change.note,change.color])!==false)accepted.push(change);
+    }
+    return accepted;
 }
+
 '''
     path.write_text(source)
     path = root / 'src/keyboard/handler.ts'
