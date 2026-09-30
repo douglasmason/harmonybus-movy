@@ -18,8 +18,8 @@ env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 881b7fc9ae4290622f0eb6f2c341c9db28be40ef
   HB_REF: db46b8195c0afc1ea05745b3e2665f42a6e50d6b
-  HB_MOVY_VERSION: 0.34.1-hbclean.127
-  HB_MOVY_TAG: v0.34.1-hbclean.127
+  HB_MOVY_VERSION: 0.34.1-hbclean.128
+  HB_MOVY_TAG: v0.34.1-hbclean.128
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -388,7 +388,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Unify performance lights: solid white for triggered/momentary, smoothly pulsing white for permanent latch, dark idle slots, and amber for every approach-row assignment; all ordinary parameter knobs use white brightness. Uses HarmonyBus 0.2.217."
+              --notes "Rendered-only play notes use a solid dim play color without background blending. Selected approach controls pulse white over amber when permanently latched; triggered and held controls stay solid white. Uses HarmonyBus 0.2.217."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

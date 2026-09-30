@@ -64,9 +64,9 @@ export function approachLight(slot: number, state: number[], held = false): [num
     if(slot<0||slot>=16)return [0,0,ANIM_NONE];
     const down=held||!!((state[3]||0)&(1<<slot));
     const active=!!state[6]&&!!((state[5]||0)&(1<<slot));
-    if(down)return [120,120,ANIM_NONE];
-    if(active)return state[8]?[124,120,ANIM_PULSE_SLOW]:[120,120,ANIM_NONE];
     const selected=state.length>=12?state.slice(9,12).includes(slot):slot===state[7];
+    if(down)return [120,120,ANIM_NONE];
+    if(active)return state[8]?[selected?37:124,120,ANIM_PULSE_SLOW]:[120,120,ANIM_NONE];
     const color=selected?37:0;
     return [color,color,ANIM_NONE];
 }

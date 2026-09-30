@@ -366,5 +366,6 @@ export function harmonyPlaybackColor(background: number, track: number, index: n
     if (play === null) return background;
     if (!hasHarmonyPlayback(track)) return input ? play : background;
     if (!harmonyPadPlaying(track, index)) return background;
-    return input ? play : paletteMix(background, play, 0, 1 / 3, 0);
+    // Dim the play color against black; output-only never inherits harmony colors.
+    return input ? play : paletteMix(0, play, 0, 1 / 3, 0);
 }

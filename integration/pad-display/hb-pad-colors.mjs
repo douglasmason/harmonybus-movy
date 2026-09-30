@@ -527,7 +527,7 @@ console.log('Real Schwung overtake queue: all 32 harmony colors reach the device
             for(let index=0;index<32;index++){
                 assert.equal(harmonyPadPlaying(0,index),!!((mask>>>index)&1));
                 if (!((mask>>>index)&1)) assert.equal(displayed.get(68+index),resting[index],'Stopped outputs restore their background');
-                else assert.notEqual(displayed.get(68+index),11,'Output-only uses a faint blend');
+                else assert.equal(displayed.get(68+index),harmonyPlaybackColor(0,0,index,false),'Output-only is independent of background');
             }
         }
         noteOn(68,68,0,100);paint();assert.equal(displayed.get(68),resting[0],'Input alone keeps its background');
@@ -535,10 +535,10 @@ console.log('Real Schwung overtake queue: all 32 harmony colors reach the device
         mask=0;
         noteOff(68,68);paint();assert.notEqual(displayed.get(68),11,'Release clears input while recorded source remains active');
         mask=1;paint();assert.equal(displayed.get(68),11,'Recorded input plus rendered note gives solid green');
-        mask=1<<4;paint();assert.notEqual(displayed.get(72),11);assert.notEqual(displayed.get(72),resting[4],'Rendered note blends with background');
-        const blended=[5,9,13].map(background=>harmonyPlaybackColor(background,0,4,false));
-        assert.equal(new Set(blended).size,3,'Red, orange and yellow retain distinct blended colors');
-        assert(blended.every(color=>color!==11),'Output-only never uses solid green');
+        mask=1<<4;paint();assert.notEqual(displayed.get(72),11);assert.notEqual(displayed.get(72),resting[4],'Rendered note overrides background');
+        const dimmed=[5,9,13].map(background=>harmonyPlaybackColor(background,0,4,false));
+        assert.equal(new Set(dimmed).size,1,'Red, orange and yellow all become the same dim green');
+        assert(dimmed.every(color=>color!==11&&color!==0),'Output-only uses a visible dim green');
         portFor(0).getParam=()=>base.replace('playcolor1,3','playcolor1,11')+'|playpads1,'+mask;
         paint();assert.notEqual(displayed.get(72),11,'Play Color Off still disables output overlay');
         assert.equal(harmonyPadPlaying(1,4),false,'Output is track-local');

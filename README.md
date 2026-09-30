@@ -1,3 +1,5 @@
+**hbclean.128:** Rendered-only notes use a solid dim Play Color (green by default), independent of the background. Matching live or recorded input keeps full Play Color. Selected approach controls pulse white over amber when latched; triggered and held controls remain solid white.
+
 **hbclean.127:** Ordinary parameter knobs use white brightness on both rows. Performance controls use solid white for armed/triggered and held states, smoothly pulsing white for permanent latch, and no idle purple. Amber marks every control assigned to an approach row and the selected Motifs knob.
 
 **Approach routing fix (HB 0.2.217 / Movy hbclean.127):** Dedicated Approach and Triple Approach layouts enable follower approach pads independently of chromatic mapping and travel. Sound and play-color previews use the same eligibility rule. Operation knob LEDs own their indicators; generic parameter-value lights cannot overwrite them.
