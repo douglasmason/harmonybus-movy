@@ -26,15 +26,16 @@ export function motifRecordLight(): boolean {
     cachedSetAnimButtonLED(86, 0, owner ? 127 : 40, ANIM_PULSE_SLOW);
     return true;
 }
+export function motifKnobSelectionMask(track: number | undefined): number {return motifEditorFor(track)?1<<(editorLane%8):0;}
 export function motifKnobLight(port: PerformancePort, knob: number): boolean {
     if (!motifEditorFor(port.performanceTrack) || knob !== editorLane % 8) return false;
-    cachedSetAnimLED(knob, 22, owner ? C_WHITE : 118, ANIM_PULSE_SLOW);
-    cachedSetAnimLED(71+knob, 22, owner ? C_WHITE : 118, ANIM_PULSE_SLOW, true);
+    cachedSetAnimLED(knob, 37, 37, ANIM_NONE);
+    cachedSetAnimLED(71+knob, 37, 37, ANIM_NONE, true);
     return true;
 }
 function motifLaneLight(button: number): boolean {
     if (!motifEditorFor(appState.activeTrack.index) || button !== editorLane) return false;
-    cachedSetAnimLED(16+button, 22, owner ? C_WHITE : 118, ANIM_PULSE_SLOW);
+    cachedSetAnimLED(16+button, 37, 37, ANIM_NONE);
     return true;
 }''')
     source = source.replace('return owner !== null;', 'return owner !== null || editorPort !== null;')
@@ -107,7 +108,7 @@ function motifLaneLight(button: number): boolean {
     source = path.read_text().replace('mode: number): any', 'mode: number, editing = false): any').replace('motifs.has(key) ? mode === 2', 'motifs.has(key) ? editing')
     path.write_text(source)
     path = root / 'src/renderer/schwung-page.ts'
-    source = path.read_text().replace("import { motifAction }", "import { motifAction, motifEditorFor }")
+    source = path.read_text().replace("import { motifAction }", "import { motifAction, motifEditorFor, motifKnobSelectionMask }")
     source = source.replace("['Steps','HB Ops','Motifs']", "['Steps','Perform']")
     source = source.replace("v === 'Motifs' || v === '2' ? 2 : v === 'HB Ops' || v === 'Perform' || v === '1' ? 1 : 0", "v === 'Perform' || v === '1' ? 1 : 0")
     source = source.replace("hbStepHierarchy(hierarchy, flagValue('hbsteprow'))", "hbStepHierarchy(hierarchy, flagValue('hbsteprow'), motifEditorFor(port.track.index))")

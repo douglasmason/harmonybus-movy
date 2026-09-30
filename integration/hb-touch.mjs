@@ -454,14 +454,14 @@ console.log('HB clip bridge: direct press, captured track/slot release without r
 const { hbOperationColor }=await import('../dist/esm/renderer/schwung-page.js');
 assert.equal(hbOperationColor(0,false),0);assert.equal(hbOperationColor(0,true),0);
 for (const operation of [1,3,7,8,9,10,11,16,17,18]) {
-    assert.equal(hbOperationColor(operation,false),85);
-    assert.equal(hbOperationColor(operation,true),11);
+    assert.equal(hbOperationColor(operation,false),124);
+    assert.equal(hbOperationColor(operation,true),120);
 }
 for (const operation of [12,13,14,15]) {
-    assert.equal(hbOperationColor(operation,false),97);
-    assert.equal(hbOperationColor(operation,true),17);
+    assert.equal(hbOperationColor(operation,false),124);
+    assert.equal(hbOperationColor(operation,true),120);
 }
-console.log('HB step colors: Off unlit, live-compatible green, clip-only blue; activity preserves category hue');
+console.log('HB step colors: Off unlit, active white, dim white pulse base');
 const { ledFrameReset, seqLedsInvalidate }=await import('../dist/esm/seq/led-cache.js');
 const savedLedSend=globalThis.move_midi_internal_send, colorNow=Date.now;
 let rowTime=9000;
@@ -472,13 +472,13 @@ globalThis.move_midi_internal_send=packet=>colorWrites.push(packet);Date.now=()=
 try {
     resetHbPerformance();ledFrameReset();seqLedsInvalidate();paintHbPerformance(colorOwner);
     const sentColor=note=>colorWrites.filter(packet=>packet[2]===note).at(-1)?.[3];
-    assert.equal(sentColor(16),85);assert.equal(sentColor(17),97);assert.equal(sentColor(18),0);assert.equal(sentColor(19),11);
-    hbPerformanceStep([0x90,17,127],colorOwner);assert.equal(sentColor(17),17,'Press brightens blue without turning white');
-    releaseHbPerformanceStep([0x80,17,0]);ledFrameReset();paintHbPerformance(colorOwner);assert.equal(sentColor(17),97);
+    assert.equal(sentColor(16),124);assert.equal(sentColor(17),124);assert.equal(sentColor(18),0);assert.equal(sentColor(19),120);
+    hbPerformanceStep([0x90,17,127],colorOwner);assert.equal(sentColor(17),120,'Press lights solid white');
+    releaseHbPerformanceStep([0x80,17,0]);ledFrameReset();paintHbPerformance(colorOwner);assert.equal(sentColor(17),124);
     rowOperations[0]=15;rowTime+=100;ledFrameReset();paintHbPerformance(colorOwner);
-    assert.equal(sentColor(16),97,'Editing an assignment updates its category without changing track');
+    assert.equal(sentColor(16),124,'Editing an assignment retains the common operation-state colors');
 } finally {resetHbPerformance();globalThis.move_midi_internal_send=savedLedSend;Date.now=colorNow;}
-console.log('HB LED wire: assignment categories, trigger activity, immediate hold, release and live reassignment pass');
+console.log('HB LED wire: white trigger activity, immediate hold, release and live reassignment pass');
 
 // A changing chord/second note must never leave mixed-age follower fields.
 const snapshotGet = port.getParam;
@@ -856,10 +856,10 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
         assert.deepEqual(messages.at(-1),['motion_gesture_1','Up,40,900200']);
         function paint(){now+=60;ledFrameReset();paintHbPerformance(owner);paintHbOperationKnobs(owner,['motion_control_1'],{'motion_control_1':'1'});}
         active=1;persistent=1;seqLedsInvalidate();paint();paint();
-        for(const note of [0,16])assert(packets.some(p=>p[1]===0x9a&&p[2]===note&&p[3]===11),'Persistent knob and step use native smooth pulse');
-        assert(packets.some(p=>p[1]===0xba&&p[2]===71&&p[3]===11),'Knob CC indicator pulses too');
+        for(const note of [0,16])assert(packets.some(p=>p[1]===0x9a&&p[2]===note&&p[3]===120),'Persistent knob and step use native smooth pulse');
+        assert(packets.some(p=>p[1]===0xba&&p[2]===71&&p[3]===120),'Knob CC indicator pulses too');
         packets.length=0;down=1;paint();
-        for(const note of [0,16])assert(packets.some(p=>p[1]===0x90&&p[2]===note&&p[3]===11),'Momentary hold is solid');
+        for(const note of [0,16])assert(packets.some(p=>p[1]===0x90&&p[2]===note&&p[3]===120),'Momentary hold is solid');
         packets.length=0;down=0;persistent=0;paint();
         assert(!packets.some(p=>(p[1]&15)!==0),'Armed single tap stays solid');
         packets.length=0;active=0;paint();

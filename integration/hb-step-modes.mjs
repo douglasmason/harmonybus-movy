@@ -142,7 +142,19 @@ console.log('FIFO row display: physical top-down 3-2-1 order and newest assignme
     try{
         const vm={rows:Array.from({length:2},()=>Array.from({length:4},()=>({normalizedValue:1})))};
         resetKnobLedCache();ledFrameReset();updateKnobLEDs(vm,255);assert.equal(sends.length,0);
-        ledFrameReset();updateKnobLEDs(vm,0);assert.equal(sends.length,16,'Leaving performance restores generic value LEDs');
+        ledFrameReset();updateKnobLEDs(vm,0);assert.equal(sends.length,16,'Leaving performance restores generic value LEDs');assert(sends.every(args=>args[1]===120),'Both parameter rows use white');
     }finally{globalThis.setLED=note;globalThis.setButtonLED=button;}
 }
 console.log('Knob LED ownership: generic values yield to performance and restore on exit');
+
+{
+    const { approachLight }=await import('../dist/esm/renderer/hb-approach.js');
+    const { ANIM_NONE, ANIM_PULSE_SLOW }=await import('../dist/esm/seq/colors.js');
+    const state=[1,0,1,0,-1,1,1,2,0,2,4,4];
+    assert.deepEqual(approachLight(0,state),[120,120,ANIM_NONE]);
+    state[8]=1;assert.deepEqual(approachLight(0,state),[124,120,ANIM_PULSE_SLOW]);
+    state[3]=1;assert.deepEqual(approachLight(0,state),[120,120,ANIM_NONE]);
+    assert.deepEqual(approachLight(1,state),[0,0,ANIM_NONE]);
+    assert.deepEqual(approachLight(2,state),[37,37,ANIM_NONE]);assert.deepEqual(approachLight(4,state),[37,37,ANIM_NONE]);
+}
+console.log('Approach lights: dark idle, solid white trigger/hold, smooth white latch, amber for every row assignment');

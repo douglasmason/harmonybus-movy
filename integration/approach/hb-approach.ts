@@ -3,7 +3,7 @@ import { fontPrint, fontWidth } from '../font/index.js';
 import { keyboardState } from '../keyboard/state.js';
 import { appState } from '../app/state.js';
 import { cachedSetAnimLED } from '../seq/led-cache.js';
-import { ANIM_NONE } from '../seq/colors.js';
+import { ANIM_NONE, ANIM_PULSE_SLOW } from '../seq/colors.js';
 import { seqToast } from '../seq/render.js';
 export const APPROACH_CHOICES = ['Secondary LT','Chromatic Above','Secondary II','Secondary V','Secondary VI','Backdoor II','Backdoor V','Tritone II','Tritone V','Secondary III','Secondary IV','Secondary VII',...Array.from({length:16},(_,index)=>'Motif '+(index+1))];
 export const APPROACH_MOTIFS = ['V-Target','ii-V-Target','iv-bVII-Target','bII7-Target','ii-bII7-Target','bVI-bVII-I','bVI-V-I','bIII-IV-I','vi-V-I','iii-vi-ii-V-I','IV-iv-I','ii halfdim-V-i','I-VI7-ii-V-I','V/V-V-I','ii/V-V/V-V-I','V/ii-ii-V-I','V/vi-vi-ii-V-I','vii dim/V-V-I','III7-VI7-II7-V7-I',...Array.from({length:16},(_,index)=>'User '+(index+1))];
@@ -60,23 +60,32 @@ export function approachStep(data: number[], port: PerformancePort | null): bool
     }
     return true;
 }
+export function approachLight(slot: number, state: number[], held = false): [number,number,number] {
+    if(slot<0||slot>=16)return [0,0,ANIM_NONE];
+    const down=held||!!((state[3]||0)&(1<<slot));
+    const active=!!state[6]&&!!((state[5]||0)&(1<<slot));
+    if(down)return [120,120,ANIM_NONE];
+    if(active)return state[8]?[124,120,ANIM_PULSE_SLOW]:[120,120,ANIM_NONE];
+    const selected=state.length>=12?state.slice(9,12).includes(slot):slot===state[7];
+    const color=selected?37:0;
+    return [color,color,ANIM_NONE];
+}
 export function paintApproach(port: PerformancePort | null): boolean {
     if(!port)return false;
     refreshRows(port);
     if(rowRevealUntil>0&&Date.now()>=rowRevealUntil){rowRevealUntil=0;appState.dirty=true;}
     for(let step=0;step<16;step++){
-        const color=releases.has(step)?120:status[6]&&((status[5]||0)&(1<<step))?13:step===status[7]?37:22;
-        cachedSetAnimLED(16+step,color,color,ANIM_NONE);
+        const [base,color,animation]=approachLight(step,status,releases.has(step));
+        cachedSetAnimLED(16+step,base,color,animation);
     }
     return true;
 }
 export function paintApproachKnobs(port: PerformancePort, keys: (string | null)[]): boolean {
     if(!keys.some(key=>/^approach_bank_/.test(key ?? '')))return false;
     refreshRows(port);
-    const down=status[3]||0;
     for(let knob=0;knob<8;knob++){
-        const slot=Number((keys[knob]??'').split('_').pop())-1;const color=down&(1<<slot)?120:status[6]&&((status[5]||0)&(1<<slot))?13:slot===status[7]?37:22;
-        cachedSetAnimLED(knob,color,color,ANIM_NONE);cachedSetAnimLED(71+knob,color,color,ANIM_NONE,true);
+        const slot=Number((keys[knob]??'').split('_').pop())-1;const [base,color,animation]=approachLight(slot,status);
+        cachedSetAnimLED(knob,base,color,animation);cachedSetAnimLED(71+knob,base,color,animation,true);
     }
     return true;
 }

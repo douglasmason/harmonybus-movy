@@ -20,6 +20,7 @@ def patch_approach_mode(root: Path) -> None:
     source = source.replace('    if (paintMotif(owner)) return true;', "    if (paintMotif(owner)) return true;\n    if(flagValue('hbsteprow')===2)return paintApproach(owner);")
     source = source.replace('    const assignments=keys.map', '    if(paintApproachKnobs(owner,keys)){operationKnobMask=255;return;}\n    const assignments=keys.map')
     source = source.replace(" : 'STEPS / NO HB',1);", " : 'STEPS / NO HB',1);\n    if(active && flagValue('hbsteprow')===2)drawApproachRows(hbPerformancePage()!);")
+    source=source.replace('    const clip = operation >= 12 && operation <= 15;\n    return clip ? (active ? 17 : 97) : (active ? C_GREEN : 85);', '    return active ? 120 : 124;')
     path.write_text(source)
     path = root / 'src/renderer/hb-step-panels.ts'
     source = "import { approachPanels } from './hb-approach.js';\n" + path.read_text()
@@ -45,10 +46,15 @@ def patch_approach_mode(root: Path) -> None:
     path.write_text(source)
     path=root/'src/renderer/schwung-page.ts'
     source=path.read_text().replace('    readonly ready: boolean;', '    readonly ready: boolean;\n    readonly knobLEDMask: number;')
-    source=source.replace('        get ready() { return loaded; },', "        get ready() { return loaded; },\n        get knobLEDMask() { return hostedModuleId==='harmonybus'?keysOf().reduce((mask,key,index)=>mask|(/^approach_bank_|^motion_control_|^follow_touch_/.test(key??'')?1<<index:0),0):0; },")
+    source=source.replace('        get ready() { return loaded; },', "        get ready() { return loaded; },\n        get knobLEDMask() { return hostedModuleId==='harmonybus'?(keysOf().reduce((mask,key,index)=>mask|(/^approach_bank_|^motion_control_|^follow_touch_/.test(key??'')?1<<index:0),0)|motifKnobSelectionMask(port.track.index)):0; },")
     path.write_text(source)
     path=root/'src/renderer/knob-leds.ts'
     source=path.read_text().replace('updateKnobLEDs(vm: ViewModel)', 'updateKnobLEDs(vm: ViewModel, ownedMask = 0)')
+    start=source.index('/* Amber intensity scale')
+    end=source.index('let logTickCount',start)
+    source=source[:start]+source[end:]
+    source=source.replace('White intensity scale (knobs 1-4)', 'White intensity scale (all eight knobs)').replace('Knobs 1-4 (physK 0-3) → white intensity; knobs 5-8 (physK 4-7) → amber intensity.', 'All eight knobs use white intensity.')
+    source=source.replace(": row === 0 ? (flash ? 120 : whiteLevel(pvm.normalizedValue))\n                : (flash ? 3 : amberLevel(pvm.normalizedValue));", ": flash ? 120 : whiteLevel(pvm.normalizedValue);")
     source=source.replace('            const pvm   = vm.rows[row][col];', '            if(ownedMask&(1<<physK)){lastKnobColor[physK]=-1;continue;}\n            const pvm   = vm.rows[row][col];')
     path.write_text(source)
     path=root/'src/app/tick.ts'
