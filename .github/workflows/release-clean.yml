@@ -17,7 +17,7 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: c2e9434ef1f588ea174a6680fafe5251e2228f5c
-  HB_REF: 4fa66c9c7c3b6cf3c50be2dc3bc7a02d12c24e7f
+  HB_REF: 50297c6d18719c964aea9c42ca5d652319f1e895
   HB_MOVY_VERSION: 0.34.1-hbclean.131
   HB_MOVY_TAG: v0.34.1-hbclean.131
   ASSET_NAME: harmonybus-movy-module.tar.gz
@@ -389,7 +389,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Per-operation Perform 2 latch turns and Shift-turn assignments, finite overlap sequences, no separate Perf Latch panel, Harm Perform panels at the end, layout-aware amber selections, and full-brightness rendered play colors. Requires HarmonyBus 0.2.221."
+              --notes "Per-operation Perform 2 latch turns and Shift-turn assignments, finite overlap sequences, no separate Perf Latch panel, Harm Perform panels at the end, layout-aware amber selections, and full-brightness rendered play colors. Includes HarmonyBus 0.2.222 with pad-owned spatial approach releases, dim idle approach rows, live native track colors, and Schwung 1.6.1 compatibility."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
