@@ -930,31 +930,29 @@ console.log('Motif, Render Rhythm and arp-anchor controls are reachable through 
 }
 console.log('Fixed operation knobs: separate tap protocol, momentary hold, directional latch, captured release across panels pass');
 
-// Shift preserves the ordinary editing function of every operation-touch knob.
+// Shift edits fixed lanes' operations and named controls' normal values.
 {
     const {appState}=await import('../dist/esm/app/state.js');
-    for(const key of ['motion_control_1','motion_control_16','motion_control_33','motion_control_37','follow_touch_1']){
-        if(key==='follow_touch_1'){
-            // Older HB exposes assignable Follow Touch controls. Exercise that
-            // compatibility route with its real legacy metadata contract.
-            const parameter={key,name:'Touch 1',type:'enum',options_as_string:true,options:Array.from({length:16},(_,index)=>String(index+1)),default:'1'};
-            module.capabilities.chain_params.push(parameter);
-            const level=module.capabilities.ui_hierarchy.levels.follower_touch;
-            level.knobs[0]=key;level.params[0]=parameter;page.reload();
-        }
+    for(const lane of [1,8,9,16,33,37]){
+        const key='motion_control_'+lane, editKey=lane<=16?'motion_operation_'+lane:key;
+        values.set('motion_gesture_binding_'+lane,'1,1,3,0,350,0,0,1');
         const slot=focusKey(key);
-        const options=page.ctl.metaAt(slot)?.options;
-        values.set(key,options?.[0]??'0');page.ctl.revalue();
+        const options=lane<=16?page.ctl.state.metaIndex.get('motion_operation').options:page.ctl.metaAt(slot)?.options;
+        values.set(editKey,options?.[0]??'0');page.ctl.revalue();
         const before=writes.length;
         appState.shiftHeld=true;page.knobTouch(slot,true);page.knobTurn(slot,1);page.knobTouch(slot,false);appState.shiftHeld=false;
         const edits=writes.slice(before);
-        assert(edits.some(([name])=>name==='midi_fx1:'+key),key+': Shift edits its normal value');
-        assert(!edits.some(([name])=>name.includes('motion_gesture_')),key+': Shift does not trigger or latch');
+        assert(edits.some(([name])=>name==='midi_fx1:'+editKey),key+': Shift edits the fixed lane operation or named value');
+        assert(!edits.some(([name])=>name.includes('motion_gesture_')||name==='midi_fx1:motion_lane'||name.includes('follow_touch_')),key+': Shift never triggers or remaps lanes');
         page.knobTouch(slot,true);const started=writes.length;
         appState.shiftHeld=true;page.knobTurn(slot,-1);page.knobTouch(slot,false);appState.shiftHeld=false;
-        const cancelled=writes.slice(started);
-        assert(cancelled.some(([name,value])=>name.includes('motion_gesture_')&&value==='Cancel'),key+': Shift after touch cancels the pending gesture');
-        assert(!cancelled.some(([,value])=>value==='LatchOn'||value==='LatchOff'),key+': editing does not change the latch');
+        assert(writes.slice(started).some(([name,value])=>name.includes('motion_gesture_')&&value==='Cancel'),key+': Shift after touch cancels an unlatched gesture');
+        values.set('motion_gesture_binding_'+lane,'1,1,3,0,350,1,1,1');
+        page.knobTouch(slot,true);const latchedStart=writes.length;
+        appState.shiftHeld=true;page.knobTurn(slot,1);page.knobTouch(slot,false);appState.shiftHeld=false;
+        const latched=writes.slice(latchedStart);
+        assert(latched.some(([name,value])=>name.includes('motion_gesture_')&&value.startsWith('Up,')),key+': Shift releases an already-latched touch without cancelling its latch');
+        assert(!latched.some(([,value])=>['Cancel','LatchOn','LatchOff'].includes(value)),key+': saved latch remains unchanged');
     }
 }
-console.log('Shift edits: lane amounts, fixed modes, Follow Touch mapping, both touch orders and no accidental trigger/latch pass');
+console.log('Shift edits: fixed lane operations, named modes, both touch orders, persistent latch preservation and no lane remapping pass');

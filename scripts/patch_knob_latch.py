@@ -10,6 +10,9 @@ def patch_knob_latch(root: Path) -> None:
     s=replace_once(s,"action.modern ? 'Touch,'+action.started : 'Touch'","action.knob ? 'Knob,'+action.started : action.modern ? 'Touch,'+action.started : 'Touch'")
     s=replace_once(s,'const pair=!!previous &&', 'const pair=!action.knob && !!previous &&')
     s=replace_once(s,'const off=!!(short && (action.wasPersistent || (pair&&previous?.off) || (!pair&&action.wasLatched)));','const off=!action.knob && !!(short && (action.wasPersistent || (pair&&previous?.off) || (!pair&&action.wasLatched)));')
+    s=replace_once(s, "        action.owner.performanceSet(action.key,cancel ? 'Cancel' : 'Up,'+elapsed+','+now);", """        const preserveLatch=cancel && action.knob && action.wasPersistent && appState.shiftHeld;
+        action.owner.performanceSet(action.key,cancel&&!preserveLatch ? 'Cancel' : 'Up,'+elapsed+','+now);""")
+    s=replace_once(s, "const stays=short ? !off : !cancel&&!!action.wasPersistent;", "const stays=!!preserveLatch || (short ? !off : !cancel&&!!action.wasPersistent);")
     s=replace_once(s,'if(short && !(pair&&previous?.off))lastLaneTap.set','if(!action.knob && short && !(pair&&previous?.off))lastLaneTap.set')
     s+='''
 /** A turn takes ownership from the current touch; releasing that touch cannot
@@ -37,6 +40,20 @@ export function setHbLaneLatch(owner: PerformancePort, lane: number, on: boolean
     s=replace_once(s,'        knobTurn: (slot: number, delta: number) => {','''        knobTurn: (slot: number, delta: number) => {
             const operationKey=ctl.keyAt(slot);
             const fixedLane=/^motion_control_(\\d+)$/.exec(operationKey);
+            if(appState.shiftHeld && /^follow_touch_[1-9]$/.test(operationKey))return;
+            if(appState.shiftHeld && fixedLane && Number(fixedLane[1])<=16){
+                if(laneTouchSlots.has(slot))releasePerformanceTouch(slot,true);
+                const key='motion_operation_'+fixedLane[1];
+                const options=ctl.state.metaIndex.get('motion_operation')?.options||[];
+                const current=options.indexOf(lanePort.performanceGet(key));
+                if(delta&&current>=0){
+                    const index=Math.max(0,Math.min(options.length-1,current+delta));
+                    lanePort.performanceSet(key,options[index]);markUiStateDirty();
+                    const pageIndex=ctl.state.pageIndex;reload();ctl.goToPage(pageIndex);
+                    ctl.state.peek={key:operationKey,title:'Lane '+fixedLane[1]+' Operation',options,index,at:Date.now()};
+                }
+                touchPaintPending=true;return;
+            }
             if(!appState.shiftHeld && (fixedLane || /^follow_touch_[1-9]$/.test(operationKey))){
                 if(!delta)return;
                 const lane=fixedLane?Number(fixedLane[1])-1:Math.max(1,Math.min(16,Number(lanePort.performanceGet(operationKey))||1))-1;
