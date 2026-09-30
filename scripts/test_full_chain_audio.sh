@@ -17,6 +17,7 @@ done
 cc -O1 -shared -fPIC "$CHAIN_SOURCE/chain_host.c" "$CHAIN_SOURCE/chain_json.c" \
   "$CHAIN_SOURCE/chain_params.c" "$CHAIN_SOURCE/chain_mod.c" "$CHAIN_SOURCE/chain_midi.c" \
   "$CHAIN_SOURCE/chain_patch.c" "$CHAIN_SOURCE/chain_reorder.c" "$CHAIN_SOURCE/chain_bus.c" \
+  "$CHAIN_SOURCE/chain_scene.c" "$CHAIN_SOURCE/chain_chance.c" \
   "$CHAIN_SOURCE/chain_lanes.c" "$FIXTURE_ROOT/lane_store.o" "$FIXTURE_ROOT/lane_serial.o" "$FIXTURE_ROOT/lane_edit.o" \
   "$SCHWUNG_SOURCE/src/host/unified_log.c" -I"$SCHWUNG_SOURCE/src" -lm -ldl -lpthread -o "$FIXTURE_ROOT/chain/dsp.so"
 cc -O1 -shared -fPIC -include sys/mman.h -include unistd.h \
