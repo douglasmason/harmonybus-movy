@@ -27,6 +27,8 @@ int main(int argument_count, char **arguments) {
         }
         assert(instances[track]->player.config.mode == (expected_role == 0 ? 1 : 0));
         assert(instances[track]->player.config.phase == 2);
+        assert(instances[track]->player.config.order == 5);
+        assert(instances[track]->player.config.inversion == (expected_role == 0 ? 0 : 8));
         assert(instances[track]->player.config.start == 5);
         assert(instances[track]->policy_overrides == 0);
         assert(instances[track]->player.config.chromatic_quality == 3);
@@ -54,7 +56,7 @@ int main(int argument_count, char **arguments) {
         char expected_state[8192],round_trip[8192],amount[16];
         char seed[1024];snprintf(seed,sizeof(seed),"%s",arguments[preset]);
         char *pad_marker=strstr(seed,";pd1,");assert(pad_marker);*pad_marker=0;
-        snprintf(expected_state,sizeof(expected_state),"%s;pd1,6,3,3,2,0;pb1,2;pc2,2;pp1,3;hu1,0,0,0;ss1,0,0;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,2,0,0,0,0,0,0,0,0,0,0,3,0,2,0,0,0,0,0;named1",seed);
+        snprintf(expected_state,sizeof(expected_state),"%s;pd1,6,3,3,2,0;pb1,2;pc2,2;pp1,3;hu1,0,0,0;ss1,0,0;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,2,0,0,0,0,0,0,0,8,0,0,3,0,2,0,0,0,0,0;named1",seed);
         /* New versioned fields have explicit neutral defaults; preserve the
            legacy prefix exactly, then verify the complete state round-trip. */
         strcat(expected_state,";mf1,0,2,0,2,0,0,0:00");

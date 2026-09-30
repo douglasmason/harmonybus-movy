@@ -1,3 +1,5 @@
+**Defaults:** Follower inversion Played Top Note, conductor inversion Auto, arp order Shuffle.
+
 **hbclean.129:** Fresh-set render channels repeat 1–4 across tracks 1–4, 5–8, 9–12, and 13–16. Saved sets retain their routing choices. Track roles are unchanged. Follower/input scale defaults to Major. Receive Channel defaults to Off (requires HB 0.2.218); saved explicit receive channels are preserved. Native track colors retry briefly after set entry/resume to pick up delayed saves; all banks and motif display use the shared color mapping.
 
 **hbclean.128:** Rendered-only notes use a solid dim Play Color (green by default), independent of the background. Matching live or recorded input keeps full Play Color. Selected approach controls pulse white over amber when latched; triggered and held controls remain solid white.
