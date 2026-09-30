@@ -208,6 +208,7 @@ jobs:
               'src/model/store.ts',
               'src/model/viewmodel.ts',
               'browser-test/logic/tracks-chain.mjs',
+              'browser-test/logic/tracks-refs.mjs',
               'browser-test/logic/seq-engine.mjs',
               'browser-test/logic/seq-leds.mjs',
               'browser-test/app-loop.mjs',
