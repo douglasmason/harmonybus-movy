@@ -32,12 +32,26 @@ def patch_approach_mode(root: Path) -> None:
     path = root / 'src/renderer/schwung-page.ts'
     source = "import { approachTouched } from './hb-approach.js';\n" + path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
     source = source.replace('            if (laneTouchSlots.has(slot)) {\n                releasePerformanceTouch(slot, true);', "            if (laneTouchSlots.has(slot) && !/^approach_bank_/.test(ctl.keyAt(slot))) {\n                releasePerformanceTouch(slot, true);")
+    source = replace_once(source, '        knobTurn: (slot: number, delta: number) => {', """        knobTurn: (slot: number, delta: number) => {
+            const approachControl=/^approach_bank_(\\d+)$/.exec(ctl.keyAt(slot));
+            if(approachControl && appState.shiftHeld){
+                if(laneTouchSlots.has(slot))releasePerformanceTouch(slot,true);
+                const key=ctl.keyAt(slot),options=ctl.metaAt(slot)?.options||[];
+                const current=Math.max(0,options.indexOf(String(ctl.state.values[key])));
+                if(delta&&current>=0){ctl.commitEnum(key,Math.max(0,Math.min(options.length-1,current+delta)));ctl.revalue();markUiStateDirty();approachTouched(lanePort);}
+                return;
+            }
+            if(approachControl){
+                if(delta){lanePort.performanceSet('approach_control_'+approachControl[1],delta>0?'LatchOn':'LatchOff');approachTouched(lanePort);markUiStateDirty();touchPaintPending=true;}
+                return;
+            }""")
     source = replace_once(source,'            const namedControl = /^motion_control_', '''            const approachKnob=/^approach_bank_(\\d+)$/.exec(key);
             if(approachKnob){
+                if(appState.shiftHeld)return;
                 const touchKey='approach_touch_'+approachKnob[1], touchedAt=Date.now();
                 lanePort.performanceSet(touchKey,'Down');approachTouched(lanePort);markUiStateDirty();laneTouchSlots.add(slot);
-                ownPerformanceTouch(slot,()=>{
-                    laneTouchSlots.delete(slot);lanePort.performanceSet(touchKey,'Up,'+Math.max(0,Date.now()-touchedAt));touchPaintPending=true;
+                ownPerformanceTouch(slot,(cancel=false)=>{
+                    laneTouchSlots.delete(slot);lanePort.performanceSet(touchKey,cancel?'Cancel':'Up,'+Math.max(0,Date.now()-touchedAt));touchPaintPending=true;
                     touchReadOnly=true;try{ctl.onKnobTouch(slot,false);}finally{touchReadOnly=false;}
                 });
                 return;

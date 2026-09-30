@@ -17,9 +17,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 881b7fc9ae4290622f0eb6f2c341c9db28be40ef
-  HB_REF: 5ec3a25f42120b6cf035882373b8ac05f1e2956f
-  HB_MOVY_VERSION: 0.34.1-hbclean.129
-  HB_MOVY_TAG: v0.34.1-hbclean.129
+  HB_REF: 559d4393614a43a6760039917b599933badfd1fc
+  HB_MOVY_VERSION: 0.34.1-hbclean.130
+  HB_MOVY_TAG: v0.34.1-hbclean.130
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -389,7 +389,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Fresh-set render channels repeat 1, 2, 3, 4 across all sixteen tracks. Saved routing choices remain unchanged. Native track colors retry after entry/resume to pick up delayed saves, and motif displays use synced colors. Receive defaults to Off, input scale to Major, follower inversion to Played Top Note, conductor inversion to Auto, and arp order to Shuffle. Uses HarmonyBus 0.2.218 with travelled Scale Degree chord roots."
+              --notes "Per-operation Perform 2 latch turns and Shift-turn assignments, finite overlap sequences, no separate Perf Latch panel, Harm Perform panels at the end, layout-aware amber selections, and full-brightness rendered play colors. Requires HarmonyBus 0.2.221."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

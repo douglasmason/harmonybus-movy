@@ -360,12 +360,11 @@ export function harmonyPadPlaying(track: number, index: number): boolean {
     return ((snapshot!.playPads! >>> index) & 1) !== 0;
 }
 
-/** Source and final output must coincide for the solid play highlight. */
+/** Every sounding output uses the configured solid play highlight. */
 export function harmonyPlaybackColor(background: number, track: number, index: number, input: boolean): number {
     const play = harmonyPlayColor(track);
     if (play === null) return background;
     if (!hasHarmonyPlayback(track)) return input ? play : background;
     if (!harmonyPadPlaying(track, index)) return background;
-    // Dim the play color against black; output-only never inherits harmony colors.
-    return input ? play : paletteMix(0, play, 0, 1 / 3, 0);
+    return play;
 }

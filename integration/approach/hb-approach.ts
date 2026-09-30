@@ -64,9 +64,9 @@ export function approachLight(slot: number, state: number[], held = false): [num
     if(slot<0||slot>=16)return [0,0,ANIM_NONE];
     const down=held||!!((state[3]||0)&(1<<slot));
     const active=!!state[6]&&!!((state[5]||0)&(1<<slot));
-    const selected=state.length>=12?state.slice(9,12).includes(slot):slot===state[7];
+    const selected=keyboardState.layout===3&&state.length>=12?state.slice(9,12).includes(slot):slot===state[7];
     if(down)return [120,120,ANIM_NONE];
-    if(active)return state[8]?[selected?37:124,120,ANIM_PULSE_SLOW]:[120,120,ANIM_NONE];
+    if(active)return state[8]?[124,120,ANIM_PULSE_SLOW]:[120,120,ANIM_NONE];
     const color=selected?37:0;
     return [color,color,ANIM_NONE];
 }
@@ -93,11 +93,11 @@ export function approachPanels(hierarchy: any, mode: number): void {
     if(mode!==2)return;
     const levels=hierarchy.levels;
     const panel=(name:string,keys:string[],params:any[])=>({name,knobs:keys,params});
+    const links: {level:string}[]=[];
     for(let bank=0;bank<2;bank++){
         const params=Array.from({length:8},(_,index)=>({key:'approach_bank_'+(bank*8+index+1),name:'Slot '+(bank*8+index+1),type:'enum',options_as_string:true,options:BANK_CHOICES,default:'Stock: '+APPROACH_MOTIFS[bank*8+index]}));
-        levels['approach_bank_'+bank]=panel('Perform 2 · '+(bank*8+1)+'–'+(bank*8+8),params.map(parameter=>parameter.key),params);
+        levels['approach_bank_'+bank]=panel('Harm Perform '+(bank+1),params.map(parameter=>parameter.key),params);
+        links.push({level:'approach_bank_'+bank});
     }
-    const settings=[{key:'approach_latch',name:'Performance Latch',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'}];
-    levels.approach_settings=panel('Perform 2 Settings',['approach_latch'],settings);
-    levels.root.params.unshift({level:'approach_bank_0'},{level:'approach_bank_1'},{level:'approach_settings'});
+    levels.root.params.push(...links);
 }
