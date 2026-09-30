@@ -3,8 +3,9 @@ from pathlib import Path
 from patch_responsive_persistence import replace_once
 
 def patch_knob_latch(root: Path) -> None:
-    p=root/'src/renderer/hb-performance.ts'
-    s=p.read_text().replace('    modern?: boolean;', '    knob?: boolean; modern?: boolean;')
+    """Separate latch gestures from Shift edits on all operation-touch knobs."""
+    p: Path=root/'src/renderer/hb-performance.ts'
+    s: str=p.read_text().replace('    modern?: boolean;', '    knob?: boolean; modern?: boolean;')
     s=replace_once(s,'wasPersistent:binding[6]===1, lane, refs: 0','wasPersistent:binding[6]===1, knob:valid && binding.length>=8, lane, refs: 0')
     s=replace_once(s,"action.modern ? 'Touch,'+action.started : 'Touch'","action.knob ? 'Knob,'+action.started : action.modern ? 'Touch,'+action.started : 'Touch'")
     s=replace_once(s,'const pair=!!previous &&', 'const pair=!action.knob && !!previous &&')
@@ -36,11 +37,13 @@ export function setHbLaneLatch(owner: PerformancePort, lane: number, on: boolean
     s=replace_once(s,'        knobTurn: (slot: number, delta: number) => {','''        knobTurn: (slot: number, delta: number) => {
             const operationKey=ctl.keyAt(slot);
             const fixedLane=/^motion_control_(\\d+)$/.exec(operationKey);
-            if(fixedLane || /^follow_touch_[1-9]$/.test(operationKey)){
+            if(!appState.shiftHeld && (fixedLane || /^follow_touch_[1-9]$/.test(operationKey))){
                 if(!delta)return;
                 const lane=fixedLane?Number(fixedLane[1])-1:Math.max(1,Math.min(16,Number(lanePort.performanceGet(operationKey))||1))-1;
                 setHbLaneLatch(lanePort,lane,delta>0);
                 touchPaintPending=true;
                 return;
             }''')
+    s=replace_once(s, "            if (namedControl) {", "            if (namedControl) {\n                if(appState.shiftHeld)return;")
+    s=replace_once(s, "            if (/^follow_touch_[1-9]$/.test(key)) {", "            if (/^follow_touch_[1-9]$/.test(key)) {\n                if(appState.shiftHeld)return;")
     p.write_text(s)

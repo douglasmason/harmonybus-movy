@@ -929,3 +929,32 @@ console.log('Motif, Render Rhythm and arp-anchor controls are reachable through 
     } finally {Date.now=clock;}
 }
 console.log('Fixed operation knobs: separate tap protocol, momentary hold, directional latch, captured release across panels pass');
+
+// Shift preserves the ordinary editing function of every operation-touch knob.
+{
+    const {appState}=await import('../dist/esm/app/state.js');
+    for(const key of ['motion_control_1','motion_control_16','motion_control_33','motion_control_37','follow_touch_1']){
+        if(key==='follow_touch_1'){
+            // Older HB exposes assignable Follow Touch controls. Exercise that
+            // compatibility route with its real legacy metadata contract.
+            const parameter={key,name:'Touch 1',type:'enum',options_as_string:true,options:Array.from({length:16},(_,index)=>String(index+1)),default:'1'};
+            module.capabilities.chain_params.push(parameter);
+            const level=module.capabilities.ui_hierarchy.levels.follower_touch;
+            level.knobs[0]=key;level.params[0]=parameter;page.reload();
+        }
+        const slot=focusKey(key);
+        const options=page.ctl.metaAt(slot)?.options;
+        values.set(key,options?.[0]??'0');page.ctl.revalue();
+        const before=writes.length;
+        appState.shiftHeld=true;page.knobTouch(slot,true);page.knobTurn(slot,1);page.knobTouch(slot,false);appState.shiftHeld=false;
+        const edits=writes.slice(before);
+        assert(edits.some(([name])=>name==='midi_fx1:'+key),key+': Shift edits its normal value');
+        assert(!edits.some(([name])=>name.includes('motion_gesture_')),key+': Shift does not trigger or latch');
+        page.knobTouch(slot,true);const started=writes.length;
+        appState.shiftHeld=true;page.knobTurn(slot,-1);page.knobTouch(slot,false);appState.shiftHeld=false;
+        const cancelled=writes.slice(started);
+        assert(cancelled.some(([name,value])=>name.includes('motion_gesture_')&&value==='Cancel'),key+': Shift after touch cancels the pending gesture');
+        assert(!cancelled.some(([,value])=>value==='LatchOn'||value==='LatchOff'),key+': editing does not change the latch');
+    }
+}
+console.log('Shift edits: lane amounts, fixed modes, Follow Touch mapping, both touch orders and no accidental trigger/latch pass');
