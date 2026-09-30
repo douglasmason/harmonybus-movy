@@ -929,3 +929,30 @@ console.log('Motif, Render Rhythm and arp-anchor controls are reachable through 
     } finally {Date.now=clock;}
 }
 console.log('Fixed operation knobs: separate tap protocol, momentary hold, directional latch, captured release across panels pass');
+
+// Shift edits fixed lanes' operations and named controls' normal values.
+{
+    const {appState}=await import('../dist/esm/app/state.js');
+    for(const lane of [1,8,9,16,33,37]){
+        const key='motion_control_'+lane, editKey=lane<=16?'motion_operation_'+lane:key;
+        values.set('motion_gesture_binding_'+lane,'1,1,3,0,350,0,0,1');
+        const slot=focusKey(key);
+        const options=lane<=16?page.ctl.state.metaIndex.get('motion_operation').options:page.ctl.metaAt(slot)?.options;
+        values.set(editKey,options?.[0]??'0');page.ctl.revalue();
+        const before=writes.length;
+        appState.shiftHeld=true;page.knobTouch(slot,true);page.knobTurn(slot,1);page.knobTouch(slot,false);appState.shiftHeld=false;
+        const edits=writes.slice(before);
+        assert(edits.some(([name])=>name==='midi_fx1:'+editKey),key+': Shift edits the fixed lane operation or named value');
+        assert(!edits.some(([name])=>name.includes('motion_gesture_')||name==='midi_fx1:motion_lane'||name.includes('follow_touch_')),key+': Shift never triggers or remaps lanes');
+        page.knobTouch(slot,true);const started=writes.length;
+        appState.shiftHeld=true;page.knobTurn(slot,-1);page.knobTouch(slot,false);appState.shiftHeld=false;
+        assert(writes.slice(started).some(([name,value])=>name.includes('motion_gesture_')&&value==='Cancel'),key+': Shift after touch cancels an unlatched gesture');
+        values.set('motion_gesture_binding_'+lane,'1,1,3,0,350,1,1,1');
+        page.knobTouch(slot,true);const latchedStart=writes.length;
+        appState.shiftHeld=true;page.knobTurn(slot,1);page.knobTouch(slot,false);appState.shiftHeld=false;
+        const latched=writes.slice(latchedStart);
+        assert(latched.some(([name,value])=>name.includes('motion_gesture_')&&value.startsWith('Up,')),key+': Shift releases an already-latched touch without cancelling its latch');
+        assert(!latched.some(([,value])=>['Cancel','LatchOn','LatchOff'].includes(value)),key+': saved latch remains unchanged');
+    }
+}
+console.log('Shift edits: fixed lane operations, named modes, both touch orders, persistent latch preservation and no lane remapping pass');

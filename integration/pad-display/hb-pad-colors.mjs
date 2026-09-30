@@ -535,10 +535,10 @@ console.log('Real Schwung overtake queue: all 32 harmony colors reach the device
         mask=0;
         noteOff(68,68);paint();assert.notEqual(displayed.get(68),11,'Release clears input while recorded source remains active');
         mask=1;paint();assert.equal(displayed.get(68),11,'Recorded input plus rendered note gives solid green');
-        mask=1<<4;paint();assert.notEqual(displayed.get(72),11);assert.notEqual(displayed.get(72),resting[4],'Rendered note overrides background');
+        mask=1<<4;paint();assert.equal(displayed.get(72),11);assert.notEqual(displayed.get(72),resting[4],'Rendered note overrides background');
         const dimmed=[5,9,13].map(background=>harmonyPlaybackColor(background,0,4,false));
-        assert.equal(new Set(dimmed).size,1,'Red, orange and yellow all become the same dim green');
-        assert(dimmed.every(color=>color!==11&&color!==0),'Output-only uses a visible dim green');
+        assert.equal(new Set(dimmed).size,1,'Red, orange and yellow all become the same solid green');
+        assert(dimmed.every(color=>color===11),'Output-only uses regular green');
         portFor(0).getParam=()=>base.replace('playcolor1,3','playcolor1,11')+'|playpads1,'+mask;
         paint();assert.notEqual(displayed.get(72),11,'Play Color Off still disables output overlay');
         assert.equal(harmonyPadPlaying(1,4),false,'Output is track-local');

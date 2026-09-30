@@ -78,7 +78,16 @@ try {
     assert(writes.some(([,key,value])=>key==='midi_fx1:approach_touch_1'&&value==='Down'));
     assert(writes.some(([,key,value])=>key==='midi_fx1:approach_touch_2'&&value==='Down'));
     page.knobTurn(0,1);page.knobTouch(0,false);page.knobTouch(1,false);
-    assert(writes.some(([,key])=>key==='midi_fx1:approach_bank_1'));
+    assert(writes.some(([,key,value])=>key==='midi_fx1:approach_control_1'&&value==='LatchOn'));
+    assert(!has(page,'approach_latch'));
+    assert(order('approach_bank_1')>order('monitor_status'));
+    page.knobTurn(0,-1);assert.equal(writes.at(-1)[2],'LatchOff');
+    const beforeEdit=writes.length;
+    appState.shiftHeld=true;page.knobTouch(0,true);page.knobTurn(0,1);page.knobTouch(0,false);appState.shiftHeld=false;
+    assert(writes.slice(beforeEdit).some(([,key])=>key==='midi_fx1:approach_bank_1'),'Shift-turn edits the assignment');
+    assert(!writes.slice(beforeEdit).some(([,key])=>/approach_touch_|approach_control_/.test(key)),'Shift editing does not trigger or latch');
+    page.knobTouch(0,true);appState.shiftHeld=true;page.knobTurn(0,-1);page.knobTouch(0,false);appState.shiftHeld=false;
+    assert(writes.some(([,key,value])=>key==='midi_fx1:approach_touch_1'&&value==='Cancel'),'Shift after touch cancels the trigger');
     const owner=hbPerformancePage();assert(owner);
     hbPerformanceStep([0x90,16,100],owner);hbPerformanceStep([0x80,16,0],owner);
     assert(writes.some(([,key,value])=>key==='midi_fx1:approach_step_touch_1'&&value==='Down'));
@@ -153,10 +162,12 @@ console.log('Knob LED ownership: generic values yield to performance and restore
     const state=[1,0,1,0,-1,1,1,2,0,2,4,4];
     assert.deepEqual(approachLight(0,state),[120,120,ANIM_NONE]);
     state[8]=1;assert.deepEqual(approachLight(0,state),[124,120,ANIM_PULSE_SLOW]);
-    state[9]=0;assert.deepEqual(approachLight(0,state),[37,120,ANIM_PULSE_SLOW],'Selected latch pulses white over amber');
+    state[9]=0;assert.deepEqual(approachLight(0,state),[124,120,ANIM_PULSE_SLOW],'Selected latch pulses white');
     state[9]=2;
     state[3]=1;assert.deepEqual(approachLight(0,state),[120,120,ANIM_NONE]);
     assert.deepEqual(approachLight(1,state),[0,0,ANIM_NONE]);
-    assert.deepEqual(approachLight(2,state),[37,37,ANIM_NONE]);assert.deepEqual(approachLight(4,state),[37,37,ANIM_NONE]);
+    const {keyboardState}=await import('../dist/esm/keyboard/state.js');
+    keyboardState.layout=0;assert.deepEqual(approachLight(2,state),[37,37,ANIM_NONE]);assert.deepEqual(approachLight(4,state),[0,0,ANIM_NONE]);
+    keyboardState.layout=3;assert.deepEqual(approachLight(4,state),[37,37,ANIM_NONE]);keyboardState.layout=0;
 }
 console.log('Approach lights: dark idle, solid white trigger/hold, smooth white latch, amber for every row assignment');
