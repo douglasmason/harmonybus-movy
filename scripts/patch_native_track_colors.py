@@ -36,3 +36,7 @@ export function trackColor(track: number): number {''')
         source = source.replace('TRACK_COLOR['+index+']', 'TRACK_COLOR[('+index+') & 3]')
         source = source.replace('TRACK_COLOR_DIM['+index+']', 'TRACK_COLOR_DIM[('+index+') & 3]')
     path.write_text(source)
+
+    path = root / 'browser-test/app-loop.mjs'
+    source = path.read_text().replace('TRACK_COLOR[i]', 'TRACK_COLOR[i & 3]')
+    path.write_text(source)
