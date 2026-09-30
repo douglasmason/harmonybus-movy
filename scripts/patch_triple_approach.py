@@ -17,7 +17,7 @@ def patch_triple_approach(root: Path) -> None:
     source = source.replace('    if (index < 0 || index >= 32 || ![1,3].includes(index >> 3)', '    if(keyboardState.layout===3){const map=padMapFor(track);return index>=8&&index<32&&map[index%8]>=0?map[index%8]:-1;}\n    if (index < 0 || index >= 32 || ![1,3].includes(index >> 3)')
     source = source.replace('export function pianoApproachIdentity(target: number): number {\n    return', 'export function approachRowCode(index: number): number {return keyboardState.layout===3?index>>3:0;}\nexport function pianoApproachIdentity(target: number, row = 0): number {\n    if(row)return (target+32*row)%128;\n    return')
     source = source.replace('const identity = pianoApproachIdentity(target);', 'const identity = pianoApproachIdentity(target,approachRowCode(index));')
-    source = source.replace("port.setParam('midi_fx1:pad_preview_inputs', request + suffix);", "const rows=keyboardState.layout===3&&suffix?':'+targets.map((target,index)=>target>=0?approachRowCode(index):0).join(''):'';\n    port.setParam('midi_fx1:pad_preview_inputs', request + suffix + rows);")
+    source = source.replace("port.setParam('midi_fx1:pad_preview_inputs', request + suffix);", "const rows=keyboardState.layout===3&&suffix?':'+targets.map((target,index)=>target>=0?approachRowCode(index):0).join(''):'';\n    port.setParam('midi_fx1:pad_preview_inputs', request + suffix + rows + ';' + (keyboardState.layout===2||keyboardState.layout===3?'1':'0'));")
     path.write_text(source)
     path = root / 'src/seq/pads.ts'
     source = path.read_text().replace('import { pianoApproachTarget, pianoApproachIdentity,', 'import { approachRowCode, pianoApproachTarget, pianoApproachIdentity,').replace('pianoApproachIdentity(target);', 'pianoApproachIdentity(target,approachRowCode(index));')
@@ -54,6 +54,9 @@ fn alias_valid(word:u64)->bool {if (word>>2)&3==3 {matches!(alias_shift(word),-9
         source=path.read_text().replace('"Piano","Approach"','"Piano","Approach","Triple Approach"').replace('"Inline","Approach"','"Inline","Approach","Triple Approach"').replace("eq('layout clamped', keyboardState.layout, 2);", "eq('layout clamped', keyboardState.layout, 3);")
         path.write_text(source)
 
+    path=root/'browser-test/hb-pad-colors.mjs'
+    source=path.read_text().replace("assert.equal(key,'midi_fx1:pad_preview_inputs');request=value;", "assert.equal(key,'midi_fx1:pad_preview_inputs');request=value.replace(/;[01]$/, '');")
+    path.write_text(source)
     path=root/'engine/crates/seq-core/src/recorded_actions.rs'
     path.write_text(path.read_text()+'''
 #[cfg(test)] mod triple_alias_tests {

@@ -546,3 +546,20 @@ console.log('Real Schwung overtake queue: all 32 harmony colors reach the device
     } finally {seqState.activeNotes.fill(0);globalThis.move_midi_internal_send=send;globalThis.setLED=set;}
 }
 console.log('Rendered play overlay: source/output separation, chord/arp changes, release, pad 32, track isolation and Off pass');
+
+// Dedicated layouts opt into approach routing even when the legacy travel gate is off.
+{
+    let enabled=false, payload='';
+    const { pianoApproachTarget }=await import('../dist/esm/seq/pads.js');
+    portFor(0).setParam=(key,value)=>{if(key==='midi_fx1:pad_preview_inputs'){payload=value;enabled=value.endsWith(';1');}return true;};
+    portFor(0).getParam=()=>`0,0,2741,0,0,6,3,3,2,0|input1,0,1,1,2741,145|piano1,${Number(enabled)}`;
+    keyboardState.mode=1;keyboardState.rootPc=0;keyboardState.scale=0;keyboardState.octave[0]=4;
+    for(const layout of [2,3,2]){
+        keyboardState.layout=layout;refreshHarmonyPads(0,testTime+=100);refreshHarmonyPads(0,testTime+=100);
+        assert(payload.endsWith(';1'));assert.equal(pianoApproachTarget(0,8),48);
+        if(layout===3)for(const row of [1,2,3])for(let column=0;column<8;column++)assert.equal(pianoApproachTarget(0,row*8+column),padMapFor(0)[column]);
+    }
+    keyboardState.layout=1;keyboardState.mode=0;refreshHarmonyPads(0,testTime+=100);
+    assert(payload.endsWith(';0'));assert.equal(pianoApproachTarget(0,8),-1,'Ordinary piano retains its legacy gate');
+}
+console.log('Dedicated approach layouts: in-band opt-in, every row routed, and ordinary piano opt-out pass');

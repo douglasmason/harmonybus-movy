@@ -18,7 +18,7 @@ def patch_approach_mode(root: Path) -> None:
     source = source.replace("    if (flagValue('hbsteprow') === 2) return false;", "    if (flagValue('hbsteprow') === 2) return approachStep(data,owner);")
     source = replace_once(source,'    syncHbPerformanceMode();\n    const status', '    syncHbPerformanceMode();\n    if(approachStep(data,null))return true;\n    const status')
     source = source.replace('    if (paintMotif(owner)) return true;', "    if (paintMotif(owner)) return true;\n    if(flagValue('hbsteprow')===2)return paintApproach(owner);")
-    source = source.replace('    const assignments=keys.map', '    if(paintApproachKnobs(owner,keys))return;\n    const assignments=keys.map')
+    source = source.replace('    const assignments=keys.map', '    if(paintApproachKnobs(owner,keys)){operationKnobMask=255;return;}\n    const assignments=keys.map')
     source = source.replace(" : 'STEPS / NO HB',1);", " : 'STEPS / NO HB',1);\n    if(active && flagValue('hbsteprow')===2)drawApproachRows(hbPerformancePage()!);")
     path.write_text(source)
     path = root / 'src/renderer/hb-step-panels.ts'
@@ -42,6 +42,17 @@ def patch_approach_mode(root: Path) -> None:
                 return;
             }
             const namedControl = /^motion_control_''')
+    path.write_text(source)
+    path=root/'src/renderer/schwung-page.ts'
+    source=path.read_text().replace('    readonly ready: boolean;', '    readonly ready: boolean;\n    readonly knobLEDMask: number;')
+    source=source.replace('        get ready() { return loaded; },', "        get ready() { return loaded; },\n        get knobLEDMask() { return hostedModuleId==='harmonybus'?keysOf().reduce((mask,key,index)=>mask|(/^approach_bank_|^motion_control_|^follow_touch_/.test(key??'')?1<<index:0),0):0; },")
+    path.write_text(source)
+    path=root/'src/renderer/knob-leds.ts'
+    source=path.read_text().replace('updateKnobLEDs(vm: ViewModel)', 'updateKnobLEDs(vm: ViewModel, ownedMask = 0)')
+    source=source.replace('            const pvm   = vm.rows[row][col];', '            if(ownedMask&(1<<physK)){lastKnobColor[physK]=-1;continue;}\n            const pvm   = vm.rows[row][col];')
+    path.write_text(source)
+    path=root/'src/app/tick.ts'
+    source=path.read_text().replace('            updateKnobLEDs(vm);\n', '            updateKnobLEDs(vm,[VIEW_KNOBS,VIEW_CHAIN].includes(appState.currentView)&&!stepPageState.selected?touchPage?.knobLEDMask??0:0);\n')
     path.write_text(source)
     path=root/'build/browser.mjs'
     source=path.read_text().replace("resolve(root, 'src/renderer/hb-motif.ts'),", "resolve(root, 'src/renderer/hb-motif.ts'),\n        resolve(root, 'src/renderer/hb-approach.ts'),")

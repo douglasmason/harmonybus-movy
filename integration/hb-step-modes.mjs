@@ -132,3 +132,17 @@ console.log('Triple Approach geometry: eight scale targets and three paired appr
     drawApproachRows(mock);
 }
 console.log('FIFO row display: physical top-down 3-2-1 order and newest assignment pass');
+
+// Generic value lights must not repaint LEDs owned by performance controls.
+{
+    const { updateKnobLEDs, resetKnobLedCache }=await import('../dist/esm/renderer/knob-leds.js');
+    const { ledFrameReset }=await import('../dist/esm/seq/led-cache.js');
+    const sends=[];const note=globalThis.setLED,button=globalThis.setButtonLED;
+    globalThis.setLED=(...args)=>sends.push(args);globalThis.setButtonLED=(...args)=>sends.push(args);
+    try{
+        const vm={rows:Array.from({length:2},()=>Array.from({length:4},()=>({normalizedValue:1})))};
+        resetKnobLedCache();ledFrameReset();updateKnobLEDs(vm,255);assert.equal(sends.length,0);
+        ledFrameReset();updateKnobLEDs(vm,0);assert.equal(sends.length,16,'Leaving performance restores generic value LEDs');
+    }finally{globalThis.setLED=note;globalThis.setButtonLED=button;}
+}
+console.log('Knob LED ownership: generic values yield to performance and restore on exit');

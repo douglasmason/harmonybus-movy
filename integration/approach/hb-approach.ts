@@ -72,6 +72,7 @@ export function paintApproach(port: PerformancePort | null): boolean {
 }
 export function paintApproachKnobs(port: PerformancePort, keys: (string | null)[]): boolean {
     if(!keys.some(key=>/^approach_bank_/.test(key ?? '')))return false;
+    refreshRows(port);
     const down=status[3]||0;
     for(let knob=0;knob<8;knob++){
         const slot=Number((keys[knob]??'').split('_').pop())-1;const color=down&(1<<slot)?120:status[6]&&((status[5]||0)&(1<<slot))?13:slot===status[7]?37:22;
