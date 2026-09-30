@@ -1,4 +1,6 @@
 import type { PerformancePort } from './hb-performance.js';
+import { fontPrint, fontWidth } from '../font/index.js';
+import { keyboardState } from '../keyboard/state.js';
 import { appState } from '../app/state.js';
 import { cachedSetAnimLED } from '../seq/led-cache.js';
 import { ANIM_NONE } from '../seq/colors.js';
@@ -10,10 +12,41 @@ export const BANK_CHOICES=[...APPROACH_MOTIFS.map((name,index)=>index<19?'Stock:
 let owner: PerformancePort | null = null;
 const releases = new Map<number,()=>void>();
 let statusAt = -Infinity, status: number[] = [];
+let rowView: string[] = [], lastRowView = '', rowRevealUntil = 0;
+function refreshRows(port: PerformancePort): void {
+    const now=Date.now();
+    if(now>=statusAt&&now-statusAt<50)return;
+    status=port.performanceGet('approach_row_status').split(',').map(Number);statusAt=now;
+    const view=port.performanceGet('approach_rows_view');
+    if(view!==lastRowView){lastRowView=view;rowView=view.split('|');rowRevealUntil=now+1800;appState.dirty=true;}
+}
+export function approachTouched(port: PerformancePort): void {
+    statusAt=-Infinity;refreshRows(port);rowRevealUntil=Date.now()+1800;appState.dirty=true;
+}
+export function approachRowLines(): string[] {
+    return [2,1,0].map(row=>{const item=rowView[row]||'';const comma=item.indexOf(',');const slot=comma>=0?item.slice(0,comma):'?';const name=comma>=0?item.slice(comma+1).replace(/^Stock: /,''):'';return (row+1)+'  '+slot+': '+name;});
+}
+export function drawApproachRows(port: PerformancePort): void {
+    refreshRows(port);
+    if(keyboardState.layout!==3)return;
+    if(Date.now()>=rowRevealUntil&&!(status[3]||0)){
+        const slots=[status[11],status[10],status[9]].map(n=>Number.isFinite(n)?n+1:'?');
+        fill_rect(0,58,128,6,0);fontPrint(1,58,'3:'+slots[0]+' > 2:'+slots[1]+' > 1:'+slots[2]+' > T',1);return;
+    }
+    fill_rect(0,10,128,47,0);
+    const lines=approachRowLines();
+    for(let index=0;index<3;index++){
+        const newest=index===2,y=12+index*11;let label=lines[index];
+        while(fontWidth(label)>122&&label.length)label=label.slice(0,-1);
+        if(newest)fill_rect(0,y-1,128,9,1);
+        fontPrint(2,y,label,newest?0:1);
+    }
+    fontPrint(2,47,'v TARGET  /  1 NEWEST',1);
+}
 export function syncApproachOwner(next: PerformancePort | null): void {
     if (owner?.performanceTrack === next?.performanceTrack && !!owner === !!next) return;
     owner?.performanceSet('approach_mode_active','0');
-    owner=next;owner?.performanceSet('approach_mode_active','1');statusAt=-Infinity;status=[];
+    owner=next;owner?.performanceSet('approach_mode_active','1');statusAt=-Infinity;status=[];rowView=[];lastRowView='';rowRevealUntil=0;
 }
 export function approachStep(data: number[], port: PerformancePort | null): boolean {
     const step=data[1]-16,type=data[0]&0xf0;
@@ -23,14 +56,14 @@ export function approachStep(data: number[], port: PerformancePort | null): bool
     if(!port)return false;
     if(down&&!releases.has(step)){
         const started=Date.now();releases.set(step,()=>port.performanceSet('approach_step_touch_'+(step+1),'Up,'+Math.max(0,Date.now()-started)));port.performanceSet('approach_step_touch_'+(step+1),'Down');
-        statusAt=-Infinity;seqToast('Bank 2 · '+(step+1));appState.dirty=true;
+        approachTouched(port);if(keyboardState.layout!==3)seqToast('Bank 2 · '+(step+1));
     }
     return true;
 }
 export function paintApproach(port: PerformancePort | null): boolean {
     if(!port)return false;
-    const now=Date.now();
-    if(now<statusAt||now-statusAt>=50){status=port.performanceGet('approach_row_status').split(',').map(Number);statusAt=now;}
+    refreshRows(port);
+    if(rowRevealUntil>0&&Date.now()>=rowRevealUntil){rowRevealUntil=0;appState.dirty=true;}
     for(let step=0;step<16;step++){
         const color=releases.has(step)?120:status[6]&&((status[5]||0)&(1<<step))?13:step===status[7]?37:22;
         cachedSetAnimLED(16+step,color,color,ANIM_NONE);
@@ -51,7 +84,7 @@ export function approachPanels(hierarchy: any, mode: number): void {
     const levels=hierarchy.levels;
     const panel=(name:string,keys:string[],params:any[])=>({name,knobs:keys,params});
     for(let bank=0;bank<2;bank++){
-        const params=Array.from({length:8},(_,index)=>({key:'approach_bank_'+(bank*8+index+1),name:'Slot '+(bank*8+index+1),type:'enum',options_as_string:true,options:BANK_CHOICES,default:'Stock: '+(bank?APPROACH_MOTIFS[8+index]:TRIPLE_MOTIFS[index])}));
+        const params=Array.from({length:8},(_,index)=>({key:'approach_bank_'+(bank*8+index+1),name:'Slot '+(bank*8+index+1),type:'enum',options_as_string:true,options:BANK_CHOICES,default:'Stock: '+APPROACH_MOTIFS[bank*8+index]}));
         levels['approach_bank_'+bank]=panel('Perform 2 · '+(bank*8+1)+'–'+(bank*8+8),params.map(parameter=>parameter.key),params);
     }
     const settings=[{key:'approach_latch',name:'Performance Latch',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'}];

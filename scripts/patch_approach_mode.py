@@ -8,7 +8,7 @@ def patch_approach_mode(root: Path) -> None:
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/approach'
     (root / 'src/renderer/hb-approach.ts').write_text((assets / 'hb-approach.ts').read_text())
     path: Path = root / 'src/renderer/hb-performance.ts'
-    source: str = "import { syncApproachOwner, approachStep, paintApproach, paintApproachKnobs } from './hb-approach.js';\n" + path.read_text()
+    source: str = "import { syncApproachOwner, approachStep, paintApproach, paintApproachKnobs, drawApproachRows } from './hb-approach.js';\n" + path.read_text()
     source = source.replace('Math.min(1, Math.round(value))','Math.min(2, Math.round(value))').replace("(flagValue('hbsteprow') + 1) % 2", "(flagValue('hbsteprow') + 1) % 3")
     source = source.replace("const key = next === 1 ? 'motion_control_1' : 'version';", "const key = next === 2 ? 'approach_bank_1' : next === 1 ? 'motion_control_1' : 'version';")
     source = source.replace("['Steps', 'Perform'][next]", "['Steps', 'Perform', 'Approach'][next]").replace("? 'MOTIFS T' : 'HB OPS T'", "? 'APPROACH T' : 'HB OPS T'")
@@ -19,6 +19,7 @@ def patch_approach_mode(root: Path) -> None:
     source = replace_once(source,'    syncHbPerformanceMode();\n    const status', '    syncHbPerformanceMode();\n    if(approachStep(data,null))return true;\n    const status')
     source = source.replace('    if (paintMotif(owner)) return true;', "    if (paintMotif(owner)) return true;\n    if(flagValue('hbsteprow')===2)return paintApproach(owner);")
     source = source.replace('    const assignments=keys.map', '    if(paintApproachKnobs(owner,keys))return;\n    const assignments=keys.map')
+    source = source.replace(" : 'STEPS / NO HB',1);", " : 'STEPS / NO HB',1);\n    if(active && flagValue('hbsteprow')===2)drawApproachRows(hbPerformancePage()!);")
     path.write_text(source)
     path = root / 'src/renderer/hb-step-panels.ts'
     source = "import { approachPanels } from './hb-approach.js';\n" + path.read_text()
@@ -28,12 +29,12 @@ def patch_approach_mode(root: Path) -> None:
     source = path.read_text().replace("labels: ['STEPS','PERFORM']", "labels: ['STEPS','PERFORM','APPROACH']").replace("min: 0, max: 1, def: 0, uiOnly: true, release: true,\n        hint: 'Copy tap: Steps or Perform.'", "min: 0, max: 2, def: 0, uiOnly: true, release: true,\n        hint: 'Copy tap: Steps, Perform or Approach.'")
     path.write_text(source)
     path = root / 'src/renderer/schwung-page.ts'
-    source = path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
+    source = "import { approachTouched } from './hb-approach.js';\n" + path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
     source = source.replace('            if (laneTouchSlots.has(slot)) {\n                releasePerformanceTouch(slot, true);', "            if (laneTouchSlots.has(slot) && !/^approach_bank_/.test(ctl.keyAt(slot))) {\n                releasePerformanceTouch(slot, true);")
     source = replace_once(source,'            const namedControl = /^motion_control_', '''            const approachKnob=/^approach_bank_(\\d+)$/.exec(key);
             if(approachKnob){
                 const touchKey='approach_touch_'+approachKnob[1], touchedAt=Date.now();
-                lanePort.performanceSet(touchKey,'Down');markUiStateDirty();laneTouchSlots.add(slot);
+                lanePort.performanceSet(touchKey,'Down');approachTouched(lanePort);markUiStateDirty();laneTouchSlots.add(slot);
                 ownPerformanceTouch(slot,()=>{
                     laneTouchSlots.delete(slot);lanePort.performanceSet(touchKey,'Up,'+Math.max(0,Date.now()-touchedAt));touchPaintPending=true;
                     touchReadOnly=true;try{ctl.onKnobTouch(slot,false);}finally{touchReadOnly=false;}
@@ -41,6 +42,9 @@ def patch_approach_mode(root: Path) -> None:
                 return;
             }
             const namedControl = /^motion_control_''')
+    path.write_text(source)
+    path=root/'build/browser.mjs'
+    source=path.read_text().replace("resolve(root, 'src/renderer/hb-motif.ts'),", "resolve(root, 'src/renderer/hb-motif.ts'),\n        resolve(root, 'src/renderer/hb-approach.ts'),")
     path.write_text(source)
     path = root / 'engine/crates/seq-core/src/recorded_actions.rs'
     source = path.read_text().replace('8063| (127u64<<13)', '8063| (4095u64<<43) | (127u64<<13)')

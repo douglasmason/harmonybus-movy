@@ -122,3 +122,13 @@ const triple=buildPadMap(MODE_IN_KEY,LAYOUT_TRIPLE_APPROACH,0,60);
 assert.deepEqual(Array.from(triple.slice(0,8)),[60,62,64,65,67,69,71,72]);
 assert(Array.from(triple.slice(8)).every(note=>note===-1),'Three upper rows use explicit approach routing');
 console.log('Triple Approach geometry: eight scale targets and three paired approach rows pass');
+
+// Row display mirrors the hardware: oldest at top (3), newest at bottom (1).
+{
+    const { approachTouched, approachRowLines, drawApproachRows } = await import('../dist/esm/renderer/hb-approach.js');
+    const mock={performanceTrack:0,performanceSet(){},performanceGet(key){return key==='approach_rows_view'?'3,Secondary V|2,Secondary II|1,Secondary VI':'1,0,1,0,-1,0,0,2,0,2,1,0';}};
+    approachTouched(mock);
+    assert.deepEqual(approachRowLines(),['3  1: Secondary VI','2  2: Secondary II','1  3: Secondary V']);
+    drawApproachRows(mock);
+}
+console.log('FIFO row display: physical top-down 3-2-1 order and newest assignment pass');
