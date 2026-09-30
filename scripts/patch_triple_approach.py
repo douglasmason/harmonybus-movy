@@ -41,7 +41,25 @@ def patch_triple_approach(root: Path) -> None:
     path = root / 'engine/crates/seq-core/src/recorded_actions.rs'
     source = path.read_text().replace('(4095u64<<43)', '(4095u64<<43) | (255u64<<55)').replace('(actions[LANES]>>2)&3>2', '!alias_valid(actions[LANES])')
     source = source.replace('(approach&63)>50','(approach&63)>58').replace('(14..=15).contains(&(approach&63))','(approach&63)==14').replace('code in 1..=50u64','code in 1..=58u64').replace('if code==14||code==15','if code==14').replace('[14,15,51,63,64,65]','[14,59,63,64,65]')
+    # Fixed diminished operations retain their exact intent during clip replay.
+    source = source.replace('))>10{return None;}', '))>13{return None;}')
+    source = source.replace('operation(*word)>48', '(operation(*word)>48 && operation(*word)!=51 && operation(*word)!=52)')
+    source = source.replace('(approach&63)>58 || (approach&63)==14', '((approach&63)>58 && (approach&63)!=60)')
+    source = source.replace('(approach&63)<16 && approach>>6!=0', '((approach&63)<16 || (approach&63)==60) && approach>>6!=0')
+    source = source.replace('&& (approach&63)<16{return None;}', '&& ((approach&63)<16 || (approach&63)==60){return None;}')
+    source = source.replace('code in 1..=58u64', 'code in 1..=60u64').replace('if code==14 {continue;}', 'if code==59 {continue;}').replace('if code<16 {1}', 'if code<16 || code==60 {1}').replace('[14,59,63,64,65]', '[59,61,63,64,65]')
     source += '''
+#[cfg(test)] mod fixed_diminished_tests {
+    use super::*;
+    #[test] fn records_fixed_diminished_operations() {
+        for (op,role,code) in [(51u64,12u64,14u64),(52,13,60)] {
+            let mut actions=[0u64;LANES+1];
+            actions[0]=(1u64<<63)|((op&31)<<32)|((op&32)<<46);
+            actions[LANES]=((role&7)<<4)|((role&8)<<5)|(code<<43);
+            assert_eq!(parse(&format!("ra4,{}",payload(60,actions))),Some((60,actions)));
+        }
+    }
+}
 fn alias_shift(word:u64)->i32 {match (word>>2)&3 {1=>-36,2=>36,3=>(word>>55) as u8 as i8 as i32,_=>0}}
 fn alias_valid(word:u64)->bool {if (word>>2)&3==3 {matches!(alias_shift(word),-96|-64|-32|32|64|96)}else{word>>55==0}}
 '''
