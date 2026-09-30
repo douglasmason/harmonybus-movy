@@ -68,10 +68,12 @@ try {
     tap();assert.equal(flagValue('hbsteprow'),2);assert(page.ctl.page.keys.includes('approach_bank_1'));
     assert(has(page,'approach_bank_1'));assert(has(page,'approach_bank_16'));
     assert(!has(page,'motion_control_1'),'Approach bank is independent of Perform');
-    assert.equal(page.ctl.metaAt(0).options.length,55);
+    assert.equal(page.ctl.metaAt(0).options.length,57);
     assert(page.ctl.metaAt(0).options.includes('Stock: vi-ii-V'));
-    assert(page.ctl.metaAt(0).options.includes('Secondary LT'));
+    assert(page.ctl.metaAt(0).options.includes('Connector Below'));
     assert(page.ctl.metaAt(0).options.includes('Secondary VII'));
+    assert(page.ctl.metaAt(0).options.includes('Leading Tone'));
+    assert(page.ctl.metaAt(0).options.includes('Upper Dim'));
     assert(!page.ctl.metaAt(0).options.includes('Scale Above'));
     assert(!page.ctl.metaAt(0).options.includes('Chromatic Below'));
     page.knobTouch(0,true);page.knobTouch(1,true);
