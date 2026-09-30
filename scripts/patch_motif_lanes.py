@@ -83,6 +83,8 @@ function motifLaneLight(button: number): boolean {
         editorPort.performanceSet('motif_close','Close');editorPort=null;editorLane=-1;
         seqLedsInvalidate();appState.dirty=true;return false;
     }''')
+    source = source.replace('C_WHITE, TRACK_COLOR,', 'C_WHITE, trackColor,')
+    source = source.replace('TRACK_COLOR[appState.activeTrack.index]', 'trackColor(appState.activeTrack.index)')
     path.write_text(source)
 
     path = root / 'src/seq/router.ts'

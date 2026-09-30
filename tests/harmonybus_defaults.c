@@ -16,7 +16,7 @@ int main(int argument_count, char **arguments) {
         const int quartet_position = track % 4;
         const int expected_role = track >= 12 ? 3 : quartet_position == 0 ? 0 : 1;
         const int preset = track >= 12 ? 5 + quartet_position : quartet_position + 1;
-        const int expected_channel = track >= 12 ? -1 : quartet_position == 0 ? 2 : quartet_position;
+        const int expected_channel = quartet_position;
         instances[track] = api->create_instance("", NULL);
         assert(instances[track]);
         api->set_param(instances[track], "state", arguments[preset]);
@@ -39,7 +39,8 @@ int main(int argument_count, char **arguments) {
         assert(instances[track]->motion.lanes[18].operation == HB_MO_CHROM_ABOVE);
         assert(instances[track]->motion.lanes[24].operation == HB_MO_TRITONE_II);
         assert(instances[track]->render_channel == expected_channel);
-        assert(instances[track]->source_channel == (track >= 12 ? quartet_position : 0));
+        assert(hb_shared_follower_scale()==1);
+        assert(instances[track]->source_channel == -1);
         assert(g_bus.boundary_buffer_ms == -3);
         assert(instances[track]->quant_timing == 0);
         assert(instances[track]->content_map == (expected_role == 1 ? 1 : 0));

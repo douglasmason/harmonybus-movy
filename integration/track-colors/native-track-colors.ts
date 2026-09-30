@@ -1,3 +1,4 @@
+import { appState } from '../app/state.js';
 import { setNativeTrackColors } from './colors.js';
 import { PAD_PALETTE } from '../keyboard/pad-palette.js';
 
@@ -19,6 +20,9 @@ const NATIVE_GREENS: Readonly<Record<number, readonly [number, number]>> = {
     11: [9, 81],  // yellow-green -> Bright Lime / its dim partner
 };
 let loadedIdentity = '';
+let retryIndex = 0, refreshStartedAt = 0, nextReadAt = Infinity;
+let loadedColors = '';
+const RETRY_DELAYS = [1000, 3000, 8000, 20000];
 
 function nearest(rgb: readonly number[], brightness: number): number {
     let best = 1, distance = Infinity;
@@ -46,14 +50,17 @@ export function songTrackColors(raw: string): [number, number][] | null {
     } catch (_) { return null; }
 }
 
-/** Read only on set changes or return from native UI, never on knob/pad turns. */
+/** Bounded saved-file refresh after set entry/resume, never from knob/pad handlers. */
 export function syncNativeTrackColors(uuid: string, name: string, force = false): void {
     if (!uuid || uuid.startsWith('_') || !/^[A-Za-z0-9_-]+$/.test(uuid)) return;
     const identity = uuid + '\n' + name;
-    if (!force && identity === loadedIdentity) return;
+    const now = Date.now();
     const changedSet = identity !== loadedIdentity;
+    if (!force && !changedSet && now < nextReadAt) return;
+    if (force || changedSet) {retryIndex=0;refreshStartedAt=now;}
+    nextReadAt = retryIndex < RETRY_DELAYS.length ? refreshStartedAt + RETRY_DELAYS[retryIndex++] : Infinity;
     loadedIdentity = identity;
-    if (changedSet) setNativeTrackColors(null);
+    if (changedSet) {setNativeTrackColors(null);loadedColors='';appState.dirty=true;}
     if (typeof host_read_file !== 'function') return;
     const root = '/data/UserData/UserLibrary/Sets/' + uuid;
     const paths = [root + '/Song.abl'];
@@ -62,6 +69,10 @@ export function syncNativeTrackColors(uuid: string, name: string, force = false)
         const raw = host_read_file(path);
         if (!raw) continue;
         const colors = songTrackColors(raw);
-        if (colors) { setNativeTrackColors(colors); return; }
+        if (colors) {
+            const signature = JSON.stringify(colors);
+            if(signature!==loadedColors){setNativeTrackColors(colors);loadedColors=signature;appState.dirty=true;}
+            return;
+        }
     }
 }

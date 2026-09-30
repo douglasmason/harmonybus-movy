@@ -29,6 +29,16 @@ assert.equal(trackColor(12),songTrackColors(saved)[0][0],'Return from native UI 
 saved='{';syncNativeTrackColors('set-a','Example',true);
 assert.equal(trackColor(12),songTrackColors(song([1,2,3,4]))[0][0],'A partial save retains the last valid assignment');
 syncNativeTrackColors('set-b','Missing');
-assert.equal(trackColor(12),TRACK_COLOR[12],'A different set cannot inherit the previous set colors');
+assert.equal(trackColor(12),TRACK_COLOR[0],'A different set cannot inherit the previous set colors');
+// A save that lands after resume is picked up without restarting Movy.
+const realNow=Date.now;let now=realNow();Date.now=()=>now;
+try {
+    saved=song([1,2,3,4]);syncNativeTrackColors('set-c','Example',true);
+    saved=song([10,9,8,11]);now+=1100;syncNativeTrackColors('set-c','Example');
+    assert.equal(trackColor(0),11,'Delayed native save refreshes the visible colors');
+    for(const delay of [2100,5000,12000]){now+=delay;syncNativeTrackColors('set-c','Example');}
+    const settledReads=reads.length;now+=60000;syncNativeTrackColors('set-c','Example');
+    assert.equal(reads.length,settledReads,'Retry window ends; no perpetual file polling');
+} finally {Date.now=realNow;}
 setNativeTrackColors(null);
 console.log('Native track colors: all 25 IDs, bank mapping, dim variants, saved changes, invalid data and no per-tick file reads pass');
