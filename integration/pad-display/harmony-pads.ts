@@ -346,7 +346,9 @@ export function harmonyApproachColor(index: number, track: number, held = false)
         flags & selected ? 1 : 0, mode, period ? beat / period : 0, settings[2],
         resolve(settings[3]), resolve(mode === 0 || mode === 2 ? settings[3] : settings[4]),
         period > 0, undefined, snapshot.bothColor ? resolve(snapshot.bothColor - 1) : undefined);
-    return harmonyPlaybackColor(background, track, index, held);
+    const resting = keyboardState.layout === LAYOUT_APPROACH || keyboardState.layout === 3
+        ? paletteMix(0, background, 0, 1 / 3, 0) : background;
+    return harmonyPlaybackColor(resting, track, index, held);
 }
 
 /** Final output membership is distinct from live and recorded source input. */

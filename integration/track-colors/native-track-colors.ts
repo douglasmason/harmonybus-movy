@@ -2,6 +2,12 @@ import { appState } from '../app/state.js';
 import { setNativeTrackColors } from './colors.js';
 import { PAD_PALETTE } from '../keyboard/pad-palette.js';
 
+// Optional since Schwung 1.6. Older hosts keep the bounded Song.abl fallback.
+declare function host_get_move_info(): {
+    valid: boolean | number;
+    tracks: { colorId: number }[];
+} | null;
+
 // Move Song.abl color IDs are NOT MIDI palette indices. Reference RGB values:
 // https://github.com/charlesvestal/extending-move/blob/main/core/pad_colors.py
 const SONG_RGB: readonly (readonly number[] | null)[] = [null,
@@ -50,17 +56,31 @@ export function songTrackColors(raw: string): [number, number][] | null {
     } catch (_) { return null; }
 }
 
-/** Bounded saved-file refresh after set entry/resume, never from knob/pad handlers. */
+/** Prefer Move's live colors; fall back to bounded saved-file refresh. */
 export function syncNativeTrackColors(uuid: string, name: string, force = false): void {
     if (!uuid || uuid.startsWith('_') || !/^[A-Za-z0-9_-]+$/.test(uuid)) return;
     const identity = uuid + '\n' + name;
     const now = Date.now();
     const changedSet = identity !== loadedIdentity;
+    if (changedSet) {setNativeTrackColors(null);loadedColors='';appState.dirty=true;}
+    try {
+        const info = typeof host_get_move_info === 'function' ? host_get_move_info() : null;
+        if (info && (info.valid === true || info.valid === 1) && Array.isArray(info.tracks)) {
+            const colors = songTrackColors(JSON.stringify({tracks: info.tracks.map(track => ({color: track.colorId}))}));
+            if (colors) {
+                const signature = JSON.stringify(colors);
+                if (signature !== loadedColors) {setNativeTrackColors(colors);loadedColors=signature;appState.dirty=true;}
+                loadedIdentity = identity;
+                // If live data later disappears, allow a fresh bounded fallback.
+                nextReadAt = 0; retryIndex = 0; refreshStartedAt = now;
+                return;
+            }
+        }
+    } catch (_) { /* Missing/temporarily unavailable host data uses the saved file. */ }
     if (!force && !changedSet && now < nextReadAt) return;
     if (force || changedSet) {retryIndex=0;refreshStartedAt=now;}
     nextReadAt = retryIndex < RETRY_DELAYS.length ? refreshStartedAt + RETRY_DELAYS[retryIndex++] : Infinity;
     loadedIdentity = identity;
-    if (changedSet) {setNativeTrackColors(null);loadedColors='';appState.dirty=true;}
     if (typeof host_read_file !== 'function') return;
     const root = '/data/UserData/UserLibrary/Sets/' + uuid;
     const paths = [root + '/Song.abl'];

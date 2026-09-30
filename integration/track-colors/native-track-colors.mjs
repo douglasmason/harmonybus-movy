@@ -41,4 +41,27 @@ try {
     assert.equal(reads.length,settledReads,'Retry window ends; no perpetual file polling');
 } finally {Date.now=realNow;}
 setNativeTrackColors(null);
-console.log('Native track colors: all 25 IDs, bank mapping, dim variants, saved changes, invalid data and no per-tick file reads pass');
+// Live values win over stale saved files and keep following unsaved edits.
+let liveIds = [8,9,10,11];
+globalThis.host_get_move_info = () => ({valid:true,tracks:liveIds.map(colorId=>({colorId}))});
+const beforeLiveReads = reads.length;
+syncNativeTrackColors('set-live','Example');
+assert.equal(trackColor(0),9);
+assert.equal(reads.length,beforeLiveReads,'Valid live data avoids file IO');
+liveIds = [10,8,9,11];
+syncNativeTrackColors('set-live','Example');
+assert.equal(trackColor(0),11,'Unsaved native edits are reflected');
+assert.equal(trackColor(12),11,'Native colors repeat across all banks');
+assert.equal(reads.length,beforeLiveReads);
+saved=song([1,2,3,4]);
+for (const unavailable of [null,{valid:false,tracks:[]},{valid:true,tracks:[{colorId:-1}]}]) {
+    globalThis.host_get_move_info=()=>unavailable;
+    syncNativeTrackColors('set-live','Example',true);
+    assert.equal(trackColor(0),songTrackColors(saved)[0][0],'Invalid live data falls back to saved colors');
+}
+globalThis.host_get_move_info=()=>{throw new Error('host unavailable');};
+syncNativeTrackColors('set-live','Example',true);
+assert.equal(trackColor(0),songTrackColors(saved)[0][0]);
+delete globalThis.host_get_move_info;
+setNativeTrackColors(null);
+console.log('Native track colors: palette, bank mapping, live unsaved edits, older-host fallback and bounded file reads pass');

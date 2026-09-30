@@ -373,10 +373,15 @@ console.log('Piano gaps: opt-in follower capability, exact lower-pad targets, in
     }
     refreshHarmonyPads(0,testTime+=100);
     assert.match(request,/^[0-9a-f]{64}:[0-9a-f]{64}$/);
-    assert.equal(padColor(76,68,0,false),C_LIGHTGREY,'Approach overlapping scale is grey');
-    assert.equal(padColor(77,68,0,false),7,'Current harmony approach uses Current Yellow');
-    assert.equal(padColor(78,68,0,false),127,'Next harmony approach uses Lookahead Red');
-    assert.equal(padColor(79,68,0,false),3,'Shared approach uses Both Orange');
+    const { PAD_PALETTE: approachPalette } = await import('../dist/esm/keyboard/pad-palette.js');
+    for (const layout of [2,3]) {
+        keyboardState.layout=layout;refreshHarmonyPads(0,testTime+=100);
+        for (const [pad,bright] of [[76,C_LIGHTGREY],[77,7],[78,127],[79,3]]) {
+            const dim=padColor(pad,68,0,false);
+            assert(approachPalette[dim].reduce((sum,value)=>sum+value,0)<approachPalette[bright].reduce((sum,value)=>sum+value,0),'Idle approach rows are dimmer in both layouts');
+            assert.equal(padColor(pad,68,0,true),11,'Held approach retains full Play Color');
+        }
+    }
     assert.equal(padColor(80,68,0,false),0,'Unique chromatic approach stays dark');
     assert.equal(padColor(76,68,0,true),11,'Played approach uses Play Color');
     keyboardState.mode=0;keyboardState.layout=1;keyboardState.scale=0;keyboardState.rootPc=0;
