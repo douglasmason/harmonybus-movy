@@ -255,7 +255,7 @@ for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_
 }
 const operationSlot = focusKey('motion_operation');
 page.knobTurn(operationSlot, 100);page.knobTouch(operationSlot, false);
-for (const operation of ['Chord/Arp State','Play Motif','Secondary VII','Secondary IV','Secondary III','Tritone V','Tritone II','Chrom Above']) {
+for (const operation of ['Upper Dim','Leading Tone','Chord/Arp State','Play Motif','Secondary VII','Secondary IV','Secondary III','Tritone Sub','Tritone II','Connector Above']) {
     assert.equal(values.get('motion_operation'), operation);
     page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
 }
@@ -743,7 +743,7 @@ try {
     const mapSlot=focusKey('motion_control_33');assert.equal(page.pageTitle,'Foll Map');
     page.knobTouch(mapSlot,true);assert.deepEqual(writes.at(-1),['midi_fx1:motion_gesture_33','Touch']);page.knobTouch(mapSlot,false);
 } finally {Date.now=followClock;}
-console.log('Named controls: two step banks, Pitch Play, cadence/chord/harmony controls, latch turns and shared step ownership pass');
+console.log('Named controls: two step banks, Approach Harmony, cadence/chord/harmony controls, latch turns and shared step ownership pass');
 
 const autoOffSlot=focusKey('motion_auto_off');
 assert.equal(page.pageTitle,'Conditions');

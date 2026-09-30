@@ -5,7 +5,7 @@ import { appState } from '../app/state.js';
 import { cachedSetAnimLED } from '../seq/led-cache.js';
 import { ANIM_NONE, ANIM_PULSE_SLOW } from '../seq/colors.js';
 import { seqToast } from '../seq/render.js';
-export const APPROACH_CHOICES = ['Secondary LT','Chromatic Above','Secondary II','Secondary V','Secondary VI','Backdoor II','Backdoor V','Tritone II','Tritone V','Secondary III','Secondary IV','Secondary VII',...Array.from({length:16},(_,index)=>'Motif '+(index+1))];
+export const APPROACH_CHOICES = ['Connector Below','Connector Above','Secondary II','Secondary V','Secondary VI','Backdoor II','Backdoor V','Tritone II','Tritone Sub','Secondary III','Secondary IV','Secondary VII','Leading Tone','Upper Dim',...Array.from({length:16},(_,index)=>'Motif '+(index+1))];
 export const APPROACH_MOTIFS = ['V-Target','ii-V-Target','iv-bVII-Target','bII7-Target','ii-bII7-Target','bVI-bVII-I','bVI-V-I','bIII-IV-I','vi-V-I','iii-vi-ii-V-I','IV-iv-I','ii halfdim-V-i','I-VI7-ii-V-I','V/V-V-I','ii/V-V/V-V-I','V/ii-ii-V-I','V/vi-vi-ii-V-I','vii dim/V-V-I','III7-VI7-II7-V7-I',...Array.from({length:16},(_,index)=>'User '+(index+1))];
 export const TRIPLE_MOTIFS=['vi-ii-V','ii-V-LT','iv-bVII-LT','ii-bII7-LT','iii-vi-ii','IV-ii-V','vii-iii-vi','LT-ii-V'];
 export const BANK_CHOICES=[...APPROACH_MOTIFS.map((name,index)=>index<19?'Stock: '+name:name),...TRIPLE_MOTIFS.map(name=>'Stock: '+name),...APPROACH_CHOICES.filter(name=>!name.startsWith('Motif '))];

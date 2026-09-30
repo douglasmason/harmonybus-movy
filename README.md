@@ -1,3 +1,5 @@
+**Movy hbclean.132 / HarmonyBus 0.2.223:** Approach Harmony replaces Pitch Play. Connector Below/Above follow Connector Harmony; new Leading Tone and Upper Dim options keep diminished quality, while Tritone Sub keeps dominant quality. Choose the new operations in Ops lanes or Harm Perform banks. Saved connector IDs retain their original sound.
+
 **Movy hbclean.131 / Schwung 1.6.1:** Compatibility checks now use Schwung 1.6.1. Native track colors prefer Move’s live song state, so unsaved color edits appear across Movy’s four banks; older hosts retain the bounded saved-file fallback. HarmonyBus remains 0.2.221. Transport continues using the native host clock, and musical key/scale overrides are preserved.
 
 **Fixed operation knobs:** Ops 1–8 and Ops 9–16 permanently map to lanes 1–16. Shift + turn changes the operation assigned to that lane. Named controls keep their fixed function and Shift + turn edits their amount or mode. Shift editing never changes which lane a knob controls.
