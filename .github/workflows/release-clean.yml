@@ -17,9 +17,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 881b7fc9ae4290622f0eb6f2c341c9db28be40ef
-  HB_REF: 93cad7f80eb7fb4e8c15f9d058c884c393b79032
-  HB_MOVY_VERSION: 0.34.1-hbclean.123
-  HB_MOVY_TAG: v0.34.1-hbclean.123
+  HB_REF: 03ac4d02f3260ae6e4ee446423b1473a6c0e5cb8
+  HB_MOVY_VERSION: 0.34.1-hbclean.124
+  HB_MOVY_TAG: v0.34.1-hbclean.124
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -387,7 +387,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Consolidated Approach choices: Secondary II, Secondary LT and scale-dependent Secondary VII. Auto Chord controls note versus chord rendering; LT retains Chromatic Chord settings. Requires HarmonyBus 0.2.214."
+              --notes "Perform 1 and Perform 2, shared motif-bank knobs/steps, and Triple Approach layout. Latest knob selects one three-step motif for the approach rows. Includes vi-ii-V and seven further defaults. Requires HarmonyBus 0.2.215."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

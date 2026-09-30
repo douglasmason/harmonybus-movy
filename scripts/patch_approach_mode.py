@@ -10,7 +10,7 @@ def patch_approach_mode(root: Path) -> None:
     path: Path = root / 'src/renderer/hb-performance.ts'
     source: str = "import { syncApproachOwner, approachStep, paintApproach, paintApproachKnobs } from './hb-approach.js';\n" + path.read_text()
     source = source.replace('Math.min(1, Math.round(value))','Math.min(2, Math.round(value))').replace("(flagValue('hbsteprow') + 1) % 2", "(flagValue('hbsteprow') + 1) % 3")
-    source = source.replace("const key = next === 1 ? 'motion_control_1' : 'version';", "const key = next === 2 ? 'approach_knob_1' : next === 1 ? 'motion_control_1' : 'version';")
+    source = source.replace("const key = next === 1 ? 'motion_control_1' : 'version';", "const key = next === 2 ? 'approach_bank_1' : next === 1 ? 'motion_control_1' : 'version';")
     source = source.replace("['Steps', 'Perform'][next]", "['Steps', 'Perform', 'Approach'][next]").replace("? 'MOTIFS T' : 'HB OPS T'", "? 'APPROACH T' : 'HB OPS T'")
     source = source.replace('export function resetHbPerformance(): void {', 'export function resetHbPerformance(): void {\n    syncApproachOwner(null);')
     source = source.replace('function releaseForModeChange(): void {','function releaseForModeChange(): void {\n    syncApproachOwner(null);')
@@ -29,13 +29,13 @@ def patch_approach_mode(root: Path) -> None:
     path.write_text(source)
     path = root / 'src/renderer/schwung-page.ts'
     source = path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
-    source = source.replace('            if (laneTouchSlots.has(slot)) {\n                releasePerformanceTouch(slot, true);', "            if (laneTouchSlots.has(slot) && !/^approach_knob_/.test(ctl.keyAt(slot))) {\n                releasePerformanceTouch(slot, true);")
-    source = replace_once(source,'            const namedControl = /^motion_control_', '''            const approachKnob=/^approach_knob_(\\d+)$/.exec(key);
+    source = source.replace('            if (laneTouchSlots.has(slot)) {\n                releasePerformanceTouch(slot, true);', "            if (laneTouchSlots.has(slot) && !/^approach_bank_/.test(ctl.keyAt(slot))) {\n                releasePerformanceTouch(slot, true);")
+    source = replace_once(source,'            const namedControl = /^motion_control_', '''            const approachKnob=/^approach_bank_(\\d+)$/.exec(key);
             if(approachKnob){
-                const touchKey='approach_touch_'+approachKnob[1];
+                const touchKey='approach_touch_'+approachKnob[1], touchedAt=Date.now();
                 lanePort.performanceSet(touchKey,'Down');markUiStateDirty();laneTouchSlots.add(slot);
                 ownPerformanceTouch(slot,()=>{
-                    laneTouchSlots.delete(slot);lanePort.performanceSet(touchKey,'Up');touchPaintPending=true;
+                    laneTouchSlots.delete(slot);lanePort.performanceSet(touchKey,'Up,'+Math.max(0,Date.now()-touchedAt));touchPaintPending=true;
                     touchReadOnly=true;try{ctl.onKnobTouch(slot,false);}finally{touchReadOnly=false;}
                 });
                 return;

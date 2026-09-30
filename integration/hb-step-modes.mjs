@@ -65,10 +65,11 @@ try {
     onUnit({kind:'step',track:0,step:0});now+=50;up();assert.equal(flagValue('hbsteprow'),1,'Copy source gesture does not cycle');
     down();now+=500;up();assert.equal(flagValue('hbsteprow'),1,'Long unused hold does not cycle');
     down();resetDuplicate();now+=40;up();assert.equal(flagValue('hbsteprow'),1,'Reset cannot manufacture a tap');
-    tap();assert.equal(flagValue('hbsteprow'),2);assert(page.ctl.page.keys.includes('approach_knob_1'));
+    tap();assert.equal(flagValue('hbsteprow'),2);assert(page.ctl.page.keys.includes('approach_bank_1'));
     assert(has(page,'approach_bank_1'));assert(has(page,'approach_bank_16'));
     assert(!has(page,'motion_control_1'),'Approach bank is independent of Perform');
-    assert.equal(page.ctl.metaAt(0).options.length,28);
+    assert.equal(page.ctl.metaAt(0).options.length,55);
+    assert(page.ctl.metaAt(0).options.includes('Stock: vi-ii-V'));
     assert(page.ctl.metaAt(0).options.includes('Secondary LT'));
     assert(page.ctl.metaAt(0).options.includes('Secondary VII'));
     assert(!page.ctl.metaAt(0).options.includes('Scale Above'));
@@ -77,10 +78,10 @@ try {
     assert(writes.some(([,key,value])=>key==='midi_fx1:approach_touch_1'&&value==='Down'));
     assert(writes.some(([,key,value])=>key==='midi_fx1:approach_touch_2'&&value==='Down'));
     page.knobTurn(0,1);page.knobTouch(0,false);page.knobTouch(1,false);
-    assert(writes.some(([,key])=>key==='midi_fx1:approach_knob_1'));
+    assert(writes.some(([,key])=>key==='midi_fx1:approach_bank_1'));
     const owner=hbPerformancePage();assert(owner);
     hbPerformanceStep([0x90,16,100],owner);hbPerformanceStep([0x80,16,0],owner);
-    assert(writes.some(([,key,value])=>key==='midi_fx1:approach_trigger'&&value==='1'));
+    assert(writes.some(([,key,value])=>key==='midi_fx1:approach_step_touch_1'&&value==='Down'));
     tap();assert.equal(flagValue('hbsteprow'),0);assert(page.ctl.page.keys.includes('version'));
     assert(!has(page,'motif_record'),'Motif editor has no permanent performance bank');
     tap();assert.equal(flagValue('hbsteprow'),1);
@@ -115,3 +116,9 @@ setFlag('hbsteprow',0);seqLedsInvalidate();ledFrameReset();seqBeatLedsTick();
 assert(packets.length>0,'Steps keeps its empty-clip metronome');
 globalThis.setLED=originalMidi;seqState.playing=false;
 console.log('Step modes: Copy tap/hold/reset, edit guards, native copy, destination panels/slots, missing HB and bounded header pixels pass');
+
+const {buildPadMap,MODE_IN_KEY,LAYOUT_TRIPLE_APPROACH}=await import('../dist/esm/keyboard/layouts.js');
+const triple=buildPadMap(MODE_IN_KEY,LAYOUT_TRIPLE_APPROACH,0,60);
+assert.deepEqual(Array.from(triple.slice(0,8)),[60,62,64,65,67,69,71,72]);
+assert(Array.from(triple.slice(8)).every(note=>note===-1),'Three upper rows use explicit approach routing');
+console.log('Triple Approach geometry: eight scale targets and three paired approach rows pass');

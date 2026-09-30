@@ -552,6 +552,8 @@ def main() -> int:
     patch_knob_latch(root)
     from patch_approach_mode import patch_approach_mode
     patch_approach_mode(root)
+    from patch_triple_approach import patch_triple_approach
+    patch_triple_approach(root)
     print("HarmonyBus clean integration applied")
     return 0
 
