@@ -100,7 +100,7 @@ int main(int argc,char **argv){
     render(64);
     for(int track=0;track<16;track++){
         snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:role",track);set(parameter,track%4==0?"Conductor":"Follower");
-        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:source_channel",track);set(parameter,"1");
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:receive_channel",track);set(parameter,"Off");
         snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:render_channel",track);set(parameter,"4");
         snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:boundary_buffer_ms",track);set(parameter,"0 ms");
         snprintf(parameter,sizeof(parameter),"ch%d:mix",track);set(parameter,"1,0,1,0,0");

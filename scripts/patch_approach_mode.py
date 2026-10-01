@@ -31,7 +31,7 @@ def patch_approach_mode(root: Path) -> None:
     source = path.read_text().replace("labels: ['STEPS','PERFORM']", "labels: ['STEPS','PERFORM','APPROACH']").replace("min: 0, max: 1, def: 0, uiOnly: true, release: true,\n        hint: 'Copy tap: Steps or Perform.'", "min: 0, max: 2, def: 0, uiOnly: true, release: true,\n        hint: 'Copy tap: Steps, Perform or Approach.'")
     path.write_text(source)
     path = root / 'src/renderer/schwung-page.ts'
-    source = "import { approachRowsActive, approachTouched } from './hb-approach.js';\n" + path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
+    source = "import { approachRowsActive, approachTouched, drawApproachOperations } from './hb-approach.js';\n" + path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
     source = source.replace('            if (laneTouchSlots.has(slot)) {\n                releasePerformanceTouch(slot, true);', "            if (laneTouchSlots.has(slot) && !/^approach_bank_/.test(ctl.keyAt(slot))) {\n                releasePerformanceTouch(slot, true);")
     source = replace_once(source, '        knobTurn: (slot: number, delta: number) => {', """        knobTurn: (slot: number, delta: number) => {
             const approachControl=/^approach_bank_(\\d+)$/.exec(ctl.keyAt(slot));
@@ -65,6 +65,7 @@ def patch_approach_mode(root: Path) -> None:
                 return;
             }
             const namedControl = /^motion_control_''')
+    source=source.replace('            ctl.render(ctx, { title, bands: BANDS });', '            ctl.render(ctx, { title, bands: BANDS });\n            drawApproachOperations(keysOf(), ctl.state.values, ctl.state.touched);')
     path.write_text(source)
     path=root/'src/renderer/schwung-page.ts'
     source=path.read_text().replace('    readonly ready: boolean;', '    readonly ready: boolean;\n    readonly knobLEDMask: number;')

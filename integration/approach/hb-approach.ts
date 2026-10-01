@@ -86,7 +86,7 @@ export function paintApproachKnobs(port: PerformancePort, keys: (string | null)[
     refreshRows(port);
     for(let knob=0;knob<8;knob++){
         if(!/^approach_bank_/.test(keys[knob]??''))continue;
-        const slot=Number((keys[knob]??'').split('_').pop())-1;const selected=keyboardState.layout===3&&status.length>=12?status.slice(9,12).includes(slot):slot===status[7];const [base,color,animation]=approachRowsActive()?[selected?37:0,selected?37:0,ANIM_NONE]:approachLight(slot,status);
+        const slot=Number((keys[knob]??'').split('_').pop())-1;const selected=keyboardState.layout===3&&status.length>=12?status.slice(9,12).includes(slot):keyboardState.layout===2&&status[12]?!!(status[12]&(1<<slot)):slot===status[7];const [base,color,animation]=approachRowsActive()?[selected?37:0,selected?37:0,ANIM_NONE]:approachLight(slot,status);
         cachedSetAnimLED(knob,base,color,animation);cachedSetAnimLED(71+knob,base,color,animation,true);
     }
     return true;
@@ -97,10 +97,39 @@ export function approachPanels(hierarchy: any, mode: number): void {
     const panel=(name:string,keys:string[],params:any[])=>({name,knobs:keys,params});
     const links: {level:string}[]=[];
     for(let bank=0;bank<2;bank++){
-        const params:any[]=Array.from({length:7},(_,index)=>({key:'approach_bank_'+(bank*8+index+1),name:'Slot '+(bank*8+index+1),type:'enum',options_as_string:true,options:BANK_CHOICES,default:APPROACH_BANK_DEFAULTS[bank*8+index]}));
+        const params:any[]=Array.from({length:7},(_,index)=>({key:'approach_bank_'+(bank*8+index+1),name:'Operation',type:'enum',options_as_string:true,options:BANK_CHOICES,default:APPROACH_BANK_DEFAULTS[bank*8+index]}));
         params.push({key:'motion_control_32',name:'Chord + Arp',type:'int',min:-400,max:400,step:1,default:1});
         levels['approach_bank_'+bank]=panel('Harm Perform '+(bank+1),params.map(parameter=>parameter.key),params);
         links.push({level:'approach_bank_'+bank});
     }
     levels.root.params.push(...links);
+}
+
+/** Spend each operation cell on its musical meaning, rather than a slot label. */
+export function drawApproachOperations(keys: (string | null)[], values: Record<string, unknown>, touched: number): void {
+    if (!keys.some(key => /^approach_bank_/.test(key ?? ''))) return;
+    const names: Record<string, string> = {
+        'Secondary V':'Sec V', 'Secondary II':'Sec II', 'Connector Below':'CCB',
+        'Connector Above':'CCA', 'Leading Tone':'LT', 'Tritone Sub':'TTS',
+        'Backdoor V':'Back V', 'Backdoor II':'Back II', 'Tritone II':'TTS II',
+        'Secondary VI':'Sec VI', 'Secondary III':'Sec III', 'Secondary IV':'Sec IV',
+        'Secondary VII':'Sec VII', 'Upper Dim':'Upper Dim',
+    };
+    keys.forEach((key, slot) => {
+        if (!/^approach_bank_/.test(key ?? '') && key !== 'motion_control_32') return;
+        const raw=key==='motion_control_32'?'Chord + Arp':String(values[key!] ?? '');
+        const label=names[raw] ?? raw.replace(/^Stock: /,'').replace(/Target/g,'T');
+        const words=label.split(/(?<=-)|\s+/), lines:string[]=[];
+        let line='';
+        for (const word of words) {
+            const joined=line+(line&&!line.endsWith('-')?' ':'')+word;
+            if (line && fontWidth(joined)>30) { lines.push(line);line=word; }
+            else line=joined;
+            while(fontWidth(line)>30){let split=line.length-1;while(split>1&&fontWidth(line.slice(0,split))>30)split--;lines.push(line.slice(0,split));line=line.slice(split);}
+        }
+        if(line)lines.push(line);
+        const x=(slot%4)*32, y=11+Math.floor(slot/4)*23, active=touched===slot;
+        fill_rect(x,y,32,23,active?1:0);
+        lines.slice(0,3).forEach((text,index)=>fontPrint(x+Math.max(1,Math.floor((32-fontWidth(text))/2)),y+2+index*7,text,active?0:1));
+    });
 }
