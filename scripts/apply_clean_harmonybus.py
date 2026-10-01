@@ -227,7 +227,7 @@ def patch_upstream_expectations(root: Path) -> None:
         "    for (let track = 0; track < 16; track++) {\n"
         "      const saved = pendingPayloadFor(track);\n"
         "      const role = track >= 12 ? 3 : track % 4 === 0 ? 0 : 1;\n"
-        "      const destination = track % 4;\n"
+        "      const destination = track % 4 === 0 ? 2 : track % 4;\n"
         "      const values = saved?.comp[0]?.s?.split(';')[0].split(',');\n"
         "      eq('fresh HB state format ' + track, values?.[0], 'hb16');\n"
         "      eq('fresh HB state field count ' + track, values?.length, 26);\n"
