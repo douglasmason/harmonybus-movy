@@ -62,14 +62,15 @@ int main(int argument_count, char **arguments) {
         strcat(expected_state,";mf1,0,2,0,2,0,0,0:00");
         for(int slot=0;slot<16;slot++)strcat(expected_state,"0000");
         strcat(expected_state,";mp1,0,0,1,0;mg1,0,0;rr1,0,0,0,0");
-        strcat(expected_state,";ar1,13,14,15,16,17,18,19,20,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,1,1;ar2,0;ar3,2,1,0;ar4,0");
+        strcat(expected_state,";ar1,13,14,15,16,17,18,19,20,-5,-4,-1,-2,-30,-10,-8,-31,2,3,5,36,37,14,10,15,1,1;ar2,0;ar3,2,1,0;ar4,0;ar5,1");
         assert(instances[track]->player.config.start==5);
         const hb_ar_state *approach=&instances[track]->approach_rows;
         assert(!approach->enabled&&!approach->down&&approach->count==1);
         assert(!approach->latch_slots&&!approach->latch&&!approach->performance);
         assert(approach->order[0]==1&&approach->bank_armed==-1);
         for(int slot=0;slot<8;slot++)assert(approach->knobs[slot]==13+slot);
-        for(int slot=0;slot<16;slot++)assert(approach->bank[slot]==(1+slot));
+        const int expected_bank[16]={-5,-4,-1,-2,-30,-10,-8,-31,2,3,5,36,37,14,10,15};
+        for(int slot=0;slot<16;slot++)assert(approach->bank[slot]==expected_bank[slot]);
         assert(instances[track]->motif.editor.recording==-1);
         assert(instances[track]->motif.editor.armed==-1);
         assert(instances[track]->rhythm_mode==0&&g_motif_rhythm==0&&g_render_window==0);

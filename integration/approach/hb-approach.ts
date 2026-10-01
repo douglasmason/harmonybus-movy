@@ -5,10 +5,13 @@ import { appState } from '../app/state.js';
 import { cachedSetAnimLED } from '../seq/led-cache.js';
 import { ANIM_NONE, ANIM_PULSE_SLOW } from '../seq/colors.js';
 import { seqToast } from '../seq/render.js';
-export const APPROACH_CHOICES = ['Connector Below','Connector Above','Secondary II','Secondary V','Secondary VI','Backdoor II','Backdoor V','Tritone II','Tritone Sub','Secondary III','Secondary IV','Secondary VII','Leading Tone','Upper Dim',...Array.from({length:16},(_,index)=>'Motif '+(index+1))];
+export const APPROACH_CHOICES = ['Secondary V','Secondary II','Connector Below','Connector Above','Leading Tone','Tritone Sub','Backdoor V','Backdoor II','Tritone II','Secondary VI','Secondary III','Secondary IV','Secondary VII','Upper Dim',...Array.from({length:16},(_,index)=>'Motif '+(index+1))];
 export const APPROACH_MOTIFS = ['V-Target','ii-V-Target','iv-bVII-Target','bII7-Target','ii-bII7-Target','bVI-bVII-I','bVI-V-I','bIII-IV-I','vi-V-I','iii-vi-ii-V-I','IV-iv-I','ii halfdim-V-i','I-VI7-ii-V-I','V/V-V-I','ii/V-V/V-V-I','V/ii-ii-V-I','V/vi-vi-ii-V-I','vii dim/V-V-I','III7-VI7-II7-V7-I',...Array.from({length:16},(_,index)=>'User '+(index+1))];
 export const TRIPLE_MOTIFS=['vi-ii-V','ii-V-LT','iv-bVII-LT','ii-bII7-LT','iii-vi-ii','IV-ii-V','vii-iii-vi','LT-ii-V'];
-export const BANK_CHOICES=[...APPROACH_MOTIFS.map((name,index)=>index<19?'Stock: '+name:name),...TRIPLE_MOTIFS.map(name=>'Stock: '+name),...APPROACH_CHOICES.filter(name=>!name.startsWith('Motif '))];
+export const BANK_CHOICES=[...APPROACH_CHOICES.filter(name=>!name.startsWith('Motif ')),...APPROACH_MOTIFS.map((name,index)=>index<19?'Stock: '+name:name),...TRIPLE_MOTIFS.map(name=>'Stock: '+name)];
+/** Only the two dedicated approach layouts turn bank knobs into row selectors. */
+export function approachRowsActive(): boolean { return keyboardState.layout===2||keyboardState.layout===3; }
+export const APPROACH_BANK_DEFAULTS=['Secondary V','Secondary II','Connector Below','Connector Above','Leading Tone','Tritone Sub','Backdoor V','Upper Dim','Stock: ii-V-Target','Stock: iv-bVII-Target','Stock: ii-bII7-Target','Stock: vi-ii-V','Stock: ii-V-LT','Stock: V/V-V-I','Stock: iii-vi-ii-V-I','Stock: ii/V-V/V-V-I'];
 let owner: PerformancePort | null = null;
 const releases = new Map<number,()=>void>();
 let statusAt = -Infinity, status: number[] = [];
@@ -64,11 +67,9 @@ export function approachLight(slot: number, state: number[], held = false): [num
     if(slot<0||slot>=16)return [0,0,ANIM_NONE];
     const down=held||!!((state[3]||0)&(1<<slot));
     const active=!!state[6]&&!!((state[5]||0)&(1<<slot));
-    const selected=keyboardState.layout===3&&state.length>=12?state.slice(9,12).includes(slot):slot===state[7];
     if(down)return [120,120,ANIM_NONE];
     if(active)return state[8]?[124,120,ANIM_PULSE_SLOW]:[120,120,ANIM_NONE];
-    const color=selected?37:0;
-    return [color,color,ANIM_NONE];
+    return [0,0,ANIM_NONE];
 }
 export function paintApproach(port: PerformancePort | null): boolean {
     if(!port)return false;
@@ -84,7 +85,8 @@ export function paintApproachKnobs(port: PerformancePort, keys: (string | null)[
     if(!keys.some(key=>/^approach_bank_/.test(key ?? '')))return false;
     refreshRows(port);
     for(let knob=0;knob<8;knob++){
-        const slot=Number((keys[knob]??'').split('_').pop())-1;const [base,color,animation]=approachLight(slot,status);
+        if(!/^approach_bank_/.test(keys[knob]??''))continue;
+        const slot=Number((keys[knob]??'').split('_').pop())-1;const selected=keyboardState.layout===3&&status.length>=12?status.slice(9,12).includes(slot):slot===status[7];const [base,color,animation]=approachRowsActive()?[selected?37:0,selected?37:0,ANIM_NONE]:approachLight(slot,status);
         cachedSetAnimLED(knob,base,color,animation);cachedSetAnimLED(71+knob,base,color,animation,true);
     }
     return true;
@@ -95,7 +97,8 @@ export function approachPanels(hierarchy: any, mode: number): void {
     const panel=(name:string,keys:string[],params:any[])=>({name,knobs:keys,params});
     const links: {level:string}[]=[];
     for(let bank=0;bank<2;bank++){
-        const params=Array.from({length:8},(_,index)=>({key:'approach_bank_'+(bank*8+index+1),name:'Slot '+(bank*8+index+1),type:'enum',options_as_string:true,options:BANK_CHOICES,default:'Stock: '+APPROACH_MOTIFS[bank*8+index]}));
+        const params:any[]=Array.from({length:7},(_,index)=>({key:'approach_bank_'+(bank*8+index+1),name:'Slot '+(bank*8+index+1),type:'enum',options_as_string:true,options:BANK_CHOICES,default:APPROACH_BANK_DEFAULTS[bank*8+index]}));
+        params.push({key:'motion_control_32',name:'Chord + Arp',type:'int',min:-400,max:400,step:1,default:1});
         levels['approach_bank_'+bank]=panel('Harm Perform '+(bank+1),params.map(parameter=>parameter.key),params);
         links.push({level:'approach_bank_'+bank});
     }

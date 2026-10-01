@@ -568,3 +568,15 @@ console.log('Rendered play overlay: source/output separation, chord/arp changes,
     assert(payload.endsWith(';0'));assert.equal(pianoApproachTarget(0,8),-1,'Ordinary piano retains its legacy gate');
 }
 console.log('Dedicated approach layouts: in-band opt-in, every row routed, and ordinary piano opt-out pass');
+
+// Short emitted notes can finish between UI polls; the DSP supplies a bounded flash.
+assert.equal(parseHarmonySnapshot('0,0,0,0,0,6,0,3,2,0|playpads1,0|playflash1,2147483648').playPads,2147483648);
+assert.equal(parseHarmonySnapshot('0,0,0,0,0,6,0,3,2,0|playpads1,2|playflash1,4').playPads,6);
+for(const invalid of ['-1','4294967296','x','1,2'])assert.equal(parseHarmonySnapshot('0,0,0,0,0,6,0,3,2,0|playpads1,0|playflash1,'+invalid),null);
+const { approachPanels } = await import('../dist/esm/renderer/hb-approach.js');
+const hierarchy={levels:{root:{params:[]}}};approachPanels(hierarchy,2);
+for(const bank of [0,1]){
+    const panel=hierarchy.levels['approach_bank_'+bank];
+    assert.equal(panel.knobs.length,8);assert.equal(panel.knobs[7],'motion_control_32');
+    assert.equal(panel.params[7].name,'Chord + Arp');
+}

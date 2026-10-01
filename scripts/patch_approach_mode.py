@@ -18,9 +18,10 @@ def patch_approach_mode(root: Path) -> None:
     source = source.replace("    if (flagValue('hbsteprow') === 2) return false;", "    if (flagValue('hbsteprow') === 2) return approachStep(data,owner);")
     source = replace_once(source,'    syncHbPerformanceMode();\n    const status', '    syncHbPerformanceMode();\n    if(approachStep(data,null))return true;\n    const status')
     source = source.replace('    if (paintMotif(owner)) return true;', "    if (paintMotif(owner)) return true;\n    if(flagValue('hbsteprow')===2)return paintApproach(owner);")
-    source = source.replace('    const assignments=keys.map', '    if(paintApproachKnobs(owner,keys)){operationKnobMask=255;return;}\n    const assignments=keys.map')
+    source = source.replace('    const assignments=keys.map', '    paintApproachKnobs(owner,keys);\n    const assignments=keys.map')
     source = source.replace(" : 'STEPS / NO HB',1);", " : 'STEPS / NO HB',1);\n    if(active && flagValue('hbsteprow')===2)drawApproachRows(hbPerformancePage()!);")
     source=source.replace('    const clip = operation >= 12 && operation <= 15;\n    return clip ? (active ? 17 : 97) : (active ? C_GREEN : 85);', '    return active ? 120 : 124;')
+    source = source.replace('        const bit=1<<knob,lane=assignments[knob];', "        const bit=1<<knob,lane=assignments[knob];\n        if(/^approach_bank_/.test(keys[knob]??'')){wanted|=bit;continue;}")
     path.write_text(source)
     path = root / 'src/renderer/hb-step-panels.ts'
     source = "import { approachPanels } from './hb-approach.js';\n" + path.read_text()
@@ -30,7 +31,7 @@ def patch_approach_mode(root: Path) -> None:
     source = path.read_text().replace("labels: ['STEPS','PERFORM']", "labels: ['STEPS','PERFORM','APPROACH']").replace("min: 0, max: 1, def: 0, uiOnly: true, release: true,\n        hint: 'Copy tap: Steps or Perform.'", "min: 0, max: 2, def: 0, uiOnly: true, release: true,\n        hint: 'Copy tap: Steps, Perform or Approach.'")
     path.write_text(source)
     path = root / 'src/renderer/schwung-page.ts'
-    source = "import { approachTouched } from './hb-approach.js';\n" + path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
+    source = "import { approachRowsActive, approachTouched } from './hb-approach.js';\n" + path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
     source = source.replace('            if (laneTouchSlots.has(slot)) {\n                releasePerformanceTouch(slot, true);', "            if (laneTouchSlots.has(slot) && !/^approach_bank_/.test(ctl.keyAt(slot))) {\n                releasePerformanceTouch(slot, true);")
     source = replace_once(source, '        knobTurn: (slot: number, delta: number) => {', """        knobTurn: (slot: number, delta: number) => {
             const approachControl=/^approach_bank_(\\d+)$/.exec(ctl.keyAt(slot));
@@ -38,13 +39,20 @@ def patch_approach_mode(root: Path) -> None:
                 if(laneTouchSlots.has(slot))releasePerformanceTouch(slot,true);
                 const key=ctl.keyAt(slot),options=ctl.metaAt(slot)?.options||[];
                 const current=Math.max(0,options.indexOf(String(ctl.state.values[key])));
-                if(delta&&current>=0){ctl.commitEnum(key,Math.max(0,Math.min(options.length-1,current+delta)));ctl.revalue();markUiStateDirty();approachTouched(lanePort);}
+                if(delta&&current>=0){
+                    const index=Math.max(0,Math.min(options.length-1,current+delta));
+                    ctl.commitEnum(key,index);ctl.revalue();markUiStateDirty();approachTouched(lanePort);
+                    ctl.state.peek={key,title:'Approach Operation',options,index,at:Date.now()};
+                }
                 return;
             }
             if(approachControl){
-                if(delta){lanePort.performanceSet('approach_control_'+approachControl[1],delta>0?'LatchOn':'LatchOff');approachTouched(lanePort);markUiStateDirty();touchPaintPending=true;}
+                if(approachRowsActive())return;
+                if(delta){lanePort.performanceSet('approach_control_'+approachControl[1],delta>0?'LatchOn':'LatchOff');approachTouched(lanePort);markUiStateDirty();touchPaintPending=true;
+                    const key=ctl.keyAt(slot);ctl.state.peek={key,title:delta>0?'Latched On':'Latch Off',options:[String(ctl.state.values[key]??'Operation')],index:0,at:Date.now()};}
                 return;
-            }""")
+            }
+""")
     source = replace_once(source,'            const namedControl = /^motion_control_', '''            const approachKnob=/^approach_bank_(\\d+)$/.exec(key);
             if(approachKnob){
                 if(appState.shiftHeld)return;

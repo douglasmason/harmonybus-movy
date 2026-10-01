@@ -71,6 +71,9 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
     const playingSection = sections.find(section => section.startsWith('playpads1,'));
     const playPads = playingSection ? Number(playingSection.split(',')[1]) : undefined;
     if (playingSection && (playingSection.split(',').length !== 2 || !Number.isInteger(playPads) || playPads! < 0 || playPads! > 0xffffffff)) return null;
+    const flashSection = sections.find(section => section.startsWith('playflash1,'));
+    const playFlash = flashSection ? Number(flashSection.split(',')[1]) : 0;
+    if (flashSection && (flashSection.split(',').length !== 2 || !Number.isInteger(playFlash) || playFlash < 0 || playFlash > 0xffffffff)) return null;
     const outputSection = sections.find(section => section.startsWith('outputs1,'));
     const outputGroups = outputSection?.split(',').slice(1).map(Number);
     if (outputGroups && (outputGroups.length !== 32 || outputGroups.some(value => !Number.isInteger(value) || value < -1 || value > 31))) return null;
@@ -109,7 +112,7 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
     }
     const piano = sections.find(section => section.startsWith('piano1,'));
     if (piano && !['piano1,0','piano1,1'].includes(piano)) return null;
-    return { ...(playPads !== undefined ? {playPads} : {}), ...(gapColors ? {gapColors} : {}), ...(piano ? {pianoApproach: piano === 'piano1,1'} : {}), ...(playColor !== undefined ? {playColor} : {}), ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
+    return { ...(playPads !== undefined ? {playPads: (playPads | playFlash) >>> 0} : {}), ...(gapColors ? {gapColors} : {}), ...(piano ? {pianoApproach: piano === 'piano1,1'} : {}), ...(playColor !== undefined ? {playColor} : {}), ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
 }
 
 /** Poll one compact snapshot, never once per pad or once per display frame. */

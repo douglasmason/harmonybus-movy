@@ -1,3 +1,7 @@
+**Approach controls:** Shift-turn always edits the operation with a list peek. Ordinary turns latch only outside approach-row layouts, with explicit On/Off feedback and a pulsing latch LED. In approach layouts, knobs select the spatial rows and ordinary turns do nothing; entering these layouts clears permanent approach-bank latches. Steps trigger without changing rows. Harm Perform 1 defaults to V, II, CCB, CCA, LT, TTS and Backdoor V; Harm Perform 2 contains sequences. Knob 8 on both remains Chord + Arp.
+
+**Movy hbclean.133 / HarmonyBus 0.2.224:** Chromatic approach pads stay black with Auto Chord enabled. Short emitted notes get a bounded Play Color flash without changing MIDI gates. Knob 8 on both Harm Perform panels uses the shared Chord + Arp operation: touch for a temporary gesture, turn to latch on/off.
+
 **Movy hbclean.132 / HarmonyBus 0.2.223:** Approach Harmony replaces Pitch Play. Connector Below/Above follow Connector Harmony; new Leading Tone and Upper Dim options keep diminished quality, while Tritone Sub keeps dominant quality. Choose the new operations in Ops lanes or Harm Perform banks. Saved connector IDs retain their original sound.
 
 **Movy hbclean.131 / Schwung 1.6.1:** Compatibility checks now use Schwung 1.6.1. Native track colors prefer Move’s live song state, so unsaved color edits appear across Movy’s four banks; older hosts retain the bounded saved-file fallback. HarmonyBus remains 0.2.221. Transport continues using the native host clock, and musical key/scale overrides are preserved.
