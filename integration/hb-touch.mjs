@@ -911,7 +911,7 @@ console.log('Motif, Render Rhythm and arp-anchor controls are reachable through 
 {
     const clock=Date.now;let now=2400000;Date.now=()=>now;
     try {
-        for(const lane of [1,16,33,37]){
+        for(const lane of [1,16,32,33,37]){
             const slot=focusKey('motion_control_'+lane);
             values.set('motion_gesture_binding_'+lane,'1,1,3,0,350,0,0,1');
             for(let tap=0;tap<2;tap++){

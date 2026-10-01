@@ -84,6 +84,7 @@ export function paintApproachKnobs(port: PerformancePort, keys: (string | null)[
     if(!keys.some(key=>/^approach_bank_/.test(key ?? '')))return false;
     refreshRows(port);
     for(let knob=0;knob<8;knob++){
+        if(!/^approach_bank_/.test(keys[knob]??''))continue;
         const slot=Number((keys[knob]??'').split('_').pop())-1;const [base,color,animation]=approachLight(slot,status);
         cachedSetAnimLED(knob,base,color,animation);cachedSetAnimLED(71+knob,base,color,animation,true);
     }
@@ -95,7 +96,8 @@ export function approachPanels(hierarchy: any, mode: number): void {
     const panel=(name:string,keys:string[],params:any[])=>({name,knobs:keys,params});
     const links: {level:string}[]=[];
     for(let bank=0;bank<2;bank++){
-        const params=Array.from({length:8},(_,index)=>({key:'approach_bank_'+(bank*8+index+1),name:'Slot '+(bank*8+index+1),type:'enum',options_as_string:true,options:BANK_CHOICES,default:'Stock: '+APPROACH_MOTIFS[bank*8+index]}));
+        const params:any[]=Array.from({length:7},(_,index)=>({key:'approach_bank_'+(bank*8+index+1),name:'Slot '+(bank*8+index+1),type:'enum',options_as_string:true,options:BANK_CHOICES,default:'Stock: '+APPROACH_MOTIFS[bank*8+index]}));
+        params.push({key:'motion_control_32',name:'Chord + Arp',type:'int',min:-400,max:400,step:1,default:1});
         levels['approach_bank_'+bank]=panel('Harm Perform '+(bank+1),params.map(parameter=>parameter.key),params);
         links.push({level:'approach_bank_'+bank});
     }
