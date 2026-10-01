@@ -66,7 +66,7 @@ try {
     down();now+=500;up();assert.equal(flagValue('hbsteprow'),1,'Long unused hold does not cycle');
     down();resetDuplicate();now+=40;up();assert.equal(flagValue('hbsteprow'),1,'Reset cannot manufacture a tap');
     tap();assert.equal(flagValue('hbsteprow'),2);assert(page.ctl.page.keys.includes('approach_bank_1'));
-    assert(has(page,'approach_bank_1'));assert(has(page,'approach_bank_16'));
+    assert(has(page,'approach_bank_1'));assert(has(page,'approach_bank_15'));assert(has(page,'motion_control_32'));
     assert(!has(page,'motion_control_1'),'Approach bank is independent of Perform');
     assert.equal(page.ctl.metaAt(0).options.length,57);
     assert(page.ctl.metaAt(0).options.includes('Stock: vi-ii-V'));
@@ -80,10 +80,10 @@ try {
     assert(writes.some(([,key,value])=>key==='midi_fx1:approach_touch_1'&&value==='Down'));
     assert(writes.some(([,key,value])=>key==='midi_fx1:approach_touch_2'&&value==='Down'));
     page.knobTurn(0,1);page.knobTouch(0,false);page.knobTouch(1,false);
-    assert(writes.some(([,key,value])=>key==='midi_fx1:approach_control_1'&&value==='LatchOn'));
+    assert(!writes.some(([,key])=>key==='midi_fx1:approach_control_1'),'Approach knob never latches');
     assert(!has(page,'approach_latch'));
     assert(order('approach_bank_1')>order('monitor_status'));
-    page.knobTurn(0,-1);assert.equal(writes.at(-1)[2],'LatchOff');
+    page.knobTurn(0,-1);assert.equal(writes.at(-1)[1],'midi_fx1:approach_bank_1');
     const beforeEdit=writes.length;
     appState.shiftHeld=true;page.knobTouch(0,true);page.knobTurn(0,1);page.knobTouch(0,false);appState.shiftHeld=false;
     assert(writes.slice(beforeEdit).some(([,key])=>key==='midi_fx1:approach_bank_1'),'Shift-turn edits the assignment');
@@ -169,7 +169,7 @@ console.log('Knob LED ownership: generic values yield to performance and restore
     state[3]=1;assert.deepEqual(approachLight(0,state),[120,120,ANIM_NONE]);
     assert.deepEqual(approachLight(1,state),[0,0,ANIM_NONE]);
     const {keyboardState}=await import('../dist/esm/keyboard/state.js');
-    keyboardState.layout=0;assert.deepEqual(approachLight(2,state),[37,37,ANIM_NONE]);assert.deepEqual(approachLight(4,state),[0,0,ANIM_NONE]);
-    keyboardState.layout=3;assert.deepEqual(approachLight(4,state),[37,37,ANIM_NONE]);keyboardState.layout=0;
+    keyboardState.layout=0;assert.deepEqual(approachLight(2,state),[0,0,ANIM_NONE]);assert.deepEqual(approachLight(4,state),[0,0,ANIM_NONE]);
+    keyboardState.layout=3;assert.deepEqual(approachLight(4,state),[0,0,ANIM_NONE]);keyboardState.layout=0;
 }
 console.log('Approach lights: dark idle, solid white trigger/hold, smooth white latch, amber for every row assignment');

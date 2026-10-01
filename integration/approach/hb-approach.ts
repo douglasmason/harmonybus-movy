@@ -64,11 +64,9 @@ export function approachLight(slot: number, state: number[], held = false): [num
     if(slot<0||slot>=16)return [0,0,ANIM_NONE];
     const down=held||!!((state[3]||0)&(1<<slot));
     const active=!!state[6]&&!!((state[5]||0)&(1<<slot));
-    const selected=keyboardState.layout===3&&state.length>=12?state.slice(9,12).includes(slot):slot===state[7];
     if(down)return [120,120,ANIM_NONE];
     if(active)return state[8]?[124,120,ANIM_PULSE_SLOW]:[120,120,ANIM_NONE];
-    const color=selected?37:0;
-    return [color,color,ANIM_NONE];
+    return [0,0,ANIM_NONE];
 }
 export function paintApproach(port: PerformancePort | null): boolean {
     if(!port)return false;
@@ -85,7 +83,7 @@ export function paintApproachKnobs(port: PerformancePort, keys: (string | null)[
     refreshRows(port);
     for(let knob=0;knob<8;knob++){
         if(!/^approach_bank_/.test(keys[knob]??''))continue;
-        const slot=Number((keys[knob]??'').split('_').pop())-1;const [base,color,animation]=approachLight(slot,status);
+        const slot=Number((keys[knob]??'').split('_').pop())-1;const selected=keyboardState.layout===3&&status.length>=12?status.slice(9,12).includes(slot):slot===status[7];const base=selected?37:0,color=base,animation=ANIM_NONE;
         cachedSetAnimLED(knob,base,color,animation);cachedSetAnimLED(71+knob,base,color,animation,true);
     }
     return true;

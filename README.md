@@ -1,3 +1,5 @@
+**Approach controls:** Harm Perform knobs only select persistent approach-row assignments; turning edits the slot. Step buttons provide one-shot taps, momentary holds and finite overlap sequences without changing the rows. Legacy per-slot permanent latches are ignored. Knob 8 remains the shared Chord + Arp performance switch.
+
 **Movy hbclean.133 / HarmonyBus 0.2.224:** Chromatic approach pads stay black with Auto Chord enabled. Short emitted notes get a bounded Play Color flash without changing MIDI gates. Knob 8 on both Harm Perform panels uses the shared Chord + Arp operation: touch for a temporary gesture, turn to latch on/off.
 
 **Movy hbclean.132 / HarmonyBus 0.2.223:** Approach Harmony replaces Pitch Play. Connector Below/Above follow Connector Harmony; new Leading Tone and Upper Dim options keep diminished quality, while Tritone Sub keeps dominant quality. Choose the new operations in Ops lanes or Harm Perform banks. Saved connector IDs retain their original sound.

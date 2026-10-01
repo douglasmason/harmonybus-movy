@@ -35,17 +35,14 @@ def patch_approach_mode(root: Path) -> None:
     source = source.replace('            if (laneTouchSlots.has(slot)) {\n                releasePerformanceTouch(slot, true);', "            if (laneTouchSlots.has(slot) && !/^approach_bank_/.test(ctl.keyAt(slot))) {\n                releasePerformanceTouch(slot, true);")
     source = replace_once(source, '        knobTurn: (slot: number, delta: number) => {', """        knobTurn: (slot: number, delta: number) => {
             const approachControl=/^approach_bank_(\\d+)$/.exec(ctl.keyAt(slot));
-            if(approachControl && appState.shiftHeld){
+            if(approachControl){
                 if(laneTouchSlots.has(slot))releasePerformanceTouch(slot,true);
                 const key=ctl.keyAt(slot),options=ctl.metaAt(slot)?.options||[];
                 const current=Math.max(0,options.indexOf(String(ctl.state.values[key])));
                 if(delta&&current>=0){ctl.commitEnum(key,Math.max(0,Math.min(options.length-1,current+delta)));ctl.revalue();markUiStateDirty();approachTouched(lanePort);}
                 return;
             }
-            if(approachControl){
-                if(delta){lanePort.performanceSet('approach_control_'+approachControl[1],delta>0?'LatchOn':'LatchOff');approachTouched(lanePort);markUiStateDirty();touchPaintPending=true;}
-                return;
-            }""")
+""")
     source = replace_once(source,'            const namedControl = /^motion_control_', '''            const approachKnob=/^approach_bank_(\\d+)$/.exec(key);
             if(approachKnob){
                 if(appState.shiftHeld)return;
