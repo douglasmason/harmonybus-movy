@@ -20,8 +20,8 @@ env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: c2e9434ef1f588ea174a6680fafe5251e2228f5c
   HB_REF: 40a2db92708a99761da7e51e09bad7301dc2cb42
-  HB_MOVY_VERSION: 0.34.1-hbclean.135
-  HB_MOVY_TAG: v0.34.1-hbclean.135
+  HB_MOVY_VERSION: 0.34.1-hbclean.136
+  HB_MOVY_TAG: v0.34.1-hbclean.136
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -437,7 +437,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Fix local HarmonyBus input with Receive Off, compose single approach-row sequences with overlapping knob touches, and replace Slot labels with readable operation names. Includes HarmonyBus 0.2.225."
+              --notes "Recover missing HarmonyBus panel metadata on the track active when Movy starts. Restores parameter labels and widgets automatically while preserving the selected panel, with no ongoing metadata polling once ready. Includes unchanged HarmonyBus 0.2.225."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

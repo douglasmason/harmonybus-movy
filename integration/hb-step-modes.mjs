@@ -180,3 +180,52 @@ console.log('Knob LED ownership: generic values yield to performance and restore
     keyboardState.layout=3;assert.deepEqual(approachLight(4,state),[0,0,ANIM_NONE]);keyboardState.layout=0;
 }
 console.log('Approach lights: dark idle, solid white trigger/hold, smooth white latch, amber for every row assignment');
+
+// The first hosted track can expose its hierarchy before DSP metadata is ready.
+{
+    const { createSchwungPage } = await import('../dist/esm/renderer/schwung-page.js');
+    const startupPort = portFor(14);
+    const originalGet = startupPort.getParam;
+    const originalClock = Date.now;
+    let startupNow = 100000;
+    Date.now = () => startupNow;
+    setFlag('hbsteprow', 0);
+    try {
+        for (const missing of ['', '[]', '{', null]) {
+            let metadataReady = false;
+            let metadataReads = 0;
+            startupPort.getParam = key => {
+                if (key === 'midi_fx1:chain_params') {
+                    metadataReads++;
+                    return metadataReady ? JSON.stringify(module.capabilities.chain_params) : missing;
+                }
+                return originalGet(key);
+            };
+            const startupPage = createSchwungPage(startupPort, 'midi_fx1');
+            assert(startupPage.ready, 'Hierarchy-only startup already has drawable pages');
+            assert(!startupPage.ctl.state.chainParams?.length);
+            startupPage.ctl.goToPage(2);
+            metadataReady = true;
+            startupNow += 1001;
+            startupPage.tick();
+            assert.equal(startupPage.ctl.state.chainParams.length, module.capabilities.chain_params.length);
+            assert.equal(startupPage.ctl.state.pageIndex, 2, 'Metadata recovery preserves the selected panel');
+            for (const key of ['version', 'render_channel', 'receive_channel']) {
+                const expected = module.capabilities.chain_params.find(parameter => parameter.key === key);
+                const actual = startupPage.ctl.state.metaIndex.get(key);
+                assert.equal(actual.name, expected.name);
+                assert.equal(actual.type, expected.type);
+            }
+            const readsAfterRecovery = metadataReads;
+            for (let tick = 0; tick < 5; tick++) {
+                startupNow += 1001;
+                startupPage.tick();
+            }
+            assert.equal(metadataReads, readsAfterRecovery, 'Complete HB metadata stops startup polling');
+        }
+    } finally {
+        startupPort.getParam = originalGet;
+        Date.now = originalClock;
+    }
+}
+console.log('Startup metadata: empty, malformed and timed-out reads recover without ongoing polling');
