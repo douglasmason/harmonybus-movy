@@ -19,7 +19,7 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: c2e9434ef1f588ea174a6680fafe5251e2228f5c
-  HB_REF: 39bcea4c8870c6dd88c56657264fd5b07b9fa834
+  HB_REF: 32b89345d0682a255f0f6c21f4d1447df8e340c4
   HB_MOVY_VERSION: 0.34.1-hbclean.133
   HB_MOVY_TAG: v0.34.1-hbclean.133
   ASSET_NAME: harmonybus-movy-module.tar.gz
@@ -437,7 +437,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Separate approach-row selection knobs from step-button triggers, fix chromatic approach illumination, capture short arp flashes, and add Chord + Arp on knob 8 of both Harm Perform panels. Includes HarmonyBus 0.2.224."
+              --notes "Make knob turns edit operations in approach-row layouts and latch in other layouts, fix chromatic approach illumination, capture short arp flashes, and add Chord + Arp on knob 8 of both Harm Perform panels. Includes HarmonyBus 0.2.224."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

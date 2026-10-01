@@ -31,15 +31,19 @@ def patch_approach_mode(root: Path) -> None:
     source = path.read_text().replace("labels: ['STEPS','PERFORM']", "labels: ['STEPS','PERFORM','APPROACH']").replace("min: 0, max: 1, def: 0, uiOnly: true, release: true,\n        hint: 'Copy tap: Steps or Perform.'", "min: 0, max: 2, def: 0, uiOnly: true, release: true,\n        hint: 'Copy tap: Steps, Perform or Approach.'")
     path.write_text(source)
     path = root / 'src/renderer/schwung-page.ts'
-    source = "import { approachTouched } from './hb-approach.js';\n" + path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
+    source = "import { approachRowsActive, approachTouched } from './hb-approach.js';\n" + path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
     source = source.replace('            if (laneTouchSlots.has(slot)) {\n                releasePerformanceTouch(slot, true);', "            if (laneTouchSlots.has(slot) && !/^approach_bank_/.test(ctl.keyAt(slot))) {\n                releasePerformanceTouch(slot, true);")
     source = replace_once(source, '        knobTurn: (slot: number, delta: number) => {', """        knobTurn: (slot: number, delta: number) => {
             const approachControl=/^approach_bank_(\\d+)$/.exec(ctl.keyAt(slot));
-            if(approachControl){
+            if(approachControl && (approachRowsActive() || appState.shiftHeld)){
                 if(laneTouchSlots.has(slot))releasePerformanceTouch(slot,true);
                 const key=ctl.keyAt(slot),options=ctl.metaAt(slot)?.options||[];
                 const current=Math.max(0,options.indexOf(String(ctl.state.values[key])));
                 if(delta&&current>=0){ctl.commitEnum(key,Math.max(0,Math.min(options.length-1,current+delta)));ctl.revalue();markUiStateDirty();approachTouched(lanePort);}
+                return;
+            }
+            if(approachControl){
+                if(delta){lanePort.performanceSet('approach_control_'+approachControl[1],delta>0?'LatchOn':'LatchOff');approachTouched(lanePort);markUiStateDirty();touchPaintPending=true;}
                 return;
             }
 """)

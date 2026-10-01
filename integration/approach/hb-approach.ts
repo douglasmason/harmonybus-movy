@@ -9,6 +9,8 @@ export const APPROACH_CHOICES = ['Connector Below','Connector Above','Secondary 
 export const APPROACH_MOTIFS = ['V-Target','ii-V-Target','iv-bVII-Target','bII7-Target','ii-bII7-Target','bVI-bVII-I','bVI-V-I','bIII-IV-I','vi-V-I','iii-vi-ii-V-I','IV-iv-I','ii halfdim-V-i','I-VI7-ii-V-I','V/V-V-I','ii/V-V/V-V-I','V/ii-ii-V-I','V/vi-vi-ii-V-I','vii dim/V-V-I','III7-VI7-II7-V7-I',...Array.from({length:16},(_,index)=>'User '+(index+1))];
 export const TRIPLE_MOTIFS=['vi-ii-V','ii-V-LT','iv-bVII-LT','ii-bII7-LT','iii-vi-ii','IV-ii-V','vii-iii-vi','LT-ii-V'];
 export const BANK_CHOICES=[...APPROACH_MOTIFS.map((name,index)=>index<19?'Stock: '+name:name),...TRIPLE_MOTIFS.map(name=>'Stock: '+name),...APPROACH_CHOICES.filter(name=>!name.startsWith('Motif '))];
+/** Only the two dedicated approach layouts turn bank knobs into row selectors. */
+export function approachRowsActive(): boolean { return keyboardState.layout===2||keyboardState.layout===3; }
 let owner: PerformancePort | null = null;
 const releases = new Map<number,()=>void>();
 let statusAt = -Infinity, status: number[] = [];
@@ -83,7 +85,7 @@ export function paintApproachKnobs(port: PerformancePort, keys: (string | null)[
     refreshRows(port);
     for(let knob=0;knob<8;knob++){
         if(!/^approach_bank_/.test(keys[knob]??''))continue;
-        const slot=Number((keys[knob]??'').split('_').pop())-1;const selected=keyboardState.layout===3&&status.length>=12?status.slice(9,12).includes(slot):slot===status[7];const base=selected?37:0,color=base,animation=ANIM_NONE;
+        const slot=Number((keys[knob]??'').split('_').pop())-1;const selected=keyboardState.layout===3&&status.length>=12?status.slice(9,12).includes(slot):slot===status[7];const [base,color,animation]=approachRowsActive()?[selected?37:0,selected?37:0,ANIM_NONE]:approachLight(slot,status);
         cachedSetAnimLED(knob,base,color,animation);cachedSetAnimLED(71+knob,base,color,animation,true);
     }
     return true;

@@ -1,4 +1,4 @@
-**Approach controls:** Harm Perform knobs only select persistent approach-row assignments; turning edits the slot. Step buttons provide one-shot taps, momentary holds and finite overlap sequences without changing the rows. Legacy per-slot permanent latches are ignored. Knob 8 remains the shared Chord + Arp performance switch.
+**Approach controls:** In the two approach-row layouts, bank knobs select persistent row assignments and turns edit the operation. Elsewhere they retain one-shot taps, momentary holds and turn-to-latch; Shift-turn edits the operation. Steps trigger without changing row assignments. Layout changes clear active gestures while preserving saved settings. Knob 8 remains the shared Chord + Arp switch.
 
 **Movy hbclean.133 / HarmonyBus 0.2.224:** Chromatic approach pads stay black with Auto Chord enabled. Short emitted notes get a bounded Play Color flash without changing MIDI gates. Knob 8 on both Harm Perform panels uses the shared Chord + Arp operation: touch for a temporary gesture, turn to latch on/off.
 

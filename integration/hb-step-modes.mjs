@@ -76,6 +76,8 @@ try {
     assert(page.ctl.metaAt(0).options.includes('Upper Dim'));
     assert(!page.ctl.metaAt(0).options.includes('Scale Above'));
     assert(!page.ctl.metaAt(0).options.includes('Chromatic Below'));
+    const {keyboardState: approachKeyboard}=await import('../dist/esm/keyboard/state.js');
+    approachKeyboard.layout=2;
     page.knobTouch(0,true);page.knobTouch(1,true);
     assert(writes.some(([,key,value])=>key==='midi_fx1:approach_touch_1'&&value==='Down'));
     assert(writes.some(([,key,value])=>key==='midi_fx1:approach_touch_2'&&value==='Down'));
@@ -90,6 +92,11 @@ try {
     assert(!writes.slice(beforeEdit).some(([,key])=>/approach_touch_|approach_control_/.test(key)),'Shift editing does not trigger or latch');
     page.knobTouch(0,true);appState.shiftHeld=true;page.knobTurn(0,-1);page.knobTouch(0,false);appState.shiftHeld=false;
     assert(writes.some(([,key,value])=>key==='midi_fx1:approach_touch_1'&&value==='Cancel'),'Shift after touch cancels the trigger');
+    approachKeyboard.layout=0;
+    page.knobTurn(0,1);assert.equal(writes.at(-1)[1],'midi_fx1:approach_control_1');assert.equal(writes.at(-1)[2],'LatchOn');
+    page.knobTurn(0,-1);assert.equal(writes.at(-1)[2],'LatchOff');
+    approachKeyboard.layout=3;page.knobTurn(0,1);assert.equal(writes.at(-1)[1],'midi_fx1:approach_bank_1');
+    approachKeyboard.layout=0;
     const owner=hbPerformancePage();assert(owner);
     hbPerformanceStep([0x90,16,100],owner);hbPerformanceStep([0x80,16,0],owner);
     assert(writes.some(([,key,value])=>key==='midi_fx1:approach_step_touch_1'&&value==='Down'));
