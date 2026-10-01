@@ -16,7 +16,7 @@ int main(int argument_count, char **arguments) {
         const int quartet_position = track % 4;
         const int expected_role = track >= 12 ? 3 : quartet_position == 0 ? 0 : 1;
         const int preset = track >= 12 ? 5 + quartet_position : quartet_position + 1;
-        const int expected_channel = quartet_position;
+        const int expected_channel = quartet_position == 0 ? 2 : quartet_position;
         instances[track] = api->create_instance("", NULL);
         assert(instances[track]);
         api->set_param(instances[track], "state", arguments[preset]);
