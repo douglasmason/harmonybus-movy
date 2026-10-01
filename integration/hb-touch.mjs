@@ -671,7 +671,7 @@ console.log('Modifier previews: immediate tap/hold/release/cancel feedback, boun
 // Both real MIDI release encodings must clear the original page immediately.
 const padClock=Date.now;let padNow=1200000;Date.now=()=>padNow;
 try {
-    for(const key of ['pad_display','pad_pulse_rate','pad_pulse_shape','pad_current_color','pad_play_color','pad_lookahead_color','pad_both_color','pad_tonic_color']) {
+    for(const key of ['pad_display','pad_pulse_rate','pad_pulse_shape','pad_current_color','pad_play_color','pad_lookahead_color','pad_both_color','pad_tonic_color','pad_chord_form']) {
         for(const status of [0x80,0x90]) {
             padNow+=200;
             const slot=focusKey(key);
@@ -956,3 +956,5 @@ console.log('Fixed operation knobs: separate tap protocol, momentary hold, direc
     }
 }
 console.log('Shift edits: fixed lane operations, named modes, both touch orders, persistent latch preservation and no lane remapping pass');
+
+assert.deepEqual(module.capabilities.chain_params.find(p=>p.key==='pad_chord_form').options,module.capabilities.chain_params.find(p=>p.key==='chord_form').options,'Pad color and sounding chord forms share choices');

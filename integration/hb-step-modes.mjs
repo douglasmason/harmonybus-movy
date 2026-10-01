@@ -60,7 +60,7 @@ try {
     const firstOps=order('motion_control_1');
     assert(firstOps>order('monitor_status'),'Copy-mode operations follow main diagnostics');
     assert(order('pad_display')>firstOps&&order('fpath_0_0_0')>firstOps);
-    assert(page.ctl.pages.slice(firstOps).every(p=>p.keys?.some(key=>/^motion_(control_|lane$)/.test(key)||key==='pad_display'||key==='fpath_0_0_0')),'Only operations and end diagnostics follow the first operation page');
+    assert(page.ctl.pages.slice(firstOps).every(p=>p.keys?.some(key=>/^motion_(control_|lane$)/.test(key)||key==='pad_display'||key==='pad_chord_form'||key==='fpath_0_0_0')),'Only operations and end diagnostics follow the first operation page');
     down();assert.equal(hbPerformancePage(),null,'Copy held exposes native input step editing');
     onUnit({kind:'step',track:0,step:0});now+=50;up();assert.equal(flagValue('hbsteprow'),1,'Copy source gesture does not cycle');
     down();now+=500;up();assert.equal(flagValue('hbsteprow'),1,'Long unused hold does not cycle');
