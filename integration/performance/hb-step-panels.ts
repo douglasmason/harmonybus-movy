@@ -6,7 +6,7 @@ const motifs = new Set(['motifs', 'motif_tools', 'motif_play']);
 const play = new Set(['follower_play', 'chord_player', 'arp_player', 'follower_play_tools', 'motif_global']);
 const setupOrder = ['global_transpose', 'follower_root', 'chord_player', 'arp_player',
     'track_scales', 'follower_source', 'next_harm', 'grid_timing',
-    'pad_display', 'follower_this'];
+    'pad_display', 'pad_chord_form', 'follower_this'];
 const advancedOrder = ['role_defaults', 'conductor_chord_defaults', 'follower_chord_defaults',
     'conductor_scale_defaults', 'follower_scale_defaults', 'chord_defaults_status', 'diagnostics'];
 

@@ -35,6 +35,11 @@ def patch_page_latency(root: Path) -> None:
             const moduleId = port.getParam(moduleReadKey(componentKey));
             if (moduleId !== null && moduleId !== hostedModuleId) reload();
             else if (hostedModuleId !== 'harmonybus') ctl.reloadIfChanged();
+            else if (!Array.isArray(ctl.state.chainParams) || !ctl.state.chainParams.length) {
+                // Hierarchy-only pages are drawable before DSP metadata arrives.
+                // Retry that startup state; complete HB contracts stay off the I/O path.
+                reload();
+            }
         }''')
     source = replace_once(source, '            if (now - followerSnapshotAt >= 40) {', '''            // Never let a failed snapshot fall back to a left-to-right cell sweep.
             if (!followerValues) {
