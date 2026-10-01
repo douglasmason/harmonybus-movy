@@ -5,10 +5,12 @@ on:
     branches: [clean-hb]
   pull_request:
     branches: [clean-hb]
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: harmonybus-movy-clean-${{ github.event.pull_request.number || github.ref }}
@@ -28,8 +30,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check CI promotion invariants
+        run: python3 scripts/test_ci_release.py
+
+      - name: Select checks and recover tested release
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci_release.py plan movy
 
       - name: Install aarch64 toolchain
+        if: steps.plan.outputs.mode == 'full'
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
@@ -39,26 +53,31 @@ jobs:
           rustup target add aarch64-unknown-linux-gnu
 
       - name: Clone pinned upstream Movy
+        if: steps.plan.outputs.mode != 'reused'
         run: |
           git clone https://github.com/DimaDake/schwung-movy.git movy
           cd movy
           git checkout "$UPSTREAM_REF"
 
       - name: Clone Schwung for upstream ABI and palette checks
+        if: steps.plan.outputs.mode != 'reused'
         run: |
           git clone --filter=blob:none --no-checkout https://github.com/charlesvestal/schwung.git schwung
           git -C schwung checkout "$SCHWUNG_REF"
 
       - name: Apply clean HarmonyBus integration
+        if: steps.plan.outputs.mode != 'reused'
         run: python3 scripts/apply_clean_harmonybus.py movy
 
       - name: Test prepared states with the actual HarmonyBus loader
+        if: steps.plan.outputs.mode != 'reused'
         run: |
           git clone --filter=blob:none --no-checkout https://github.com/douglasmason/harmonybus.git harmonybus
           git -C harmonybus checkout "$HB_REF"
           python3 scripts/verify_harmonybus_defaults.py movy harmonybus
 
       - name: Verify clean scope and defaults
+        if: steps.plan.outputs.mode != 'reused'
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -245,6 +264,7 @@ jobs:
           PY
 
       - name: Stamp module metadata
+        if: steps.plan.outputs.mode != 'reused'
         run: |
           python3 - <<'PY'
           import json
@@ -258,72 +278,88 @@ jobs:
           PY
 
       - name: Install Movy dependencies
+        if: steps.plan.outputs.mode != 'reused'
         working-directory: movy
         run: npm install
 
       - name: Build browser test bundle
+        if: steps.plan.outputs.mode != 'reused'
         working-directory: movy
         run: node build/browser.mjs
 
       - name: Upstream test — logic
+        if: steps.plan.outputs.mode == 'full'
         working-directory: movy
         run: node browser-test/logic.mjs
 
       - name: Verify motif editor and feedback
+        if: steps.plan.outputs.mode != 'reused'
         working-directory: movy
         run: node browser-test/hb-motifs.mjs
 
       - name: Verify harmony pad colors
+        if: steps.plan.outputs.mode != 'reused'
         working-directory: movy
         run: node browser-test/hb-pad-colors.mjs
 
       - name: Verify clip action UI and Undo
+        if: steps.plan.outputs.mode != 'reused'
         working-directory: movy
         run: |
           node browser-test/hb-clip-tools.mjs
           node browser-test/hb-input-info.mjs
 
       - name: Verify user data survives custom reinstall
+        if: steps.plan.outputs.mode == 'full'
         working-directory: movy
         run: node browser-test/hb-data-survival.mjs
 
       - name: Upstream test — track colors
+        if: steps.plan.outputs.mode == 'full'
         working-directory: movy
         run: |
           node browser-test/track-colors.mjs
           node browser-test/native-track-colors.mjs
 
       - name: Upstream test — ABI parity
+        if: steps.plan.outputs.mode == 'full'
         working-directory: movy
         run: node browser-test/abi-parity.mjs
 
       - name: Upstream test — dump replay
+        if: steps.plan.outputs.mode == 'full'
         working-directory: movy
         run: node browser-test/dump-replay.mjs
 
       - name: Upstream test — app loop
+        if: steps.plan.outputs.mode == 'full'
         working-directory: movy
         run: node browser-test/app-loop.mjs
 
       - name: Upstream test — screenshot
+        if: steps.plan.outputs.mode == 'full'
         working-directory: movy
         run: node browser-test/screenshot.mjs
 
       - name: Upstream test — perf
+        if: steps.plan.outputs.mode == 'full'
         working-directory: movy
         run: node browser-test/perf.mjs
 
       - name: Upstream test — device scripts
+        if: steps.plan.outputs.mode == 'full'
         working-directory: movy
         run: node browser-test/device-scripts.mjs
 
       - name: Typecheck and build UI
+        if: steps.plan.outputs.mode != 'reused'
         working-directory: movy
         run: |
           npm run typecheck
           npm run build:device
 
       - name: Test native sequencer and transport
+        if: steps.plan.outputs.mode == 'full'
         working-directory: movy/engine
         run: |
           cargo test -p seq-core --lib
@@ -331,14 +367,17 @@ jobs:
           HB_TIMING_TRACE=/tmp/hb-timing.trace cargo test -p movy-dsp hb_loop --lib
 
       - name: Replay real sequencer timing through HarmonyBus
+        if: steps.plan.outputs.mode == 'full'
         run: |
           cc -std=c11 -D_POSIX_C_SOURCE=200809L -Wno-format-zero-length -O1 -I harmonybus tests/follower_trace.c harmonybus/src/harmony_core.c -lm -o /tmp/hb-trace
           /tmp/hb-trace /tmp/hb-timing.trace
 
       - name: Exercise the full native audio and recording chain
+        if: steps.plan.outputs.mode == 'full'
         run: bash scripts/test_full_chain_audio.sh movy harmonybus schwung
 
       - name: Verify HB knob touch with the real Schwung controller
+        if: steps.plan.outputs.mode != 'reused'
         working-directory: movy
         run: |
           SCHWUNG="$SCHWUNG_ROOT" node build/browser.mjs
@@ -348,10 +387,12 @@ jobs:
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-analysis.mjs
 
       - name: Build Movy DSP
+        if: steps.plan.outputs.mode == 'full'
         working-directory: movy
         run: ./scripts/build-dsp.sh
 
       - name: Package module
+        if: steps.plan.outputs.mode == 'full'
         run: |
           rm -rf package
           mkdir -p package/movy/configs
@@ -361,6 +402,7 @@ jobs:
           tar -tzf "$ASSET_NAME" | head -100
 
       - name: Verify branch release manifest
+        if: steps.plan.outputs.mode == 'full'
         run: |
           python3 - <<'PY'
           import json
@@ -371,15 +413,21 @@ jobs:
           print('release manifest verified')
           PY
 
+      - name: Seal comprehensive release artifact
+        if: steps.plan.outputs.mode == 'full'
+        run: python3 scripts/ci_release.py seal movy
+
       - name: Preserve tested device package
+        if: steps.plan.outputs.mode == 'full'
         uses: actions/upload-artifact@v4
         with:
-          name: harmonybus-movy-${{ env.HB_MOVY_VERSION }}
-          path: ${{ env.ASSET_NAME }}
+          name: comprehensive-release
+          path: ci-release/*
           if-no-files-found: error
+          retention-days: 14
 
       - name: Publish clean release
-        if: github.event_name != 'pull_request'
+        if: steps.plan.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -397,7 +445,7 @@ jobs:
           test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
 
       - name: Update default-branch installer pointer
-        if: github.event_name != 'pull_request'
+        if: steps.plan.outputs.publish == 'true'
         run: |
           cp release.json "$RUNNER_TEMP/hb-movy-release.json"
           git fetch origin main
