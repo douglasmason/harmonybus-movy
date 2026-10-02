@@ -45,7 +45,7 @@ const checkCadences=()=>{
 checkCadences();
 assert(order('follower_explicit_root')<order('chord_mode'));
 assert.equal(order('chord_mode'),3,'Chords follows Main, Global and Follower Root');
-assert.equal(order('arp_playback'),4,'Arp / Strum immediately follows Chords');
+assert.equal(order('arp_playback'),5,'Arp / Strum follows Chord Forms');
 for(const key of ['defaults_editor'])
     assert(order(key)>order('render_rhythm_mode'),'Role defaults follow everyday and play controls');
 assert(order('render_channel')<order('chord_mode'));

@@ -42,6 +42,11 @@ def patch_named_controls(root: Path) -> None:
     source = source.replace('lights.active&(1<<localLane)', 'Math.floor(lights.active / 2**localLane)%2').replace('lights.persistent&(1<<localLane)', 'Math.floor(lights.persistent / 2**localLane)%2').replace('lights.down&(1<<localLane)', 'Math.floor(lights.down / 2**localLane)%2')
     source += """
 const namedLaneLights=new Map<PerformancePort|number,LaneLights>();
+/** Presentation-only read; the normal LED update owns host polling. */
+export function cachedNamedControlActive(owner:PerformancePort,control:number):boolean {
+    const state=namedLaneLights.get(owner.performanceTrack ?? owner);
+    return !!state&&!!(Math.floor(state.active/2**(control-17))%2);
+}
 function readNamedLights(owner:PerformancePort):LaneLights|null {
     const key=owner.performanceTrack ?? owner,now=Date.now(),cached=namedLaneLights.get(key);
     if(cached&&now>=cached.at&&now-cached.at<50)return cached;

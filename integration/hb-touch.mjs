@@ -17,7 +17,7 @@ const editorReads = [];
 const operationMetadata = () => module.capabilities.chain_params.map(parameter => {
             if(parameter.key.startsWith('defaults_control_')){
                 const editor=String(values.get('defaults_editor'));
-                const fields=editor.endsWith('Scales')?['gap_scale','scale_context','dominant_scale','borrowed_scale','local_palette','scope']:['chord_form','chord_quality','chord_inversion','chord_voicing','strum_spread','chromatic_quality'];
+                const fields=editor.endsWith('Scales')?['gap_scale','scale_context','dominant_scale','borrowed_scale','local_palette','scope']:['chord_quality','chord_inversion','chord_voicing','strum_spread','chromatic_quality','scope'];
                 const field=fields[Number(parameter.key.split('_').at(-1))-1];
                 const key=field==='scope'?'defaults_scope':(editor.startsWith('Follower')?'follower':'conductor')+'_default_'+field;
                 return {...module.capabilities.chain_params.find(candidate=>candidate.key===key),key:parameter.key};
@@ -137,7 +137,7 @@ assert(module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_st
 assert(!module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_clear'));
 assert(module.capabilities.ui_hierarchy.levels.follower_play_tools.knobs.includes('arp_clear'));
 assert(module.capabilities.ui_hierarchy.levels.chord_player.knobs.includes('strum_spread'));
-assert.equal(module.capabilities.ui_hierarchy.levels.chord_player.knobs.length,8);
+assert.equal(module.capabilities.ui_hierarchy.levels.chord_player.knobs.length,4);
 
 const { releasePerformanceTouch, performanceTouchActive } = await import('../dist/esm/renderer/schwung-page.js');
 const performanceSlot = focusKey('play_bypass');
@@ -274,7 +274,7 @@ const formSlot=page.ctl.page.keys.indexOf('motion_amount');
 assert.equal(page.ctl.metaAt(formSlot).name,'Form');
 assert.equal(page.ctl.metaAt(formSlot).type,'enum');
 page.knobTurn(formSlot,100);page.knobTouch(formSlot,false);
-assert.equal(values.get('motion_amount'),'Rootless 9');
+assert.equal(values.get('motion_amount'),'Follow Detected');
 page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
 assert.equal(values.get('motion_operation'), 'MIDI Echo');
 assert.equal(page.ctl.metaAt(page.ctl.page.keys.indexOf('motion_offset')).name, 'Decay %');
@@ -874,10 +874,10 @@ for (const key of ['defaults_control_1','defaults_control_2','gap_scale','local_
     page.knobTurn(slot,1);page.knobTouch(slot,false);
     assert(writes.slice(before).some(([wire])=>wire==='midi_fx1:'+key),key+' targets its own scope');
 }
-const localForm=focusKey('chord_form');
+const localForm=focusKey('track_chord_form');
 const roleClock=Date.now;let roleNow=roleClock();Date.now=()=>roleNow;
 try {for(let turn=0;turn<128;turn++){roleNow+=100;page.knobTurn(localForm,1);page.knobTouch(localForm,false);roleNow+=100;page.tick();}}finally{Date.now=roleClock;}
-assert.equal(values.get('chord_form'),'Role Default');
+assert.equal(values.get('track_chord_form'),'Role Default');
 const sources=focusKey('chord_edit_target'),beforeSources=writes.length;
 page.knobTurn(sources,1);page.knobTouch(sources,false);
 assert.equal(writes.length,beforeSources,'A target selector with only Track Settings does not change destination');
@@ -957,4 +957,13 @@ console.log('Fixed operation knobs: separate tap protocol, momentary hold, direc
 }
 console.log('Shift edits: fixed lane operations, named modes, both touch orders, persistent latch preservation and no lane remapping pass');
 
-assert.deepEqual(module.capabilities.chain_params.find(p=>p.key==='pad_chord_form').options,module.capabilities.chain_params.find(p=>p.key==='chord_form').options,'Pad color and sounding chord forms share choices');
+assert.deepEqual(module.capabilities.chain_params.find(p=>p.key==='pad_chord_form').options,module.capabilities.chain_params.find(p=>p.key==='chord_form').options.filter(option=>option!=='Role Default'),'Pad color and sounding chord forms share choices');
+
+const formKeys=['conductor_default_chord_form','follower_default_chord_form','pad_chord_form','detected_chord_form','track_chord_form','chord_quality','chord_inversion','chord_voicing'];
+assert.deepEqual(module.capabilities.ui_hierarchy.levels.chord_forms.knobs,formKeys);
+for(const key of formKeys){
+    assert.equal(page.ctl.pages.filter(candidate=>candidate.keys?.includes(key)).length,1,key+' appears on exactly one page');
+    assert(focusKey(key)>=0,key+' is reachable');
+}
+assert(!module.capabilities.ui_hierarchy.levels.pad_chord_form,'No stranded Pad Harmony page');
+console.log('Chord Forms: eight unified controls, detected readout, no duplicates or single-knob panel');

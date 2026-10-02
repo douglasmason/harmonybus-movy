@@ -1,4 +1,5 @@
 import type { PerformancePort } from './hb-performance.js';
+import { cachedNamedControlActive } from './hb-performance.js';
 import { fontPrint, fontWidth } from '../font/index.js';
 import { keyboardState } from '../keyboard/state.js';
 import { appState } from '../app/state.js';
@@ -13,6 +14,7 @@ export const BANK_CHOICES=[...APPROACH_CHOICES.filter(name=>!name.startsWith('Mo
 export function approachRowsActive(): boolean { return keyboardState.layout===2||keyboardState.layout===3; }
 export const APPROACH_BANK_DEFAULTS=['Secondary V','Secondary II','Connector Below','Connector Above','Leading Tone','Tritone Sub','Backdoor V','Upper Dim','Stock: ii-V-Target','Stock: iv-bVII-Target','Stock: ii-bII7-Target','Stock: vi-ii-V','Stock: ii-V-LT','Stock: V/V-V-I','Stock: iii-vi-ii-V-I','Stock: ii/V-V/V-V-I'];
 let owner: PerformancePort | null = null;
+let chordArpActive=false;
 const releases = new Map<number,()=>void>();
 let statusAt = -Infinity, status: number[] = [];
 let rowView: string[] = [], lastRowView = '', rowRevealUntil = 0;
@@ -84,6 +86,7 @@ export function paintApproach(port: PerformancePort | null): boolean {
 export function paintApproachKnobs(port: PerformancePort, keys: (string | null)[]): boolean {
     if(!keys.some(key=>/^approach_bank_/.test(key ?? '')))return false;
     refreshRows(port);
+    chordArpActive=cachedNamedControlActive(port,32);
     for(let knob=0;knob<8;knob++){
         if(!/^approach_bank_/.test(keys[knob]??''))continue;
         const slot=Number((keys[knob]??'').split('_').pop())-1;const selected=keyboardState.layout===3&&status.length>=12?status.slice(9,12).includes(slot):keyboardState.layout===2&&status[12]?!!(status[12]&(1<<slot)):slot===status[7];const [base,color,animation]=approachRowsActive()?[selected?37:0,selected?37:0,ANIM_NONE]:approachLight(slot,status);
@@ -114,6 +117,10 @@ export function drawApproachOperations(keys: (string | null)[], values: Record<s
         'Backdoor V':'Back V', 'Backdoor II':'Back II', 'Tritone II':'TTS II',
         'Secondary VI':'Sec VI', 'Secondary III':'Sec III', 'Secondary IV':'Sec IV',
         'Secondary VII':'Sec VII', 'Upper Dim':'Upper Dim',
+        'Stock: ii-V-Target':'ii-V', 'Stock: iv-bVII-Target':'Back door',
+        'Stock: ii-bII7-Target':'TTS ii-V', 'Stock: vi-ii-V':'vi-ii-V',
+        'Stock: ii-V-LT':'ii-V LT', 'Stock: V/V-V-I':'V/V-V',
+        'Stock: iii-vi-ii-V-I':'iii-vi ii-V',
     };
     keys.forEach((key, slot) => {
         if (!/^approach_bank_/.test(key ?? '') && key !== 'motion_control_32') return;
@@ -123,13 +130,43 @@ export function drawApproachOperations(keys: (string | null)[], values: Record<s
         let line='';
         for (const word of words) {
             const joined=line+(line&&!line.endsWith('-')?' ':'')+word;
-            if (line && fontWidth(joined)>30) { lines.push(line);line=word; }
+            if (line && fontWidth(joined)>26) { lines.push(line);line=word; }
             else line=joined;
-            while(fontWidth(line)>30){let split=line.length-1;while(split>1&&fontWidth(line.slice(0,split))>30)split--;lines.push(line.slice(0,split));line=line.slice(split);}
         }
         if(line)lines.push(line);
-        const x=(slot%4)*32, y=11+Math.floor(slot/4)*23, active=touched===slot;
-        fill_rect(x,y,32,23,active?1:0);
-        lines.slice(0,3).forEach((text,index)=>fontPrint(x+Math.max(1,Math.floor((32-fontWidth(text))/2)),y+2+index*7,text,active?0:1));
+        const display=lines.slice(0,2);
+        if(lines.length>2)display[1]+='..';
+        for(let index=0;index<display.length;index++){
+            if(fontWidth(display[index])<=26)continue;
+            let text=display[index].replace(/\.\.$/,'');
+            while(text.length&&fontWidth(text+'..')>26)text=text.slice(0,-1);
+            display[index]=text+'..';
+        }
+        const x=(slot%4)*32, y=9+Math.floor(slot/4)*24, active=touched===slot;
+        fill_rect(x,y,32,24,0);
+        fill_rect(x+1,y,30,15,1);
+        fill_rect(x+2,y+1,28,13,active?1:0);
+        const textY=y+(display.length===1?5:2);
+        display.forEach((text,index)=>fontPrint(x+Math.floor((32-fontWidth(text))/2),textY+index*6,text,active?0:1));
+        const bankSlot=key?.startsWith('approach_bank_')?Number(key.split('_').pop())-1:-1;
+        const held=bankSlot>=0&&!!((status[3]||0)&(1<<bankSlot));
+        const armed=bankSlot>=0&&!!status[6]&&!!((status[5]||0)&(1<<bankSlot));
+        const caption=key==='motion_control_32'?(chordArpActive?'On':'Off'):
+            approachRowsActive()?'':held?'Hold':armed?(status[8]?'Latch':'Armed'):'';
+        if(caption)fontPrint(x+Math.floor((32-fontWidth(caption))/2),y+16,caption,1);
+    });
+}
+
+/** Keep the detected form visible alongside its harmony, without host reads. */
+export function drawDetectedChordForm(keys:(string|null)[],values:Record<string,unknown>,touched:number):void {
+    const slot=keys.indexOf('detected_chord_form');if(slot<0)return;
+    const raw=String(values.detected_chord_form??'--'),split=raw.lastIndexOf(' ');
+    const lines=split<0?[raw,'--']:[raw.slice(0,split),raw.slice(split+1)];
+    const x=(slot%4)*32,y=9+Math.floor(slot/4)*24,active=touched===slot;
+    fill_rect(x,y,32,15,0);fill_rect(x+1,y,30,15,1);fill_rect(x+2,y+1,28,13,active?1:0);
+    lines.forEach((line,index)=>{
+        let text=line;
+        if(fontWidth(text)>26){while(text.length&&fontWidth(text+'..')>26)text=text.slice(0,-1);text+='..';}
+        fontPrint(x+Math.floor((32-fontWidth(text))/2),y+2+index*6,text,active?0:1);
     });
 }
