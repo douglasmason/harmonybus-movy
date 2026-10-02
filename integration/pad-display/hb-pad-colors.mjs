@@ -240,7 +240,7 @@ assert.equal(parseHarmonySnapshot('0,0,0,0,0,3,0,3,4,2|both1,10'),null);
 console.log('Both Color override, Blend default, and None pulse shape pass');
 
 // Track color is pinned to input roots and is strictly a background layer.
-for (const mode of [0,1,2,3,4,5,6]) {
+for (const mode of [1,2,3,4,5,6]) {
     const drawRoot = (mask, outputTonic) => {
         effectivePort.getParam=()=>`${mask},${mask},2741,1,${mask},${mode},0,3,0,0|colors2,0|tonic1,${outputTonic}|full1,1,${mask}|both1,1|input1,0,1,1,2741,${mask}`;
         refreshHarmonyPads(2,testTime+=100);
@@ -580,3 +580,35 @@ for(const bank of [0,1]){
     assert.equal(panel.knobs.length,8);assert.equal(panel.knobs[7],'motion_control_32');
     assert.equal(panel.params[7].name,'Chord + Arp');
 }
+
+// Next tone selection stays independent of the general pulse shape and pad form.
+{
+    const {seqState}=await import('../dist/esm/seq/state.js');
+    const clock=Date.now;let now=0;
+    seqState.playing=false;seqState.bpmX100=12000;
+    const raw='145,145,2741,0,0,6,3,3,2,0|full1,1,145|nextpulse1,16,0';
+    assert.equal(parseHarmonySnapshot(raw).nextPulse,16);
+    for(const bad of ['4096,0','16,-1','16,4294967296','16,0,1','NaN,0'])
+        assert.equal(parseHarmonySnapshot(raw.replace('16,0',bad)),null);
+    portFor(0).getParam=()=>raw;refreshHarmonyPads(0,testTime+=100);
+    Date.now=()=>now;
+    try {
+        const peak=harmonyPadColor(64,0),unselected=harmonyPadColor(67,0);
+        assert.equal(peak,127,'Selected next tone uses pure next color, not current or overlap color');
+        now=250;
+        assert.notEqual(harmonyPadColor(64,0),peak,'Selected third breathes even with general Shape None');
+        assert.equal(harmonyPadColor(67,0),unselected,'Unselected fifth remains unchanged');
+        assert.equal(harmonyPadColor(64,0,true),120,'Held edit highlight remains solid');
+        for (const mode of [1,2,3,4,5,6]) {
+            portFor(0).getParam=()=>raw.replace('6,3,3,2,0',mode+',3,3,2,0');refreshHarmonyPads(0,testTime+=100);
+            now=0;const first=harmonyPadColor(64,0);now=250;const second=harmonyPadColor(64,0);
+            if ([1,3,4].includes(mode)) assert.equal(first,second,'Current-only or unavailable Next has no pulse '+mode);
+            else {assert.notEqual(first,second,'Displayed preview pulses '+mode);assert.equal(first,mode===0||mode===2?7:127,'Pure displayed harmony color '+mode);}
+        }
+        portFor(0).getParam=()=>raw.replace('6,3,3,2,0','6,0,3,2,0');refreshHarmonyPads(0,testTime+=100);
+        const off=harmonyPadColor(64,0);now=0;assert.equal(harmonyPadColor(64,0),off,'Pulse Rate Off disables selection animation');
+        portFor(0).getParam=()=>raw.replace('|nextpulse1,16,0','');refreshHarmonyPads(0,testTime+=100);
+        const none=harmonyPadColor(64,0);now=250;assert.equal(harmonyPadColor(64,0),none,'None preserves original steady colors');
+    } finally {Date.now=clock;}
+}
+console.log('Next Pulse: strict snapshot parsing, selected tones only, default-off and solid highlights pass');

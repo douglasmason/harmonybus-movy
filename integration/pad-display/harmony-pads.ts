@@ -11,7 +11,7 @@ import { seqState } from '../seq/state.js';
 import { visualEngineTick } from '../seq/engine.js';
 import { PAD_PALETTE } from './pad-palette.js';
 
-export type HarmonySnapshot = { playPads?: number; gapColors?: number[]; pianoApproach?: boolean; current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; playColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
+export type HarmonySnapshot = { nextPulse?: number; nextPulsePads?: number; playPads?: number; gapColors?: number[]; pianoApproach?: boolean; current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; playColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
 let snapshot: HarmonySnapshot | null = null;
 let requestedPads: number[] = [];
 let previewRevision = -1;
@@ -61,6 +61,14 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
         const mask = Number(fields[2]);
         if (fields.length !== 3 || !['0','1'].includes(fields[1]) || !Number.isInteger(mask) || mask < 0 || mask > 4095) return null;
         fullLookahead = fields[1] === '1' ? mask : 0;
+    }
+    const pulseSection = sections.find(section => section.startsWith('nextpulse1,'));
+    let nextPulse: number | undefined, nextPulsePads: number | undefined;
+    if (pulseSection) {
+        const fields = pulseSection.split(',');
+        nextPulse = Number(fields[1]); nextPulsePads = Number(fields[2]);
+        if (fields.length !== 3 || !Number.isInteger(nextPulse) || nextPulse < 0 || nextPulse > 4095 ||
+            !Number.isInteger(nextPulsePads) || nextPulsePads < 0 || nextPulsePads > 0xffffffff) return null;
     }
     const bothSection = sections.find(section => section.startsWith('both1,'));
     const bothColor = bothSection ? Number(bothSection.split(',')[1]) : undefined;
@@ -112,7 +120,7 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
     }
     const piano = sections.find(section => section.startsWith('piano1,'));
     if (piano && !['piano1,0','piano1,1'].includes(piano)) return null;
-    return { ...(playPads !== undefined ? {playPads: (playPads | playFlash) >>> 0} : {}), ...(gapColors ? {gapColors} : {}), ...(piano ? {pianoApproach: piano === 'piano1,1'} : {}), ...(playColor !== undefined ? {playColor} : {}), ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
+    return { ...(nextPulse !== undefined ? {nextPulse, nextPulsePads} : {}), ...(playPads !== undefined ? {playPads: (playPads | playFlash) >>> 0} : {}), ...(gapColors ? {gapColors} : {}), ...(piano ? {pianoApproach: piano === 'piano1,1'} : {}), ...(playColor !== undefined ? {playColor} : {}), ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
 }
 
 /** Poll one compact snapshot, never once per pad or once per display frame. */
@@ -223,6 +231,16 @@ export function colorHarmonyPitch(pitch: number, inputRoot: number, track: numbe
     return harmonyMix(background, currentColor, effectiveColor, first, second);
 }
 
+/** Tone selection has its own smooth brightness pulse, independent of general shape. */
+function nextTonePulse(background: number, selected: boolean, track: number): number {
+    const period = periods[settings[1]];
+    const mode = settings[0];
+    if (!selected || !period || mode === 1 || ((mode === 3 || mode === 4) && !snapshot?.ready)) return background;
+    const choice = mode === 0 || mode === 2 ? settings[3] : settings[4];
+    const color = choice === 8 ? trackColor(track) : colors[choice];
+    return paletteMix(0, color, 0, 0.2 + 0.8 * harmonyPulse(harmonyBeat() / period, 0), 0);
+}
+
 /** Null disables the play overlay and exposes the normal harmony background. */
 export function harmonyPlayColor(track: number): number | null {
     const choice = watchedTrack === track ? snapshot?.playColor : undefined;
@@ -261,17 +279,18 @@ export function harmonyPadColor(pitch: number, track: number, held = false): num
     const effective = mode === 0 || mode === 2 ? (view?.effective || 0) : (mode >= 5 ? (view?.fullLookahead ?? 0) : (view?.ready ? view.lookahead : 0));
     const resolveColor = (choice: number): number => choice === 8 ? trackColor(track) : colors[choice];
     const selectedColor = mode === 0 || mode === 2 ? (view?.playColor !== undefined ? settings[3] : (view?.effectiveColor ?? 8)) : settings[4];
+    const pulse = (color: number): number => nextTonePulse(color, !!((view?.nextPulse ?? 0) & (1 << (pitch % 12))), track);
     if ((mode === 0 || mode === 2) && view?.input) {
         const bit = 1 << (pitch % 12), input = view.input;
         const outputScale = view.scale;
         const background = pitch % 12 === input.root ? tonicColor : (outputScale & bit) ? C_LIGHTGREY : 0;
-        if (input.chord & bit) return harmonyMix(background, resolveColor(selectedColor), 0, period ? harmonyPulse(beat / period, settings[2]) : 1, 0);
-        if (pitch % 12 === input.root || (outputScale & bit)) return background;
-        return isPianoLayout(keyboardState.mode, keyboardState.layout) ? C_DARKGREY : 0;
+        if (input.chord & bit) return pulse(harmonyMix(background, resolveColor(selectedColor), 0, period ? harmonyPulse(beat / period, settings[2]) : 1, 0));
+        if (pitch % 12 === input.root || (outputScale & bit)) return pulse(background);
+        return pulse(isPianoLayout(keyboardState.mode, keyboardState.layout) ? C_DARKGREY : 0);
     }
-    return colorHarmonyPitch(pitch, keyboardState.rootPc, track, scale, current, effective,
+    return pulse(colorHarmonyPitch(pitch, keyboardState.rootPc, track, scale, current, effective,
         mode, period ? beat / period : 0, settings[2],
-        resolveColor(settings[3]), resolveColor(selectedColor), period > 0, view?.tonic, view?.bothColor ? resolveColor(view.bothColor - 1) : undefined, tonicColor);
+        resolveColor(settings[3]), resolveColor(selectedColor), period > 0, view?.tonic, view?.bothColor ? resolveColor(view.bothColor - 1) : undefined, tonicColor));
 }
 
 /** Editing the keyboard tonic selects the same explicit input root in HB. */
@@ -351,7 +370,7 @@ export function harmonyApproachColor(index: number, track: number, held = false)
         period > 0, undefined, snapshot.bothColor ? resolve(snapshot.bothColor - 1) : undefined);
     const resting = keyboardState.layout === LAYOUT_APPROACH || keyboardState.layout === 3
         ? paletteMix(0, background, 0, 1 / 3, 0) : background;
-    return harmonyPlaybackColor(resting, track, index, held);
+    return harmonyPlaybackColor(nextTonePulse(resting, !!(((snapshot.nextPulsePads ?? 0) >>> index) & 1), track), track, index, held);
 }
 
 /** Final output membership is distinct from live and recorded source input. */
