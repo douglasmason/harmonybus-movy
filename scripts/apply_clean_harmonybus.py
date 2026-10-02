@@ -83,7 +83,7 @@ function freshHarmonyBusChains() {
             t,
             comp: [
                 { c: 'midi_fx1', m: 'harmonybus',
-                  s: t >= 12 ? HB_FRESH_RECEIVERS[pos] : pos === 0 ? HB_FRESH_CONDUCTOR : HB_FRESH_FOLLOWERS[pos - 1] },
+                  s: t === 0 ? HB_FRESH_CONDUCTOR + ';freshrole1' : t >= 12 ? HB_FRESH_RECEIVERS[pos] : pos === 0 ? HB_FRESH_CONDUCTOR : HB_FRESH_FOLLOWERS[pos - 1] },
                 ...(t < 12 ? [{ c: 'synth', m: 'plaits' }] : []),
             ],
             /* gain,pan,muted,send1,send2. Local audio is muted; MIDI is not. */

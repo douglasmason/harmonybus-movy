@@ -21,7 +21,7 @@ def patch_approach_mode(root: Path) -> None:
     source = replace_once(source, '    const namedLights=assignments.some(lane=>lane>=16)?readNamedLights(owner):null;', '    const namedLights=assignments.some(lane=>lane>=16)?readNamedLights(owner):null;\n    paintApproachKnobs(owner,keys);')
     source = source.replace(" : 'STEPS / NO HB',1);", " : 'STEPS / NO HB',1);\n    if(active && flagValue('hbsteprow')===2)drawApproachRows(hbPerformancePage()!);")
     source=source.replace('    const clip = operation >= 12 && operation <= 15;\n    return clip ? (active ? 17 : 97) : (active ? C_GREEN : 85);', '    return active ? 120 : 124;')
-    source = source.replace('        const bit=1<<knob,lane=assignments[knob];', "        const bit=1<<knob,lane=assignments[knob];\n        if(/^approach_bank_/.test(keys[knob]??'')){wanted|=bit;continue;}")
+    source = source.replace('        const bit=1<<knob,lane=assignments[knob];', "        const bit=1<<knob,lane=assignments[knob];\n        if(/^approach_bank_/.test(keys[knob]??'')||keys[knob]==='approach_motif_latch'){wanted|=bit;continue;}")
     path.write_text(source)
     path = root / 'src/renderer/hb-step-panels.ts'
     source = "import { approachPanels } from './hb-approach.js';\n" + path.read_text()
@@ -34,6 +34,10 @@ def patch_approach_mode(root: Path) -> None:
     source = "import { approachRowsActive, approachTouched, drawApproachOperations, drawDetectedChordForm } from './hb-approach.js';\n" + path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
     source = source.replace('            if (laneTouchSlots.has(slot)) {\n                releasePerformanceTouch(slot, true);', "            if (laneTouchSlots.has(slot) && !/^approach_bank_/.test(ctl.keyAt(slot))) {\n                releasePerformanceTouch(slot, true);")
     source = replace_once(source, '        knobTurn: (slot: number, delta: number) => {', """        knobTurn: (slot: number, delta: number) => {
+            if(ctl.keyAt(slot)==='approach_motif_latch'){
+                if(delta&&!approachRowsActive()){lanePort.performanceSet('approach_motif_latch',delta>0?'On':'Off');approachTouched(lanePort);ctl.revalue();markUiStateDirty();touchPaintPending=true;}
+                return;
+            }
             const approachControl=/^approach_bank_(\\d+)$/.exec(ctl.keyAt(slot));
             if(approachControl && appState.shiftHeld){
                 if(laneTouchSlots.has(slot))releasePerformanceTouch(slot,true);
@@ -69,7 +73,7 @@ def patch_approach_mode(root: Path) -> None:
     path.write_text(source)
     path=root/'src/renderer/schwung-page.ts'
     source=path.read_text().replace('    readonly ready: boolean;', '    readonly ready: boolean;\n    readonly knobLEDMask: number;')
-    source=source.replace('        get ready() { return loaded; },', "        get ready() { return loaded; },\n        get knobLEDMask() { return hostedModuleId==='harmonybus'?(keysOf().reduce((mask,key,index)=>mask|(/^approach_bank_|^motion_control_|^follow_touch_/.test(key??'')?1<<index:0),0)|motifKnobSelectionMask(port.track.index)):0; },")
+    source=source.replace('        get ready() { return loaded; },', "        get ready() { return loaded; },\n        get knobLEDMask() { return hostedModuleId==='harmonybus'?(keysOf().reduce((mask,key,index)=>mask|(/^approach_bank_|^approach_motif_latch$|^motion_control_|^follow_touch_/.test(key??'')?1<<index:0),0)|motifKnobSelectionMask(port.track.index)):0; },")
     path.write_text(source)
     path=root/'src/renderer/knob-leds.ts'
     source=path.read_text().replace('updateKnobLEDs(vm: ViewModel)', 'updateKnobLEDs(vm: ViewModel, ownedMask = 0)')
