@@ -3,10 +3,10 @@ const operations = new Set(['follower_touch', 'operations_9_16', 'pitch_play', '
     'motion_operation', 'motion_timing', 'motion_conditions']);
 const hiddenPanels = new Set(['mixed_cadences_1', 'mixed_cadences_2', 'pitch_cadences']);
 const motifs = new Set(['motifs', 'motif_tools', 'motif_play']);
-const play = new Set(['follower_play', 'chord_player', 'arp_player', 'follower_play_tools', 'motif_global']);
-const setupOrder = ['global_transpose', 'follower_root', 'chord_player', 'arp_player',
+const play = new Set(['follower_play', 'chord_player', 'chord_forms', 'arp_player', 'follower_play_tools', 'motif_global']);
+const setupOrder = ['global_transpose', 'follower_root', 'chord_player', 'chord_forms', 'arp_player',
     'track_scales', 'follower_source', 'next_harm', 'grid_timing',
-    'pad_display', 'pad_chord_form', 'follower_this'];
+    'pad_display', 'follower_this'];
 const advancedOrder = ['role_defaults', 'conductor_chord_defaults', 'follower_chord_defaults',
     'conductor_scale_defaults', 'follower_scale_defaults', 'chord_defaults_status', 'diagnostics'];
 
