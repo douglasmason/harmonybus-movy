@@ -130,7 +130,17 @@ export function approachKnobCaption(slot:number):string {
     if(keyboardState.layout===2){
         if(status[12]){
             if(!(status[12]&(1<<slot)))return 'Off';
-            return status.length>=17&&status[13]===slot?(status[14]+1)+'/'+status[16]:'Seq';
+            const count=status[16]||0;
+            const order=status.slice(17,17+count);
+            if(count&&order.length===count){
+                // Repeated touches may put one knob in several sequence positions.
+                const cursor=status[14]||0;
+                const upcoming=order.findIndex((member,index)=>member===slot&&index>=cursor);
+                const index=upcoming>=0?upcoming:order.indexOf(slot);
+                if(index>=0)return String(index+1);
+            }
+            // Older modules expose only the current position, never invent touch order.
+            return status.length>=17&&status[13]===slot?String(status[14]+1):'Member';
         }
         return status[7]===slot?'Row':'Off';
     }

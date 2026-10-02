@@ -1003,10 +1003,19 @@ console.log('Chord Forms: eight unified controls, detected readout, no duplicate
         rows[8]=1;paint();assert.equal(performKnobCaption(keys[0]),'Latch');
         rows[3]=1;paint();assert.equal(performKnobCaption(keys[0]),'Hold');
         rows[3]=rows[5]=rows[6]=rows[8]=0;keyboardState.layout=3;paint();assert.equal(performKnobCaption(keys[0]),'R3');
-        keyboardState.layout=2;rows[12]=3;rows[13]=1;rows[14]=1;rows[16]=2;paint();
-        assert.equal(performKnobCaption(keys[0]),'Seq');assert.equal(performKnobCaption(keys[1]),'2/2');
+        keyboardState.layout=2;rows[12]=3;rows[13]=1;rows[14]=1;rows[16]=2;rows.push(0,1);paint();
+        assert.equal(performKnobCaption(keys[0]),'1');assert.equal(performKnobCaption(keys[1]),'2');
         rows[13]=rows[14]=0;appState.dirty=false;paint();assert(appState.dirty,'Cursor-only changes redraw captions');
-        assert.equal(performKnobCaption(keys[0]),'1/2');
+        assert.equal(performKnobCaption(keys[0]),'1');
+        // Touch order differs from knob order; all members keep their positions.
+        rows[12]=7;rows[13]=2;rows[14]=0;rows[16]=3;rows.splice(17,rows.length,2,0,1);paint();
+        assert.equal(performKnobCaption(keys[2]),'1');
+        assert.equal(performKnobCaption(keys[0]),'2');
+        assert.equal(performKnobCaption(keys[1]),'3');
+        rows[13]=0;rows[14]=1;paint();
+        assert.equal(performKnobCaption(keys[2]),'1');
+        assert.equal(performKnobCaption(keys[0]),'2');
+        assert.equal(performKnobCaption(keys[1]),'3');
     } finally {Date.now=oldClock;globalThis.move_midi_internal_send=oldSend;keyboardState.layout=oldLayout;}
 }
 console.log('Perform captions and cyan Chord + Arp LED: Off/Armed/Hold/Latch, row and sequence progress pass');
