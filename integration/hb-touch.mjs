@@ -137,7 +137,7 @@ assert(module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_st
 assert(!module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_clear'));
 assert(module.capabilities.ui_hierarchy.levels.follower_play_tools.knobs.includes('arp_clear'));
 assert(module.capabilities.ui_hierarchy.levels.chord_player.knobs.includes('strum_spread'));
-assert.equal(module.capabilities.ui_hierarchy.levels.chord_player.knobs.length,4);
+assert.equal(module.capabilities.ui_hierarchy.levels.chord_player.knobs.length,5);
 
 const { releasePerformanceTouch, performanceTouchActive } = await import('../dist/esm/renderer/schwung-page.js');
 const performanceSlot = focusKey('play_bypass');
@@ -959,7 +959,7 @@ console.log('Shift edits: fixed lane operations, named modes, both touch orders,
 
 assert.deepEqual(module.capabilities.chain_params.find(p=>p.key==='pad_chord_form').options,module.capabilities.chain_params.find(p=>p.key==='chord_form').options.filter(option=>option!=='Role Default'),'Pad color and sounding chord forms share choices');
 
-const formKeys=['conductor_default_chord_form','follower_default_chord_form','pad_chord_form','detected_chord_form','track_chord_form','chord_quality','chord_inversion','chord_voicing'];
+const formKeys=['conductor_default_chord_form','follower_default_chord_form','pad_chord_form','detected_chord_form','track_chord_form','chord_quality','chord_inversion','pad_next_pulse'];
 assert.deepEqual(module.capabilities.ui_hierarchy.levels.chord_forms.knobs,formKeys);
 for(const key of formKeys){
     assert.equal(page.ctl.pages.filter(candidate=>candidate.keys?.includes(key)).length,1,key+' appears on exactly one page');

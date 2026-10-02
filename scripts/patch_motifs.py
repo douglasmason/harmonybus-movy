@@ -54,8 +54,8 @@ def patch_motifs(root: Path) -> None:
 
     path = root / 'src/keyboard/harmony-pads.ts'
     source = "import { motifFeedbackColor } from '../renderer/motif-feedback.js';\n" + path.read_text()
-    source = replace_once(source, '    return colorHarmonyPitch(pitch, keyboardState.rootPc, track, scale, current, effective,', '    return motifFeedbackColor(colorHarmonyPitch(pitch, keyboardState.rootPc, track, scale, current, effective,')
-    source = replace_once(source, 'tonicColor);', "tonicColor),track,pitch,'pitch',harmonyNow());")
+    source = replace_once(source, '    return pulse(colorHarmonyPitch(pitch, keyboardState.rootPc, track, scale, current, effective,', '    return pulse(motifFeedbackColor(colorHarmonyPitch(pitch, keyboardState.rootPc, track, scale, current, effective,')
+    source = replace_once(source, 'tonicColor));', "tonicColor),track,pitch,'pitch',harmonyNow()));")
     path.write_text(source)
     path = root / 'build/browser.mjs'
     source = path.read_text()

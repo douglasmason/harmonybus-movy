@@ -580,3 +580,28 @@ for(const bank of [0,1]){
     assert.equal(panel.knobs.length,8);assert.equal(panel.knobs[7],'motion_control_32');
     assert.equal(panel.params[7].name,'Chord + Arp');
 }
+
+// Next tone selection stays independent of the general pulse shape and pad form.
+{
+    const {seqState}=await import('../dist/esm/seq/state.js');
+    const clock=Date.now;let now=0;
+    seqState.playing=false;seqState.bpmX100=12000;
+    const raw='145,145,2741,0,0,6,3,3,2,0|full1,1,145|nextpulse1,16,0';
+    assert.equal(parseHarmonySnapshot(raw).nextPulse,16);
+    for(const bad of ['4096,0','16,-1','16,4294967296','16,0,1','NaN,0'])
+        assert.equal(parseHarmonySnapshot(raw.replace('16,0',bad)),null);
+    portFor(0).getParam=()=>raw;refreshHarmonyPads(0,testTime+=100);
+    Date.now=()=>now;
+    try {
+        const peak=harmonyPadColor(64,0),unselected=harmonyPadColor(67,0);
+        now=250;
+        assert.notEqual(harmonyPadColor(64,0),peak,'Selected third breathes even with general Shape None');
+        assert.equal(harmonyPadColor(67,0),unselected,'Unselected fifth remains unchanged');
+        assert.equal(harmonyPadColor(64,0,true),120,'Held edit highlight remains solid');
+        portFor(0).getParam=()=>raw.replace('6,3,3,2,0','6,0,3,2,0');refreshHarmonyPads(0,testTime+=100);
+        const off=harmonyPadColor(64,0);now=0;assert.equal(harmonyPadColor(64,0),off,'Pulse Rate Off disables selection animation');
+        portFor(0).getParam=()=>raw.replace('|nextpulse1,16,0','');refreshHarmonyPads(0,testTime+=100);
+        const none=harmonyPadColor(64,0);now=250;assert.equal(harmonyPadColor(64,0),none,'None preserves original steady colors');
+    } finally {Date.now=clock;}
+}
+console.log('Next Pulse: strict snapshot parsing, selected tones only, default-off and solid highlights pass');
