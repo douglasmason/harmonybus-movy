@@ -1,5 +1,5 @@
 import type { PerformancePort } from './hb-performance.js';
-import { cachedNamedControlActive } from './hb-performance.js';
+import { cachedNamedControlStatus } from './hb-performance.js';
 import { fontPrint, fontWidth } from '../font/index.js';
 import { keyboardState } from '../keyboard/state.js';
 import { appState } from '../app/state.js';
@@ -14,14 +14,19 @@ export const BANK_CHOICES=[...APPROACH_CHOICES.filter(name=>!name.startsWith('Mo
 export function approachRowsActive(): boolean { return keyboardState.layout===2||keyboardState.layout===3; }
 export const APPROACH_BANK_DEFAULTS=['Secondary V','Secondary II','Connector Below','Connector Above','Leading Tone','Tritone Sub','Backdoor V','Upper Dim','Stock: ii-V-Target','Stock: iv-bVII-Target','Stock: ii-bII7-Target','Stock: vi-ii-V','Stock: ii-V-LT','Stock: V/V-V-I','Stock: iii-vi-ii-V-I','Stock: ii/V-V/V-V-I'];
 let owner: PerformancePort | null = null;
-let chordArpActive=false;
+let chordArpStatus='Off';
 const releases = new Map<number,()=>void>();
 let statusAt = -Infinity, status: number[] = [];
 let rowView: string[] = [], lastRowView = '', rowRevealUntil = 0;
+let sequenceView='';
 function refreshRows(port: PerformancePort): void {
     const now=Date.now();
     if(now>=statusAt&&now-statusAt<50)return;
-    status=port.performanceGet('approach_row_status').split(',').map(Number);statusAt=now;
+    const next=port.performanceGet('approach_row_status').split(',').map(Number);
+    if(next.join(',')!==status.join(','))appState.dirty=true;
+    status=next;statusAt=now;
+    const sequence=port.performanceGet('approach_sequence_view');
+    if(sequence!==sequenceView){sequenceView=sequence;appState.dirty=true;}
     const view=port.performanceGet('approach_rows_view');
     if(view!==lastRowView){lastRowView=view;rowView=view.split('|');rowRevealUntil=now+1800;appState.dirty=true;}
 }
@@ -33,25 +38,29 @@ export function approachRowLines(): string[] {
 }
 export function drawApproachRows(port: PerformancePort): void {
     refreshRows(port);
-    if(keyboardState.layout!==3)return;
-    if(Date.now()>=rowRevealUntil&&!(status[3]||0)){
-        const slots=[status[11],status[10],status[9]].map(n=>Number.isFinite(n)?n+1:'?');
-        fill_rect(0,58,128,6,0);fontPrint(1,58,'3:'+slots[0]+' > 2:'+slots[1]+' > 1:'+slots[2]+' > T',1);return;
+    const [header,...labels]=sequenceView.split('|');
+    const [selected,total,offset]=header.split(',').map(Number);
+    if(!labels.length||![selected,total,offset].every(Number.isInteger)||total<1)return;
+    let begin=0,end=labels.length,chosen=selected-offset;
+    const width=()=>labels.slice(begin,end).reduce((sum,label)=>sum+fontWidth(label)+4,0)+8;
+    while(width()>126&&end-begin>1){
+        if(chosen-begin>end-1-chosen)begin++;else end--;
     }
-    fill_rect(0,10,128,47,0);
-    const lines=approachRowLines();
-    for(let index=0;index<3;index++){
-        const newest=index===2,y=12+index*11;let label=lines[index];
-        while(fontWidth(label)>122&&label.length)label=label.slice(0,-1);
-        if(newest)fill_rect(0,y-1,128,9,1);
-        fontPrint(2,y,label,newest?0:1);
+    fill_rect(0,58,128,6,0);
+    let x=offset+begin>0?5:1;
+    if(offset+begin>0)fontPrint(0,58,'<',1);
+    for(let index=begin;index<end;index++){
+        let label=labels[index];while(fontWidth(label)>112)label=label.slice(0,-1);
+        const width=fontWidth(label),active=index===chosen;
+        if(active)fill_rect(x-1,58,width+2,6,1);
+        fontPrint(x,58,label,active?0:1);x+=width+4;
     }
-    fontPrint(2,47,'v TARGET  /  1 NEWEST',1);
+    if(offset+end<total)fontPrint(123,58,'>',1);
 }
 export function syncApproachOwner(next: PerformancePort | null): void {
     if (owner?.performanceTrack === next?.performanceTrack && !!owner === !!next) return;
     owner?.performanceSet('approach_mode_active','0');
-    owner=next;owner?.performanceSet('approach_mode_active','1');statusAt=-Infinity;status=[];rowView=[];lastRowView='';rowRevealUntil=0;
+    owner=next;owner?.performanceSet('approach_mode_active','1');statusAt=-Infinity;status=[];rowView=[];lastRowView='';sequenceView='';rowRevealUntil=0;
 }
 export function approachStep(data: number[], port: PerformancePort | null): boolean {
     const step=data[1]-16,type=data[0]&0xf0;
@@ -86,7 +95,8 @@ export function paintApproach(port: PerformancePort | null): boolean {
 export function paintApproachKnobs(port: PerformancePort, keys: (string | null)[]): boolean {
     if(!keys.some(key=>/^approach_bank_/.test(key ?? '')))return false;
     refreshRows(port);
-    chordArpActive=cachedNamedControlActive(port,32);
+    const nextChordStatus=cachedNamedControlStatus(port,32);
+    if(nextChordStatus!==chordArpStatus){chordArpStatus=nextChordStatus;appState.dirty=true;}
     for(let knob=0;knob<8;knob++){
         if(!/^approach_bank_/.test(keys[knob]??''))continue;
         const slot=Number((keys[knob]??'').split('_').pop())-1;const selected=keyboardState.layout===3&&status.length>=12?status.slice(9,12).includes(slot):keyboardState.layout===2&&status[12]?!!(status[12]&(1<<slot)):slot===status[7];const [base,color,animation]=approachRowsActive()?[selected?37:0,selected?37:0,ANIM_NONE]:approachLight(slot,status);
@@ -106,6 +116,30 @@ export function approachPanels(hierarchy: any, mode: number): void {
         links.push({level:'approach_bank_'+bank});
     }
     levels.root.params.push(...links);
+}
+
+/** Under-cell labels use the same cached state as each knob's LED. */
+export function approachKnobCaption(slot:number):string {
+    if(slot<0)return '';
+    if((status[3]||0)&(1<<slot))return 'Hold';
+    if(status[6]&&((status[5]||0)&(1<<slot)))return status[8]?'Latch':'Armed';
+    if(keyboardState.layout===3){
+        const rows=status.slice(9,12).flatMap((selected,index)=>selected===slot?[index+1]:[]);
+        return rows.length?'R'+rows.join('/'):'Off';
+    }
+    if(keyboardState.layout===2){
+        if(status[12]){
+            if(!(status[12]&(1<<slot)))return 'Off';
+            return status.length>=17&&status[13]===slot?(status[14]+1)+'/'+status[16]:'Seq';
+        }
+        return status[7]===slot?'Row':'Off';
+    }
+    return 'Off';
+}
+
+export function performKnobCaption(key:string|null):string {
+    return key==='motion_control_32'?chordArpStatus:
+        approachKnobCaption(key?.startsWith('approach_bank_')?Number(key.split('_').pop())-1:-1);
 }
 
 /** Spend each operation cell on its musical meaning, rather than a slot label. */
@@ -148,11 +182,7 @@ export function drawApproachOperations(keys: (string | null)[], values: Record<s
         fill_rect(x+2,y+1,28,13,active?1:0);
         const textY=y+(display.length===1?5:2);
         display.forEach((text,index)=>fontPrint(x+Math.floor((32-fontWidth(text))/2),textY+index*6,text,active?0:1));
-        const bankSlot=key?.startsWith('approach_bank_')?Number(key.split('_').pop())-1:-1;
-        const held=bankSlot>=0&&!!((status[3]||0)&(1<<bankSlot));
-        const armed=bankSlot>=0&&!!status[6]&&!!((status[5]||0)&(1<<bankSlot));
-        const caption=key==='motion_control_32'?(chordArpActive?'On':'Off'):
-            approachRowsActive()?'':held?'Hold':armed?(status[8]?'Latch':'Armed'):'';
+        const caption=performKnobCaption(key);
         if(caption)fontPrint(x+Math.floor((32-fontWidth(caption))/2),y+16,caption,1);
     });
 }

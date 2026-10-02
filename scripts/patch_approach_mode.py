@@ -18,7 +18,7 @@ def patch_approach_mode(root: Path) -> None:
     source = source.replace("    if (flagValue('hbsteprow') === 2) return false;", "    if (flagValue('hbsteprow') === 2) return approachStep(data,owner);")
     source = replace_once(source,'    syncHbPerformanceMode();\n    const status', '    syncHbPerformanceMode();\n    if(approachStep(data,null))return true;\n    const status')
     source = source.replace('    if (paintMotif(owner)) return true;', "    if (paintMotif(owner)) return true;\n    if(flagValue('hbsteprow')===2)return paintApproach(owner);")
-    source = source.replace('    const assignments=keys.map', '    paintApproachKnobs(owner,keys);\n    const assignments=keys.map')
+    source = replace_once(source, '    const namedLights=assignments.some(lane=>lane>=16)?readNamedLights(owner):null;', '    const namedLights=assignments.some(lane=>lane>=16)?readNamedLights(owner):null;\n    paintApproachKnobs(owner,keys);')
     source = source.replace(" : 'STEPS / NO HB',1);", " : 'STEPS / NO HB',1);\n    if(active && flagValue('hbsteprow')===2)drawApproachRows(hbPerformancePage()!);")
     source=source.replace('    const clip = operation >= 12 && operation <= 15;\n    return clip ? (active ? 17 : 97) : (active ? C_GREEN : 85);', '    return active ? 120 : 124;')
     source = source.replace('        const bit=1<<knob,lane=assignments[knob];', "        const bit=1<<knob,lane=assignments[knob];\n        if(/^approach_bank_/.test(keys[knob]??'')){wanted|=bit;continue;}")
