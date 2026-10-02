@@ -581,7 +581,7 @@ for(const bank of [0,1]){
     assert.equal(panel.params[7].name,'Chord + Arp');
 }
 
-// Next tone selection stays independent of the general pulse shape and pad form.
+// Next tone selection stays independent of the general pulse shape.
 {
     const {seqState}=await import('../dist/esm/seq/state.js');
     const clock=Date.now;let now=0;
@@ -597,6 +597,7 @@ for(const bank of [0,1]){
         assert.equal(peak,127,'Selected next tone uses pure next color, not current or overlap color');
         now=250;
         assert.notEqual(harmonyPadColor(64,0),peak,'Selected third breathes even with general Shape None');
+        assert.notEqual(harmonyPadColor(64,0),0,'Next-tone pulse trough stays illuminated');
         assert.equal(harmonyPadColor(67,0),unselected,'Unselected fifth remains unchanged');
         assert.equal(harmonyPadColor(64,0,true),120,'Held edit highlight remains solid');
         for (const mode of [1,2,3,4,5,6]) {

@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: c2e9434ef1f588ea174a6680fafe5251e2228f5c
-  HB_REF: e771069e1096656a71e6bd14d446d653ea4770c2
-  HB_MOVY_VERSION: 0.34.1-hbclean.142
-  HB_MOVY_TAG: v0.34.1-hbclean.142
+  HB_REF: 1905b30a9c4c207d1ff3867e6a2c6d88d0107c57
+  HB_MOVY_VERSION: 0.34.1-hbclean.143
+  HB_MOVY_TAG: v0.34.1-hbclean.143
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -437,7 +437,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Restore framed Harm Perform cells with readable names and activity captions. Unified Chord Forms panel shows conductor, follower, pad and detected forms; Follow Detected supports follower degree patterns. Fresh defaults follow detection while saved choices remain intact. Includes HarmonyBus 0.2.227."
+              --notes "Includes HarmonyBus 0.2.233: Next Pulse follows the displayed chord form, and detected source forms preserve power, shell and rootless voicings without losing inferred harmonic identity."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
