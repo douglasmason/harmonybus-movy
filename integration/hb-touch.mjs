@@ -23,7 +23,7 @@ const operationMetadata = () => module.capabilities.chain_params.map(parameter =
                 return {...module.capabilities.chain_params.find(candidate=>candidate.key===key),key:parameter.key};
             }
             if(parameter.key==='chord_edit_target'&&values.get('motion_operation')==='Chord/Arp State')return {...parameter,options:['Track Settings','Lane 1']};
-            if (parameter.key === 'motion_amount' && values.get('motion_operation') === 'Chord Form') return {...parameter,name:'Form',type:'enum',options:module.capabilities.chain_params.find(p=>p.key==='chord_form').options.filter(option=>option!=='Role Default'),options_as_string:true};
+            if (parameter.key === 'motion_amount' && values.get('motion_operation') === 'Chord Form') return {...parameter,name:'Form',type:'enum',options:module.capabilities.chain_params.find(p=>p.key==='chord_form').options.filter(option=>option!=='Follow Role'),options_as_string:true};
             if (parameter.key === 'motion_offset' && values.get('motion_operation') === 'MIDI Echo') return {...parameter,name:'Decay %',min:0};
             if (['motion_from','motion_through'].includes(parameter.key)) return {...parameter,options:Array.from({length:Number(values.get('motion_every'))},(_,index)=>String(index+1))};
             return parameter;
@@ -132,12 +132,12 @@ for (const [key, action] of [['arp_clear','Clear'],['play_reset','Reset']]) {
 console.log('HB buttons: momentary modifiers, release after page change, every action, repeat-touch and turn deduplication pass');
 
 assert.equal(page.ctl.pages.filter(candidate => candidate.keys?.includes('arp_phase')).length, 1);
-assert.equal(module.capabilities.ui_hierarchy.levels.arp_player.knobs.length, 8);
+assert.equal(module.capabilities.ui_hierarchy.levels.arp_player.knobs.length, 7);
 assert(module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_start'));
 assert(!module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_clear'));
 assert(module.capabilities.ui_hierarchy.levels.follower_play_tools.knobs.includes('arp_clear'));
 assert(module.capabilities.ui_hierarchy.levels.chord_player.knobs.includes('strum_spread'));
-assert.equal(module.capabilities.ui_hierarchy.levels.chord_player.knobs.length,5);
+assert.equal(module.capabilities.ui_hierarchy.levels.chord_player.knobs.length,4);
 
 const { releasePerformanceTouch, performanceTouchActive } = await import('../dist/esm/renderer/schwung-page.js');
 const performanceSlot = focusKey('play_bypass');
@@ -869,7 +869,7 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
 console.log('Modern gestures: shared knob/step timestamp ownership, read-free release, solid armed/held LEDs, smooth persistent pulse and automatic off pass');
 
 // Role-default panels edit the advertised shared key; local enums can relinquish overrides.
-for (const key of ['defaults_control_1','defaults_control_2','gap_scale','local_palette']) {
+for (const key of ['conductor_default_chord_form','follower_default_chord_form','gap_scale','local_palette']) {
     const slot=focusKey(key),before=writes.length;
     page.knobTurn(slot,1);page.knobTouch(slot,false);
     assert(writes.slice(before).some(([wire])=>wire==='midi_fx1:'+key),key+' targets its own scope');
@@ -877,28 +877,13 @@ for (const key of ['defaults_control_1','defaults_control_2','gap_scale','local_
 const localForm=focusKey('track_chord_form');
 const roleClock=Date.now;let roleNow=roleClock();Date.now=()=>roleNow;
 try {for(let turn=0;turn<128;turn++){roleNow+=100;page.knobTurn(localForm,1);page.knobTouch(localForm,false);roleNow+=100;page.tick();}}finally{Date.now=roleClock;}
-assert.equal(values.get('track_chord_form'),'Role Default');
-const sources=focusKey('chord_edit_target'),beforeSources=writes.length;
-page.knobTurn(sources,1);page.knobTouch(sources,false);
-assert.equal(writes.length,beforeSources,'A target selector with only Track Settings does not change destination');
-console.log('Role defaults, local override reset choice and edit destination pass');
+assert.equal(values.get('track_chord_form'),'Follow Role');
+for(const key of ['defaults_editor','chord_edit_target','chord_state_copy'])
+    assert(!page.ctl.pages.some(candidate=>candidate.keys?.includes(key)),key+' removed from normal panels');
+for(const key of ['conductor_default_chord_form','follower_default_chord_form','pad_chord_form','track_chord_form'])
+    assert(!page.ctl.state.metaIndex.get(key).options.includes('Auto'),key+' has explicit form choices');
+console.log('Shared forms, Follow Role override, no Auto or obsolete panels pass');
 
-const defaultsSlot=focusKey('defaults_editor');
-editorReads.length=0;
-page.knobTurn(defaultsSlot,2);page.knobTouch(defaultsSlot,false);
-assert.equal(values.get('defaults_editor'),'Conductor Scales');
-assert.equal(page.ctl.state.metaIndex.get('defaults_control_1').name,module.capabilities.chain_params.find(parameter=>parameter.key==='conductor_default_gap_scale').name);
-assert.equal(page.ctl.state.values.defaults_control_1,values.get('defaults_control_1'));
-assert(editorReads.includes('midi_fx1:motion_editor'),'Defaults selector reloads values and metadata together');
-console.log('Role Defaults changes control meanings and values atomically');
-
-values.set('motion_operation','Chord/Arp State');
-const stateEdit=focusKey('motif_edit');page.knobTouch(stateEdit,true);page.knobTouch(stateEdit,false);
-assert.equal(page.pageTitle,'Chords');assert.equal(values.get('chord_edit_target'),'Lane 1');
-const targetSlot=focusKey('chord_edit_target');page.knobTurn(targetSlot,-1);page.knobTouch(targetSlot,false);
-assert.equal(values.get('chord_edit_target'),'Track Settings');
-assert.equal(page.ctl.state.values.chord_edit_target,'Track Settings');
-console.log('Chord state Edit opens Chords and atomic destination switching refreshes the controller');
 values.set('motif_lane','1');values.set('motion_operation','Play Motif');
 const editorButton=focusKey('motif_edit');page.knobTouch(editorButton,true);page.knobTouch(editorButton,false);
 assert.equal(page.pageTitle,'Motif Edit');
@@ -957,7 +942,7 @@ console.log('Fixed operation knobs: separate tap protocol, momentary hold, direc
 }
 console.log('Shift edits: fixed lane operations, named modes, both touch orders, persistent latch preservation and no lane remapping pass');
 
-assert.deepEqual(module.capabilities.chain_params.find(p=>p.key==='pad_chord_form').options,module.capabilities.chain_params.find(p=>p.key==='chord_form').options.filter(option=>option!=='Role Default'),'Pad color and sounding chord forms share choices');
+assert.deepEqual(module.capabilities.chain_params.find(p=>p.key==='pad_chord_form').options,module.capabilities.chain_params.find(p=>p.key==='chord_form').options.filter(option=>option!=='Follow Role'),'Pad color and sounding chord forms share choices');
 
 const formKeys=['conductor_default_chord_form','follower_default_chord_form','pad_chord_form','detected_chord_form','track_chord_form','chord_quality','chord_inversion','pad_next_pulse'];
 assert.deepEqual(module.capabilities.ui_hierarchy.levels.chord_forms.knobs,formKeys);
@@ -974,10 +959,11 @@ console.log('Chord Forms: eight unified controls, detected readout, no duplicate
     const {performKnobCaption}=await import('../dist/esm/renderer/hb-approach.js');
     const {keyboardState}=await import('../dist/esm/keyboard/state.js');
     const oldClock=Date.now,oldSend=globalThis.move_midi_internal_send,oldLayout=keyboardState.layout;
-    let now=2000000,active=0,persistent=0,down=0;const packets=[];
+    let now=2000000,active=0,persistent=0,down=0,motifLatch='Off';const packets=[];
     let rows=[1,0,1,0,-1,0,0,0,0,2,1,0,0,0,0,0,0];
     const owner={performanceTrack:14,performanceSet(){},performanceGet(key){
         if(key==='motion_named_lights')return [active,persistent,down,...Array(35).fill(20)].join(',');
+        if(key==='approach_motif_latch')return motifLatch;
         if(key==='approach_row_status')return rows.join(',');
         if(key==='approach_rows_view')return '3,CCB|2,CCA|1,LT';
         return '';
@@ -986,8 +972,12 @@ console.log('Chord Forms: eight unified controls, detected readout, no duplicate
     try {
         keyboardState.layout=0;
         for(let bank=0;bank<2;bank++){
-            const keys=Array.from({length:7},(_,index)=>'approach_bank_'+(bank*8+index+1)).concat('motion_control_32');
+            const keys=Array.from({length:6},(_,index)=>'approach_bank_'+(bank*8+index+1)).concat('approach_motif_latch','motion_control_32');
             const paint=()=>{now+=60;ledFrameReset();paintHbOperationKnobs(owner,keys,{});};
+            motifLatch='On';seqLedsInvalidate();packets.length=0;paint();paint();
+            assert.equal(performKnobCaption('approach_motif_latch'),'Latch');
+            assert(packets.some(p=>p[1]===0x9a&&p[2]===6&&p[3]===120),'Dedicated motif latch pulses white');
+            motifLatch='Off';paint();assert.equal(performKnobCaption('approach_motif_latch'),'Off');
             for(const state of ['Armed','Latch','Hold','Off']){
                 active=state==='Off'?0:32768;persistent=state==='Latch'?32768:0;down=state==='Hold'?32768:0;
                 seqLedsInvalidate();packets.length=0;paint();paint();

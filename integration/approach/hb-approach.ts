@@ -14,7 +14,7 @@ export const BANK_CHOICES=[...APPROACH_CHOICES.filter(name=>!name.startsWith('Mo
 export function approachRowsActive(): boolean { return keyboardState.layout===2||keyboardState.layout===3; }
 export const APPROACH_BANK_DEFAULTS=['Secondary V','Secondary II','Connector Below','Connector Above','Leading Tone','Tritone Sub','Backdoor V','Upper Dim','Stock: ii-V-Target','Stock: iv-bVII-Target','Stock: ii-bII7-Target','Stock: vi-ii-V','Stock: ii-V-LT','Stock: V/V-V-I','Stock: iii-vi-ii-V-I','Stock: ii/V-V/V-V-I'];
 let owner: PerformancePort | null = null;
-let chordArpStatus='Off';
+let chordArpStatus='Off',motifLatchStatus='Off';
 const releases = new Map<number,()=>void>();
 let statusAt = -Infinity, status: number[] = [];
 let rowView: string[] = [], lastRowView = '', rowRevealUntil = 0;
@@ -25,6 +25,8 @@ function refreshRows(port: PerformancePort): void {
     const next=port.performanceGet('approach_row_status').split(',').map(Number);
     if(next.join(',')!==status.join(','))appState.dirty=true;
     status=next;statusAt=now;
+    const latch=port.performanceGet('approach_motif_latch')||'Off';
+    if(latch!==motifLatchStatus){motifLatchStatus=latch;appState.dirty=true;}
     const sequence=port.performanceGet('approach_sequence_view');
     if(sequence!==sequenceView){sequenceView=sequence;appState.dirty=true;}
     const view=port.performanceGet('approach_rows_view');
@@ -98,6 +100,11 @@ export function paintApproachKnobs(port: PerformancePort, keys: (string | null)[
     const nextChordStatus=cachedNamedControlStatus(port,32);
     if(nextChordStatus!==chordArpStatus){chordArpStatus=nextChordStatus;appState.dirty=true;}
     for(let knob=0;knob<8;knob++){
+        if(keys[knob]==='approach_motif_latch'){
+            const on=motifLatchStatus==='On'&&!approachRowsActive();
+            cachedSetAnimLED(knob,on?124:0,on?120:0,on?ANIM_PULSE_SLOW:ANIM_NONE);
+            cachedSetAnimLED(71+knob,on?124:0,on?120:0,on?ANIM_PULSE_SLOW:ANIM_NONE,true);continue;
+        }
         if(!/^approach_bank_/.test(keys[knob]??''))continue;
         const slot=Number((keys[knob]??'').split('_').pop())-1;const selected=keyboardState.layout===3&&status.length>=12?status.slice(9,12).includes(slot):keyboardState.layout===2&&status[12]?!!(status[12]&(1<<slot)):slot===status[7];const [base,color,animation]=approachRowsActive()?[selected?37:0,selected?37:0,ANIM_NONE]:approachLight(slot,status);
         cachedSetAnimLED(knob,base,color,animation);cachedSetAnimLED(71+knob,base,color,animation,true);
@@ -110,7 +117,8 @@ export function approachPanels(hierarchy: any, mode: number): void {
     const panel=(name:string,keys:string[],params:any[])=>({name,knobs:keys,params});
     const links: {level:string}[]=[];
     for(let bank=0;bank<2;bank++){
-        const params:any[]=Array.from({length:7},(_,index)=>({key:'approach_bank_'+(bank*8+index+1),name:'Operation',type:'enum',options_as_string:true,options:BANK_CHOICES,default:APPROACH_BANK_DEFAULTS[bank*8+index]}));
+        const params:any[]=Array.from({length:6},(_,index)=>({key:'approach_bank_'+(bank*8+index+1),name:'Operation',type:'enum',options_as_string:true,options:BANK_CHOICES,default:APPROACH_BANK_DEFAULTS[bank*8+index]}));
+        params.push({key:'approach_motif_latch',name:'Motif Latch',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'});
         params.push({key:'motion_control_32',name:'Chord + Arp',type:'int',min:-400,max:400,step:1,default:1});
         levels['approach_bank_'+bank]=panel('Harm Perform '+(bank+1),params.map(parameter=>parameter.key),params);
         links.push({level:'approach_bank_'+bank});
@@ -148,7 +156,7 @@ export function approachKnobCaption(slot:number):string {
 }
 
 export function performKnobCaption(key:string|null):string {
-    return key==='motion_control_32'?chordArpStatus:
+    return key==='approach_motif_latch'?(approachRowsActive()?'Rows':motifLatchStatus==='On'?'Latch':'Off'):key==='motion_control_32'?chordArpStatus:
         approachKnobCaption(key?.startsWith('approach_bank_')?Number(key.split('_').pop())-1:-1);
 }
 
@@ -167,8 +175,8 @@ export function drawApproachOperations(keys: (string | null)[], values: Record<s
         'Stock: iii-vi-ii-V-I':'iii-vi ii-V',
     };
     keys.forEach((key, slot) => {
-        if (!/^approach_bank_/.test(key ?? '') && key !== 'motion_control_32') return;
-        const raw=key==='motion_control_32'?'Chord + Arp':String(values[key!] ?? '');
+        if (!/^approach_bank_/.test(key ?? '') && key !== 'motion_control_32' && key !== 'approach_motif_latch') return;
+        const raw=key==='approach_motif_latch'?'Motif Latch':key==='motion_control_32'?'Chord + Arp':String(values[key!] ?? '');
         const label=names[raw] ?? raw.replace(/^Stock: /,'').replace(/Target/g,'T');
         const words=label.split(/(?<=-)|\s+/), lines:string[]=[];
         let line='';

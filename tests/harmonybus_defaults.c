@@ -87,6 +87,12 @@ int main(int argument_count, char **arguments) {
         api->get_param(instances[track],"state",round_trip,sizeof(round_trip));
         assert(!strcmp(serialized_state,round_trip));
     }
+    api->set_param(instances[0],"conductor_default_chord_form","Power");
+    api->set_param(instances[0],"follower_default_chord_form","Ninth");api->set_param(instances[0],"pad_chord_form","Power");
+    char fresh[8192];snprintf(fresh,sizeof(fresh),"%s;freshrole1",arguments[1]);api->set_param(instances[0],"state",fresh);
+    assert(hb_role_default(0,HB_P_FORM)==2&&hb_role_default(1,HB_P_FORM)==HB_CP_FOLLOW_DETECTED);
+    assert(g_pad_chord_form==HB_CP_FOLLOW_DETECTED&&!instances[0]->policy_overrides);
+    char saved[8192];api->get_param(instances[0],"state",saved,sizeof(saved));assert(!strstr(saved,"freshrole1"));
     for (int track = 0; track < 16; track++) api->destroy_instance(instances[track]);
     puts("HarmonyBus API restored and round-tripped all 16 prepared track states");
     return 0;

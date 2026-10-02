@@ -47,7 +47,7 @@ assert(order('follower_explicit_root')<order('chord_mode'));
 assert.equal(order('chord_mode'),3,'Chords follows Main, Global and Follower Root');
 assert.equal(order('arp_playback'),5,'Arp / Strum follows Chord Forms');
 for(const key of ['defaults_editor'])
-    assert(order(key)>order('render_rhythm_mode'),'Role defaults follow everyday and play controls');
+    assert.equal(order(key),-1,'Role Defaults panel removed');
 assert(order('render_channel')<order('chord_mode'));
 let now=10000;const clock=Date.now;Date.now=()=>now;
 const down=()=>seqHandleButtonCc(60,127,appState.shiftHeld);
@@ -66,7 +66,7 @@ try {
     down();now+=500;up();assert.equal(flagValue('hbsteprow'),1,'Long unused hold does not cycle');
     down();resetDuplicate();now+=40;up();assert.equal(flagValue('hbsteprow'),1,'Reset cannot manufacture a tap');
     tap();assert.equal(flagValue('hbsteprow'),2);assert(page.ctl.page.keys.includes('approach_bank_1'));
-    assert(has(page,'approach_bank_1'));assert(has(page,'approach_bank_15'));assert(has(page,'motion_control_32'));
+    assert(has(page,'approach_bank_1'));assert(has(page,'approach_bank_14'));assert(has(page,'approach_motif_latch'));assert(!has(page,'approach_bank_7'));assert(!has(page,'approach_bank_15')); assert(has(page,'motion_control_32'));
     assert(!has(page,'motion_control_1'),'Approach bank is independent of Perform');
     assert.equal(page.ctl.metaAt(0).options.length,57);
     assert(page.ctl.metaAt(0).options.includes('Stock: vi-ii-V'));
