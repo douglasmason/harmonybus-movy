@@ -600,6 +600,21 @@ for(const bank of [0,1]){
         assert.notEqual(harmonyPadColor(64,0),0,'Next-tone pulse trough stays illuminated');
         assert.equal(harmonyPadColor(67,0),unselected,'Unselected fifth remains unchanged');
         assert.equal(harmonyPadColor(64,0,true),120,'Held edit highlight remains solid');
+        const { PAD_PALETTE } = await import('../dist/esm/keyboard/pad-palette.js');
+        const savedKeyboard = {...keyboardState};
+        const ordinaryFloor = harmonyPadColor(64,0);
+        const brightness = color => PAD_PALETTE[color].reduce((sum,value)=>sum+value,0);
+        try {
+            Object.assign(keyboardState,{mode:1,scale:0,rootPc:0});
+            for (const layout of [2,3]) {
+                keyboardState.layout=layout;
+                portFor(0).getParam=()=>raw.replace('|nextpulse1,16,0','|nextpulse1,16,256')+'|piano1,1|gapcolors1,'+Array(32).fill(16).join(',');
+                refreshHarmonyPads(0,testTime+=100);now=250;
+                assert(brightness(padColor(76,68,0,false))<brightness(ordinaryFloor),'Dim approach floor is lower in layout '+layout);
+                now=0;assert.equal(padColor(76,68,0,false),peak,'Approach pulse reaches its selected color');
+            }
+        } finally { Object.assign(keyboardState,savedKeyboard);portFor(0).getParam=()=>raw;refreshHarmonyPads(0,testTime+=100); }
+
         for (const mode of [1,2,3,4,5,6]) {
             portFor(0).getParam=()=>raw.replace('6,3,3,2,0',mode+',3,3,2,0');refreshHarmonyPads(0,testTime+=100);
             now=0;const first=harmonyPadColor(64,0);now=250;const second=harmonyPadColor(64,0);
@@ -613,3 +628,23 @@ for(const bank of [0,1]){
     } finally {Date.now=clock;}
 }
 console.log('Next Pulse: strict snapshot parsing, selected tones only, default-off and solid highlights pass');
+
+// While transport advances, a selected seventh must not animate roots in any octave.
+{
+    const {seqState}=await import('../dist/esm/seq/state.js');
+    const saved={playing:seqState.playing,engineOk:seqState.engineOk,engineTick:seqState.engineTick};
+    Object.assign(seqState,{playing:true,engineOk:false});
+    try {
+        for(const mode of [0,2,3,4,5,6])for(const shape of [0,1,2,3]){
+            portFor(0).getParam=()=>`2193,2193,2741,1,2193,${mode},3,${shape},2,0|colors2,0|input1,0,1,1,2741,2193|full1,1,2193|nextpulse1,2048,0`;
+            refreshHarmonyPads(0,testTime+=100);
+            const frames=Array.from({length:17},(_,step)=>{
+                seqState.engineTick=step*6;
+                return [36,48,60,72,84,64,67,71].map(pitch=>harmonyPadColor(pitch,0));
+            });
+            for(let index=0;index<7;index++)assert.equal(new Set(frames.map(frame=>frame[index])).size,1,`Unselected root/third/fifth stays steady: mode ${mode}, shape ${shape}`);
+            assert(new Set(frames.map(frame=>frame[7])).size>2,'Selected seventh changes through intermediate brightness levels');
+        }
+    } finally {Object.assign(seqState,saved);}
+}
+console.log('Playing transport: seventh-only selection keeps every root octave steady across all preview modes and pulse shapes');
