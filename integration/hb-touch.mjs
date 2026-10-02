@@ -967,3 +967,46 @@ for(const key of formKeys){
 }
 assert(!module.capabilities.ui_hierarchy.levels.pad_chord_form,'No stranded Pad Harmony page');
 console.log('Chord Forms: eight unified controls, detected readout, no duplicates or single-knob panel');
+
+// Both Perform panels keep Chord + Arp's cyan latch animation and caption in sync.
+{
+    const {paintHbOperationKnobs}=await import('../dist/esm/renderer/schwung-page.js');
+    const {performKnobCaption}=await import('../dist/esm/renderer/hb-approach.js');
+    const {keyboardState}=await import('../dist/esm/keyboard/state.js');
+    const oldClock=Date.now,oldSend=globalThis.move_midi_internal_send,oldLayout=keyboardState.layout;
+    let now=2000000,active=0,persistent=0,down=0;const packets=[];
+    let rows=[1,0,1,0,-1,0,0,0,0,2,1,0,0,0,0,0,0];
+    const owner={performanceTrack:14,performanceSet(){},performanceGet(key){
+        if(key==='motion_named_lights')return [active,persistent,down,...Array(35).fill(20)].join(',');
+        if(key==='approach_row_status')return rows.join(',');
+        if(key==='approach_rows_view')return '3,CCB|2,CCA|1,LT';
+        return '';
+    }};
+    Date.now=()=>now;globalThis.move_midi_internal_send=packet=>packets.push([...packet]);
+    try {
+        keyboardState.layout=0;
+        for(let bank=0;bank<2;bank++){
+            const keys=Array.from({length:7},(_,index)=>'approach_bank_'+(bank*8+index+1)).concat('motion_control_32');
+            const paint=()=>{now+=60;ledFrameReset();paintHbOperationKnobs(owner,keys,{});};
+            for(const state of ['Armed','Latch','Hold','Off']){
+                active=state==='Off'?0:32768;persistent=state==='Latch'?32768:0;down=state==='Hold'?32768:0;
+                seqLedsInvalidate();packets.length=0;paint();paint();
+                assert.equal(performKnobCaption('motion_control_32'),state,'Current state caption in panel '+bank);
+                const noteStatus=state==='Latch'?0x9a:0x90,buttonStatus=state==='Latch'?0xba:0xb0,color=state==='Off'?0:16;
+                assert(packets.some(p=>p[1]===noteStatus&&p[2]===7&&p[3]===color),'Correct knob animation in '+state);
+                assert(packets.some(p=>p[1]===buttonStatus&&p[2]===78&&p[3]===color),'Correct CC animation in '+state);
+            }
+        }
+        const keys=Array.from({length:7},(_,index)=>'approach_bank_'+(index+1)).concat('motion_control_32');
+        const paint=()=>{now+=60;ledFrameReset();paintHbOperationKnobs(owner,keys,{});};
+        rows[5]=1;rows[6]=1;paint();assert.equal(performKnobCaption(keys[0]),'Armed');
+        rows[8]=1;paint();assert.equal(performKnobCaption(keys[0]),'Latch');
+        rows[3]=1;paint();assert.equal(performKnobCaption(keys[0]),'Hold');
+        rows[3]=rows[5]=rows[6]=rows[8]=0;keyboardState.layout=3;paint();assert.equal(performKnobCaption(keys[0]),'R3');
+        keyboardState.layout=2;rows[12]=3;rows[13]=1;rows[14]=1;rows[16]=2;paint();
+        assert.equal(performKnobCaption(keys[0]),'Seq');assert.equal(performKnobCaption(keys[1]),'2/2');
+        rows[13]=rows[14]=0;appState.dirty=false;paint();assert(appState.dirty,'Cursor-only changes redraw captions');
+        assert.equal(performKnobCaption(keys[0]),'1/2');
+    } finally {Date.now=oldClock;globalThis.move_midi_internal_send=oldSend;keyboardState.layout=oldLayout;}
+}
+console.log('Perform captions and cyan Chord + Arp LED: Off/Armed/Hold/Latch, row and sequence progress pass');
