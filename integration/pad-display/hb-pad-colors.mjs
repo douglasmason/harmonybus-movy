@@ -240,7 +240,7 @@ assert.equal(parseHarmonySnapshot('0,0,0,0,0,3,0,3,4,2|both1,10'),null);
 console.log('Both Color override, Blend default, and None pulse shape pass');
 
 // Track color is pinned to input roots and is strictly a background layer.
-for (const mode of [0,1,2,3,4,5,6]) {
+for (const mode of [1,2,3,4,5,6]) {
     const drawRoot = (mask, outputTonic) => {
         effectivePort.getParam=()=>`${mask},${mask},2741,1,${mask},${mode},0,3,0,0|colors2,0|tonic1,${outputTonic}|full1,1,${mask}|both1,1|input1,0,1,1,2741,${mask}`;
         refreshHarmonyPads(2,testTime+=100);
@@ -594,10 +594,17 @@ for(const bank of [0,1]){
     Date.now=()=>now;
     try {
         const peak=harmonyPadColor(64,0),unselected=harmonyPadColor(67,0);
+        assert.equal(peak,127,'Selected next tone uses pure next color, not current or overlap color');
         now=250;
         assert.notEqual(harmonyPadColor(64,0),peak,'Selected third breathes even with general Shape None');
         assert.equal(harmonyPadColor(67,0),unselected,'Unselected fifth remains unchanged');
         assert.equal(harmonyPadColor(64,0,true),120,'Held edit highlight remains solid');
+        for (const mode of [1,2,3,4,5,6]) {
+            portFor(0).getParam=()=>raw.replace('6,3,3,2,0',mode+',3,3,2,0');refreshHarmonyPads(0,testTime+=100);
+            now=0;const first=harmonyPadColor(64,0);now=250;const second=harmonyPadColor(64,0);
+            if ([1,3,4].includes(mode)) assert.equal(first,second,'Current-only or unavailable Next has no pulse '+mode);
+            else {assert.notEqual(first,second,'Displayed preview pulses '+mode);assert.equal(first,mode===0||mode===2?7:127,'Pure displayed harmony color '+mode);}
+        }
         portFor(0).getParam=()=>raw.replace('6,3,3,2,0','6,0,3,2,0');refreshHarmonyPads(0,testTime+=100);
         const off=harmonyPadColor(64,0);now=0;assert.equal(harmonyPadColor(64,0),off,'Pulse Rate Off disables selection animation');
         portFor(0).getParam=()=>raw.replace('|nextpulse1,16,0','');refreshHarmonyPads(0,testTime+=100);

@@ -234,9 +234,10 @@ export function colorHarmonyPitch(pitch: number, inputRoot: number, track: numbe
 /** Tone selection has its own smooth brightness pulse, independent of general shape. */
 function nextTonePulse(background: number, selected: boolean, track: number): number {
     const period = periods[settings[1]];
-    if (!selected || !period) return background;
-    const choice = settings[4];
-    const color = background || (choice === 8 ? trackColor(track) : colors[choice]);
+    const mode = settings[0];
+    if (!selected || !period || mode === 1 || ((mode === 3 || mode === 4) && !snapshot?.ready)) return background;
+    const choice = mode === 0 || mode === 2 ? settings[3] : settings[4];
+    const color = choice === 8 ? trackColor(track) : colors[choice];
     return paletteMix(0, color, 0, 0.2 + 0.8 * harmonyPulse(harmonyBeat() / period, 0), 0);
 }
 
