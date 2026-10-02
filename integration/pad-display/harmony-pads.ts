@@ -232,13 +232,14 @@ export function colorHarmonyPitch(pitch: number, inputRoot: number, track: numbe
 }
 
 /** Tone selection has its own smooth brightness pulse, independent of general shape. */
-function nextTonePulse(background: number, selected: boolean, track: number): number {
+function nextTonePulse(background: number, selected: boolean, track: number, restingBrightness = 1): number {
     const period = periods[settings[1]];
     const mode = settings[0];
     if (!selected || !period || mode === 1 || ((mode === 3 || mode === 4) && !snapshot?.ready)) return background;
     const choice = mode === 0 || mode === 2 ? settings[3] : settings[4];
     const color = choice === 8 ? trackColor(track) : colors[choice];
-    return paletteMix(0, color, 0, 0.5 + 0.5 * harmonyPulse(harmonyBeat() / period, 0), 0);
+    const floor = 0.5 * restingBrightness;
+    return paletteMix(0, color, 0, floor + (1 - floor) * harmonyPulse(harmonyBeat() / period, 0), 0);
 }
 
 /** Null disables the play overlay and exposes the normal harmony background. */
@@ -272,7 +273,8 @@ export function harmonyPadColor(pitch: number, track: number, held = false): num
     let scale = view?.scale || 0;
     if (!view) for (let note = 0; note < 12; note++)
         if (inScaleFor(note, keyboardState.rootPc, keyboardState.scale)) scale |= 1 << note;
-    const period = mode === 0 && view?.effectiveColor === undefined ? 0 : periods[settings[1]];
+    // A tone selection owns animation; the underlying harmony colors stay steady.
+    const period = view?.nextPulse !== undefined || (mode === 0 && view?.effectiveColor === undefined) ? 0 : periods[settings[1]];
     const beat = harmonyBeat();
     // Every mask identifies INPUT keys by their effective RENDERED voices.
     const current = view?.current || 0;
@@ -360,7 +362,7 @@ export function harmonyApproachColor(index: number, track: number, held = false)
     }
     const flags = snapshot.gapColors?.[index] ?? -1;
     if (flags < 0) return 0; // Older HB has no approach-membership snapshot.
-    const mode = settings[0], period = periods[settings[1]];
+    const mode = settings[0], period = snapshot.nextPulse !== undefined ? 0 : periods[settings[1]];
     const beat = harmonyBeat();
     const selected = mode === 0 || mode === 2 ? 2 : mode >= 5 ? 16 : 8;
     const resolve = (choice: number): number => choice === 8 ? trackColor(track) : colors[choice];
@@ -368,9 +370,9 @@ export function harmonyApproachColor(index: number, track: number, held = false)
         flags & selected ? 1 : 0, mode, period ? beat / period : 0, settings[2],
         resolve(settings[3]), resolve(mode === 0 || mode === 2 ? settings[3] : settings[4]),
         period > 0, undefined, snapshot.bothColor ? resolve(snapshot.bothColor - 1) : undefined);
-    const resting = keyboardState.layout === LAYOUT_APPROACH || keyboardState.layout === 3
-        ? paletteMix(0, background, 0, 1 / 3, 0) : background;
-    return harmonyPlaybackColor(nextTonePulse(resting, !!(((snapshot.nextPulsePads ?? 0) >>> index) & 1), track), track, index, held);
+    const restingBrightness = keyboardState.layout === LAYOUT_APPROACH || keyboardState.layout === 3 ? 1 / 3 : 1;
+    const resting = restingBrightness < 1 ? paletteMix(0, background, 0, restingBrightness, 0) : background;
+    return harmonyPlaybackColor(nextTonePulse(resting, !!(((snapshot.nextPulsePads ?? 0) >>> index) & 1), track, restingBrightness), track, index, held);
 }
 
 /** Final output membership is distinct from live and recorded source input. */
