@@ -16,7 +16,8 @@ export const APPROACH_BANK_DEFAULTS=['Secondary V','Secondary II','Connector Bel
 let owner: PerformancePort | null = null;
 let keyCenterLabel='';
 let chordArpStatus='Off',motifLatchStatus='Off',keyCenterStatus='Off',parallelStatus='Off';
-export const PARALLEL_SCALES=["Major", "Natural Minor", "Dorian", "Phrygian", "Lydian", "Mixolydian", "Locrian", "Harmonic Minor", "Melodic Minor", "Dorian b2", "Lydian Augmented", "Lydian Dominant", "Mixolydian b6", "Locrian #2", "Altered", "Whole Tone", "Augmented", "Relative Major/Minor"];
+import { PARALLEL_SCALES } from '../scale-catalog.js';
+export { PARALLEL_SCALES };
 const releases = new Map<number,()=>void>();
 let statusAt = -Infinity, status: number[] = [];
 let rowView: string[] = [], lastRowView = '', rowRevealUntil = 0;
