@@ -55,7 +55,7 @@ def patch_audio_profile(root: Path) -> None:
             const value = String(values[6 + index] || 0);
             fontPrint5x3(W - fontWidth5x3(value), 17 + index * 6, value, 1);
         }
-        fontPrint5x3(0, 59, '>70%: ' + (values[3] || 0) + '  DIAL: TRACKS', 1);
+        fontPrint5x3(0, 59, '>70%: ' + (values[3] || 0) + ' JOG DIAL: TRACKS', 1);
         return;
     }''')
     path.write_text(source)

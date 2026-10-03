@@ -5,11 +5,11 @@ import { paramCell } from './param-vm.js';
 import { markUiStateDirty } from './ui-dirty.js';
 
 const parameters = [
-    ['pad_display','HARMONY','Harmony Display',['Off','Current','Effective','Lookahead','Both','Full Lookahead','Both Full Lookahead']],
+    ['pad_display','HARM','Harmony Display',['Off','Current','Effective','Lookahead','Both','Full Lookahead','Both Full Lookahead']],
     ['pad_pulse_rate','RATE','Pulse Rate',['Off','1/16','1/8','1/4','1/2','1 Bar','2 Bars','4 Bars']],
     ['pad_pulse_shape','SHAPE','Pulse Shape',['None','Sine','Triangle','Square']],
-    ['pad_current_color','CURRENT','Current Color',[]],
-    ['pad_play_color','PLAYED','Play Color',[]],
+    ['pad_current_color','NOW','Current Color',[]],
+    ['pad_play_color','PLAY','Play Color',[]],
     ['pad_lookahead_color','NEXT','Lookahead Color',[]],
     ['pad_both_color','BOTH','Both Color',[]],
     ['pad_tonic_color','TONIC','Tonic Color',[]],
