@@ -383,7 +383,7 @@ export function trailPadColor(index:number,track:number,color:number):number{
     if(!style.approachRows&&pianoApproachTarget(track,index)>=0)return color;
     let intensity=trailHistory.intensity(pitch,beat,style.settings);
     if(style.pulse)intensity*=0.5+0.5*Math.cos(2*Math.PI*harmonyBeat()/style.pulse);
-    return intensity>=1?style.color:intensity>0?paletteMix(color,style.color,0,intensity,0):color;
+    return intensity>=1?style.color:intensity>0?paletteMix(style.blend?color:0,style.color,0,intensity,0):color;
 }
 /** One final color order: harmony/pulse, trail, play highlight, row brightness. */
 export function finishPadColor(index:number,track:number,background:number,brightness=1,includeTrail=true,input?:boolean):number{

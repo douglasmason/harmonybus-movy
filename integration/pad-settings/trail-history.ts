@@ -50,13 +50,15 @@ export class TrailHistory {
             if(settings.window==='beats'&&age>=settings.windowBeats)continue;
             if(settings.window==='chord'&&this.chordAt[candidate]!==this.chord)continue;
             if(settings.window==='previous-chord'&&this.chordAt[candidate]<this.chord-1)continue;
-            const duration=Math.max(0.000001,settings.decayBeats);
-            // All exponent choices retain the same half-life. Shape changes
-            // neither the recorded timestamp nor the memory-window boundary.
-            const exponent=settings.exponent??1;
-            const fade=settings.curve==='none'?1:settings.curve==='linear'?Math.max(0,1-age/duration):Math.pow(2,-Math.pow(age/duration,exponent));
+            const fade=trailFade(age,settings.decayBeats,settings.curve,settings.exponent);
             result=Math.max(result,fade);
         }
         return result*Math.max(0,Math.min(1,settings.strength));
     }
+}
+
+/** Shared with the display so the drawn curve matches the audible-time history fade. */
+export function trailFade(age:number,duration:number,curve:TrailCurve,exponent:TrailExponent=1):number{
+    const elapsed=age/Math.max(0.000001,duration);
+    return curve==='none'?1:curve==='linear'?Math.max(0,1-elapsed):Math.pow(2,-Math.pow(elapsed,exponent));
 }

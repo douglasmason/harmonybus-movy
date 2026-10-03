@@ -83,7 +83,7 @@ assert.equal(writes.length, writesBefore, 'Touch alone must never edit a paramet
 console.log('HB touch: real controller labels, current value, highlighted header, multiple fingers and no writes pass');
 
 function focusKey(key) {
-    if(key.startsWith('motion_')){setInitialMode('hbsteprow',1);page.reload();}
+    if(key.startsWith('motion_')){setInitialMode('hbsteprow',/^motion_control_(17|19|20|21|22|29|30|31|32|35|36|37)$/.test(key)?2:1);page.reload();}
     let index = page.ctl.pages.findIndex(candidate => candidate.keys?.includes(key));
     if(index<0){setInitialMode('hbsteprow',1);page.reload();index=page.ctl.pages.findIndex(candidate=>candidate.keys?.includes(key));}
     assert(index >= 0, `${key} must have a knob`);

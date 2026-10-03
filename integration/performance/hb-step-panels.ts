@@ -1,7 +1,8 @@
 /* Presentation only: keep the complete parameter metadata for held gestures. */
-const operations = new Set(['follower_touch', 'operations_9_16', 'pitch_play', 'secondary',
+const operations = new Set(['follower_touch', 'operations_9_16',
     'motion_operation', 'motion_timing', 'motion_conditions']);
 const hiddenPanels = new Set(['mixed_cadences_1', 'mixed_cadences_2', 'pitch_cadences']);
+const harmonyPlay = new Set(['pitch_play','secondary']);
 const motifs = new Set(['motifs', 'motif_tools', 'motif_play']);
 const play = new Set(['follower_play', 'chord_player', 'chord_forms', 'arp_player', 'follower_play_tools', 'motif_global']);
 const setupOrder = ['global_transpose', 'follower_root', 'chord_player', 'chord_forms', 'arp_player',
@@ -18,7 +19,7 @@ export function hbStepHierarchy(hierarchy: any, mode: number): any {
     const levels = hierarchy.levels;
     if (!levels?.root) return hierarchy;
     for (const [key, level] of Object.entries<any>(levels)) {
-        const visible = hiddenPanels.has(key) ? false : operations.has(key) ? mode === 1 : motifs.has(key) ? mode === 2 : true;
+        const visible = hiddenPanels.has(key) ? false : harmonyPlay.has(key) ? mode === 2 : operations.has(key) ? mode === 1 : motifs.has(key) ? mode === 2 : true;
         if (!visible) level.visible_if = { movyStepVisible: false };
         // Render Rhythm has multiple incoming links. Place it once, at the end.
         if (key !== 'root') level.params = level.params?.filter((p: any) => p.level !== 'motif_global');

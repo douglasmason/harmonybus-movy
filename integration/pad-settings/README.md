@@ -11,3 +11,5 @@ One final color path applies trail over the existing harmony/pulse background, t
 Copy-mode replanning reuses cached metadata and releases physical momentary holds without a blanket performance reset. Explicit reset retains cleanup. Hardware crackle resolution is not claimed by desktop tests.
 
 Trail defaults: Current Chord, no decay, 100% strength, pulse off and pure Move blue (palette 125). Approach Rows can independently hide trails on approach pads; enabled trails retain final row dimming. Touch any option knob to peek its list while turning. The pages use the hosted Schwung widgets.
+
+Build 157 consolidates rolling durations into History Window. Fade defaults to Dim Trail (fade toward black); Blend into Background remains available. Decay Time is in beats, and is a half-life for exponential decay. Curve previews sample the same function as trail intensity. Clear is a tap-trigger button. Old rolling-window selections migrate to the equivalent combined choice. Approach Harmony and Secondary live in Copy-tap Harm Play mode, while Chords, Chord Forms and Arp remain common setup panels.

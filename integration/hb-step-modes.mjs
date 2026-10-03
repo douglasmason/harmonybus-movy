@@ -59,6 +59,8 @@ try {
     beforeCopy=contractReads;
     tap();assert.equal(contractReads,beforeCopy,'Copy layout reuses contract without DSP reads');assert.equal(flagValue('hbsteprow'),1);assert(page.ctl.page.keys.includes('motion_control_1'));
     assert(!has(page,'motif_slot'));assert(has(page,'motion_lane'));
+    assert(!has(page,'motion_control_17'),'Approach Harmony belongs to Harm Play');
+    assert(!has(page,'motion_control_35'),'Secondary belongs to Harm Play');
     checkCadences();
     const firstOps=order('motion_control_1');
     assert(firstOps>order('monitor_status'),'Copy-mode operations follow main diagnostics');
@@ -74,6 +76,7 @@ try {
     tap();assert(!writes.slice(beforeNavigation).some(([,key])=>key.endsWith(':performance_reset')),'Navigation must not reset musical state');assert.equal(flagValue('hbsteprow'),2);assert(page.ctl.page.keys.includes('approach_bank_1'));
     assert(has(page,'approach_bank_1'));assert(has(page,'approach_bank_12'));assert(has(page,'approach_motif_latch'));assert(!has(page,'approach_bank_7'));assert(!has(page,'approach_bank_15')); assert(has(page,'motion_control_32'));
     assert(!has(page,'motion_control_1'),'Approach bank is independent of Perform');
+    assert(has(page,'motion_control_17'));assert(has(page,'motion_control_35'));
     assert.equal(page.ctl.metaAt(0).options.length,57);
     assert(page.ctl.metaAt(0).options.includes('Stock: vi-ii-V'));
     assert(page.ctl.metaAt(0).options.includes('Connector Below'));
