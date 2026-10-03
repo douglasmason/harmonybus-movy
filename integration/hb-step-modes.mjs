@@ -266,3 +266,34 @@ console.log('Startup metadata: empty, malformed and timed-out reads recover with
     } finally { startupPort.getParam = originalGet; Date.now = originalClock; }
 }
 console.log('Startup hierarchy: late layout replaces generic pages and then stops polling');
+
+// Schwung's native module.json fallback is nonempty but loses string types,
+// read-only flags and options_as_string (chain_host.c's MIDI FX fallback).
+{
+    const { createSchwungPage } = await import('../dist/esm/renderer/schwung-page.js');
+    const port = portFor(14), originalGet = port.getParam, originalClock = Date.now;
+    const fallback = process.env.HB_FALLBACK ? JSON.parse(readFileSync(process.env.HB_FALLBACK,'utf8')) : module.capabilities.chain_params.slice(0, 256).map(p => ({
+        key:p.key, name:p.name, type:['int','enum'].includes(p.type)?p.type:'float',
+        ...(p.type === 'enum' ? {options:p.options} : {min:p.min??0,max:p.max??1}),
+    }));
+    let ready = false, reads = 0, now = 300000;
+    Date.now = () => now; setFlag('hbsteprow',0);
+    port.getParam = key => {
+        if(key==='midi_fx1:chain_params') { reads++;return JSON.stringify(ready?module.capabilities.chain_params:fallback); }
+        return originalGet(key);
+    };
+    try {
+        const page = createSchwungPage(port,'midi_fx1');
+        assert(page.ready && page.ctl.state.chainParams.length, 'Fallback looks complete to a length-only check');
+        assert.equal(page.ctl.state.metaIndex.get('version').type,'float','Reproduces the erroneous Version dial');
+        for(const reinstall of [false,true]) {
+            if(reinstall){ready=false;page.reload();}
+            ready=true;now+=1001;page.tick();
+            assert.equal(page.ctl.state.metaIndex.get('version').type,'string','Recover read-only version widget');
+            assert.equal(page.ctl.state.metaIndex.get('track_role').options_as_string,true,'Recover named enum writes');
+            assert.equal(page.ctl.state.chainParams.length,module.capabilities.chain_params.length);
+            const settled=reads;now+=1001;page.tick();assert.equal(reads,settled);
+        }
+    } finally {port.getParam=originalGet;Date.now=originalClock;}
+}
+console.log('Native fallback: Version dial and enum metadata recover, including same-track reinstall');

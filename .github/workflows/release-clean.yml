@@ -18,10 +18,10 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  SCHWUNG_REF: c2e9434ef1f588ea174a6680fafe5251e2228f5c
+  SCHWUNG_REF: cfeb2b0a71272144b1c674603ee19160ec099298
   HB_REF: e0dc80f344f7b874cbfe6bcbb90ab2441ac2a2bd
-  HB_MOVY_VERSION: 0.34.1-hbclean.146
-  HB_MOVY_TAG: v0.34.1-hbclean.146
+  HB_MOVY_VERSION: 0.34.1-hbclean.147
+  HB_MOVY_TAG: v0.34.1-hbclean.147
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -437,7 +437,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Fix the first-track startup editor when HarmonyBus page layout arrives after its parameter metadata. Retain bounded retries and stop metadata polling once the complete editor is ready. Pair with HarmonyBus 0.2.235."
+              --notes "Recover the full HarmonyBus editor after nonempty host fallback metadata, including incorrect Version dials and enum controls. Show STEPS without the misleading NO HB footer. Validate against Schwung 1.6.3. Pair with HarmonyBus 0.2.235."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
