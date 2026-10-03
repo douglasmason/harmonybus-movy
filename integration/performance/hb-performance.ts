@@ -108,7 +108,7 @@ export function drawHbPerformanceMode(): void {
     if (!syncHbPerformanceMode() || !performanceViewAvailable()) return;
     const active = hbPerformancePage() !== null;
     fill_rect(0,58,128,6,0);
-    fontPrint(1,58,active ? 'PERFORM T' + (appState.activeTrack.index + 1) : 'STEPS / NO HB',1);
+    fontPrint(1,58,active ? 'PERFORM T' + (appState.activeTrack.index + 1) : 'STEPS',1);
 }
 
 export function releaseHbPerformanceStep(data: number[]): boolean {

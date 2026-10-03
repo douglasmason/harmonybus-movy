@@ -1,5 +1,7 @@
 **Approach controls:** Shift-turn always edits the operation with a list peek. Ordinary turns latch only outside approach-row layouts, with explicit On/Off feedback and a pulsing latch LED. In approach layouts, knobs select the spatial rows and ordinary turns do nothing; entering these layouts clears permanent approach-bank latches. Steps trigger without changing rows. Harm Perform 1 defaults to V, II, CCB, CCA, LT, TTS and Backdoor V; Harm Perform 2 contains sequences. Knob 8 on both remains Chord + Arp.
 
+**hbclean.147 / HarmonyBus 0.2.235 / Schwung 1.6.3:** Retry nonempty native fallback metadata until HarmonyBus supplies full widget types and named enum controls. This covers the erroneous Version dial seen on the initially opened track and after re-adding HB. The fallback footer now says STEPS without the misleading NO HB message.
+
 **hbclean.146 / HarmonyBus 0.2.235:** The first selected track recovers the full HarmonyBus editor when either its page layout or parameter metadata arrives late. Startup no longer gets stuck in generic parameter pages. Complete editors stop retrying metadata.
 
 **Movy hbclean.133 / HarmonyBus 0.2.224:** Chromatic approach pads stay black with Auto Chord enabled. Short emitted notes get a bounded Play Color flash without changing MIDI gates. Knob 8 on both Harm Perform panels uses the shared Chord + Arp operation: touch for a temporary gesture, turn to latch on/off.

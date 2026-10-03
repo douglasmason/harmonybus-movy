@@ -36,10 +36,14 @@ def patch_page_latency(root: Path) -> None:
             if (moduleId !== null && moduleId !== hostedModuleId) reload();
             else if (hostedModuleId !== 'harmonybus') ctl.reloadIfChanged();
             else if (!ctl.state.hierarchy?.levels?.root ||
-                !Array.isArray(ctl.state.chainParams) || !ctl.state.chainParams.length) {
+                !Array.isArray(ctl.state.chainParams) || !ctl.state.chainParams.length ||
+                ctl.state.metaIndex?.get('version')?.type !== 'string' ||
+                ctl.state.metaIndex?.get('track_role')?.options_as_string !== true) {
                 // Either half of the HB contract can arrive first. Generic parameter
                 // pages and hierarchy-only pages are both incomplete startup states.
-                // Retry until both arrive; complete contracts stay off the I/O path.
+                // The native fallback is nonempty but converts Version to float and
+                // drops named enum semantics. It is not the live HB contract.
+                // Retry until the full contract arrives, then stop metadata I/O.
                 reload();
             }
         }''')
