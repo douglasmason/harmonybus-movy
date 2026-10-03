@@ -558,6 +558,9 @@ def main() -> int:
     patch_approach_mode(root)
     from patch_triple_approach import patch_triple_approach
     patch_triple_approach(root)
+    from patch_startup_host import patch_startup_host
+    patch_startup_host(root)
+    (root / "browser-test/hb-startup-host.mjs").write_text((integration_root / "hb-startup-host.mjs").read_text())
     print("HarmonyBus clean integration applied")
     return 0
 

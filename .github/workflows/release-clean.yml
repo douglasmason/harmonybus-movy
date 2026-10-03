@@ -20,8 +20,8 @@ env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: cfeb2b0a71272144b1c674603ee19160ec099298
   HB_REF: f478178e48847984bbd484263da0e5a65d9436ec
-  HB_MOVY_VERSION: 0.34.1-hbclean.148
-  HB_MOVY_TAG: v0.34.1-hbclean.148
+  HB_MOVY_VERSION: 0.34.1-hbclean.149
+  HB_MOVY_TAG: v0.34.1-hbclean.149
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -223,6 +223,7 @@ jobs:
               'engine/crates/movy-dsp/src/hb_loop.rs',
               'engine/crates/movy-dsp/src/hb_record.rs',
               'browser-test/hb-touch.mjs',
+              'browser-test/hb-startup-host.mjs',
               'browser-test/hb-analysis.mjs',
               'src/model/store.ts',
               'src/model/viewmodel.ts',
@@ -384,6 +385,7 @@ jobs:
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-track-navigation.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-step-modes.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-touch.mjs
+          HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-startup-host.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-analysis.mjs
 
       - name: Build Movy DSP
@@ -437,7 +439,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Add independent current/next chord color forms, distinguish Next Pulse roles, make adjacent shading optional and cached, suppress repeated preview layout writes, and show key destinations with Relative Major/Minor. Pair with HarmonyBus 0.2.236; built against Schwung 1.6.3."
+              --notes "Fix the opening track editor retaining a stale Schwung-slot connection after Set loading resolves Movy hosting. Rebind metadata, control writes and performance ownership to the current track port. HarmonyBus remains 0.2.236."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
