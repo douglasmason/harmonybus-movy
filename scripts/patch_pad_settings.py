@@ -37,7 +37,7 @@ export function mainPageTouch(k: number, down: boolean): void {
     path.write_text(source)
     path = root / 'src/seq/main-page-vm.ts'
     source = "import { padSettingsCells } from './pad-settings.js';\nimport { trailSettingsCells } from './trail-settings.js';\n" + path.read_text()
-    source = replace_once(source, '    const layout = null;', "    const layout = cell({shortName:'MORE',fullName:'Turn dial: more panels',renderStyle:'preset',displayValue:'DIAL >',normalizedValue:0});")
+    source = replace_once(source, '    const layout = null;', "    const layout = cell({shortName:'MORE',fullName:'Turn jog dial: more panels',renderStyle:'preset',displayValue:'JOG DIAL',normalizedValue:0});")
     source = replace_once(source, '    return {\n        moduleName:', '''    const padCells = mainPageState.page===1 ? padSettingsCells(tk) : mainPageState.page>1 ? trailSettingsCells(mainPageState.page,tk) : null;
     if (padCells && tk >= 0 && padCells[tk]) toast={fullName:padCells[tk].fullName,value:padCells[tk].displayValue,browseHint:false};
     return {
@@ -45,6 +45,23 @@ export function mainPageTouch(k: number, down: boolean): void {
     source = source.replace("headerOverride: 'SET PARAMETERS'", "headerOverride: ['SET PARAMS','PAD COLORS','PAD TRAILS','TRAIL DECAY'][mainPageState.page]")
     source = source.replace("bankName: '', bankIndex: 0, bankCount: 1", "bankName: (mainPageState.page + 1) + '/4 >', bankIndex: mainPageState.page, bankCount: 4")
     source = source.replace('rows: [[tempo, sw, link, quant], [root, key, mode, layout]],', 'rows: padCells ? [padCells.slice(0,4),padCells.slice(4,8)] : [[tempo, sw, link, quant], [root, key, mode, layout]],')
+    source = source.replace('const overlay = mainPageState.overlayKnob', 'let overlay = mainPageState.overlayKnob')
+    source = replace_once(source, '    return {\n        moduleName:', '''    if (padCells) {
+        const focused = tk >= 0 ? padCells[tk] : null;
+        overlay = focused?.options?.length > 1 ? {slot:tk,options:focused.options,selected:focused.enumIndex,shapeIds:null} : null;
+        if (!focused) toast=null;
+    }
+    return {
+        moduleName:''')
+    path.write_text(source)
+    # Use the same Schwung widgets as hosted HB, including in full-page mode.
+    path = root / 'src/renderer/knob-view.ts'
+    source = "import { schwungLibAvailable } from './schwung-lib.js';\n" + path.read_text()
+    source = replace_once(source, 'else if (schwungGridEnabled()) drawKnobParamsSchwung(vm);', "else if (schwungGridEnabled() || (vm.moduleName === 'SET PARAMETERS' && vm.bankIndex > 0 && schwungLibAvailable())) drawKnobParamsSchwung(vm, vm.rows.flat().findIndex(cell => cell?.touched));")
+    path.write_text(source)
+    path = root / 'src/renderer/schwung-body.ts'
+    source = replace_once(path.read_text(), '        const meta = metaFor(c, key);', '''        const meta = metaFor(c, key);
+        if (vm.moduleName === 'SET PARAMETERS' && vm.bankIndex > 0) meta.label = c.shortName;''')
     path.write_text(source)
     path = root / 'src/midi/router.ts'
     source = replace_once(path.read_text(), 'import { mainPageActive,', 'import { mainPageJog, mainPageActive,')
@@ -66,5 +83,5 @@ export function mainPageTouch(k: number, down: boolean): void {
     path.write_text(source)
 
     path = root / 'browser-test/logic/params-pages.mjs'
-    source = replace_once(path.read_text(), "eq('former layout cell is empty', vm.rows[1][3], null);", "eq('more panels are discoverable', vm.rows[1][3].displayValue, 'DIAL >');")
+    source = replace_once(path.read_text(), "eq('former layout cell is empty', vm.rows[1][3], null);", "eq('more panels are discoverable', vm.rows[1][3].displayValue, 'JOG DIAL');")
     path.write_text(source)
