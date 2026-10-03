@@ -17,7 +17,7 @@ const editorReads = [];
 const operationMetadata = () => module.capabilities.chain_params.map(parameter => {
             if(parameter.key.startsWith('defaults_control_')){
                 const editor=String(values.get('defaults_editor'));
-                const fields=editor.endsWith('Scales')?['gap_scale','scale_context','dominant_scale','borrowed_scale','local_palette','scope']:['chord_quality','chord_inversion','chord_voicing','strum_spread','chromatic_quality','scope'];
+                const fields=editor.endsWith('Scales')?['gap_scale','scale_context','dominant_scale','dominant_minor_scale','borrowed_scale','local_palette','scope']:['chord_quality','chord_inversion','chord_voicing','strum_spread','chromatic_quality','scope','scope'];
                 const field=fields[Number(parameter.key.split('_').at(-1))-1];
                 const key=field==='scope'?'defaults_scope':(editor.startsWith('Follower')?'follower':'conductor')+'_default_'+field;
                 return {...module.capabilities.chain_params.find(candidate=>candidate.key===key),key:parameter.key};
