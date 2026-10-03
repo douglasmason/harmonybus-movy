@@ -273,7 +273,7 @@ console.log('Input tonic: Track default, Grey, named colors, octave identity and
 const { distinguishHarmonyPad } = await import('../dist/esm/seq/pads.js');
 const { setHeldSet, clearHeldSet } = await import('../dist/esm/seq/held.js');
 const groups=Array.from({length:32},(_,slot)=>slot<2?0:slot<4?2:slot);
-effectivePort.getParam=()=>`4095,4095,4095,1,4095,2,0,3,0,0|colors2,0|outputs1,${groups.join(',')}|input1,0,1,1,2741,4095`;
+effectivePort.getParam=()=>`4095,4095,4095,1,4095,2,0,3,0,0|colors2,0|outputs1,${groups.join(',')}|adjshade1,1|input1,0,1,1,2741,4095`;
 refreshHarmonyPads(2,testTime+=100);
 assert.equal(distinguishHarmonyPad(0,2,127),127);
 assert.equal(distinguishHarmonyPad(1,2,127),127,'Same output keeps identical shade');

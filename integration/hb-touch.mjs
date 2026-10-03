@@ -137,7 +137,7 @@ assert(module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_st
 assert(!module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_clear'));
 assert(module.capabilities.ui_hierarchy.levels.follower_play_tools.knobs.includes('arp_clear'));
 assert(module.capabilities.ui_hierarchy.levels.chord_player.knobs.includes('strum_spread'));
-assert.equal(module.capabilities.ui_hierarchy.levels.chord_player.knobs.length,4);
+assert.equal(module.capabilities.ui_hierarchy.levels.chord_player.knobs.length,6);
 
 const { releasePerformanceTouch, performanceTouchActive } = await import('../dist/esm/renderer/schwung-page.js');
 const performanceSlot = focusKey('play_bypass');
@@ -273,8 +273,8 @@ assert.equal(values.get('motion_operation'), 'Chord Form');
 const formSlot=page.ctl.page.keys.indexOf('motion_amount');
 assert.equal(page.ctl.metaAt(formSlot).name,'Form');
 assert.equal(page.ctl.metaAt(formSlot).type,'enum');
-page.knobTurn(formSlot,100);page.knobTouch(formSlot,false);
-assert.equal(values.get('motion_amount'),'Follow Detected');
+page.knobTurn(formSlot,100);page.knobTurn(formSlot,100);page.knobTouch(formSlot,false);
+assert.equal(values.get('motion_amount'),'Root + Seventh');
 page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
 assert.equal(values.get('motion_operation'), 'MIDI Echo');
 assert.equal(page.ctl.metaAt(page.ctl.page.keys.indexOf('motion_offset')).name, 'Decay %');
@@ -944,7 +944,7 @@ console.log('Shift edits: fixed lane operations, named modes, both touch orders,
 
 assert.deepEqual(module.capabilities.chain_params.find(p=>p.key==='pad_chord_form').options,module.capabilities.chain_params.find(p=>p.key==='chord_form').options.filter(option=>option!=='Follow Role'),'Pad color and sounding chord forms share choices');
 
-const formKeys=['conductor_default_chord_form','follower_default_chord_form','pad_chord_form','detected_chord_form','track_chord_form','chord_quality','chord_inversion','pad_next_pulse'];
+const formKeys=['conductor_default_chord_form','follower_default_chord_form','pad_chord_form','pad_next_chord_form','detected_chord_form','track_chord_form','pad_next_pulse','pad_adjacent_shading'];
 assert.deepEqual(module.capabilities.ui_hierarchy.levels.chord_forms.knobs,formKeys);
 for(const key of formKeys){
     assert.equal(page.ctl.pages.filter(candidate=>candidate.keys?.includes(key)).length,1,key+' appears on exactly one page');
