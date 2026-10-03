@@ -567,6 +567,10 @@ def main() -> int:
     patch_panel_cleanup(root)
     from patch_audio_profile import patch_audio_profile
     patch_audio_profile(root)
+    from patch_mode_navigation import patch_mode_navigation
+    patch_mode_navigation(root)
+    from patch_pad_settings import patch_pad_settings
+    patch_pad_settings(root)
     print("HarmonyBus clean integration applied")
     return 0
 

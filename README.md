@@ -1,3 +1,9 @@
+**HarmonyBus 0.2.242 / Movy hbclean.155.** Adds Live Harmony Override (default scope) and Live + Recorded Harmony Override, using resolved musical intent with conductor harmony underneath. Chord + Arp now offers six combinations: Chord Only, Arp Only or Both, resolving on first target press or release. Persistent latches stay active.
+
+Movy adds Pad Trails under Shift + Step 9: turn the dial through Set Parameters, Pad Colors, Pad Trails and Trail Decay. Trails remember a resolved single target per input gesture, never every generated chord voice or arp repeat. Exact pitch is the default; pitch class is optional. History is matched against each pad's displayed current/next target. Choose infinite, beat, current-chord or previous-plus-current-chord history, color/strength/pulse, linear or exponential decay, and exponential shape 0.5/1/2/4. Exponential duration is a half-life. Chord Forms stays grouped as before.
+
+Color order is harmony/pulse, trail overlay, played highlight, then approach-row brightness. Trails share the existing bounded pad snapshot; animation performs no native reads. Copy-mode layout changes reuse cached metadata and release physical holds without resetting all performance state. Hardware crackle behavior still needs Move testing.
+
 **HarmonyBus 0.2.241 / Movy hbclean.154 — conductor-owned shared context.** While recording a conductor, Key Center landings, Parallel Scale starts/ends and explicit parent-scale changes are saved on that clip's musical timeline, including changes performed without a note. Follower uses remain live-only. Ordinary chord/arp settings, timing and humanize remain current rendering controls; this does not introduce general knob automation. Infer remains a live base-scale selection.
 
 **Audio diagnostics:** Shift + Step 12 opens the CPU meter and starts a fresh opt-in measurement. Turn the large dial to switch between track costs and AUDIO PEAK. Repeat Shift + Step 12 to reset; Back stops measurement. AUDIO PEAK shows the entire worst measured callback against its block duration, plus that same block's input/config, sequencer, clip metadata, MIDI/context, HB preparation, click/module-load, and chain-render times in microseconds. OVER counts callbacks exceeding the raw block duration; >70% is a headroom warning, not a hardware xrun count. Stage maxima and block counts also travel in the existing status/CPU log. Measurement uses fixed counters and monotonic timestamps, no callback logging or allocation.
@@ -234,10 +240,16 @@ Defaults apply only when creating a brand-new Set. Reopening a saved Set preserv
 Install from the repository URL in Schwung's GitHub/repository installer:
 
 ```text
-https://github.com/douglasmason/harmonybus-movy
+douglasmason/harmonybus-movy
 ```
 
-The corrected clean release reports version **0.34.1-hbclean.39** and requires **HarmonyBus 0.2.124 or newer**, installed separately. HB 0.2.95's missing quant-grid symbol can prevent module loading; earlier clean candidates also had malformed preset strings. After updating both modules, reload them and create a brand-new Set to check the prepared layout.
+This release is **0.34.1-hbclean.155** and requires **HarmonyBus 0.2.242**, installed separately:
+
+```text
+douglasmason/harmonybus
+```
+
+Update both modules, then restart Move. Existing Sets can use the new controls. Open **Shift + Step 9**, turn the large dial to **Pad Trails**, and turn Trails On. The next page controls decay.
 
 The empty-clip visual metronome uses a display-only clock projected from each engine status reading, capped at 100 ms of extrapolation if readings stop arriving. This removes the wait for the next status poll; it does not compensate for hardware LED latency or a blocked UI thread. Sequencing, clip playheads and MIDI rendering continue to use the engine's own timing.
 

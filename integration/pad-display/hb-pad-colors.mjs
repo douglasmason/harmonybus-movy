@@ -381,11 +381,11 @@ console.log('Piano gaps: opt-in follower capability, exact lower-pad targets, in
         for (const [pad,bright] of [[76,C_LIGHTGREY],[77,7],[78,127],[79,3]]) {
             const dim=padColor(pad,68,0,false);
             assert(approachPalette[dim].reduce((sum,value)=>sum+value,0)<approachPalette[bright].reduce((sum,value)=>sum+value,0),'Idle approach rows are dimmer in both layouts');
-            assert.equal(padColor(pad,68,0,true),11,'Held approach retains full Play Color');
+            assert(approachPalette[padColor(pad,68,0,true)].reduce((sum,value)=>sum+value,0)<approachPalette[11].reduce((sum,value)=>sum+value,0),'Held approach Play Color is dimmed after highlight');
         }
     }
     assert.equal(padColor(80,68,0,false),0,'Unique chromatic approach stays dark');
-    assert.equal(padColor(76,68,0,true),11,'Played approach uses Play Color');
+    assert.equal(padColor(76,68,0,true),85,'Played approach uses dimmed Play Color');
     keyboardState.mode=0;keyboardState.layout=1;keyboardState.scale=0;keyboardState.rootPc=0;
     refreshHarmonyPads(0,testTime+=100);
     assert.equal(padColor(76,68,0,false),C_LIGHTGREY,'Piano gap uses the same membership rules');
@@ -613,7 +613,7 @@ for(const bank of [0,1]){
                 portFor(0).getParam=()=>raw.replace('|nextpulse1,16,0','|nextpulse1,16,256')+'|piano1,1|gapcolors1,'+Array(32).fill(16).join(',');
                 refreshHarmonyPads(0,testTime+=100);now=250;
                 assert(brightness(padColor(76,68,0,false))<brightness(ordinaryFloor),'Dim approach floor is lower in layout '+layout);
-                now=0;assert.equal(padColor(76,68,0,false),peak,'Approach pulse reaches its selected color');
+                now=0;assert(brightness(padColor(76,68,0,false))<brightness(peak),'Approach pulse peak also respects final row dimming');
             }
         } finally { Object.assign(keyboardState,savedKeyboard);portFor(0).getParam=()=>raw;refreshHarmonyPads(0,testTime+=100); }
 

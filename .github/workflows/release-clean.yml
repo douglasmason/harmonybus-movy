@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: cfeb2b0a71272144b1c674603ee19160ec099298
-  HB_REF: 42e870e3c964fbebbf5c617dd5e062f8b25009c2
-  HB_MOVY_VERSION: 0.34.1-hbclean.154
-  HB_MOVY_TAG: v0.34.1-hbclean.154
+  HB_REF: 9c6bcbb7782d47e1ed9aae9f15686fd3f2e909d8
+  HB_MOVY_VERSION: 0.34.1-hbclean.155
+  HB_MOVY_TAG: v0.34.1-hbclean.155
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -95,6 +95,12 @@ jobs:
               'engine/crates/seq-core/src/shared_context.rs',
               'engine/crates/movy-dsp/src/audio_profile.rs',
               'src/seq/cpu-page.ts',
+              'src/seq/pad-settings.ts',
+              'src/seq/trail-history.ts',
+              'src/seq/trail-settings.ts',
+              'browser-test/hb-pad-trails.mjs',
+              'browser-test/trail-history-test.mjs',
+              'browser-test/hb-pad-settings.mjs',
               'src/renderer/cpu-view.ts',
               'src/seq/state.ts',
               'browser-test/hb-motifs.mjs',
@@ -391,6 +397,9 @@ jobs:
           SCHWUNG="$SCHWUNG_ROOT" node build/browser.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-track-navigation.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-step-modes.mjs
+          HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-pad-settings.mjs
+          node browser-test/trail-history-test.mjs
+          node browser-test/hb-pad-trails.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-touch.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-startup-host.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-analysis.mjs

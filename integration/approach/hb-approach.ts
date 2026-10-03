@@ -135,7 +135,7 @@ export function approachPanels(hierarchy: any, mode: number): void {
         params.push({key:'key_center',name:'Key Center',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'});
         params.push({key:'parallel_mode',name:'Parallel Scale',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'});
         params.push({key:'approach_motif_latch',name:'Motif Latch',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'});
-        params.push({key:'motion_control_32',name:'Chord + Arp',type:'enum',options_as_string:true,options:['Chord Only','Arp Only','Both'],default:'Both'});
+        params.push({key:'motion_control_32',name:'Chord + Arp',type:'enum',options_as_string:true,options:['Chord Only / Release','Arp Only / Release','Both / Release','Chord Only / Press','Arp Only / Press','Both / Press'],default:'Both / Release'});
         levels['approach_bank_'+bank]=panel('Harm Play '+(bank+1),params.map(parameter=>parameter.key),params);
         links.push({level:'approach_bank_'+bank});
     }
@@ -192,7 +192,7 @@ export function drawApproachOperations(keys: (string | null)[], values: Record<s
     };
     keys.forEach((key, slot) => {
         if (!/^approach_bank_/.test(key ?? '') && key !== 'motion_control_32' && key !== 'approach_motif_latch' && key !== 'key_center' && key !== 'parallel_mode') return;
-        const raw=key==='key_center'?'Key Center':key==='parallel_mode'?'Parallel Scale':key==='approach_motif_latch'?'Motif Latch':key==='motion_control_32'?(['Chord Only','Arp Only'].includes(String(values[key]))?String(values[key]):'Chord + Arp'):String(values[key!] ?? '');
+        const raw=key==='key_center'?'Key Center':key==='parallel_mode'?'Parallel Scale':key==='approach_motif_latch'?'Motif Latch':key==='motion_control_32'?String(values[key] || 'Both / Release'):String(values[key!] ?? '');
         const label=names[raw] ?? raw.replace(/^Stock: /,'').replace(/Target/g,'T');
         const words=label.split(/(?<=-)|\s+/), lines:string[]=[];
         let line='';

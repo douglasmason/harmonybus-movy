@@ -1,3 +1,4 @@
+import { trailEnabled, trailHistory, trailStyle } from '../seq/trail-settings.js';
 import { SCALES, FOLLOWER_SCALE_NAMES, FOLLOWER_KEYBOARD_SCALES } from '../scale-catalog.js';
 /* Read-only pitch-class visualization. No MIDI generation or modifier consumption. */
 import { keyboardState, padMapFor } from './state.js';
@@ -11,12 +12,13 @@ import { seqState } from '../seq/state.js';
 import { visualEngineTick } from '../seq/engine.js';
 import { PAD_PALETTE } from './pad-palette.js';
 
-export type HarmonySnapshot = { adjacentShading?: boolean; nextRanks?: number[]; nextPulse?: number; nextPulsePads?: number; playPads?: number; gapColors?: number[]; pianoApproach?: boolean; current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; playColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
+export type HarmonySnapshot = { targets?: number[]; adjacentShading?: boolean; nextRanks?: number[]; nextPulse?: number; nextPulsePads?: number; playPads?: number; gapColors?: number[]; pianoApproach?: boolean; current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; playColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
 let snapshot: HarmonySnapshot | null = null;
 let requestedPads: number[] = [];
 let sentPreviewInputs = "";
 let settings = [0,3,0,4,2];
 let watchedTrack = -1;
+let trailNativeEnabled: boolean | null = null, trailBeat=0, trailSampleAt=-Infinity;
 let polledAt = -Infinity;
 const colors = [127, 3, 7, 126, 13, 125, 22, 25];
 const periods = [0, 0.25, 0.5, 1, 2, 4, 8, 16];
@@ -42,6 +44,9 @@ export function withHarmonyPadFrame<T>(paint: () => T): T {
 export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null {
     if (!raw) return null;
     const [harmony, ...sections] = raw.trim().split('|');
+    const targetSection=sections.find(section=>section.startsWith('targets1,'));
+    const targets=targetSection?.split(',').slice(1).map(Number);
+    if(targets&&(targets.length!==32||targets.some(pitch=>!Number.isInteger(pitch)||pitch< -1||pitch>127)))return null;
     const gapSection = sections.find(section => section.startsWith('gapcolors1,'));
     const gapColors = gapSection?.split(',').slice(1).map(Number);
     if (gapColors && (gapColors.length !== 32 || gapColors.some(value => !Number.isInteger(value) || value < -1 || value > 31))) return null;
@@ -125,17 +130,19 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
     }
     const piano = sections.find(section => section.startsWith('piano1,'));
     if (piano && !['piano1,0','piano1,1'].includes(piano)) return null;
-    return { ...(shadeSection ? {adjacentShading:shadeSection==='adjshade1,1'} : {}), ...(nextRanks ? {nextRanks} : {}), ...(nextPulse !== undefined ? {nextPulse, nextPulsePads} : {}), ...(playPads !== undefined ? {playPads: (playPads | playFlash) >>> 0} : {}), ...(gapColors ? {gapColors} : {}), ...(piano ? {pianoApproach: piano === 'piano1,1'} : {}), ...(playColor !== undefined ? {playColor} : {}), ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
+    return { ...(targets ? {targets} : {}), ...(shadeSection ? {adjacentShading:shadeSection==='adjshade1,1'} : {}), ...(nextRanks ? {nextRanks} : {}), ...(nextPulse !== undefined ? {nextPulse, nextPulsePads} : {}), ...(playPads !== undefined ? {playPads: (playPads | playFlash) >>> 0} : {}), ...(gapColors ? {gapColors} : {}), ...(piano ? {pianoApproach: piano === 'piano1,1'} : {}), ...(playColor !== undefined ? {playColor} : {}), ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
 }
 
 /** Poll one compact snapshot, never once per pad or once per display frame. */
 export function refreshHarmonyPads(track: number, now = Date.now()): void {
-    if (track !== watchedTrack) { watchedTrack = track; snapshot = null; polledAt = -Infinity; sentPreviewInputs = ""; }
+    if (track !== watchedTrack) { watchedTrack = track; snapshot = null; polledAt = -Infinity; sentPreviewInputs = ""; trailNativeEnabled=null;trailHistory.clear();trailSampleAt=-Infinity; }
     // Coalesce gesture bursts too: display feedback may lag by at most 50 ms,
     // but rapid input must not increase synchronous host snapshot traffic.
     if (now >= polledAt && now - polledAt < 50) return;
     polledAt = now;
     const port = portFor(track);
+    const trails=trailEnabled();
+    if(trailNativeEnabled!==trails&&port.setParam('midi_fx1:trail_enable',trails?'1':'0')!==false)trailNativeEnabled=trails;
     requestedPads = Array.from(padMapFor(track));
     const request = requestedPads.map(note => (note < 0 ? 255 : note).toString(16).padStart(2, '0')).join('');
     const targets = requestedPads.map((_, index) => pianoApproachTarget(track, index));
@@ -149,6 +156,10 @@ export function refreshHarmonyPads(track: number, now = Date.now()): void {
     }
     const raw = port.getParam('midi_fx1:pad_view');
     const next = parseHarmonySnapshot(raw || port.getParam('midi_fx1:pad_render'));
+    if(trails&&next){
+        const time=trailHistory.readSnapshot(raw?.split('|').find(section=>section.startsWith('th1,'))||'');
+        if(time!==null){trailBeat=time;trailSampleAt=now;}
+    }
     // The shared host parameter slot can miss a read while chains restore or
     // another page is polling. A failed read is not an empty harmony model:
     // retain the last complete frame and retry on the normal bounded cadence.
@@ -237,14 +248,14 @@ export function colorHarmonyPitch(pitch: number, inputRoot: number, track: numbe
 }
 
 /** Tone selection has its own smooth brightness pulse, independent of general shape. */
-function nextTonePulse(background: number, selected: boolean, track: number, restingBrightness = 1, rank = 0): number {
+function nextTonePulse(background: number, selected: boolean, track: number, rank = 0): number {
     const period = periods[settings[1]];
     const mode = settings[0];
     if (!selected || !period || mode === 1 || ((mode === 3 || mode === 4) && !snapshot?.ready)) return background;
     const choice = mode === 0 || mode === 2 ? settings[3] : settings[4];
     const color = choice === 8 ? trackColor(track) : colors[choice];
     const peak = rank === 2 ? 0.55 : rank === 1 ? 0.75 : 1;
-    const floor = 0.5 * restingBrightness * peak;
+    const floor = 0.5 * peak;
     return paletteMix(0, color, 0, floor + (peak - floor) * harmonyPulse(harmonyBeat() / period, 0), 0);
 }
 
@@ -296,7 +307,7 @@ export function harmonyPadColor(pitch: number, track: number, held = false, rest
     const selectedColor = mode === 0 || mode === 2 ? (view?.playColor !== undefined ? settings[3] : (view?.effectiveColor ?? 8)) : settings[4];
     const bit = 1 << (pitch % 12), ranks = view?.nextRanks;
     const rank = ranks && (ranks[2] & bit) ? 2 : ranks && (ranks[0] & bit) ? 1 : 0;
-    const pulse = (color: number): number => resting ? color : nextTonePulse(color, !!((view?.nextPulse ?? 0) & bit), track, 1, rank);
+    const pulse = (color: number): number => resting ? color : nextTonePulse(color, !!((view?.nextPulse ?? 0) & bit), track, rank);
     if ((mode === 0 || mode === 2) && view?.input) {
         const bit = 1 << (pitch % 12), input = view.input;
         const outputScale = view.scale;
@@ -365,6 +376,23 @@ function updateShadePattern(track: number): void {
         previousColor=base??-1;previousGroup=groups[slot];
     }
 }
+export function trailPadColor(index:number,track:number,color:number):number{
+    if(!trailEnabled()||track!==watchedTrack||!Number.isFinite(trailSampleAt))return color;
+    const pitch=snapshot?.targets?.[index];if(pitch===undefined||pitch<0)return color;
+    const style=trailStyle(),beat=trailBeat+Math.max(0,harmonyNow()-trailSampleAt)*seqState.bpmX100/6000000;
+    let intensity=trailHistory.intensity(pitch,beat,style.settings);
+    if(style.pulse)intensity*=0.5+0.5*Math.cos(2*Math.PI*harmonyBeat()/style.pulse);
+    return intensity>0?paletteMix(color,style.color,0,intensity,0):color;
+}
+/** One final color order: harmony/pulse, trail, play highlight, row brightness. */
+export function finishPadColor(index:number,track:number,background:number,brightness=1,includeTrail=true,input?:boolean):number{
+    let color=includeTrail?trailPadColor(index,track,background):background;
+    if(input!==undefined){
+        const play=harmonyPlayColor(track);
+        if(play!==null&&(hasHarmonyPlayback(track)?harmonyPadPlaying(track,index):input))color=play;
+    }
+    return brightness<1?paletteMix(0,color,0,brightness,0):color;
+}
 export function distinguishHarmonyPad(index: number, track: number, color: number): number {
     if(watchedTrack!==track||!snapshot?.adjacentShading||!snapshot.outputGroups||!color)return color;
     updateShadePattern(track);
@@ -389,11 +417,14 @@ export function harmonyApproachColor(index: number, track: number, held = false,
     const target = pianoApproachTarget(track, index);
     if (target < 0 || watchedTrack !== track || !snapshot) return 0;
     const identity = pianoApproachIdentity(target);
+    const rowBrightness = padRowBrightness(index,track);
     if (!restingOnly && snapshot.playPads === undefined && (held || snapshot.arpInputs?.includes(identity))) {
         const play = harmonyPlayColor(track);
-        if (play !== null) return play;
+        if (play !== null) return finishPadColor(index,track,play,rowBrightness,false);
     }
-    if (settings[0] === 7) return !restingOnly && held ? (harmonyPlayColor(track) ?? C_DARKGREY) : C_DARKGREY;
+    if (settings[0] === 7) {
+        return restingOnly?finishPadColor(index,track,C_DARKGREY,rowBrightness,false):harmonyPlaybackColor(C_DARKGREY,track,index,held);
+    }
     const flags = snapshot.gapColors?.[index] ?? -1;
     if (flags < 0) return 0; // Older HB has no approach-membership snapshot.
     const mode = settings[0], period = restingOnly || snapshot.nextPulse !== undefined ? 0 : periods[settings[1]];
@@ -404,12 +435,10 @@ export function harmonyApproachColor(index: number, track: number, held = false,
         flags & selected ? 1 : 0, mode, period ? beat / period : 0, settings[2],
         resolve(settings[3]), resolve(mode === 0 || mode === 2 ? settings[3] : settings[4]),
         period > 0, undefined, snapshot.bothColor ? resolve(snapshot.bothColor - 1) : undefined);
-    const restingBrightness = keyboardState.layout === LAYOUT_APPROACH || keyboardState.layout === 3 ? 1 / 3 : 1;
-    const resting = restingBrightness < 1 ? paletteMix(0, background, 0, restingBrightness, 0) : background;
-    if (restingOnly) return resting;
+    if (restingOnly) return finishPadColor(index,track,background,rowBrightness,false);
     const ranks = snapshot.nextRanks;
     const rank = ranks && ((ranks[3] >>> index) & 1) ? 2 : ranks && ((ranks[1] >>> index) & 1) ? 1 : 0;
-    return harmonyPlaybackColor(nextTonePulse(resting, !!(((snapshot.nextPulsePads ?? 0) >>> index) & 1), track, restingBrightness, rank), track, index, held);
+    return harmonyPlaybackColor(nextTonePulse(background, !!(((snapshot.nextPulsePads ?? 0) >>> index) & 1), track, rank), track, index, held);
 }
 
 /** Final output membership is distinct from live and recorded source input. */
@@ -423,11 +452,10 @@ export function harmonyPadPlaying(track: number, index: number): boolean {
     return ((snapshot!.playPads! >>> index) & 1) !== 0;
 }
 
-/** Every sounding output uses the configured solid play highlight. */
+/** Row brightness is a final stage, including played-note highlights. */
+function padRowBrightness(index:number,track:number):number{
+    return (keyboardState.layout===LAYOUT_APPROACH||keyboardState.layout===3)&&pianoApproachTarget(track,index)>=0?1/3:1;
+}
 export function harmonyPlaybackColor(background: number, track: number, index: number, input: boolean): number {
-    const play = harmonyPlayColor(track);
-    if (play === null) return background;
-    if (!hasHarmonyPlayback(track)) return input ? play : background;
-    if (!harmonyPadPlaying(track, index)) return background;
-    return play;
+    return finishPadColor(index,track,background,padRowBrightness(index,track),true,input);
 }
