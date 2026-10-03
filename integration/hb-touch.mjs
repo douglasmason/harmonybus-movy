@@ -132,10 +132,10 @@ for (const [key, action] of [['arp_clear','Clear'],['play_reset','Reset']]) {
 console.log('HB buttons: momentary modifiers, release after page change, every action, repeat-touch and turn deduplication pass');
 
 assert.equal(page.ctl.pages.filter(candidate => candidate.keys?.includes('arp_phase')).length, 1);
-assert.equal(module.capabilities.ui_hierarchy.levels.arp_player.knobs.length, 7);
+assert.equal(module.capabilities.ui_hierarchy.levels.arp_player.knobs.length, 8);
 assert(module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_start'));
-assert(!module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_clear'));
-assert(module.capabilities.ui_hierarchy.levels.follower_play_tools.knobs.includes('arp_clear'));
+assert(module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_clear'));
+assert(!module.capabilities.ui_hierarchy.levels.follower_play_tools.knobs.includes('arp_clear'));
 assert(module.capabilities.ui_hierarchy.levels.chord_player.knobs.includes('strum_spread'));
 assert.equal(module.capabilities.ui_hierarchy.levels.chord_player.knobs.length,6);
 
@@ -1008,7 +1008,7 @@ console.log('Perform captions and cyan Chord + Arp LED: Off/Armed/Hold/Latch, ro
     const {appState}=await import('../dist/esm/app/state.js');
     for(const key of ['key_center_scale','conductor_key_travel','parallel_scale']){
         const slot=focusKey(key);
-        assert.equal(page.pageTitle,'Global Transpose');
+        assert.equal(page.pageTitle,'Key & Scale');
         assert.equal(page.ctl.page.keys[slot],key);
     }
     setInitialMode('hbsteprow',2);page.reload();

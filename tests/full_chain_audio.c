@@ -43,6 +43,44 @@ static long render(int blocks){
     }
     return energy;
 }
+static void test_shared_context(void){
+    char state[65536],view[2048];
+    set("ch0:midi_fx1:performance_reset","1");
+    set("ch0:midi_fx1:transpose","0");set("ch0:midi_fx1:follower_scale","Major");
+    set("ch0:midi_fx1:follower_explicit_root","C");
+    set("ch0:midi_fx1:role","Conductor");set("ch1:midi_fx1:role","Conductor");
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 16 0 \n");
+    set("cmd","play");render(16);set("cmd","rec 0");render(800);
+    api->get_param(instance,"ch0:midi_fx1:shared_context_snapshot",view,sizeof(view));fprintf(stderr,"shared record view: %s\n",view);
+    set("ch0:midi_fx1:parallel_scale","Natural Minor");set("ch0:midi_fx1:parallel_mode","Down");render(16);
+    set("ch0:midi_fx1:parallel_mode","Up");render(16);set("cmd","stop");render(4);
+    api->get_param(instance,"state",state,sizeof(state));
+    api->get_param(instance,"ch0:midi_fx1:shared_context_snapshot",view,sizeof(view));fprintf(stderr,"shared capture view: %s\n",view);
+    assert(strstr(state,"sc 0 0 "));
+    /* Explicit cross-boundary gesture, plus a second conductor's key. */
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 1 0 0\ncl 0 0 16 0 \ncl 1 0 16 0 \nsc 0 0 350 1 1 2 0 0\nsc 0 0 40 1 0 2 0 0\nsc 1 0 0 0 1 2 2774 0\n");
+    set("cmd","play");render(2);
+    api->get_param(instance,"ch0:midi_fx1:shared_context_snapshot",view,sizeof(view));
+    fprintf(stderr,"shared initial: %s\n",view);assert(strstr(view,"dp1|Dm|")&&strstr(view,"T2 REC")&&strstr(view,"T1 REC"));
+    render(80);api->get_param(instance,"ch0:midi_fx1:shared_context_snapshot",view,sizeof(view));
+    fprintf(stderr,"shared release: %s\n",view);assert(strstr(view,"dp1|D|")&&strstr(view,"Major"));
+    set("cmd","stop");render(4);api->get_param(instance,"ch0:midi_fx1:shared_context_snapshot",view,sizeof(view));
+    assert(!strstr(view," REC"));
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 16 0 \n");
+    set("ch0:midi_fx1:chord_mode","Off");set("ch0:midi_fx1:arp_playback","Together");
+    set("ch0:midi_fx1:key_center_scale","Use Parallel Scale");set("ch0:midi_fx1:parallel_scale","Major");
+    set("padmap","0,62,64,67,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60");
+    set("cmd","play");render(16);set("cmd","rec 0");render(800);
+    set("ch0:midi_fx1:key_center","On");
+    uint8_t down[]={0x90,68,100},up[]={0x80,68,0};
+    api->on_midi(instance,down,3,0);set("cmd","non 0 62 100");render(16);
+    api->on_midi(instance,up,3,0);set("cmd","nof 0 62");render(16);set("cmd","stop");render(8);
+    api->get_param(instance,"state",state,sizeof(state));assert(strstr(state,"sc 0 0 "));
+    rendered_mask=0;sent_on=sent_off=0;set("cmd","play");render(1500);set("cmd","stop");render(16);
+    fprintf(stderr,"key landing replay: mask=%u ons=%d offs=%d\n",rendered_mask,sent_on,sent_off);
+    assert(rendered_mask==(1u<<2)&&sent_on>=2&&sent_on==sent_off);
+    puts("shared context: real recording bridge, independent conductor aggregation, loop carry, release, repeated key landing and stop pass");
+}
 static void test_capture(void){
     for(int running=0;running<2;running++)for(int arp=0;arp<2;arp++){
         set("state","movy1\nbpm 12000\nlink 0\n");
@@ -218,6 +256,13 @@ int main(int argc,char **argv){
         assert(render(16)==0);
         printf("pause kind=%d: local audio silent, routed voices released before physical pad release\n",kind);
     }
+    set("cmd","aprof_on");
     test_capture();
+    test_shared_context();
+    api->get_param(instance,"status",status,sizeof(status));
+    char *profile=strstr(status," aprof=1,");assert(profile);
+    printf("audio callback profile (desktop fixture, microseconds): %s\n",profile);
+    set("cmd","aprof_off");
+    api->get_param(instance,"status",status,sizeof(status));assert(strstr(status," aprof=0,"));
     api->destroy_instance(instance);return 0;
 }

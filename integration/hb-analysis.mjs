@@ -134,7 +134,7 @@ console.log('Quiet app: user/named trigger LEDs and display clear within the 50m
 // Position and detection pages publish every visible cell in one read, even
 // when Movy's parameter model reports no changes at all.
 const liveRead=globalThis.shadow_get_param;
-const livePages=[['next_position','next_harm_snapshot'],['timing_position','grid_timing_snapshot'],['inferred_root','follower_root_snapshot']];
+const livePages=[['shared_context_0','shared_context_snapshot'],['next_position','next_harm_snapshot'],['timing_position','grid_timing_snapshot'],['inferred_root','follower_root_snapshot']];
 let liveEndpoint='',liveFrame='',liveReads=0,cellReads=0,liveKeys=[];
 globalThis.shadow_get_param=(slot,key)=>{
     if(key==='midi_fx1:'+liveEndpoint){liveReads++;return liveFrame;}
@@ -150,7 +150,7 @@ try {
         const markerIndex=liveKeys.indexOf(marker);frame[markerIndex]='1.00';
         liveFrame='dp1|'+frame.join('|');now+=40;appState.dirty=false;globalThis.tick();
         assert.deepEqual(liveKeys.map(key=>page.ctl.state.values[key]),frame,endpoint+' publishes the complete initial page');
-        frame[markerIndex]='2.00';frame[7]='G7';liveFrame='dp1|'+frame.join('|');
+        frame[markerIndex]='2.00';frame[frame.length-1]='G7';liveFrame='dp1|'+frame.join('|');
         liveReads=cellReads=0;now+=40;appState.dirty=false;globalThis.tick();
         assert.deepEqual(liveKeys.map(key=>page.ctl.state.values[key]),frame,endpoint+' publishes position and harmony together');
         assert.equal(liveReads,1,'One host snapshot per refresh');assert.equal(cellReads,0,'No individual cell sweep');
