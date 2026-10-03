@@ -83,9 +83,9 @@ export function sendPadLedFrame<T extends {note:number;color:number}>(changes: R
 '''
     source += """
 /** Live melodic feedback shares the same delivery path as complete frames. */
-export function sendImmediatePadLed(note:number,color:number):void {
+export function sendImmediatePadLed(note:number,color:number,force:boolean=true):void {
     if(typeof move_midi_cable_send==='function')move_midi_cable_send(0,[0x09,0x90,note,color]);
-    else setLED(note,color);
+    else setLED(note,color,force);
 }
 """
     path.write_text(source)
