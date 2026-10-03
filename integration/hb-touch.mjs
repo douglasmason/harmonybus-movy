@@ -255,7 +255,7 @@ for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_
 }
 const operationSlot = focusKey('motion_operation');
 page.knobTurn(operationSlot, 100);page.knobTouch(operationSlot, false);
-for (const operation of ['Upper Dim','Leading Tone','Chord/Arp State','Play Motif','Secondary VII','Secondary IV','Secondary III','Tritone Sub','Tritone II','Connector Above']) {
+for (const operation of ['Parallel Scale','Key Center','Upper Dim','Leading Tone','Chord/Arp State','Play Motif','Secondary VII','Secondary IV','Secondary III','Tritone Sub','Tritone II','Connector Above']) {
     assert.equal(values.get('motion_operation'), operation);
     page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
 }
@@ -527,10 +527,10 @@ port.getParam = (key) => {
     return harmonyGet(key);
 };
 focusKey('hpath_0');
-assert.equal(page.pageTitle,'Global');
-assert.deepEqual(page.ctl.page.keys.slice(4).map(key=>page.ctl.state.values[key]),['C E G','C','Am','Bm']);
+assert.equal(page.pageTitle,'Diagnostics');
+assert.deepEqual(page.ctl.page.keys.filter(key=>key.startsWith('hpath_')).map(key=>page.ctl.state.values[key]),['C E G','C','Am','Bm']);
 harmonyFrame='hp1|F A C|F|G7|A7';harmonyNow+=40;page.tick();
-assert.deepEqual(page.ctl.page.keys.slice(4).map(key=>page.ctl.state.values[key]),['F A C','F','G7','A7']);
+assert.deepEqual(page.ctl.page.keys.filter(key=>key.startsWith('hpath_')).map(key=>page.ctl.state.values[key]),['F A C','F','G7','A7']);
 assert.equal(harmonyReads,2);
 focusKey('fpath_0_0_0');focusKey('hpath_0');
 assert.equal(harmonyReads,3,'Changing analysis pages refreshes the new snapshot immediately');
@@ -972,11 +972,11 @@ console.log('Chord Forms: eight unified controls, detected readout, no duplicate
     try {
         keyboardState.layout=0;
         for(let bank=0;bank<2;bank++){
-            const keys=Array.from({length:6},(_,index)=>'approach_bank_'+(bank*8+index+1)).concat('approach_motif_latch','motion_control_32');
+            const keys=Array.from({length:4},(_,index)=>'approach_bank_'+(bank*8+index+1)).concat('key_center','parallel_mode','approach_motif_latch','motion_control_32');
             const paint=()=>{now+=60;ledFrameReset();paintHbOperationKnobs(owner,keys,{});};
             motifLatch='On';seqLedsInvalidate();packets.length=0;paint();paint();
             assert.equal(performKnobCaption('approach_motif_latch'),'Latch');
-            assert(packets.some(p=>p[1]===0x9a&&p[2]===6&&p[3]===120),'Dedicated motif latch pulses white');
+            assert(packets.some(p=>p[1]===0x9a&&p[2]===6&&p[3]===16),'Dedicated motif latch pulses teal');
             motifLatch='Off';paint();assert.equal(performKnobCaption('approach_motif_latch'),'Off');
             for(const state of ['Armed','Latch','Hold','Off']){
                 active=state==='Off'?0:32768;persistent=state==='Latch'?32768:0;down=state==='Hold'?32768:0;
@@ -1009,3 +1009,26 @@ console.log('Chord Forms: eight unified controls, detected readout, no duplicate
     } finally {Date.now=oldClock;globalThis.move_midi_internal_send=oldSend;keyboardState.layout=oldLayout;}
 }
 console.log('Perform captions and cyan Chord + Arp LED: Off/Armed/Hold/Latch, row and sequence progress pass');
+
+// Key controls preserve captured releases and route Shift edits to the scale selector.
+{
+    const {appState}=await import('../dist/esm/app/state.js');
+    for(const key of ['key_center_scale','conductor_key_travel','parallel_scale']){
+        const slot=focusKey(key);
+        assert.equal(page.pageTitle,'Global Transpose');
+        assert.equal(page.ctl.page.keys[slot],key);
+    }
+    setInitialMode('hbsteprow',2);page.reload();
+    const panel=page.ctl.pages.findIndex(candidate=>candidate.keys?.[4]==='key_center'&&candidate.keys?.[5]==='parallel_mode');
+    assert(panel>=0);page.goToPage(panel);
+    for(let tick=0;tick<64;tick++)page.tick();
+    const before=writes.length;page.knobTouch(4,true);page.knobTouch(4,false);
+    assert(writes.slice(before).some(([key,value])=>key==='midi_fx1:key_center'&&value==='Down'));
+    assert(writes.slice(before).some(([key,value])=>key==='midi_fx1:key_center'&&value==='Up'));
+    page.knobTouch(5,true);page.knobTurn(5,1);page.knobTouch(5,false);
+    assert(writes.some(([key,value])=>key==='midi_fx1:parallel_mode'&&value==='LatchOn'));
+    appState.shiftHeld=true;const shifted=writes.length;page.knobTouch(5,true);page.knobTurn(5,1);page.knobTouch(5,false);appState.shiftHeld=false;
+    assert(writes.slice(shifted).some(([key])=>key==='midi_fx1:parallel_scale'));
+    assert(!writes.slice(shifted).some(([key,value])=>key==='midi_fx1:parallel_mode'&&value==='Down'));
+}
+console.log('Key Center and Parallel Scale: global settings, physical slots, captured release, latch and Shift scale selection pass');

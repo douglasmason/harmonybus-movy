@@ -337,3 +337,7 @@ artifact before updating the installer pointer.
 0.34.1-hbclean.114: Copy cycles Steps / Perform. A Play Motif lane opens its contextual editor; panel and physical Record share ownership. Record, lane step, and knob pulse together using cached native animation. Requires HB 0.2.203.
 
 Track selection pulse: allow the track-color base to drain before its white animation, and repaint only the four track buttons after startup settles.
+
+## Key changes — hbclean.145
+
+Harm Play knobs 5–8 are Key Center, Parallel Scale, Motif Latch, and Chord + Arp, with teal feedback. Shift-turn knob 6 chooses the parallel scale. Global Transpose contains Key Change Scale (Simplified Major/Minor, Mode from Parent, Use Parallel Scale) and Conductor Travel (Relative, Closest Chord Tone). The first landing note uses the previous key; following notes and recorded playback render in the new key, including MIDI to Schwung stock tracks. Source notes remain unchanged. Relative keeps its degree and selects the nearest octave; followers retain their own travel settings. Requires the accompanying HarmonyBus 0.2.235 release.
