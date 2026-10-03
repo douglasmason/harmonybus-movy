@@ -229,3 +229,40 @@ console.log('Approach lights: dark idle, solid white trigger/hold, smooth white 
     }
 }
 console.log('Startup metadata: empty, malformed and timed-out reads recover without ongoing polling');
+
+// The inverse startup race: DSP parameters arrive before the page hierarchy.
+// A generic chain-parameter page is drawable, but is not a complete HB contract.
+{
+    const { createSchwungPage } = await import('../dist/esm/renderer/schwung-page.js');
+    const startupPort = portFor(14), originalGet = startupPort.getParam;
+    const originalClock = Date.now;
+    let now = 200000;
+    Date.now = () => now;
+    setFlag('hbsteprow', 0);
+    try {
+        const healthy = createSchwungPage(startupPort, 'midi_fx1');
+        const layout = p => p.ctl.pages.map(page => [page.name, page.keys]);
+        for (const missing of ['', '{}', '[]', '{', null]) {
+            let hierarchyReady = false, hierarchyReads = 0;
+            startupPort.getParam = key => {
+                if (key === 'midi_fx1:ui_hierarchy') {
+                    hierarchyReads++;
+                    return hierarchyReady ? originalGet(key) : missing;
+                }
+                return originalGet(key);
+            };
+            const startup = createSchwungPage(startupPort, 'midi_fx1');
+            hierarchyReady = true;
+            now += 1001;
+            for (let tick = 0; tick < 12; tick++) startup.tick();
+            assert(startup.ctl.state.hierarchy?.levels?.root,
+                `Late hierarchy must replace generic startup pages (${String(missing)})`);
+            assert.deepEqual(layout(startup), layout(healthy));
+            assert.equal(startup.ctl.state.metaIndex.get('track_role').type, 'enum');
+            const settledReads = hierarchyReads;
+            for (let tick = 0; tick < 5; tick++) { now += 1001; startup.tick(); }
+            assert.equal(hierarchyReads, settledReads, 'Complete layout stops startup metadata reads');
+        }
+    } finally { startupPort.getParam = originalGet; Date.now = originalClock; }
+}
+console.log('Startup hierarchy: late layout replaces generic pages and then stops polling');

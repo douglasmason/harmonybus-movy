@@ -35,9 +35,11 @@ def patch_page_latency(root: Path) -> None:
             const moduleId = port.getParam(moduleReadKey(componentKey));
             if (moduleId !== null && moduleId !== hostedModuleId) reload();
             else if (hostedModuleId !== 'harmonybus') ctl.reloadIfChanged();
-            else if (!Array.isArray(ctl.state.chainParams) || !ctl.state.chainParams.length) {
-                // Hierarchy-only pages are drawable before DSP metadata arrives.
-                // Retry that startup state; complete HB contracts stay off the I/O path.
+            else if (!ctl.state.hierarchy?.levels?.root ||
+                !Array.isArray(ctl.state.chainParams) || !ctl.state.chainParams.length) {
+                // Either half of the HB contract can arrive first. Generic parameter
+                // pages and hierarchy-only pages are both incomplete startup states.
+                // Retry until both arrive; complete contracts stay off the I/O path.
                 reload();
             }
         }''')
