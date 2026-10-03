@@ -17,13 +17,15 @@ const { headerText, drawHeader } = await import('../dist/esm/renderer/header.js'
 const { fontWidth } = await import('../dist/esm/font/index.js');
 const module = JSON.parse(readFileSync(process.env.HB_MODULE, 'utf8'));
 const writes = [];
+let contractReads = 0, beforeCopy = 0, beforeNavigation = 0;
+let heldOwner;
 for (let track=0; track<16; track++) {
     const values = new Map(module.capabilities.chain_params.map(p=>['midi_fx1:'+p.key,String(p.default??p.options?.[0]??'0')]));
     values.set('midi_fx1_module',track===2?'':'harmonybus');
     values.set('midi_fx1:ui_hierarchy',JSON.stringify(module.capabilities.ui_hierarchy));
     values.set('midi_fx1:chain_params',JSON.stringify(module.capabilities.chain_params));
     const port=portFor(track);
-    port.getParam=key=>values.get(key)??null;
+    port.getParam=key=>{if(key.endsWith(':chain_params')||key.endsWith(':ui_hierarchy'))contractReads++;return values.get(key)??null;};
     port.getMany=keys=>keys.map(key=>port.getParam(key));
     port.setParam=(key,value)=>{writes.push([track,key,value]);values.set(key,value);return true;};
 }
@@ -54,18 +56,22 @@ const down=()=>seqHandleButtonCc(60,127,appState.shiftHeld);
 const up=()=>seqHandleButtonCc(60,0,appState.shiftHeld);
 const tap=()=>{down();now+=60;up();};
 try {
-    tap();assert.equal(flagValue('hbsteprow'),1);assert(page.ctl.page.keys.includes('motion_control_1'));
+    beforeCopy=contractReads;
+    tap();assert.equal(contractReads,beforeCopy,'Copy layout reuses contract without DSP reads');assert.equal(flagValue('hbsteprow'),1);assert(page.ctl.page.keys.includes('motion_control_1'));
     assert(!has(page,'motif_slot'));assert(has(page,'motion_lane'));
     checkCadences();
     const firstOps=order('motion_control_1');
     assert(firstOps>order('monitor_status'),'Copy-mode operations follow main diagnostics');
-    assert(order('pad_display')>firstOps&&order('fpath_0_0_0')>firstOps);
+    assert.equal(order('pad_display'),-1,'Pad Colors moved to Set pages');assert(order('fpath_0_0_0')>firstOps);
     assert(page.ctl.pages.slice(firstOps).every(p=>p.keys?.some(key=>/^motion_(control_|lane$)/.test(key)||key==='pad_display'||key==='pad_chord_form'||key==='fpath_0_0_0')),'Only operations and end diagnostics follow the first operation page');
     down();assert.equal(hbPerformancePage(),null,'Copy held exposes native input step editing');
     onUnit({kind:'step',track:0,step:0});now+=50;up();assert.equal(flagValue('hbsteprow'),1,'Copy source gesture does not cycle');
     down();now+=500;up();assert.equal(flagValue('hbsteprow'),1,'Long unused hold does not cycle');
     down();resetDuplicate();now+=40;up();assert.equal(flagValue('hbsteprow'),1,'Reset cannot manufacture a tap');
-    tap();assert.equal(flagValue('hbsteprow'),2);assert(page.ctl.page.keys.includes('approach_bank_1'));
+    heldOwner=hbPerformancePage();assert(heldOwner);
+    hbPerformanceStep([0x90,16,100],heldOwner);hbPerformanceStep([0x80,16,0],heldOwner);
+    beforeNavigation=writes.length;
+    tap();assert(!writes.slice(beforeNavigation).some(([,key])=>key.endsWith(':performance_reset')),'Navigation must not reset musical state');assert.equal(flagValue('hbsteprow'),2);assert(page.ctl.page.keys.includes('approach_bank_1'));
     assert(has(page,'approach_bank_1'));assert(has(page,'approach_bank_12'));assert(has(page,'approach_motif_latch'));assert(!has(page,'approach_bank_7'));assert(!has(page,'approach_bank_15')); assert(has(page,'motion_control_32'));
     assert(!has(page,'motion_control_1'),'Approach bank is independent of Perform');
     assert.equal(page.ctl.metaAt(0).options.length,57);
@@ -102,11 +108,15 @@ try {
     assert(writes.some(([,key,value])=>key==='midi_fx1:approach_step_touch_1'&&value==='Down'));
     tap();assert.equal(flagValue('hbsteprow'),0);assert(page.ctl.page.keys.includes('version'));
     assert(!has(page,'motif_record'),'Motif editor has no permanent performance bank');
-    tap();assert.equal(flagValue('hbsteprow'),1);
+    beforeCopy=contractReads;
+    tap();assert.equal(contractReads,beforeCopy,'Copy layout reuses contract without DSP reads');assert.equal(flagValue('hbsteprow'),1);
     setFlag('hbsteprow',0);schwungActiveFor(4,'midi_fx1');setFlag('hbsteprow',1);
     switchToTrack(4,beginTrackSwitch());const target=schwungActiveFor(4,'midi_fx1');
     assert(has(target,'motion_control_1'));assert(!has(target,'motif_record'));
-    tap();assert.equal(flagValue('hbsteprow'),2);tap();assert.equal(flagValue('hbsteprow'),0);assert(target.ctl.page.keys.includes('version'));
+    heldOwner=hbPerformancePage();assert(heldOwner);
+    hbPerformanceStep([0x90,16,100],heldOwner);hbPerformanceStep([0x80,16,0],heldOwner);
+    beforeNavigation=writes.length;
+    tap();assert(!writes.slice(beforeNavigation).some(([,key])=>key.endsWith(':performance_reset')),'Navigation must not reset musical state');assert.equal(flagValue('hbsteprow'),2);tap();assert.equal(flagValue('hbsteprow'),0);assert(target.ctl.page.keys.includes('version'));
     for(const prop of ['recording','countingIn','sessionMode','loopMode']){seqState[prop]=true;tap();assert.equal(flagValue('hbsteprow'),0,prop);seqState[prop]=false;}
     stepRecDownAt(now);tap();assert.equal(flagValue('hbsteprow'),0,'Step entry blocks mode cycling');stepRecUpAt(now+400);
     appState.shiftHeld=true;tap();assert.equal(flagValue('hbsteprow'),0);appState.shiftHeld=false;
