@@ -19,7 +19,7 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: cfeb2b0a71272144b1c674603ee19160ec099298
-  HB_REF: ffa065c5b8d0d4b5a4ff2b1e06f95f7f02260769
+  HB_REF: 42e870e3c964fbebbf5c617dd5e062f8b25009c2
   HB_MOVY_VERSION: 0.34.1-hbclean.154
   HB_MOVY_TAG: v0.34.1-hbclean.154
   ASSET_NAME: harmonybus-movy-module.tar.gz
@@ -93,6 +93,10 @@ jobs:
           ).splitlines()
           expected = {
               'engine/crates/seq-core/src/shared_context.rs',
+              'engine/crates/movy-dsp/src/audio_profile.rs',
+              'src/seq/cpu-page.ts',
+              'src/renderer/cpu-view.ts',
+              'src/seq/state.ts',
               'browser-test/hb-motifs.mjs',
               'browser-test/hb-step-modes.mjs',
               'src/renderer/hb-step-panels.ts',

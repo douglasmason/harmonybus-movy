@@ -150,7 +150,7 @@ try {
         const markerIndex=liveKeys.indexOf(marker);frame[markerIndex]='1.00';
         liveFrame='dp1|'+frame.join('|');now+=40;appState.dirty=false;globalThis.tick();
         assert.deepEqual(liveKeys.map(key=>page.ctl.state.values[key]),frame,endpoint+' publishes the complete initial page');
-        frame[markerIndex]='2.00';frame[7]='G7';liveFrame='dp1|'+frame.join('|');
+        frame[markerIndex]='2.00';frame[frame.length-1]='G7';liveFrame='dp1|'+frame.join('|');
         liveReads=cellReads=0;now+=40;appState.dirty=false;globalThis.tick();
         assert.deepEqual(liveKeys.map(key=>page.ctl.state.values[key]),frame,endpoint+' publishes position and harmony together');
         assert.equal(liveReads,1,'One host snapshot per refresh');assert.equal(cellReads,0,'No individual cell sweep');

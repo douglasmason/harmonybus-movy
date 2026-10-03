@@ -256,7 +256,13 @@ int main(int argc,char **argv){
         assert(render(16)==0);
         printf("pause kind=%d: local audio silent, routed voices released before physical pad release\n",kind);
     }
+    set("cmd","aprof_on");
     test_capture();
     test_shared_context();
+    api->get_param(instance,"status",status,sizeof(status));
+    char *profile=strstr(status," aprof=1,");assert(profile);
+    printf("audio callback profile (desktop fixture, microseconds): %s\n",profile);
+    set("cmd","aprof_off");
+    api->get_param(instance,"status",status,sizeof(status));assert(strstr(status," aprof=0,"));
     api->destroy_instance(instance);return 0;
 }
