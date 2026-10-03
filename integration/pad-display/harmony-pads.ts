@@ -19,6 +19,8 @@ let sentPreviewInputs = "";
 let settings = [0,3,0,4,2];
 let watchedTrack = -1;
 let trailNativeEnabled: boolean | null = null, trailBeat=0, trailSampleAt=-Infinity;
+let trailTransport=false,trailEpoch=0;
+const trailTrackEpoch=new Map<number,number>();
 let polledAt = -Infinity;
 const colors = [127, 3, 7, 126, 13, 125, 22, 25];
 const periods = [0, 0.25, 0.5, 1, 2, 4, 8, 16];
@@ -135,13 +137,22 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
 
 /** Poll one compact snapshot, never once per pad or once per display frame. */
 export function refreshHarmonyPads(track: number, now = Date.now()): void {
+    if(trailTransport!==seqState.playing){
+        trailTransport=seqState.playing;trailEpoch++;
+        trailHistory.clear();trailSampleAt=-Infinity;polledAt=-Infinity;
+    }
     if (track !== watchedTrack) { watchedTrack = track; snapshot = null; polledAt = -Infinity; sentPreviewInputs = ""; trailNativeEnabled=null;trailHistory.clear();trailSampleAt=-Infinity; }
     // Coalesce gesture bursts too: display feedback may lag by at most 50 ms,
     // but rapid input must not increase synchronous host snapshot traffic.
     if (now >= polledAt && now - polledAt < 50) return;
     polledAt = now;
     const port = portFor(track);
-    const trails=trailEnabled();
+    const trails=trailEnabled()&&seqState.playing;
+    // Clear each visited instance once per transport epoch, before accepting a
+    // new snapshot. Inactive tracks clear lazily, avoiding a stop-time write burst.
+    if(trailEnabled()&&trailTrackEpoch.get(track)!==trailEpoch){
+        if(port.setParam('midi_fx1:trail_clear','1')!==false)trailTrackEpoch.set(track,trailEpoch);
+    }
     if(trailNativeEnabled!==trails&&port.setParam('midi_fx1:trail_enable',trails?'1':'0')!==false)trailNativeEnabled=trails;
     requestedPads = Array.from(padMapFor(track));
     const request = requestedPads.map(note => (note < 0 ? 255 : note).toString(16).padStart(2, '0')).join('');
@@ -377,7 +388,7 @@ function updateShadePattern(track: number): void {
     }
 }
 export function trailPadColor(index:number,track:number,color:number):number{
-    if(!trailEnabled()||track!==watchedTrack||!Number.isFinite(trailSampleAt))return color;
+    if(!seqState.playing||!trailEnabled()||track!==watchedTrack||!Number.isFinite(trailSampleAt))return color;
     const pitch=snapshot?.targets?.[index];if(pitch===undefined||pitch<0)return color;
     const style=trailStyle(),beat=trailBeat+Math.max(0,harmonyNow()-trailSampleAt)*seqState.bpmX100/6000000;
     if(!style.approachRows&&pianoApproachTarget(track,index)>=0)return color;

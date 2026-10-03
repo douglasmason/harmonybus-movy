@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {installEnv} from './env.mjs';
 installEnv();
+const {seqState}=await import('../dist/esm/seq/state.js');
+seqState.playing=true;
 const {portFor}=await import('../dist/esm/track/registry.js');
 const {padMapFor,keyboardState}=await import('../dist/esm/keyboard/state.js');
 const {restoreTrailSettings,trailHistory,trailStyle,trailSettingsSnapshot}=await import('../dist/esm/seq/trail-settings.js');
@@ -52,3 +54,20 @@ assert.notEqual(trailPadColor(0,track,120),trailPadColor(0,track,127),'Blend fad
 restoreTrailSettings([1,0,1,6,0,3,0,0,4,1,1]);
 assert.equal(trailStyle().settings.window,'beats');assert.equal(trailStyle().settings.windowBeats,16,'Old rolling window is preserved');
 restoreTrailSettings(null);assert.equal(trailStyle().blend,false);assert.equal(trailStyle().settings.window,'chord');
+
+restoreTrailSettings([1,0,0,4,0,3,0,0,4,1,1,0]);
+let captured=false;const commands=[];
+port.setParam=(key,value)=>{commands.push([key,value]);if(key.endsWith('trail_clear'))captured=false;return true;};
+port.getParam=key=>key.endsWith('pad_view')?'1,1,4095,1,1,2,0,0,4,2|targets1,'+targets.join(',')+'|th1,8,1'+(captured?';62,8,1':''):null;
+seqState.playing=false;
+assert.equal(trailPadColor(0,track,120),120,'Stop hides trails immediately before the next poll');
+refreshHarmonyPads(track,Date.now()+6000);
+assert(commands.some(([key,value])=>key.endsWith('trail_enable')&&value==='0'),'Stopped transport disables capture');
+captured=true;seqState.playing=true;
+refreshHarmonyPads(track,Date.now()+6100);
+assert.equal(trailPadColor(0,track,120),120,'Resume discards any stopped-time history');
+captured=true;refreshHarmonyPads(track,Date.now()+6200);
+assert.equal(trailPadColor(0,track,120),125,'New playback onsets create trails');
+const clearCount=commands.filter(([key])=>key.endsWith('trail_clear')).length;
+refreshHarmonyPads(track,Date.now()+6300);
+assert.equal(commands.filter(([key])=>key.endsWith('trail_clear')).length,clearCount,'Steady playback does not repeatedly clear history');
