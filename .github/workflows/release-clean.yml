@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: cfeb2b0a71272144b1c674603ee19160ec099298
-  HB_REF: f478178e48847984bbd484263da0e5a65d9436ec
-  HB_MOVY_VERSION: 0.34.1-hbclean.149
-  HB_MOVY_TAG: v0.34.1-hbclean.149
+  HB_REF: 5694b5625e9f37feb56a466933921814f20d68a2
+  HB_MOVY_VERSION: 0.34.1-hbclean.150
+  HB_MOVY_TAG: v0.34.1-hbclean.150
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -439,7 +439,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Fix the opening track editor retaining a stale Schwung-slot connection after Set loading resolves Movy hosting. Rebind metadata, control writes and performance ownership to the current track port. HarmonyBus remains 0.2.236."
+              --notes "Pair with HarmonyBus 0.2.237: Shift-turn Chord + Arp selects Chord Only, Arp Only or Both; ordinary turns latch with smooth teal pulse. Bound pad-preview host reads during gesture bursts. Includes the opening-track host connection fix."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

@@ -633,8 +633,7 @@ try {
 } finally {Date.now=releaseClock;}
 console.log('Release priority: both MIDI forms, read-free dispatch, immediate touch clear, short-tap native animation and hold boundary pass');
 
-// Pad reads are bounded during a hold, but gesture edges bypass the interval
-// and the release quiet period. Other controller polling stays deferred.
+// Rapid gesture edges are coalesced at 20 Hz, including release/cancel.
 const { refreshHarmonyPads, harmonyPadColor } = await import('../dist/esm/seq/pads.js');
 const { portFor: previewPortFor } = await import('../dist/esm/track/registry.js');
 const previewPort = previewPortFor(4), oldPreviewGet = previewPort.getParam;
@@ -643,31 +642,23 @@ Date.now = () => previewNow;
 previewPort.getParam = () => { previewReads++; return `${previewMask},${previewMask},2741,0,0,2,0,3,0,0|colors2,0|input1,0,1,1,2741,${previewMask}`; };
 try {
     refreshHarmonyPads(4,previewNow);
-    const baseline = harmonyPadColor(60,4);
-    for(const duration of [50,400]) {
-        const slot=focusKey('motion_control_16');
-        previewNow++;page.knobTouch(slot,true);previewMask=16;
-        const before=previewReads;
+    const baseline = harmonyPadColor(60,4), slot=focusKey('motion_control_16');
+    for(let edge=1;edge<50;edge++){
+        previewNow++;page.knobTouch(slot,!!(edge%2));previewMask=16;
         refreshHarmonyPads(4,previewNow);
-        assert.equal(previewReads,before+1,'Touch updates preview on next tick, inside 50 ms interval');
-        assert.notEqual(harmonyPadColor(60,4),baseline,'Held modifier changes the pad preview');
-        refreshHarmonyPads(4,previewNow+1);assert.equal(previewReads,before+1,'No unbounded polling while held');
-        previewNow+=duration;refreshHarmonyPads(4,previewNow);
-        assert.equal(previewReads,before+2,'Preview continues refreshing during sustained touch');
-        previewNow++;page.knobTouch(slot,false);previewMask=1;
-        assert(performanceTouchActive(),'Background work remains in release quiet period');
-        refreshHarmonyPads(4,previewNow);
-        assert.equal(previewReads,before+3,'Release immediately invalidates preview despite quiet period');
-        assert.equal(harmonyPadColor(60,4),baseline,'Release restores the preview');
     }
-    const slot=focusKey('motion_control_16');page.knobTouch(slot,true);
-    refreshHarmonyPads(4,++previewNow);const beforeCancel=previewReads;
-    releasePerformanceTouch(slot,true);refreshHarmonyPads(4,++previewNow);
-    assert.equal(previewReads,beforeCancel+1,'Cancelled gestures also invalidate preview');
+    assert.equal(previewReads,1,'49 rapid gesture edges cannot bypass the snapshot budget');
+    refreshHarmonyPads(4,++previewNow);
+    assert.equal(previewReads,2);assert.notEqual(harmonyPadColor(60,4),baseline);
+    page.knobTouch(slot,false);previewMask=1;refreshHarmonyPads(4,++previewNow);
+    assert.equal(previewReads,2,'Release also respects the budget');
+    previewNow+=50;refreshHarmonyPads(4,previewNow);
+    assert.equal(previewReads,3);assert.equal(harmonyPadColor(60,4),baseline,'Latest release state is painted within 50 ms');
+    page.knobTouch(slot,true);releasePerformanceTouch(slot,true);refreshHarmonyPads(4,++previewNow);
+    assert.equal(previewReads,3,'Cancel cannot create an extra read');
 } finally { previewPort.getParam=oldPreviewGet;Date.now=previewClock; }
-console.log('Modifier previews: immediate tap/hold/release/cancel feedback, bounded held polling and deferred background reads pass');
+console.log('Modifier previews: burst coalescing, latest release state and bounded host reads pass');
 
-// Ordinary pad controls capture release too, without becoming action buttons.
 // Both real MIDI release encodings must clear the original page immediately.
 const padClock=Date.now;let padNow=1200000;Date.now=()=>padNow;
 try {
@@ -801,13 +792,15 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
             const slot=livePage.ctl.page.keys.indexOf(key);
             appState.dirty=true;tick();tick(); // establish the complete cached frame
             for(const status of [0x80,0x90]) {
+                const clock=Date.now;let now=clock()+100,reads=0;
+                Date.now=()=>now;
                 gesturePreviewHeld=true;
                 livePage.knobTouch(slot,true);
                 tick();tick(); // held frame plus mandatory full tick
                 gesturePreviewHeld=false;padWrites.length=0;
                 onMidiMessageInternal([status,slot,status===0x80?64:0]);
                 const shadowRead=globalThis.shadow_get_param, engineRead=globalThis.host_module_get_param;
-                const clock=Date.now;let now=clock(),reads=0;
+                now+=50; // The next eligible preview frame follows release.
                 const readKeys=[];
                 globalThis.shadow_get_param=(...args)=>{reads++;readKeys.push(args[1]);now+=100;return shadowRead(...args);};
                 globalThis.host_module_get_param=(...args)=>{assert(padWrites.length>0,'Pad LEDs must update before engine polling');reads++;now+=100;return engineRead(...args);};
@@ -918,7 +911,7 @@ console.log('Fixed operation knobs: separate tap protocol, momentary hold, direc
 // Shift edits fixed lanes' operations and named controls' normal values.
 {
     const {appState}=await import('../dist/esm/app/state.js');
-    for(const lane of [1,8,9,16,33,37]){
+    for(const lane of [1,8,9,16,32,33,37]){
         const key='motion_control_'+lane, editKey=lane<=16?'motion_operation_'+lane:key;
         values.set('motion_gesture_binding_'+lane,'1,1,3,0,350,0,0,1');
         const slot=focusKey(key);

@@ -1,5 +1,4 @@
 /* Read-only pitch-class visualization. No MIDI generation or modifier consumption. */
-import { performancePreviewRevision } from '../renderer/performance-touch.js';
 import { keyboardState, padMapFor } from './state.js';
 import { isPianoLayout, LAYOUT_APPROACH } from './layouts.js';
 import { markUiStateDirty } from '../seq/ui-dirty.js';
@@ -15,7 +14,6 @@ export type HarmonySnapshot = { adjacentShading?: boolean; nextRanks?: number[];
 let snapshot: HarmonySnapshot | null = null;
 let requestedPads: number[] = [];
 let sentPreviewInputs = "";
-let previewRevision = -1;
 let settings = [0,3,0,4,2];
 let watchedTrack = -1;
 let polledAt = -Infinity;
@@ -132,12 +130,9 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
 /** Poll one compact snapshot, never once per pad or once per display frame. */
 export function refreshHarmonyPads(track: number, now = Date.now()): void {
     if (track !== watchedTrack) { watchedTrack = track; snapshot = null; polledAt = -Infinity; sentPreviewInputs = ""; }
-    // Gestures invalidate the preview but never perform reads on the MIDI
-    // callback. The next LED tick reads once; sustained holds keep the usual
-    // bounded cadence so harmony/one-shot changes remain visible too.
-    const revision = performancePreviewRevision();
-    if (revision === previewRevision && now >= polledAt && now - polledAt < 50) return;
-    previewRevision = revision;
+    // Coalesce gesture bursts too: display feedback may lag by at most 50 ms,
+    // but rapid input must not increase synchronous host snapshot traffic.
+    if (now >= polledAt && now - polledAt < 50) return;
     polledAt = now;
     const port = portFor(track);
     requestedPads = Array.from(padMapFor(track));
