@@ -134,7 +134,7 @@ console.log('Quiet app: user/named trigger LEDs and display clear within the 50m
 // Position and detection pages publish every visible cell in one read, even
 // when Movy's parameter model reports no changes at all.
 const liveRead=globalThis.shadow_get_param;
-const livePages=[['next_position','next_harm_snapshot'],['timing_position','grid_timing_snapshot'],['inferred_root','follower_root_snapshot']];
+const livePages=[['shared_context_0','shared_context_snapshot'],['next_position','next_harm_snapshot'],['timing_position','grid_timing_snapshot'],['inferred_root','follower_root_snapshot']];
 let liveEndpoint='',liveFrame='',liveReads=0,cellReads=0,liveKeys=[];
 globalThis.shadow_get_param=(slot,key)=>{
     if(key==='midi_fx1:'+liveEndpoint){liveReads++;return liveFrame;}

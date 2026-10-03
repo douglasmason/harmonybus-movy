@@ -561,6 +561,8 @@ def main() -> int:
     from patch_startup_host import patch_startup_host
     patch_startup_host(root)
     (root / "browser-test/hb-startup-host.mjs").write_text((integration_root / "hb-startup-host.mjs").read_text())
+    from patch_shared_context import patch_shared_context
+    patch_shared_context(root)
     print("HarmonyBus clean integration applied")
     return 0
 
