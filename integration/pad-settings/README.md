@@ -15,3 +15,5 @@ Trail defaults: Current Chord, no decay, 100% strength, pulse off and pure Move 
 Build 157 consolidates rolling durations into History Window. Fade defaults to Dim Trail (fade toward black); Blend into Background remains available. Decay Time is in beats, and is a half-life for exponential decay. Curve previews sample the same function as trail intensity. Clear is a tap-trigger button. Old rolling-window selections migrate to the equivalent combined choice. Approach Harmony and Secondary live in Copy-tap Harm Play mode, while Chords, Chord Forms and Arp remain common setup panels.
 
 Dim Trail uses a 50% brightness floor, like next-harmony pulsing. The floor is relative to Trail Strength, followed by approach-row dimming. Window expiry still clears history. Exponential half-life halves the remaining distance to the floor; graphs include the floor.
+
+Trails follow transport: hidden and capture-disabled while stopped, with fresh history on resume. Inactive track history is cleared on its next visit after a transport change, avoiding a burst of writes at Stop.
