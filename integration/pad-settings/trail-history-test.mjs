@@ -40,4 +40,15 @@ try {
     assert.equal(history.intensity(65,8,settings),0,'New pad mapping does not rewrite heard pitches');
     history.clear();assert.equal(history.intensity(64,8,settings),0);
     console.log('Trail history: half-life, infinite decay, octave scope, chord and beat windows, refresh and reset pass');
+
+
+{
+    const history=new TrailHistory();history.heard(60,0);
+    const floor={scope:'pitch',window:'infinite',windowBeats:4,curve:'linear',decayBeats:4,strength:1,floor:0.5};
+    assert.equal(history.intensity(60,100,floor),0.5,'Dim decay stops at half brightness');
+    assert.equal(history.intensity(61,100,floor),0,'Unplayed notes have no floor');
+    assert.equal(history.intensity(60,4,{...floor,window:'beats'}),0,'Window expiry clears even floor-level trails');
+    assert.equal(history.intensity(60,4,{...floor,curve:'exponential'}),0.75,'Half-life halves the distance to the floor');
+}
+
 } finally {rmSync(temporary,{recursive:true,force:true});}

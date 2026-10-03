@@ -3,7 +3,7 @@ import {installEnv} from './env.mjs';
 installEnv();
 const {portFor}=await import('../dist/esm/track/registry.js');
 const {padMapFor,keyboardState}=await import('../dist/esm/keyboard/state.js');
-const {restoreTrailSettings,trailHistory}=await import('../dist/esm/seq/trail-settings.js');
+const {restoreTrailSettings,trailHistory,trailStyle,trailSettingsSnapshot}=await import('../dist/esm/seq/trail-settings.js');
 const {refreshHarmonyPads,harmonyPlaybackColor,withHarmonyPadFrame,finishPadColor,trailPadColor,pianoApproachTarget}=await import('../dist/esm/keyboard/harmony-pads.js');
 const track=4,port=portFor(track);let reads=0,writes=0;
 const targets=Array(32).fill(-1);targets[0]=62;targets[1]=74;
@@ -40,3 +40,15 @@ for(const layout of [2,3]){
         assert.equal(trailPadColor(0,track,120),125,'Target row keeps its trail');
     }
 }
+
+keyboardState.layout=0;
+restoreTrailSettings([1,0,0,4,0,1,0,0,4,1,1,0]);
+refreshHarmonyPads(track,Date.now()+4000);
+assert.equal(trailPadColor(0,track,120),trailPadColor(0,track,127),'Dim fade ignores background hue');
+assert.notEqual(trailPadColor(0,track,120),120,'Dim fade stays colored');
+const blend=trailSettingsSnapshot();blend[11]=1;restoreTrailSettings(blend);
+refreshHarmonyPads(track,Date.now()+5000);
+assert.notEqual(trailPadColor(0,track,120),trailPadColor(0,track,127),'Blend fade incorporates background hue');
+restoreTrailSettings([1,0,1,6,0,3,0,0,4,1,1]);
+assert.equal(trailStyle().settings.window,'beats');assert.equal(trailStyle().settings.windowBeats,16,'Old rolling window is preserved');
+restoreTrailSettings(null);assert.equal(trailStyle().blend,false);assert.equal(trailStyle().settings.window,'chord');

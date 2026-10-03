@@ -16,7 +16,7 @@ def patch_pad_settings(root: Path) -> None:
     (root / 'browser-test/hb-pad-trails.mjs').write_text((integration / 'hb-pad-trails.mjs').read_text())
     (root / 'browser-test/hb-pad-settings.mjs').write_text((integration / 'hb-pad-settings.mjs').read_text())
     path: Path = root / 'src/seq/main-page.ts'
-    source: str = "import { padSettingsTurn } from './pad-settings.js';\nimport { trailSettingsTurn } from './trail-settings.js';\n" + path.read_text()
+    source: str = "import { padSettingsTurn } from './pad-settings.js';\nimport { trailSettingsTurn, clearTrailHistory } from './trail-settings.js';\n" + path.read_text()
     source = replace_once(source, 'export const mainPageState = {', 'export const mainPageState = {\n    page: 0,')
     source = replace_once(source, '    mainPageState.touchedKnob = -1;', '    mainPageState.page = 0;\n    mainPageState.touchedKnob = -1;')
     source = replace_once(source, 'export function mainPageTouch(k: number, down: boolean): void {', '''export function mainPageJog(delta: number): void {
@@ -27,7 +27,10 @@ def patch_pad_settings(root: Path) -> None:
 }
 
 export function mainPageTouch(k: number, down: boolean): void {
-    if (mainPageState.page) { mainPageState.touchedKnob=down?k:-1;return; }''')
+    if (mainPageState.page) {
+        if(down && mainPageState.page===3 && k===3 && mainPageState.touchedKnob!==k)clearTrailHistory();
+        mainPageState.touchedKnob=down?k:-1;return;
+    }''')
     source = replace_once(source, 'export function mainPageKnob(k: number, delta: number): void {', '''export function mainPageKnob(k: number, delta: number): void {
     if (mainPageState.page) {
         mainPageState.touchedKnob=k;
@@ -55,9 +58,11 @@ export function mainPageTouch(k: number, down: boolean): void {
         moduleName:''')
     path.write_text(source)
     # Use the same Schwung widgets as hosted HB, including in full-page mode.
+    shutil.copyfile(integration / 'trail-curves.ts', root / 'src/renderer/trail-curves.ts')
     path = root / 'src/renderer/knob-view.ts'
-    source = "import { schwungLibAvailable } from './schwung-lib.js';\n" + path.read_text()
+    source = "import { drawTrailCurves, drawTrailCurveOverlay } from './trail-curves.js';\nimport { schwungLibAvailable } from './schwung-lib.js';\n" + path.read_text()
     source = replace_once(source, 'else if (schwungGridEnabled()) drawKnobParamsSchwung(vm);', "else if (schwungGridEnabled() || (vm.moduleName === 'SET PARAMETERS' && vm.bankIndex > 0 && schwungLibAvailable())) drawKnobParamsSchwung(vm, vm.rows.flat().findIndex(cell => cell?.touched));")
+    source = replace_once(source, '    if (vm.overlay) drawEnumOverlay(vm);', '    drawTrailCurves(vm);\n    if (vm.overlay && !drawTrailCurveOverlay(vm)) drawEnumOverlay(vm);')
     path.write_text(source)
     path = root / 'src/renderer/schwung-body.ts'
     source = replace_once(path.read_text(), '        const meta = metaFor(c, key);', '''        const meta = metaFor(c, key);
