@@ -113,6 +113,7 @@ setFlag('hbsteprow',1);page.reload();
 now=savedNow()+100000;Date.now=()=>now;
 try {
     for(const key of ['motion_control_1','motion_control_20']){
+        setFlag('hbsteprow',key==='motion_control_1'?1:2);page.reload();
         const pageIndex=page.ctl.pages.findIndex(candidate=>candidate.keys?.includes(key));assert(pageIndex>=0);page.goToPage(pageIndex);
         const knob=page.ctl.page.keys.indexOf(key),lane=Number(key.slice(15))-1;
         activeMask=2**(lane<16?lane:lane-16);
