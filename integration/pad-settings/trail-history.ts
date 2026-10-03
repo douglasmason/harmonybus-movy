@@ -14,6 +14,7 @@ export interface TrailSettings {
     decayBeats: number;
     exponent?: TrailExponent;
     strength: number;
+    floor?: number;
 }
 export class TrailHistory {
     private readonly heardAt = new Float64Array(128).fill(-Infinity);
@@ -50,7 +51,7 @@ export class TrailHistory {
             if(settings.window==='beats'&&age>=settings.windowBeats)continue;
             if(settings.window==='chord'&&this.chordAt[candidate]!==this.chord)continue;
             if(settings.window==='previous-chord'&&this.chordAt[candidate]<this.chord-1)continue;
-            const fade=trailFade(age,settings.decayBeats,settings.curve,settings.exponent);
+            const fade=trailFade(age,settings.decayBeats,settings.curve,settings.exponent,settings.floor);
             result=Math.max(result,fade);
         }
         return result*Math.max(0,Math.min(1,settings.strength));
@@ -58,7 +59,8 @@ export class TrailHistory {
 }
 
 /** Shared with the display so the drawn curve matches the audible-time history fade. */
-export function trailFade(age:number,duration:number,curve:TrailCurve,exponent:TrailExponent=1):number{
+export function trailFade(age:number,duration:number,curve:TrailCurve,exponent:TrailExponent=1,floor=0):number{
     const elapsed=age/Math.max(0.000001,duration);
-    return curve==='none'?1:curve==='linear'?Math.max(0,1-elapsed):Math.pow(2,-Math.pow(elapsed,exponent));
+    const fade=curve==='none'?1:curve==='linear'?Math.max(0,1-elapsed):Math.pow(2,-Math.pow(elapsed,exponent));
+    return floor+(1-floor)*fade;
 }

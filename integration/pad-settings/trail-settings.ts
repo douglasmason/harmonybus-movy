@@ -26,7 +26,7 @@ let cachedStyle:{settings:TrailSettings;color:number;pulse:number;approachRows:b
 export function trailEnabled():boolean{return choices[0]===1;}
 export function trailStyle():{settings:TrailSettings;color:number;pulse:number;approachRows:boolean;blend:boolean}{
     if(cachedStyle)return cachedStyle;
-    return cachedStyle={settings:{scope:choices[1]?'pitch-class':'pitch',window:choices[2]>2?'beats':(['chord','previous-chord','infinite'] as TrailSettings['window'][])[choices[2]],windowBeats:beats[Math.max(0,choices[2]-3)],strength:(choices[5]+1)/4,curve:(['none','linear','exponential'] as TrailSettings['curve'][])[choices[7]],decayBeats:beats[choices[8]],exponent:TRAIL_EXPONENTS[choices[9]]},approachRows:choices[10]===1,blend:choices[11]===1,color:[125,16,23,127,126,120][choices[4]],pulse:[0,.25,.5,1,2,4,8][choices[6]]};
+    return cachedStyle={settings:{floor:choices[11]===1?0:0.5,scope:choices[1]?'pitch-class':'pitch',window:choices[2]>2?'beats':(['chord','previous-chord','infinite'] as TrailSettings['window'][])[choices[2]],windowBeats:beats[Math.max(0,choices[2]-3)],strength:(choices[5]+1)/4,curve:(['none','linear','exponential'] as TrailSettings['curve'][])[choices[7]],decayBeats:beats[choices[8]],exponent:TRAIL_EXPONENTS[choices[9]]},approachRows:choices[10]===1,blend:choices[11]===1,color:[125,16,23,127,126,120][choices[4]],pulse:[0,.25,.5,1,2,4,8][choices[6]]};
 }
 export function trailSettingsSnapshot():number[]{return choices.slice();}
 export function restoreTrailSettings(value:unknown):void{

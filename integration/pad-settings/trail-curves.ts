@@ -8,7 +8,7 @@ function graph(x:number,y:number,w:number,h:number,curve:TrailCurve,exponent:Tra
     let previous=0;
     for(let column=0;column<w;column++){
         const age=column/(w-1)*(curve==='exponential'?4:1);
-        const row=Math.round((1-trailFade(age,1,curve,exponent))*(h-1));
+        const row=Math.round((1-trailFade(age,1,curve,exponent,trailStyle().settings.floor))*(h-1));
         if(column===0)previous=row;
         fill_rect(x+column,y+Math.min(previous,row),1,Math.abs(row-previous)+1,color);
         previous=row;
