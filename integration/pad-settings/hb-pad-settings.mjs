@@ -5,6 +5,7 @@ installEnv();
 const {appState,VIEW_MAIN_PARAMS}=await import('../dist/esm/app/state.js');
 const {portFor}=await import('../dist/esm/track/registry.js');
 const {mainPageState,mainPageJog,mainPageKnob,mainPageRelease,clearMainPage}=await import('../dist/esm/seq/main-page.js');
+const {uiStateDirty}=await import('../dist/esm/seq/set-save.js');
 const {buildMainPageVM}=await import('../dist/esm/seq/main-page-vm.js');
 const module=JSON.parse(readFileSync(process.env.HB_MODULE,'utf8'));
 const values=new Map(module.capabilities.chain_params.map(parameter=>['midi_fx1:'+parameter.key,String(parameter.default??parameter.options?.[0]??'0')]));
@@ -22,6 +23,7 @@ assert.equal(mainPageState.page,1);assert.equal(view.headerOverride,'PAD COLORS'
 assert.equal(view.rows[0][0].fullName,'Harmony Display');
 mainPageKnob(3,8);mainPageRelease(3);
 assert(writes.some(([key])=>key==='midi_fx1:pad_current_color'));
+assert(uiStateDirty(),'Movy pad edits are saved with the Set');
 mainPageJog(1);view=buildMainPageVM();assert.equal(view.headerOverride,'PAD TRAILS');
 mainPageKnob(0,8);mainPageRelease(0);
 assert.equal(buildMainPageVM().rows[0][0].displayValue,'On');

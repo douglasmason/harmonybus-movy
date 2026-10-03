@@ -155,30 +155,11 @@ port.getParam = originalGet;
 assert.equal(module.capabilities.ui_hierarchy.levels.follower_play.knobs.length, 7);
 console.log('HB performance release: no polling during touch, direct captured release, no duplicate Off pass');
 
-const padSlot = focusKey('pad_display');
-assert.equal(page.pageTitle,'Pads Global');
-assert.equal(page.ctl.page.keys.length,8);
-assert(page.ctl.page.keys.includes('pad_both_color'));
-assert(page.ctl.page.keys.includes('pad_tonic_color'));
-assert.equal(values.get('pad_tonic_color'),'Grey');
+assert(!page.ctl.pages.some(candidate=>candidate.keys?.includes('pad_display')),'Movy owns Pad Colors under Shift + Step 9');
+assert.equal(module.capabilities.ui_hierarchy.levels.pad_display.knobs.length,8,'Standalone HB retains Pad Colors');
 assert.equal(values.get('pad_play_color'),'Green');
 assert.equal(values.get('pad_pulse_shape'),'None');
-assert(!page.ctl.page.keys.includes('pad_effective_color'));
-assert(page.ctl.page.keys.includes('pad_play_color'));
-assert(!module.capabilities.chain_params.find(p=>p.key==='pad_display').options.includes('Standard'));
-assert.equal(values.get('pad_both_color'),'Orange');
-assert.equal(values.get('pad_pulse_rate'),'1/4');
-assert.equal(values.get('pad_display'),'Both Full Lookahead');
-values.set('pad_display','Effective');
-page.ctl.state.values.pad_display='Effective';
-for(let tick=0;tick<64;tick++)page.tick();
-page.knobTouch(padSlot,true);
-assert.equal(page.ctl.describePage().header.left,'Pad Colors');
-page.knobTurn(padSlot,4);
-page.knobTouch(padSlot,false);
-assert.equal(values.get('pad_display'),'Current');
-assert(uiStateDirty(),'Global pad edits participate in Set saving');
-console.log('HB Pads Global: eight controls, correct title, knob editing and saved-state dirty tracking pass');
+console.log('Pad Colors ownership: hosted duplicate removed; standalone metadata retained; Set-page editing covered by hb-pad-settings');
 
 // Lane selection must refresh both shared editors before the next encoder turn.
 const realNow = Date.now;
@@ -255,7 +236,7 @@ for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_
 }
 const operationSlot = focusKey('motion_operation');
 page.knobTurn(operationSlot, 100);page.knobTouch(operationSlot, false);
-for (const operation of ['Parallel Scale','Key Center','Upper Dim','Leading Tone','Chord/Arp State','Play Motif','Secondary VII','Secondary IV','Secondary III','Tritone Sub','Tritone II','Connector Above']) {
+for (const operation of ['Override Harmony (Live + Recorded)','Live Harmony Override','Parallel Scale','Key Center','Upper Dim','Leading Tone','Chord/Arp State','Play Motif','Secondary VII','Secondary IV','Secondary III','Tritone Sub','Tritone II','Connector Above']) {
     assert.equal(values.get('motion_operation'), operation);
     page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
 }
@@ -372,7 +353,7 @@ try {
     for(let turn=0;turn<64;turn++)flagsPageKnob(0,-1);
     assert.equal(flagValue('hbsteprow'),0);
     assert(writes.slice(before).some(([key,value])=>key==='midi_fx1:motion_hold_5'&&value==='Off'));
-    assert(writes.slice(before).some(([key])=>key==='midi_fx1:performance_reset'),'Turning off cancels an armed enclosure');
+    assert(!writes.slice(before).some(([key])=>key==='midi_fx1:performance_reset'),'Navigation preserves armed and latched musical state');
     const cleared=writes.length;
     assert(releaseHbPerformanceStep([0x80,20,0]),'The old release cannot enter ordinary step editing');
     assert.equal(writes.length,cleared,'Mode change and button release cannot send duplicate Off');
@@ -662,7 +643,7 @@ console.log('Modifier previews: burst coalescing, latest release state and bound
 // Both real MIDI release encodings must clear the original page immediately.
 const padClock=Date.now;let padNow=1200000;Date.now=()=>padNow;
 try {
-    for(const key of ['pad_display','pad_pulse_rate','pad_pulse_shape','pad_current_color','pad_play_color','pad_lookahead_color','pad_both_color','pad_tonic_color','pad_chord_form']) {
+    for(const key of ['pad_chord_form','pad_next_chord_form','pad_next_pulse','pad_adjacent_shading']) {
         for(const status of [0x80,0x90]) {
             padNow+=200;
             const slot=focusKey(key);
@@ -693,8 +674,8 @@ try {
         }
     }
     padNow+=200;
-    const first=focusKey('pad_current_color');
-    const second=page.ctl.page.keys.indexOf('pad_lookahead_color');
+    const first=focusKey('pad_chord_form');
+    const second=page.ctl.page.keys.indexOf('pad_next_chord_form');
     page.knobTouch(first,true);page.knobTouch(second,true);
     onMidiMessageInternal([0x80,second,64]);
     assert.equal(page.ctl.state.touched,first,'Another held knob retains its label');
@@ -787,7 +768,7 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
     globalThis.clear_screen=()=>frames++;
     for(const view of [VIEW_CHAIN,VIEW_KNOBS]) {
         appState.currentView=view;
-        for(const key of ['pad_current_color','motion_control_33','motion_control_15','motion_control_16']) {
+        for(const key of ['pad_chord_form','motion_control_33','motion_control_15','motion_control_16']) {
             livePage.goToPage(livePage.ctl.pages.findIndex(p=>p.keys?.includes(key)));
             const slot=livePage.ctl.page.keys.indexOf(key);
             appState.dirty=true;tick();tick(); // establish the complete cached frame
