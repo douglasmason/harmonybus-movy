@@ -305,7 +305,7 @@ for(let mode=0;mode<9;mode++){
     refreshHarmonyPads(2,testTime+=100);
     assert.equal(keyboardState.scale,13+mode);
     assert.deepEqual(keyboardScales[keyboardState.scale].degrees,scaleDegrees[mode]);
-    assert.equal(overlayOptions(5).length,18);
+    assert.equal(overlayOptions(5).length,19);
     setFollowerInputScale(2,13+mode);
     assert.deepEqual(scaleWrites.pop(),['midi_fx1:follower_scale',scaleLabels[mode]]);
 }
@@ -650,3 +650,32 @@ console.log('Next Pulse: strict snapshot parsing, selected tones only, default-o
     } finally {Object.assign(seqState,saved);}
 }
 console.log('Playing transport: seventh-only selection keeps every root octave steady across all preview modes and pulse shapes');
+
+// The native cable binding accepts the complete grid in one submission, so
+// Schwung's 16-per-tick JavaScript queue cannot stagger a chord transition.
+{
+    const {sendPadLedFrame,sendImmediatePadLed,ledFrameReset,ledBudgetTake}=await import('../dist/esm/seq/led-cache.js');
+    const originalCable=globalThis.move_midi_cable_send;
+    const originalInternal=globalThis.move_midi_internal_send;
+    const frames=[];
+    globalThis.move_midi_internal_send=()=>{throw new Error('Native frames must not enter the staged queue');};
+    globalThis.move_midi_cable_send=(cable,packets)=>{assert.equal(cable,0);frames.push([...packets]);return true;};
+    const changes=Array.from({length:32},(_,index)=>({note:68+index,color:index%2?7:13}));
+    try{
+        ledFrameReset();assert.deepEqual(sendPadLedFrame(changes),changes);
+        assert.equal(frames.length,1);assert.equal(frames[0].length,128);
+        assert.deepEqual(frames[0],changes.flatMap(({note,color})=>[9,144,note,color]));
+        assert(ledBudgetTake(8));assert(!ledBudgetTake(1));
+        frames.length=0;assert.deepEqual(sendPadLedFrame([]),[]);assert.equal(frames.length,0);
+        ledFrameReset();ledBudgetTake(9);assert.deepEqual(sendPadLedFrame(changes),[]);assert.equal(frames.length,0);
+        ledFrameReset();globalThis.move_midi_cable_send=()=>false;
+        assert.deepEqual(sendPadLedFrame(changes),[],'Rejected frames leave every cache entry retryable');
+        globalThis.move_midi_cable_send=(cable,packets)=>{frames.push([...packets]);return true;};
+        sendImmediatePadLed(68,11);assert.deepEqual(frames,[[9,144,68,11]]);
+    }finally{
+        globalThis.move_midi_internal_send=originalInternal;
+        if(originalCable===undefined)delete globalThis.move_midi_cable_send;
+        else globalThis.move_midi_cable_send=originalCable;
+    }
+}
+console.log('Native LED frame: one bounded submission, whole rejection, silent unchanged frame and immediate feedback pass');

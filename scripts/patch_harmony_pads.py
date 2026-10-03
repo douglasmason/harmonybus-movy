@@ -83,9 +83,9 @@ export function padColor(padNote: number, padMin: number, track: number,
     for filename in ['keyboard.mjs', 'params-pages.mjs']:
         test_path: Path = root / 'browser-test/logic' / filename
         test_source: str = test_path.read_text()
-        test_source = test_source.replace("'thirteen scales', SCALES.length, 13", "'twenty-two scales', SCALES.length, 22")
-        test_source = test_source.replace("'key overlay carries 13 scales', vm.overlay && vm.overlay.options.length, 13", "'key overlay carries 22 scales', vm.overlay && vm.overlay.options.length, 22")
-        test_source = test_source.replace("'scale clamped', keyboardState.scale, 12", "'scale clamped', keyboardState.scale, 21")
+        test_source = test_source.replace("'thirteen scales', SCALES.length, 13", "'twenty-three scales', SCALES.length, 23")
+        test_source = test_source.replace("'key overlay carries 13 scales', vm.overlay && vm.overlay.options.length, 13", "'key overlay carries 23 scales', vm.overlay && vm.overlay.options.length, 23")
+        test_source = test_source.replace("'scale clamped', keyboardState.scale, 12", "'scale clamped', keyboardState.scale, 22")
         test_path.write_text(test_source)
     path = root / 'src/seq/scales.ts'
     source = path.read_text()

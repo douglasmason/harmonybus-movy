@@ -62,12 +62,17 @@ export function invalidateMelodicPadColor(note: number, padMin: number): void {
     if(index>=0&&index<melodicPadColorCache.length)melodicPadColorCache[index]=255;
 }
 
-/** Schwung's overtake wrapper accepts one four-byte LED packet per call.
- * Reserve the diff budget and acknowledge each accepted packet separately.
- * The host coalesces pending updates per pad and flushes them across ticks.
- */
+/** Submit a bounded frame through the native cable binding. Older hosts
+ * retain per-pad delivery; only accepted writes enter the paint cache. */
 export function sendPadLedFrame<T extends {note:number;color:number}>(changes: ReadonlyArray<T>): T[] {
     if(!changes.length||!ledBudgetTake(changes.length))return [];
+    // Cable 0 is the normal Move LED destination. The host binding reserves
+    // and publishes the entire packet array in one write, or rejects it whole.
+    if(typeof move_midi_cable_send==='function'){
+        const packets:number[]=[];
+        for(const change of changes)packets.push(0x09,0x90,change.note,change.color);
+        return move_midi_cable_send(0,packets)===true?[...changes]:[];
+    }
     const accepted:T[]=[];
     for(const change of changes){
         if(move_midi_internal_send([0x09,0x90,change.note,change.color])!==false)accepted.push(change);
@@ -76,16 +81,25 @@ export function sendPadLedFrame<T extends {note:number;color:number}>(changes: R
 }
 
 '''
+    source += """
+/** Live melodic feedback shares the same delivery path as complete frames. */
+export function sendImmediatePadLed(note:number,color:number):void {
+    if(typeof move_midi_cable_send==='function')move_midi_cable_send(0,[0x09,0x90,note,color]);
+    else setLED(note,color);
+}
+"""
     path.write_text(source)
     path = root / 'src/keyboard/handler.ts'
-    source = "import { invalidateMelodicPadColor } from '../seq/led-cache.js';\n" + path.read_text()
+    source = "import { invalidateMelodicPadColor, sendImmediatePadLed } from '../seq/led-cache.js';\n" + path.read_text()
     immediate: str = '    setLED(padNote, padColor('
     if source.count(immediate) != 2:
         raise RuntimeError('Expected immediate melodic pad press and release feedback')
     source = source.replace(immediate, '    invalidateMelodicPadColor(padNote, padMin);\n' + immediate)
+    source=source.replace('    setLED(padNote, padColor(', '    sendImmediatePadLed(padNote, padColor(')
     path.write_text(source)
     path = root / 'src/types/schwung.d.ts'
     source = replace_once(path.read_text(), 'declare function move_midi_internal_send(data: number[]): void;', 'declare function move_midi_internal_send(data: number[]): boolean | void;')
+    source+='\ndeclare function move_midi_cable_send(cable:number,data:number[]):boolean;\n'
     path.write_text(source)
     path = root / 'src/renderer/hb-step-panels.ts'
     source = path.read_text()
