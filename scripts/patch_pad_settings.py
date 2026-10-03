@@ -64,3 +64,7 @@ export function mainPageTouch(k: number, down: boolean): void {
     path = root / 'build/browser.mjs'
     source = replace_once(path.read_text(), "    entryPoints: [", "    entryPoints: [\n        resolve(root, 'src/seq/trail-settings.ts'),\n        resolve(root, 'src/keyboard/harmony-pads.ts'),")
     path.write_text(source)
+
+    path = root / 'browser-test/logic/params-pages.mjs'
+    source = replace_once(path.read_text(), "eq('former layout cell is empty', vm.rows[1][3], null);", "eq('more panels are discoverable', vm.rows[1][3].displayValue, 'DIAL >');")
+    path.write_text(source)
