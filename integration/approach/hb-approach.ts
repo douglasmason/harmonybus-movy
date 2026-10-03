@@ -67,7 +67,7 @@ export function drawApproachRows(port: PerformancePort): void {
     if(offset+end<total)fontPrint(123,58,'>',1);
 }
 export function syncApproachOwner(next: PerformancePort | null): void {
-    if (owner?.performanceTrack === next?.performanceTrack && !!owner === !!next) return;
+    if (owner === next) return;
     owner?.performanceSet('approach_mode_active','0');
     owner=next;owner?.performanceSet('approach_mode_active','1');statusAt=-Infinity;status=[];rowView=[];lastRowView='';sequenceView='';rowRevealUntil=0;
 }
