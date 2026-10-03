@@ -1,5 +1,6 @@
 """Install optional global harmony pad colors into pinned Movy."""
 from pathlib import Path
+import re
 from patch_responsive_persistence import replace_once
 
 
@@ -8,6 +9,7 @@ def patch_harmony_pads(root: Path) -> None:
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/pad-display'
     for name in ['harmony-pads.ts', 'pad-palette.ts']:
         (root / 'src/keyboard' / name).write_text((assets / name).read_text())
+    (root / 'src/scale-catalog.ts').write_text((assets.parent / 'scale-catalog.ts').read_text())
     path: Path = root / 'src/seq/pads.ts'
     source: str = path.read_text()
     source = "import { harmonyPlaybackColor, harmonyPadColor, distinguishHarmonyPad } from '../keyboard/harmony-pads.js';\nexport { harmonyPlaybackColor, hasHarmonyPlayback, harmonyPadPlaying, withHarmonyPadFrame, distinguishHarmonyPad, setFollowerInputScale, setFollowerInputRoot, harmonyPadColor, colorHarmonyPitch, harmonyPulse, parseHarmonySnapshot, refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + source
@@ -81,22 +83,13 @@ export function padColor(padNote: number, padMin: number, track: number,
     for filename in ['keyboard.mjs', 'params-pages.mjs']:
         test_path: Path = root / 'browser-test/logic' / filename
         test_source: str = test_path.read_text()
-        test_source = test_source.replace("'thirteen scales', SCALES.length, 13", "'twenty-one scales', SCALES.length, 21")
-        test_source = test_source.replace("'key overlay carries 13 scales', vm.overlay && vm.overlay.options.length, 13", "'key overlay carries 21 scales', vm.overlay && vm.overlay.options.length, 21")
-        test_source = test_source.replace("'scale clamped', keyboardState.scale, 12", "'scale clamped', keyboardState.scale, 20")
+        test_source = test_source.replace("'thirteen scales', SCALES.length, 13", "'twenty-two scales', SCALES.length, 22")
+        test_source = test_source.replace("'key overlay carries 13 scales', vm.overlay && vm.overlay.options.length, 13", "'key overlay carries 22 scales', vm.overlay && vm.overlay.options.length, 22")
+        test_source = test_source.replace("'scale clamped', keyboardState.scale, 12", "'scale clamped', keyboardState.scale, 21")
         test_path.write_text(test_source)
     path = root / 'src/seq/scales.ts'
     source = path.read_text()
-    source = replace_once(source, '\n];', """
-    { name: 'Dorian b2', degrees: [0,1,3,5,7,9,10] },
-    { name: 'Lydian Aug', degrees: [0,2,4,6,8,9,11] },
-    { name: 'Lydian Dom', degrees: [0,2,4,6,7,9,10] },
-    { name: 'Mixolydian b6', degrees: [0,2,4,5,7,8,10] },
-    { name: 'Locrian #2', degrees: [0,2,3,5,6,8,10] },
-    { name: 'Altered', degrees: [0,1,3,4,6,8,10] },
-    { name: 'Whole Tone', degrees: [0,2,4,6,8,10] },
-    { name: 'Augmented', degrees: [0,3,4,7,8,11] },
-];""")
+    source = re.sub(r'export const SCALES: Scale\[\] = \[.*?\n\];', "export { SCALES } from '../scale-catalog.js';\nimport { SCALES } from '../scale-catalog.js';", source, flags=re.S)
     path.write_text(source)
     path = root / 'src/seq/main-page-vm.ts'
     source = path.read_text().replace('mainPageState, overlayOptions', 'mainPageState, overlayOptions, PAD_LAYOUT_NAMES, padLayoutIndex')
