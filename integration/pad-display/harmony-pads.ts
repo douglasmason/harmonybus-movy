@@ -97,7 +97,7 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
     if (parts.length !== 10 || parts.some(value => !Number.isInteger(value)) ||
         [...parts.slice(0, 3), parts[4]].some(value => value < 0 || value > 4095) ||
         (parts[3] !== 0 && parts[3] !== 1) ||
-        parts.slice(5).some((value,index) => value < 0 || value >= [7,8,4,9,9][index])) return null;
+        parts.slice(5).some((value,index) => value < 0 || value >= [8,8,4,9,9][index])) return null;
     let arpInputs: number[] | undefined;
     if (arp) {
         const [version, active, ...notes] = arp.split(',');
@@ -144,7 +144,7 @@ export function refreshHarmonyPads(track: number, now = Date.now()): void {
     // Layout payloads belong in the value channel: host parameter keys are
     // limited to 64 bytes including routing prefixes. No playback state changes.
     const payload = request + suffix;
-    if (payload !== sentPreviewInputs || !snapshot?.outputGroups) {
+    if (payload !== sentPreviewInputs || (settings[0] !== 7 && !snapshot?.outputGroups)) {
         if (port.setParam('midi_fx1:pad_preview_inputs', payload) !== false) sentPreviewInputs = payload;
     }
     const raw = port.getParam('midi_fx1:pad_view');
@@ -274,6 +274,13 @@ export function harmonyPadColor(pitch: number, track: number, held = false, rest
         if (!mode && !view.input) return pitch % 12 === keyboardState.rootPc ? tonicColor :
             inScaleFor(pitch, keyboardState.rootPc, keyboardState.scale) ? C_LIGHTGREY : 0;
     }
+    if (mode === 7) {
+        const root=view?.input?.root ?? keyboardState.rootPc;
+        const scale=view?.input?.scale;
+        const background=pitch % 12 === root ? tonicColor :
+            (scale !== undefined ? !!(scale & (1 << (pitch % 12))) : inScaleFor(pitch,root,keyboardState.scale)) ? C_LIGHTGREY : 0;
+        return !resting && held ? (harmonyPlayColor(track) ?? background) : background;
+    }
     if (!mode && !view?.input) return null;
     if (!resting && held && view?.arpInputs === undefined) return C_WHITE;
     let scale = view?.scale || 0;
@@ -386,6 +393,7 @@ export function harmonyApproachColor(index: number, track: number, held = false,
         const play = harmonyPlayColor(track);
         if (play !== null) return play;
     }
+    if (settings[0] === 7) return !restingOnly && held ? (harmonyPlayColor(track) ?? C_DARKGREY) : C_DARKGREY;
     const flags = snapshot.gapColors?.[index] ?? -1;
     if (flags < 0) return 0; // Older HB has no approach-membership snapshot.
     const mode = settings[0], period = restingOnly || snapshot.nextPulse !== undefined ? 0 : periods[settings[1]];

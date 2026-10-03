@@ -217,7 +217,7 @@ for (const mode of [4,5,6]) {
 effectivePort.getParam=()=>`16,16,2741,0,0,5,0,0,0,5|tonic1,1|full1,0,128|input1,0,1,1,2741,16`;
 refreshHarmonyPads(2,testTime+=100);
 assert.equal(harmonyPadColor(67,2),C_LIGHTGREY,'Unknown model never shows speculative full preview');
-assert.equal(parseHarmonySnapshot('0,0,0,0,0,7,0,0,4,2'),null);
+assert.equal(parseHarmonySnapshot('0,0,0,0,0,8,0,0,4,2'),null);
 assert.equal(parseHarmonySnapshot('0,0,0,0,0,5,0,0,4,2|full1,1,4096'),null);
 console.log('Pure harmony colors, pulse-off scale background and full lookahead modes pass');
 
@@ -679,3 +679,27 @@ console.log('Playing transport: seventh-only selection keeps every root octave s
     }
 }
 console.log('Native LED frame: one bounded submission, whole rejection, silent unchanged frame and immediate feedback pass');
+
+// Harmony Off is a scale/input view even if a stale/full host snapshot still
+// carries current/next masks and pulse selections. Identical layouts do not
+// continually re-send preview requests when output simulation is absent.
+{
+    const {harmonyPadColor}=await import('../dist/esm/seq/pads.js');
+    const port=portFor(0),originalGet=port.getParam,originalSet=port.setParam;
+    let current=145,next=580,requests=0;
+    port.getParam=()=>`${current},${next},2741,1,${next},7,3,0,2,0|input1,0,1,1,2741,${current}|toniccolor1,9|playcolor1,8|arp1,0|nextpulse1,4095,4294967295`;
+    port.setParam=()=>{requests++;return true;};
+    try{
+        refreshHarmonyPads(0,testTime+=100);
+        const before=Array.from({length:12},(_,index)=>harmonyPadColor(60+index,0));
+        assert.equal(before[0],C_LIGHTGREY);assert.equal(before[1],0);assert.equal(before[4],C_LIGHTGREY);
+        requests=0;current=4095;next=0;refreshHarmonyPads(0,testTime+=100);
+        assert.deepEqual(Array.from({length:12},(_,index)=>harmonyPadColor(60+index,0)),before);
+        assert.equal(requests,0,'No repeated preview-input request in static mode');
+        assert.equal(harmonyPadColor(64,0,true),trackColor(0),'Played input retains selected play color');
+        port.getParam=()=> '145,145,2741,1,145,2,0,3,2,0|input1,0,1,1,2741,145|playcolor1,8|arp1,0';
+        refreshHarmonyPads(0,testTime+=100);
+        assert.notEqual(harmonyPadColor(64,0),before[4],'Leaving static mode resumes harmony colors');
+    }finally{port.getParam=originalGet;port.setParam=originalSet;}
+}
+console.log('Harmony Off: stable scale/tonic background, no harmony pulses, live feedback and mode switching pass');
