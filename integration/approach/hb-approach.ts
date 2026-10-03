@@ -14,8 +14,9 @@ export const BANK_CHOICES=[...APPROACH_CHOICES.filter(name=>!name.startsWith('Mo
 export function approachRowsActive(): boolean { return keyboardState.layout===2||keyboardState.layout===3; }
 export const APPROACH_BANK_DEFAULTS=['Secondary V','Secondary II','Connector Below','Connector Above','Leading Tone','Tritone Sub','Backdoor V','Upper Dim','Stock: ii-V-Target','Stock: iv-bVII-Target','Stock: ii-bII7-Target','Stock: vi-ii-V','Stock: ii-V-LT','Stock: V/V-V-I','Stock: iii-vi-ii-V-I','Stock: ii/V-V/V-V-I'];
 let owner: PerformancePort | null = null;
+let keyCenterLabel='';
 let chordArpStatus='Off',motifLatchStatus='Off',keyCenterStatus='Off',parallelStatus='Off';
-export const PARALLEL_SCALES=["Major", "Natural Minor", "Dorian", "Phrygian", "Lydian", "Mixolydian", "Locrian", "Harmonic Minor", "Melodic Minor", "Dorian b2", "Lydian Augmented", "Lydian Dominant", "Mixolydian b6", "Locrian #2", "Altered", "Whole Tone", "Augmented"];
+export const PARALLEL_SCALES=["Major", "Natural Minor", "Dorian", "Phrygian", "Lydian", "Mixolydian", "Locrian", "Harmonic Minor", "Melodic Minor", "Dorian b2", "Lydian Augmented", "Lydian Dominant", "Mixolydian b6", "Locrian #2", "Altered", "Whole Tone", "Augmented", "Relative Major/Minor"];
 const releases = new Map<number,()=>void>();
 let statusAt = -Infinity, status: number[] = [];
 let rowView: string[] = [], lastRowView = '', rowRevealUntil = 0;
@@ -26,7 +27,10 @@ function refreshRows(port: PerformancePort): void {
     const next=port.performanceGet('approach_row_status').split(',').map(Number);
     if(next.join(',')!==status.join(','))appState.dirty=true;
     status=next;statusAt=now;
-    const center=port.performanceGet('key_center')||'Off',parallel=port.performanceGet('parallel_mode')||'Off';
+    const keyView=port.performanceGet('key_center_view').split('|');
+    const center=keyView.length>=2?keyView[0]:(port.performanceGet('key_center')||'Off'),parallel=port.performanceGet('parallel_mode')||'Off';
+    const label=keyView.length>=2?(keyView[2]||keyView[1]):center;
+    if(label!==keyCenterLabel){keyCenterLabel=label;appState.dirty=true;}
     if(center!==keyCenterStatus||parallel!==parallelStatus){keyCenterStatus=center;parallelStatus=parallel;appState.dirty=true;}
     const latch=port.performanceGet('approach_motif_latch')||'Off';
     if(latch!==motifLatchStatus){motifLatchStatus=latch;appState.dirty=true;}
@@ -167,7 +171,7 @@ export function approachKnobCaption(slot:number):string {
 }
 
 export function performKnobCaption(key:string|null):string {
-    return key==='key_center'?keyCenterStatus:key==='parallel_mode'?parallelStatus:key==='approach_motif_latch'?(approachRowsActive()?'Rows':motifLatchStatus==='On'?'Latch':'Off'):key==='motion_control_32'?chordArpStatus:
+    return key==='key_center'?(keyCenterLabel||keyCenterStatus):key==='parallel_mode'?parallelStatus:key==='approach_motif_latch'?(approachRowsActive()?'Rows':motifLatchStatus==='On'?'Latch':'Off'):key==='motion_control_32'?chordArpStatus:
         approachKnobCaption(key?.startsWith('approach_bank_')?Number(key.split('_').pop())-1:-1);
 }
 
