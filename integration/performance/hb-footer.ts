@@ -1,5 +1,7 @@
 /** Compact musical context from the existing pad snapshot. ASCII fits Move's font. */
-import { fontWidth } from '../font/index.js';
+import { fontPrint, fontWidth } from '../font/index.js';
+import { G } from '../font/glyphs.js';
+import { drawGlyphRun } from '../font/blit.js';
 import { FOLLOWER_SCALE_NAMES } from '../scale-catalog.js';
 const roots=['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
 /** Chromatic degrees use the major reference; chord tones determine quality. */
@@ -26,4 +28,17 @@ export function harmonyFooterText(mode:number,track:number,data?:readonly number
     const text=():string=>prefix+' '+roots[key]+' '+label+' '+suffix;
     while(fontWidth(text())>126&&label.length>2)label=label.slice(0,-1);
     return text();
+}
+
+/** The stock font uppercases letters; small i/v preserve Roman chord quality. */
+export function drawHarmonyFooter(text:string):void{
+    const split=text.lastIndexOf(' ')+1;
+    const prefix=text.slice(0,split),roman=text.slice(split);
+    fontPrint(1,58,prefix,1);
+    drawGlyphRun(1+fontWidth(prefix)-1,58,roman,1,code=>{
+        const base=code>=32&&code<=126?G[code-32]:null;
+        if(code===105)return [base![0],0,1,5,1,0,1,1,1];
+        if(code===118)return [base![0],2,3,3,5,5,2];
+        return base;
+    },5,-1);
 }

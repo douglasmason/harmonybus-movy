@@ -216,6 +216,8 @@ jobs:
               'src/renderer/schwung-page.ts',
               'src/renderer/performance-touch.ts',
               'src/renderer/hb-performance.ts',
+              'src/renderer/hb-footer.ts',
+              'browser-test/hb-footer-test.mjs',
               'src/seq/flags-def.ts',
               'src/seq/flags-page.ts',
               'browser-test/logic/flags.mjs',
