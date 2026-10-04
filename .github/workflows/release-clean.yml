@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: 6e0a772494b8f008bb8e92de6107ed984b40d6a8
-  HB_MOVY_VERSION: 0.34.1-hbclean.165
-  HB_MOVY_TAG: v0.34.1-hbclean.165
+  HB_REF: efe99bcfae5fa417b98c61989cea3870b366a3a3
+  HB_MOVY_VERSION: 0.34.1-hbclean.166
+  HB_MOVY_TAG: v0.34.1-hbclean.166
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -462,7 +462,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Pair with HarmonyBus 0.2.248. Fix modal seventh and diminished-target handling after key changes; rendered conductor notes use the active dominant collection. Release and Release Length remain adjacent on knobs 6 and 7."
+              --notes "Pair with HarmonyBus 0.2.249. Add arp-note and arp-cycle Release Length choices and shorten millisecond timing menus across HarmonyBus. Release and Release Length remain adjacent on knobs 6 and 7."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
