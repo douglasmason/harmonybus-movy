@@ -100,7 +100,8 @@ try {
     assert(writes.slice(beforeSettings).some(([,key,value])=>key==='midi_fx1:target_scale_source'&&value==='Simplified'),'Settings knobs edit scale policy alongside step performance');
     page.goToPage(assignmentIndex);
     assert(!writes.slice(beforeSettings).some(([,key])=>key.endsWith(':performance_reset')||/^midi_fx1:approach_bank_/.test(key)),'Panel navigation preserves assignments and latches');
-    assert.equal(page.ctl.metaAt(0).options.length,57);
+    assert.equal(page.ctl.metaAt(0).options.length,61);
+    assert.deepEqual(page.ctl.metaAt(0).options.slice(-4),['Secondary Fifth','Secondary II (Dom)','Secondary IV (Dom)','Secondary VI (Dom)']);
     assert(page.ctl.metaAt(0).options.includes('Stock: vi-ii-V'));
     assert(page.ctl.metaAt(0).options.includes('Connector Below'));
     assert(page.ctl.metaAt(0).options.includes('Secondary VII'));
