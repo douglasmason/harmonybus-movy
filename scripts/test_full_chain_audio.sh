@@ -15,6 +15,7 @@ for component in lane_store lane_serial lane_edit; do
     -I"$SCHWUNG_SOURCE/src" -I"$SCHWUNG_SOURCE/src/host" -o "$FIXTURE_ROOT/$component.o"
 done
 cc -O1 -shared -fPIC "$CHAIN_SOURCE/chain_host.c" "$CHAIN_SOURCE/chain_json.c" \
+  "$CHAIN_SOURCE/chain_synth_load.c" "$CHAIN_SOURCE/chain_fx_load.c" \
   "$CHAIN_SOURCE/chain_params.c" "$CHAIN_SOURCE/chain_mod.c" "$CHAIN_SOURCE/chain_midi.c" \
   "$CHAIN_SOURCE/chain_patch.c" "$CHAIN_SOURCE/chain_reorder.c" "$CHAIN_SOURCE/chain_bus.c" \
   "$CHAIN_SOURCE/chain_scene.c" "$CHAIN_SOURCE/chain_chance.c" \

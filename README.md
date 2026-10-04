@@ -1,5 +1,7 @@
 **HarmonyBus 0.2.243 / Movy hbclean.159 — target scales and full Harm Play banks.**
 
+This release pins Schwung 1.7.3 for the shared controller, host ABI, palette and full native audio-chain checks.
+
 Harm Play 1 and 2 now expose all sixteen saved operation/motif assignments, matching step buttons 1–8 and 9–16. Harm Play Settings holds Key Center, Parallel Scale, Motif Latch and Chord + Arp on knobs 1–4; the step buttons remain playable from this page. Shift-turn Parallel Scale still selects its scale. The four special controls retain teal feedback, captured releases and latch behavior. Key Change Scale and Conductor Travel remain on Key & Scale.
 
 Settings knobs 5–8 are Target Scale Source, Simple Major, Simple Minor and Simple Dim. These are saved per track:
