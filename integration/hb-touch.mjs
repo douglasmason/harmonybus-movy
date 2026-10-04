@@ -1006,8 +1006,8 @@ console.log('Perform captions and cyan Chord + Arp LED: Off/Armed/Hold/Latch, ro
 console.log('Key Center and Parallel Scale: global settings, physical slots, captured release, latch and Shift scale selection pass');
 
 assert(focusKey('harm_play_advance')>=0,'Harm Play settings is reachable');
-assert(focusKey('harm_play_release')===7,'Release occupies the eighth knob');
-assert(page.knobLEDMask & 128,'Release owns the eighth LED');
+assert(focusKey('harm_play_release')===6,'Release Length sits beside Release on the seventh knob');
+assert(page.knobLEDMask & 64,'Release Length owns the seventh LED');
 console.log('Empty Harm Play knob: both LED addresses off and legacy painter excluded');
 {
     const {approachPanels}=await import('../dist/esm/renderer/hb-approach.js');

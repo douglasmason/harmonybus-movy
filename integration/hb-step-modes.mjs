@@ -105,10 +105,10 @@ try {
     const assignmentIndex=order('approach_bank_1');
     const beforeSettings=writes.length;
     page.goToPage(settingsIndex);
-    assert.deepEqual(page.ctl.page.keys,['key_center','parallel_mode','approach_motif_latch','motion_control_32','dominant_color','harm_play_release_control','harm_play_advance','harm_play_release']);
+    assert.deepEqual(page.ctl.page.keys,['key_center','parallel_mode','approach_motif_latch','motion_control_32','dominant_color','harm_play_release_control','harm_play_release','harm_play_advance']);
     assert.equal(page.pageTitle,'Harm Play Settings');
     const settingsOwner=hbPerformancePage();assert(settingsOwner);
-    page.knobTouch(6,true);assert.deepEqual(writes.at(-1).slice(1),['midi_fx1:harm_play_advance','Next']);page.knobTouch(6,false);
+    page.knobTouch(7,true);assert.deepEqual(writes.at(-1).slice(1),['midi_fx1:harm_play_advance','Next']);page.knobTouch(7,false);
     for(let step=0;step<16;step++){
         hbPerformanceStep([0x90,16+step,100],settingsOwner);
         now+=40;hbPerformanceStep([0x80,16+step,0],settingsOwner);
