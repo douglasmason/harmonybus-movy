@@ -18,10 +18,10 @@ concurrency:
 
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  SCHWUNG_REF: cfeb2b0a71272144b1c674603ee19160ec099298
-  HB_REF: 9c6bcbb7782d47e1ed9aae9f15686fd3f2e909d8
-  HB_MOVY_VERSION: 0.34.1-hbclean.158
-  HB_MOVY_TAG: v0.34.1-hbclean.158
+  SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
+  HB_REF: ca75c49c00bbbff106df01084849e2d0432c7c4f
+  HB_MOVY_VERSION: 0.34.1-hbclean.159
+  HB_MOVY_TAG: v0.34.1-hbclean.159
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -457,7 +457,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Pair with HarmonyBus 0.2.238: Blues in the regular and parallel scale menus, Dorian notes with dominant chord quality, and one verified scale catalog with stable saved IDs. Retains the opening-track and bounded-preview fixes."
+              --notes "Pair with HarmonyBus 0.2.243: all sixteen Harm Play assignment knobs plus a separate settings panel with playable step buttons, teal special controls and configurable target-scale families. Saved assignment IDs are unchanged."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

@@ -579,9 +579,11 @@ const { approachPanels } = await import('../dist/esm/renderer/hb-approach.js');
 const hierarchy={levels:{root:{params:[]}}};approachPanels(hierarchy,2);
 for(const bank of [0,1]){
     const panel=hierarchy.levels['approach_bank_'+bank];
-    assert.equal(panel.knobs.length,8);assert.equal(panel.knobs[7],'motion_control_32');
-    assert.equal(panel.params[7].name,'Chord + Arp');
+    assert.deepEqual(panel.knobs,Array.from({length:8},(_,index)=>'approach_bank_'+(bank*8+index+1)));
 }
+const settings=hierarchy.levels.harm_play_settings;
+assert.equal(settings.knobs.length,8);assert.equal(settings.knobs[3],'motion_control_32');
+assert.equal(settings.params[3].name,'Chord + Arp');
 
 // Next tone selection stays independent of the general pulse shape.
 {
