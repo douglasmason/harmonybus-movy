@@ -17,6 +17,7 @@ export function approachRowsActive(): boolean { return keyboardState.layout===2|
 export const APPROACH_BANK_DEFAULTS=['Secondary V (Dom)','Secondary II','Connector Below','Connector Above','Leading Tone','Tritone Sub','Backdoor V','Upper Dim','Stock: ii-V-Target','Stock: iv-bVII-Target','Stock: ii-bII7-Target','Stock: vi-ii-V','Stock: ii-V-LT','Stock: V/V-V-I','Stock: iii-vi-ii-V-I','Stock: ii/V-V/V-V-I'];
 let owner: PerformancePort | null = null;
 let keyCenterLabel='';
+let releaseStatus='Off';
 let dominantColorStatus='Off',dominantColorFamily='Altered V';
 let chordArpStatus='Off',motifLatchStatus='Off',keyCenterStatus='Off',parallelStatus='Off';
 import { PARALLEL_SCALES } from '../scale-catalog.js';
@@ -31,6 +32,8 @@ function refreshRows(port: PerformancePort): void {
     const next=port.performanceGet('approach_row_status').split(',').map(Number);
     if(next.join(',')!==status.join(','))appState.dirty=true;
     status=next;statusAt=now;
+    const release=port.performanceGet('harm_play_release_control')||'Off';
+    if(release!==releaseStatus){releaseStatus=release;appState.dirty=true;}
     const keyView=port.performanceGet('key_center_view').split('|');
     const color=keyView[3]||'Off',family=keyView[4]||'Altered V';
     if(color!==dominantColorStatus||family!==dominantColorFamily){dominantColorStatus=color;dominantColorFamily=family;appState.dirty=true;}
@@ -113,8 +116,8 @@ export function paintApproachKnobs(port: PerformancePort, keys: (string | null)[
     const nextChordStatus=cachedNamedControlStatus(port,32);
     if(nextChordStatus!==chordArpStatus){chordArpStatus=nextChordStatus;appState.dirty=true;}
     for(let knob=0;knob<8;knob++){
-        if(keys[knob]==='key_center'||keys[knob]==='parallel_mode'||keys[knob]==='dominant_color'){
-            const state=keys[knob]==='dominant_color'?dominantColorStatus:keys[knob]==='key_center'?keyCenterStatus:parallelStatus;
+        if(keys[knob]==='harm_play_release_control'||keys[knob]==='key_center'||keys[knob]==='parallel_mode'||keys[knob]==='dominant_color'){
+            const state=keys[knob]==='harm_play_release_control'?releaseStatus:keys[knob]==='dominant_color'?dominantColorStatus:keys[knob]==='key_center'?keyCenterStatus:parallelStatus;
             const on=state!=='Off',pulse=state==='Latch';
             cachedSetAnimLED(knob,on?18:0,on?16:0,pulse?ANIM_PULSE_SLOW:ANIM_NONE);
             cachedSetAnimLED(71+knob,on?18:0,on?16:0,pulse?ANIM_PULSE_SLOW:ANIM_NONE,true);continue;
@@ -145,7 +148,8 @@ export function approachPanels(hierarchy: any, mode: number): void {
         {key:'parallel_mode',name:'Parallel Scale',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'},
         {key:'approach_motif_latch',name:'Motif Latch',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'},
         {key:'motion_control_32',name:'Chord + Arp',type:'enum',options_as_string:true,options:['Chord Only / Release','Arp Only / Release','Both / Release','Chord Only / Press','Arp Only / Press','Both / Press'],default:'Both / Release'},
-        {key:'dominant_color'}, {key:'target_scale_source'},
+        {key:'dominant_color'}, {key:'harm_play_release_control',name:'Release',type:'enum',options:['Off','Armed','Hold','Latch'],options_as_string:true,default:'Off'},
+        {key:'harm_play_release',name:'Release Length',type:'enum',options:["0 ms","25 ms","50 ms","100 ms","150 ms","200 ms","250 ms","300 ms","350 ms","400 ms","450 ms","500 ms","550 ms","600 ms","650 ms","700 ms","750 ms","800 ms","850 ms","900 ms","950 ms","1000 ms","1/64","1/32","1/16","1/8","1/4","1/2","1 Bar","2 Bars","4 Bars"],options_as_string:true,default:'0 ms'},
         {key:'harm_play_advance',name:'Advance Motif',type:'enum',options:['Next'],options_as_string:true,default:'Next'},
     ];
     levels.harm_play_settings=panel('Harm Play Settings',params.map(parameter=>parameter.key),params);
@@ -183,7 +187,7 @@ export function approachKnobCaption(slot:number):string {
 }
 
 export function performKnobCaption(key:string|null):string {
-    return key==='dominant_color'?dominantColorStatus:key==='key_center'?(keyCenterLabel||keyCenterStatus):key==='parallel_mode'?parallelStatus:key==='approach_motif_latch'?(approachRowsActive()?'Rows':motifLatchStatus==='On'?'Latch':'Off'):key==='motion_control_32'?chordArpStatus:
+    return key==='harm_play_release_control'?releaseStatus:key==='dominant_color'?dominantColorStatus:key==='key_center'?(keyCenterLabel||keyCenterStatus):key==='parallel_mode'?parallelStatus:key==='approach_motif_latch'?(approachRowsActive()?'Rows':motifLatchStatus==='On'?'Latch':'Off'):key==='motion_control_32'?chordArpStatus:
         approachKnobCaption(key?.startsWith('approach_bank_')?Number(key.split('_').pop())-1:-1);
 }
 

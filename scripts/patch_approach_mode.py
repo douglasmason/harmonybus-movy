@@ -22,7 +22,7 @@ def patch_approach_mode(root: Path) -> None:
     source = replace_once(source, '    const namedLights=assignments.some(lane=>lane>=16)?readNamedLights(owner):null;', '    const namedLights=assignments.some(lane=>lane>=16)?readNamedLights(owner):null;\n    paintApproachKnobs(owner,keys);')
     source = source.replace(" : 'STEPS / NO HB',1);", " : 'STEPS / NO HB',1);\n    if(active && flagValue('hbsteprow')===2)drawApproachRows(hbPerformancePage()!);")
     source=source.replace('    const clip = operation >= 12 && operation <= 15;\n    return clip ? (active ? 17 : 97) : (active ? C_GREEN : 85);', '    return active ? 120 : 124;')
-    source = source.replace('        const bit=1<<knob,lane=assignments[knob];', "        const bit=1<<knob,lane=assignments[knob];\n        if(/^approach_bank_/.test(keys[knob]??'')||keys[knob]==='approach_motif_latch'||keys[knob]==='key_center'||keys[knob]==='parallel_mode'||keys[knob]==='dominant_color'){wanted|=bit;continue;}")
+    source = source.replace('        const bit=1<<knob,lane=assignments[knob];', "        const bit=1<<knob,lane=assignments[knob];\n        if(keys[knob]==='harm_play_release'){wanted|=bit;const color=parseFloat(String(values[keys[knob]!]))>0?16:0;cachedSetAnimLED(knob,color,color,ANIM_NONE);cachedSetAnimLED(MoveKnob1+knob,color,color,ANIM_NONE,true);continue;}\n        if(!keys[knob]){wanted|=bit;cachedSetAnimLED(knob,0,0,ANIM_NONE);cachedSetAnimLED(MoveKnob1+knob,0,0,ANIM_NONE,true);continue;}\n        if(/^approach_bank_/.test(keys[knob]??'')||keys[knob]==='approach_motif_latch'||keys[knob]==='key_center'||keys[knob]==='parallel_mode'||keys[knob]==='dominant_color'||keys[knob]==='harm_play_release_control'){wanted|=bit;continue;}")
     path.write_text(source)
     path = root / 'src/renderer/hb-step-panels.ts'
     source = "import { orderHarmonyChoices } from './hb-choice-order.js';\nimport { approachPanels } from './hb-approach.js';\n" + path.read_text()
@@ -44,6 +44,19 @@ def patch_approach_mode(root: Path) -> None:
     source = replace_once(source, '        knobTurn: (slot: number, delta: number) => {', """        knobTurn: (slot: number, delta: number) => {
             const keyContext=ctl.keyAt(slot);
             if(keyContext==='harm_play_advance'||keyContext==='track_defaults_reset')return;
+            if(keyContext==='harm_play_release_control'&&appState.shiftHeld){
+                if(laneTouchSlots.has(slot))releasePerformanceTouch(slot,true);
+                const setting='harm_play_release_harmony',options=['Freeze at Release','Follow Harmony'];
+                const current=Math.max(0,options.indexOf(lanePort.performanceGet(setting)));
+                const index=Math.max(0,Math.min(options.length-1,current+delta));
+                if(delta){lanePort.performanceSet(setting,options[index]);markUiStateDirty();}
+                ctl.state.peek={key:keyContext,title:'Release Harmony',options,index,at:Date.now()};
+                touchPaintPending=true;return;
+            }
+            if(keyContext==='harm_play_release_control'){
+                if(delta){lanePort.performanceSet(keyContext,delta>0?'LatchOn':'LatchOff');markUiStateDirty();}
+                approachTouched(lanePort);ctl.revalue();touchPaintPending=true;return;
+            }
             if(keyContext==='key_center'||keyContext==='parallel_mode'||keyContext==='dominant_color'){
                 if(appState.shiftHeld&&keyContext==='key_center')return;
                 if(appState.shiftHeld){
@@ -90,6 +103,14 @@ def patch_approach_mode(root: Path) -> None:
                     reload();seqToast('Reset HB T'+(port.track.index+1));touchPaintPending=true;
                 }return;
             }
+            if(key==='harm_play_release_control'){
+                if(appState.shiftHeld)return;
+                const touchedAt=Date.now();lanePort.performanceSet(key,'Down');approachTouched(lanePort);laneTouchSlots.add(slot);
+                ownPerformanceTouch(slot,(cancel=false)=>{
+                    laneTouchSlots.delete(slot);lanePort.performanceSet(key,cancel?'Cancel':'Up,'+Math.max(0,Date.now()-touchedAt));touchPaintPending=true;
+                    touchReadOnly=true;try{ctl.onKnobTouch(slot,false);}finally{touchReadOnly=false;}
+                });return;
+            }
             if(key==='key_center'||key==='parallel_mode'||key==='dominant_color'){
                 if(appState.shiftHeld)return;
                 lanePort.performanceSet(key,'Down');approachTouched(lanePort);markUiStateDirty();laneTouchSlots.add(slot);
@@ -114,7 +135,7 @@ def patch_approach_mode(root: Path) -> None:
     path.write_text(source)
     path=root/'src/renderer/schwung-page.ts'
     source=path.read_text().replace('    readonly ready: boolean;', '    readonly ready: boolean;\n    readonly knobLEDMask: number;')
-    source=source.replace('        get ready() { return loaded; },', "        get ready() { return loaded; },\n        get knobLEDMask() { return hostedModuleId==='harmonybus'?(keysOf().reduce((mask,key,index)=>mask|(/^approach_bank_|^approach_motif_latch$|^key_center$|^parallel_mode$|^dominant_color$|^motion_control_|^follow_touch_/.test(key??'')?1<<index:0),0)|motifKnobSelectionMask(port.track.index)):0; },")
+    source=source.replace('        get ready() { return loaded; },', "        get ready() { return loaded; },\n        get knobLEDMask() { return hostedModuleId==='harmonybus'?(Array.from({length:8},(_,index)=>keysOf()[index]??null).reduce((mask,key,index)=>mask|(!key||/^approach_bank_|^approach_motif_latch$|^key_center$|^parallel_mode$|^dominant_color$|^harm_play_release$|^harm_play_release_control$|^motion_control_|^follow_touch_/.test(key??'')?1<<index:0),0)|motifKnobSelectionMask(port.track.index)):0; },")
     path.write_text(source)
     path=root/'src/renderer/knob-leds.ts'
     source=path.read_text().replace('updateKnobLEDs(vm: ViewModel)', 'updateKnobLEDs(vm: ViewModel, ownedMask = 0)')
