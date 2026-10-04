@@ -6,6 +6,7 @@ import { appState } from '../app/state.js';
 import { cachedSetAnimLED } from '../seq/led-cache.js';
 import { ANIM_NONE, ANIM_PULSE_SLOW } from '../seq/colors.js';
 import { seqToast } from '../seq/render.js';
+export const DOMINANT_COLORS=['None','Harmonic Minor','Melodic Minor','Altered V','Major','Harmonic Major','Simplified Target'];
 export const APPROACH_CHOICES = ['Secondary V','Secondary II','Connector Below','Connector Above','Leading Tone','Tritone Sub','Backdoor V','Backdoor II','Tritone II','Secondary VI','Secondary III','Secondary IV','Secondary VII','Upper Dim','Secondary Fifth','Secondary II (Dom)','Secondary IV (Dom)','Secondary VI (Dom)',...Array.from({length:16},(_,index)=>'Motif '+(index+1))];
 export const APPROACH_MOTIFS = ['V-Target','ii-V-Target','iv-bVII-Target','bII7-Target','ii-bII7-Target','bVI-bVII-I','bVI-V-I','bIII-IV-I','vi-V-I','iii-vi-ii-V-I','IV-iv-I','ii halfdim-V-i','I-VI7-ii-V-I','V/V-V-I','ii/V-V/V-V-I','V/ii-ii-V-I','V/vi-vi-ii-V-I','vii dim/V-V-I','III7-VI7-II7-V7-I',...Array.from({length:16},(_,index)=>'User '+(index+1))];
 export const TRIPLE_MOTIFS=['vi-ii-V','ii-V-LT','iv-bVII-LT','ii-bII7-LT','iii-vi-ii','IV-ii-V','vii-iii-vi','LT-ii-V'];
@@ -15,6 +16,7 @@ export function approachRowsActive(): boolean { return keyboardState.layout===2|
 export const APPROACH_BANK_DEFAULTS=['Secondary V','Secondary II','Connector Below','Connector Above','Leading Tone','Tritone Sub','Backdoor V','Upper Dim','Stock: ii-V-Target','Stock: iv-bVII-Target','Stock: ii-bII7-Target','Stock: vi-ii-V','Stock: ii-V-LT','Stock: V/V-V-I','Stock: iii-vi-ii-V-I','Stock: ii/V-V/V-V-I'];
 let owner: PerformancePort | null = null;
 let keyCenterLabel='';
+let dominantColorStatus='Off',dominantColorFamily='Altered V';
 let chordArpStatus='Off',motifLatchStatus='Off',keyCenterStatus='Off',parallelStatus='Off';
 import { PARALLEL_SCALES } from '../scale-catalog.js';
 export { PARALLEL_SCALES };
@@ -29,6 +31,8 @@ function refreshRows(port: PerformancePort): void {
     if(next.join(',')!==status.join(','))appState.dirty=true;
     status=next;statusAt=now;
     const keyView=port.performanceGet('key_center_view').split('|');
+    const color=keyView[3]||'Off',family=keyView[4]||'Altered V';
+    if(color!==dominantColorStatus||family!==dominantColorFamily){dominantColorStatus=color;dominantColorFamily=family;appState.dirty=true;}
     const center=keyView.length>=2?keyView[0]:(port.performanceGet('key_center')||'Off'),parallel=port.performanceGet('parallel_mode')||'Off';
     const label=keyView.length>=2?(keyView[2]||keyView[1]):center;
     if(label!==keyCenterLabel){keyCenterLabel=label;appState.dirty=true;}
@@ -108,8 +112,8 @@ export function paintApproachKnobs(port: PerformancePort, keys: (string | null)[
     const nextChordStatus=cachedNamedControlStatus(port,32);
     if(nextChordStatus!==chordArpStatus){chordArpStatus=nextChordStatus;appState.dirty=true;}
     for(let knob=0;knob<8;knob++){
-        if(keys[knob]==='key_center'||keys[knob]==='parallel_mode'){
-            const state=keys[knob]==='key_center'?keyCenterStatus:parallelStatus;
+        if(keys[knob]==='key_center'||keys[knob]==='parallel_mode'||keys[knob]==='dominant_color'){
+            const state=keys[knob]==='dominant_color'?dominantColorStatus:keys[knob]==='key_center'?keyCenterStatus:parallelStatus;
             const on=state!=='Off',pulse=state==='Latch';
             cachedSetAnimLED(knob,on?18:0,on?16:0,pulse?ANIM_PULSE_SLOW:ANIM_NONE);
             cachedSetAnimLED(71+knob,on?18:0,on?16:0,pulse?ANIM_PULSE_SLOW:ANIM_NONE,true);continue;
@@ -140,7 +144,7 @@ export function approachPanels(hierarchy: any, mode: number): void {
         {key:'parallel_mode',name:'Parallel Scale',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'},
         {key:'approach_motif_latch',name:'Motif Latch',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'},
         {key:'motion_control_32',name:'Chord + Arp',type:'enum',options_as_string:true,options:['Chord Only / Release','Arp Only / Release','Both / Release','Chord Only / Press','Arp Only / Press','Both / Press'],default:'Both / Release'},
-        {key:'target_scale_source'}, {key:'target_scale_major'}, {key:'target_scale_minor'}, {key:'target_scale_diminished'},
+        {key:'dominant_color'}, {key:'target_scale_source'},
     ];
     levels.harm_play_settings=panel('Harm Play Settings',params.map(parameter=>parameter.key),params);
     links.push({level:'harm_play_settings'});
@@ -177,7 +181,7 @@ export function approachKnobCaption(slot:number):string {
 }
 
 export function performKnobCaption(key:string|null):string {
-    return key==='key_center'?(keyCenterLabel||keyCenterStatus):key==='parallel_mode'?parallelStatus:key==='approach_motif_latch'?(approachRowsActive()?'Rows':motifLatchStatus==='On'?'Latch':'Off'):key==='motion_control_32'?chordArpStatus:
+    return key==='dominant_color'?dominantColorStatus:key==='key_center'?(keyCenterLabel||keyCenterStatus):key==='parallel_mode'?parallelStatus:key==='approach_motif_latch'?(approachRowsActive()?'Rows':motifLatchStatus==='On'?'Latch':'Off'):key==='motion_control_32'?chordArpStatus:
         approachKnobCaption(key?.startsWith('approach_bank_')?Number(key.split('_').pop())-1:-1);
 }
 
@@ -196,8 +200,8 @@ export function drawApproachOperations(keys: (string | null)[], values: Record<s
         'Stock: iii-vi-ii-V-I':'iii-vi ii-V',
     };
     keys.forEach((key, slot) => {
-        if (!/^approach_bank_/.test(key ?? '') && key !== 'motion_control_32' && key !== 'approach_motif_latch' && key !== 'key_center' && key !== 'parallel_mode') return;
-        const raw=key==='key_center'?'Key Center':key==='parallel_mode'?'Parallel Scale':key==='approach_motif_latch'?'Motif Latch':key==='motion_control_32'?String(values[key] || 'Both / Release'):String(values[key!] ?? '');
+        if (!/^approach_bank_/.test(key ?? '') && key !== 'motion_control_32' && key !== 'approach_motif_latch' && key !== 'key_center' && key !== 'parallel_mode' && key !== 'dominant_color') return;
+        const raw=key==='dominant_color'?({'Altered V':'Alt V','Harmonic Minor':'Harm Min','Melodic Minor':'Mel Min','Harmonic Major':'Harm Maj','Simplified Target':'Simple'}[dominantColorFamily]||dominantColorFamily):key==='key_center'?'Key Center':key==='parallel_mode'?'Parallel Scale':key==='approach_motif_latch'?'Motif Latch':key==='motion_control_32'?String(values[key] || 'Both / Release'):String(values[key!] ?? '');
         const label=names[raw] ?? raw.replace(/^Stock: /,'').replace(/Target/g,'T');
         const words=label.split(/(?<=-)|\s+/), lines:string[]=[];
         let line='';

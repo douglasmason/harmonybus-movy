@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: 4263c853710ea61dfdac87d34d4c4f386e0f7cc5
-  HB_MOVY_VERSION: 0.34.1-hbclean.160
-  HB_MOVY_TAG: v0.34.1-hbclean.160
+  HB_REF: d78bc6719bba30c5d336117e6427ffa5f735df99
+  HB_MOVY_VERSION: 0.34.1-hbclean.161
+  HB_MOVY_TAG: v0.34.1-hbclean.161
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -461,7 +461,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Pair with HarmonyBus 0.2.244: 80% first-hit trail brightness, 100% repeated-hit reinforcement and a 30% Dim Trail floor. Validated against Schwung 1.7.3."
+              --notes "Pair with HarmonyBus 0.2.245: Dominant Color on Harm Play Settings knob 5; touch to hold, turn to latch, Shift-turn to choose the family. Harmony Setup holds the advanced simplification families."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
