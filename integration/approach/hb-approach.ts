@@ -149,7 +149,7 @@ export function approachPanels(hierarchy: any, mode: number): void {
         {key:'approach_motif_latch',name:'Motif Latch',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'},
         {key:'motion_control_32',name:'Chord + Arp',type:'enum',options_as_string:true,options:['Chord Only / Release','Arp Only / Release','Both / Release','Chord Only / Press','Arp Only / Press','Both / Press'],default:'Both / Release'},
         {key:'dominant_color'}, {key:'harm_play_release_control',name:'Release',type:'enum',options:['Off','Armed','Hold','Latch'],options_as_string:true,default:'Off'},
-        {key:'harm_play_release',name:'Release Length',type:'enum',options:["0 ms","25 ms","50 ms","100 ms","150 ms","200 ms","250 ms","300 ms","350 ms","400 ms","450 ms","500 ms","550 ms","600 ms","650 ms","700 ms","750 ms","800 ms","850 ms","900 ms","950 ms","1000 ms","1/64","1/32","1/16","1/8","1/4","1/2","1 Bar","2 Bars","4 Bars"],options_as_string:true,default:'0 ms'},
+        {key:'harm_play_release',name:'Release Length',type:'enum',options:["0 ms", "25 ms", "50 ms", "100 ms", "200 ms", "350 ms", "500 ms", "750 ms", "1000 ms", "1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "1 Bar", "2 Bars", "4 Bars", "Arp Note 1/2", "Arp Note 1", "Arp Note 2", "Arp Note 3", "Arp Note 4", "Arp Note 8", "Arp Cycle 1/4", "Arp Cycle 1/2", "Arp Cycle 1", "Arp Cycle 2", "Arp Cycle 4"],options_as_string:true,default:'0 ms'},
         {key:'harm_play_advance',name:'Advance Motif',type:'enum',options:['Next'],options_as_string:true,default:'Next'},
     ];
     levels.harm_play_settings=panel('Harm Play Settings',params.map(parameter=>parameter.key),params);

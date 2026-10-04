@@ -1013,7 +1013,7 @@ console.log('Empty Harm Play knob: both LED addresses off and legacy painter exc
     const {approachPanels}=await import('../dist/esm/renderer/hb-approach.js');
     const hierarchy={levels:{root:{params:[]}}};approachPanels(hierarchy,2);
     const release=hierarchy.levels.harm_play_settings.params.find(p=>p.key==='harm_play_release');
-    assert.deepEqual(release.options,module.capabilities.chain_params.find(p=>p.key==='boundary_buffer_ms').options,'Release uses the established timing choices');
+    assert.deepEqual(release.options,["0 ms", "25 ms", "50 ms", "100 ms", "200 ms", "350 ms", "500 ms", "750 ms", "1000 ms", "1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "1 Bar", "2 Bars", "4 Bars", "Arp Note 1/2", "Arp Note 1", "Arp Note 2", "Arp Note 3", "Arp Note 4", "Arp Note 8", "Arp Cycle 1/4", "Arp Cycle 1/2", "Arp Cycle 1", "Arp Cycle 2", "Arp Cycle 4"],'Release choices are grouped as compact milliseconds, beats, arp notes and arp cycles');
 }
 
 {
