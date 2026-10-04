@@ -103,7 +103,7 @@ export function paintApproach(port: PerformancePort | null): boolean {
     return true;
 }
 export function paintApproachKnobs(port: PerformancePort, keys: (string | null)[]): boolean {
-    if(!keys.some(key=>/^approach_bank_/.test(key ?? '')))return false;
+    if(!keys.some(key=>/^approach_bank_|^approach_motif_latch$/.test(key ?? '')))return false;
     refreshRows(port);
     const nextChordStatus=cachedNamedControlStatus(port,32);
     if(nextChordStatus!==chordArpStatus){chordArpStatus=nextChordStatus;appState.dirty=true;}
@@ -131,14 +131,19 @@ export function approachPanels(hierarchy: any, mode: number): void {
     const panel=(name:string,keys:string[],params:any[])=>({name,knobs:keys,params});
     const links: {level:string}[]=[];
     for(let bank=0;bank<2;bank++){
-        const params:any[]=Array.from({length:4},(_,index)=>({key:'approach_bank_'+(bank*8+index+1),name:'Operation',type:'enum',options_as_string:true,options:BANK_CHOICES,default:APPROACH_BANK_DEFAULTS[bank*8+index]}));
-        params.push({key:'key_center',name:'Key Center',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'});
-        params.push({key:'parallel_mode',name:'Parallel Scale',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'});
-        params.push({key:'approach_motif_latch',name:'Motif Latch',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'});
-        params.push({key:'motion_control_32',name:'Chord + Arp',type:'enum',options_as_string:true,options:['Chord Only / Release','Arp Only / Release','Both / Release','Chord Only / Press','Arp Only / Press','Both / Press'],default:'Both / Release'});
+        const params:any[]=Array.from({length:8},(_,index)=>({key:'approach_bank_'+(bank*8+index+1),name:'Operation',type:'enum',options_as_string:true,options:BANK_CHOICES,default:APPROACH_BANK_DEFAULTS[bank*8+index]}));
         levels['approach_bank_'+bank]=panel('Harm Play '+(bank+1),params.map(parameter=>parameter.key),params);
         links.push({level:'approach_bank_'+bank});
     }
+    const params:any[]=[
+        {key:'key_center',name:'Key Center',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'},
+        {key:'parallel_mode',name:'Parallel Scale',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'},
+        {key:'approach_motif_latch',name:'Motif Latch',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'},
+        {key:'motion_control_32',name:'Chord + Arp',type:'enum',options_as_string:true,options:['Chord Only / Release','Arp Only / Release','Both / Release','Chord Only / Press','Arp Only / Press','Both / Press'],default:'Both / Release'},
+        {key:'target_scale_source'}, {key:'target_scale_major'}, {key:'target_scale_minor'}, {key:'target_scale_diminished'},
+    ];
+    levels.harm_play_settings=panel('Harm Play Settings',params.map(parameter=>parameter.key),params);
+    links.push({level:'harm_play_settings'});
     levels.root.params.push(...links);
 }
 
@@ -178,7 +183,7 @@ export function performKnobCaption(key:string|null):string {
 
 /** Spend each operation cell on its musical meaning, rather than a slot label. */
 export function drawApproachOperations(keys: (string | null)[], values: Record<string, unknown>, touched: number): void {
-    if (!keys.some(key => /^approach_bank_/.test(key ?? ''))) return;
+    if (!keys.some(key => /^approach_bank_|^approach_motif_latch$/.test(key ?? ''))) return;
     const names: Record<string, string> = {
         'Secondary V':'Sec V', 'Secondary II':'Sec II', 'Connector Below':'CCB',
         'Connector Above':'CCA', 'Leading Tone':'LT', 'Tritone Sub':'TTS',

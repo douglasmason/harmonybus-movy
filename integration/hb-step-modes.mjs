@@ -74,9 +74,32 @@ try {
     hbPerformanceStep([0x90,16,100],heldOwner);hbPerformanceStep([0x80,16,0],heldOwner);
     beforeNavigation=writes.length;
     tap();assert(!writes.slice(beforeNavigation).some(([,key])=>key.endsWith(':performance_reset')),'Navigation must not reset musical state');assert.equal(flagValue('hbsteprow'),2);assert(page.ctl.page.keys.includes('approach_bank_1'));
-    assert(has(page,'approach_bank_1'));assert(has(page,'approach_bank_12'));assert(has(page,'approach_motif_latch'));assert(!has(page,'approach_bank_7'));assert(!has(page,'approach_bank_15')); assert(has(page,'motion_control_32'));
+    assert(has(page,'approach_bank_1'));assert(has(page,'approach_bank_12'));assert(has(page,'approach_motif_latch'));assert(has(page,'approach_bank_7'));assert(has(page,'approach_bank_15')); assert(has(page,'motion_control_32'));
     assert(!has(page,'motion_control_1'),'Approach bank is independent of Perform');
     assert(has(page,'motion_control_17'));assert(has(page,'motion_control_35'));
+    assert.equal(page.ctl.page.keys.length,8);
+    assert(page.ctl.pages.some(p=>p.keys?.includes('approach_motif_latch')&&!p.keys.some(k=>/^approach_bank_/.test(k??''))),'Shared settings have their own panel');
+    for(let bank=0;bank<2;bank++){
+        const bankPage=page.ctl.pages.find(p=>p.keys?.includes('approach_bank_'+(bank*8+1)));
+        assert.deepEqual(bankPage.keys,Array.from({length:8},(_,index)=>'approach_bank_'+(bank*8+index+1)),'All sixteen assignments retain their slot IDs');
+    }
+    const settingsIndex=order('approach_motif_latch');
+    const assignmentIndex=order('approach_bank_1');
+    const beforeSettings=writes.length;
+    page.goToPage(settingsIndex);
+    assert.deepEqual(page.ctl.page.keys,['key_center','parallel_mode','approach_motif_latch','motion_control_32','target_scale_source','target_scale_major','target_scale_minor','target_scale_diminished']);
+    assert.equal(page.pageTitle,'Harm Play Settings');
+    const settingsOwner=hbPerformancePage();assert(settingsOwner);
+    for(let step=0;step<16;step++){
+        hbPerformanceStep([0x90,16+step,100],settingsOwner);
+        now+=40;hbPerformanceStep([0x80,16+step,0],settingsOwner);
+        assert(writes.slice(beforeSettings).some(([,key,value])=>key==='midi_fx1:approach_step_touch_'+(step+1)&&value==='Down'));
+        assert(writes.slice(beforeSettings).some(([,key,value])=>key==='midi_fx1:approach_step_touch_'+(step+1)&&value.startsWith('Up,')));
+    }
+    page.knobTouch(4,true);page.knobTurn(4,63);page.knobTouch(4,false);
+    assert(writes.slice(beforeSettings).some(([,key,value])=>key==='midi_fx1:target_scale_source'&&value==='Simplified'),'Settings knobs edit scale policy alongside step performance');
+    page.goToPage(assignmentIndex);
+    assert(!writes.slice(beforeSettings).some(([,key])=>key.endsWith(':performance_reset')||/^midi_fx1:approach_bank_/.test(key)),'Panel navigation preserves assignments and latches');
     assert.equal(page.ctl.metaAt(0).options.length,57);
     assert(page.ctl.metaAt(0).options.includes('Stock: vi-ii-V'));
     assert(page.ctl.metaAt(0).options.includes('Connector Below'));

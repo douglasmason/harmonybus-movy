@@ -927,7 +927,7 @@ for(const key of formKeys){
 assert(!module.capabilities.ui_hierarchy.levels.pad_chord_form,'No stranded Pad Harmony page');
 console.log('Chord Forms: eight unified controls, detected readout, no duplicates or single-knob panel');
 
-// Both Perform panels keep Chord + Arp's cyan latch animation and caption in sync.
+// The separate settings panel keeps teal special-control LEDs and captions in sync.
 {
     const {paintHbOperationKnobs}=await import('../dist/esm/renderer/schwung-page.js');
     const {performKnobCaption}=await import('../dist/esm/renderer/hb-approach.js');
@@ -945,23 +945,23 @@ console.log('Chord Forms: eight unified controls, detected readout, no duplicate
     Date.now=()=>now;globalThis.move_midi_internal_send=packet=>packets.push([...packet]);
     try {
         keyboardState.layout=0;
-        for(let bank=0;bank<2;bank++){
-            const keys=Array.from({length:4},(_,index)=>'approach_bank_'+(bank*8+index+1)).concat('key_center','parallel_mode','approach_motif_latch','motion_control_32');
+        {
+            const keys=['key_center','parallel_mode','approach_motif_latch','motion_control_32','target_scale_source','target_scale_major','target_scale_minor','target_scale_diminished'];
             const paint=()=>{now+=60;ledFrameReset();paintHbOperationKnobs(owner,keys,{});};
             motifLatch='On';seqLedsInvalidate();packets.length=0;paint();paint();
             assert.equal(performKnobCaption('approach_motif_latch'),'Latch');
-            assert(packets.some(p=>p[1]===0x9a&&p[2]===6&&p[3]===16),'Dedicated motif latch pulses teal');
+            assert(packets.some(p=>p[1]===0x9a&&p[2]===2&&p[3]===16),'Dedicated motif latch pulses teal');
             motifLatch='Off';paint();assert.equal(performKnobCaption('approach_motif_latch'),'Off');
             for(const state of ['Armed','Latch','Hold','Off']){
                 active=state==='Off'?0:32768;persistent=state==='Latch'?32768:0;down=state==='Hold'?32768:0;
                 seqLedsInvalidate();packets.length=0;paint();paint();
-                assert.equal(performKnobCaption('motion_control_32'),state,'Current state caption in panel '+bank);
+                assert.equal(performKnobCaption('motion_control_32'),state,'Current state caption in settings');
                 const noteStatus=state==='Latch'?0x9a:0x90,buttonStatus=state==='Latch'?0xba:0xb0,color=state==='Off'?0:16;
-                assert(packets.some(p=>p[1]===noteStatus&&p[2]===7&&p[3]===color),'Correct knob animation in '+state);
-                assert(packets.some(p=>p[1]===buttonStatus&&p[2]===78&&p[3]===color),'Correct CC animation in '+state);
+                assert(packets.some(p=>p[1]===noteStatus&&p[2]===3&&p[3]===color),'Correct knob animation in '+state);
+                assert(packets.some(p=>p[1]===buttonStatus&&p[2]===74&&p[3]===color),'Correct CC animation in '+state);
             }
         }
-        const keys=Array.from({length:7},(_,index)=>'approach_bank_'+(index+1)).concat('motion_control_32');
+        const keys=Array.from({length:8},(_,index)=>'approach_bank_'+(index+1));
         const paint=()=>{now+=60;ledFrameReset();paintHbOperationKnobs(owner,keys,{});};
         rows[5]=1;rows[6]=1;paint();assert.equal(performKnobCaption(keys[0]),'Armed');
         rows[8]=1;paint();assert.equal(performKnobCaption(keys[0]),'Latch');
@@ -993,15 +993,15 @@ console.log('Perform captions and cyan Chord + Arp LED: Off/Armed/Hold/Latch, ro
         assert.equal(page.ctl.page.keys[slot],key);
     }
     setInitialMode('hbsteprow',2);page.reload();
-    const panel=page.ctl.pages.findIndex(candidate=>candidate.keys?.[4]==='key_center'&&candidate.keys?.[5]==='parallel_mode');
+    const panel=page.ctl.pages.findIndex(candidate=>candidate.keys?.[0]==='key_center'&&candidate.keys?.[1]==='parallel_mode');
     assert(panel>=0);page.goToPage(panel);
     for(let tick=0;tick<64;tick++)page.tick();
-    const before=writes.length;page.knobTouch(4,true);page.knobTouch(4,false);
+    const before=writes.length;page.knobTouch(0,true);page.knobTouch(0,false);
     assert(writes.slice(before).some(([key,value])=>key==='midi_fx1:key_center'&&value==='Down'));
     assert(writes.slice(before).some(([key,value])=>key==='midi_fx1:key_center'&&value==='Up'));
-    page.knobTouch(5,true);page.knobTurn(5,1);page.knobTouch(5,false);
+    page.knobTouch(1,true);page.knobTurn(1,1);page.knobTouch(1,false);
     assert(writes.some(([key,value])=>key==='midi_fx1:parallel_mode'&&value==='LatchOn'));
-    appState.shiftHeld=true;const shifted=writes.length;page.knobTouch(5,true);page.knobTurn(5,1);page.knobTouch(5,false);appState.shiftHeld=false;
+    appState.shiftHeld=true;const shifted=writes.length;page.knobTouch(1,true);page.knobTurn(1,1);page.knobTouch(1,false);appState.shiftHeld=false;
     assert(writes.slice(shifted).some(([key])=>key==='midi_fx1:parallel_scale'));
     assert(!writes.slice(shifted).some(([key,value])=>key==='midi_fx1:parallel_mode'&&value==='Down'));
 }
