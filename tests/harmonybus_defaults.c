@@ -31,7 +31,7 @@ int main(int argument_count, char **arguments) {
         assert(instances[track]->player.config.inversion == (expected_role == 0 ? 0 : 8));
         assert(instances[track]->player.config.start == 5);
         assert(instances[track]->policy_overrides == 0);
-        for(int field=0;field<4;field++)assert(instances[track]->target_scale_policy[field]==0);
+        for(int field=0;field<4;field++)assert(instances[track]->target_scale_policy[field]==(field==2?2:0));
         assert(instances[track]->player.config.chromatic_quality == 3);
         assert(instances[track]->retrigger_held == 1);
         assert(instances[track]->chromatic_map == 1);
@@ -45,6 +45,8 @@ int main(int argument_count, char **arguments) {
         assert(hb_shared_follower_scale()==1);
         assert(instances[track]->source_channel == -1);
         assert(hb_policy_value(instances[track],HB_P_FORM)==(expected_role==0?2:HB_CP_FOLLOW_DETECTED));
+        assert(hb_policy_value(instances[track],HB_P_DOMINANT)==6);
+        assert(hb_policy_value(instances[track],HB_P_DOMINANT_MINOR)==6);
         assert(g_pad_chord_form==HB_CP_FOLLOW_DETECTED);
         assert(g_bus.boundary_buffer_ms == -3);
         assert(instances[track]->quant_timing == 0);
@@ -59,7 +61,7 @@ int main(int argument_count, char **arguments) {
         char expected_state[8192],round_trip[8192],amount[16];
         char seed[1024];snprintf(seed,sizeof(seed),"%s",arguments[preset]);
         char *pad_marker=strstr(seed,";pd1,");assert(pad_marker);*pad_marker=0;
-        snprintf(expected_state,sizeof(expected_state),"%s;pd1,6,3,3,2,0;ts1,0,0,0,0;pas1,0;pf1,17;pnf1,17;pb1,2;pc2,2;pp1,3;hu1,0,0,0;ss1,0,0;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,3,0,2,0,0,0,0,0,1,17,0,8,0,0,3,0,2,0,0,0,0,0,1;named1",seed);
+        snprintf(expected_state,sizeof(expected_state),"%s;pd1,6,3,3,2,0;ts1,0,0,2,0;pas1,0;pf1,17;pnf1,17;pb1,2;pc2,2;pp1,3;hu1,0,0,0;ss1,6,0;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,3,0,2,0,0,0,6,0,6,17,0,8,0,0,3,0,2,0,0,0,6,0,6;named1",seed);
         /* New versioned fields have explicit neutral defaults; preserve the
            legacy prefix exactly, then verify the complete state round-trip. */
         strcat(expected_state,";kc1,1,0,2;mf1,0,2,0,2,0,0,0:00");

@@ -19,7 +19,7 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: 49a8ca6331dd8946c465c9d0f6d3375c08875393
+  HB_REF: 75116a40ee0179b0bf7cf856e48e157e21f064d8
   HB_MOVY_VERSION: 0.34.1-hbclean.160
   HB_MOVY_TAG: v0.34.1-hbclean.160
   ASSET_NAME: harmonybus-movy-module.tar.gz
@@ -219,6 +219,7 @@ jobs:
               'src/renderer/hb-footer.ts',
               'browser-test/hb-footer-test.mjs',
               'src/seq/flags-def.ts',
+              'src/seq/flags.ts',
               'src/seq/flags-page.ts',
               'browser-test/logic/flags.mjs',
               'browser-test/screenshots/baseline/flags-release.png',

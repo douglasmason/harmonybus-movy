@@ -14,6 +14,7 @@ import { PAD_PALETTE } from './pad-palette.js';
 
 export type HarmonySnapshot = { footer?: number[]; targets?: number[]; adjacentShading?: boolean; nextRanks?: number[]; nextPulse?: number; nextPulsePads?: number; playPads?: number; gapColors?: number[]; pianoApproach?: boolean; current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; playColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
 let snapshot: HarmonySnapshot | null = null;
+let learnedGeneration: string | undefined;
 let requestedPads: number[] = [];
 let sentPreviewInputs = "";
 let settings = [0,3,0,4,2];
@@ -169,6 +170,11 @@ export function refreshHarmonyPads(track: number, now = Date.now()): void {
         if (port.setParam('midi_fx1:pad_preview_inputs', payload) !== false) sentPreviewInputs = payload;
     }
     const raw = port.getParam('midi_fx1:pad_view');
+    const learned=raw?.split('|').find(section=>/^learn1,\d+$/.test(section));
+    if(learned!==undefined&&learned!==learnedGeneration){
+        if(learnedGeneration!==undefined||learned!=='learn1,0')markUiStateDirty();
+        learnedGeneration=learned;
+    }
     const next = parseHarmonySnapshot(raw || port.getParam('midi_fx1:pad_render'));
     if(trails&&next){
         const time=trailHistory.readSnapshot(raw?.split('|').find(section=>/^th[12],/.test(section))||'');
