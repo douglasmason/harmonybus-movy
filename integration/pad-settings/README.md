@@ -1,3 +1,5 @@
+The performance footer now shows compact mode/track, sounding key center and parent scale, and current > next harmony as key-relative Roman numerals. Unknown harmony is --; h7 means half-diminished. Long scale names are abbreviated to fit. Footer data rides the existing pad snapshot without additional host reads.
+
 # Movy pad settings and trails
 
 Shift + Step 9 has four jog-dial-selectable pages: Set Parameters, Pad Colors, Pad Trails and Trail Decay. The main page shows `1/4 >` and `MORE / JOG DIAL`. Chord Forms remains grouped as before. Settings persist with the Set; onset history is transient per HB track instance.
@@ -17,3 +19,5 @@ Build 157 consolidates rolling durations into History Window. Fade defaults to D
 Dim Trail uses a 50% brightness floor, like next-harmony pulsing. The floor is relative to Trail Strength, followed by approach-row dimming. Window expiry still clears history. Exponential half-life halves the remaining distance to the floor; graphs include the floor.
 
 Trails follow transport: hidden and capture-disabled while stopped, with fresh history on resume. Inactive track history is cleared on its next visit after a transport change, avoiding a burst of writes at Stop.
+
+Build 160: Trail reinforcement starts a single target onset at 80% of Trail Strength and a repeat within the selected history window at 100%. Dim Trail decays toward 30% of Trail Strength; Blend into Background still fades to the background. Repeats refresh the peak and decay continuously. Pitch Class combines octave hits. Generated chord voices and arp repeats do not count. The native history retains two onsets per pitch, including hits between UI polls. Install HarmonyBus 0.2.244 and Movy hbclean.160 together; Movy retains single-hit compatibility with older history snapshots. Validated against Schwung 1.7.3.

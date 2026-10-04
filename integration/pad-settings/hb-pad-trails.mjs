@@ -10,7 +10,7 @@ const {refreshHarmonyPads,harmonyPlaybackColor,withHarmonyPadFrame,finishPadColo
 const track=4,port=portFor(track);let reads=0,writes=0;
 const targets=Array(32).fill(-1);targets[0]=62;targets[1]=74;
 port.setParam=()=>{writes++;return true;};
-port.getParam=key=>{reads++;return key.endsWith('pad_view')?'1,1,4095,1,1,2,0,0,4,2|targets1,'+targets.join(',')+'|th1,8,1;62,8,1':null;};
+port.getParam=key=>{reads++;return key.endsWith('pad_view')?'1,1,4095,1,1,2,0,0,4,2|targets1,'+targets.join(',')+'|th2,8,1;62,8,1,7,1':null;};
 restoreTrailSettings([1,0,0,4,0,3,0,0,4,1]);
 refreshHarmonyPads(track,Date.now());
 assert.equal(harmonyPlaybackColor(127,track,0,false),125,'Resolved target receives blue overlay');
@@ -23,7 +23,7 @@ assert.equal(reads,before,'Animation never calls native mapping');
 restoreTrailSettings([1,1,0,4,0,3,0,0,4,1]);
 refreshHarmonyPads(track,Date.now()+100);
 assert.equal(harmonyPlaybackColor(127,track,1,false),125,'Pitch-class mode shares octaves');
-const raw='th1,8,1;62,8,1';assert.equal(trailHistory.readSnapshot(raw),8);
+const raw='th2,8,1;62,8,1,7,1';assert.equal(trailHistory.readSnapshot(raw),8);
 assert.equal(trailHistory.readSnapshot('th1,8,1;999,8,1'),null);
 assert(writes>0);
 console.log('Pad trails: sounding-target overlay, octave scope, native snapshot validation and no animation native reads pass');
@@ -33,7 +33,7 @@ keyboardState.mode=1;keyboardState.rootPc=0;keyboardState.scale=0;
 for(const layout of [2,3]){
     keyboardState.layout=layout;
     targets.fill(62);
-    port.getParam=key=>key.endsWith('pad_view')?'1,1,4095,1,1,2,0,0,4,2|piano1,1|targets1,'+targets.join(',')+'|th1,8,1;62,8,1':null;
+    port.getParam=key=>key.endsWith('pad_view')?'1,1,4095,1,1,2,0,0,4,2|piano1,1|targets1,'+targets.join(',')+'|th2,8,1;62,8,1,7,1':null;
     for(const enabled of [1,0]){
         restoreTrailSettings([1,0,2,4,0,3,0,0,4,1,enabled]);
         refreshHarmonyPads(track,Date.now()+1000+layout*100+enabled*1000);
@@ -58,7 +58,7 @@ restoreTrailSettings(null);assert.equal(trailStyle().blend,false);assert.equal(t
 restoreTrailSettings([1,0,0,4,0,3,0,0,4,1,1,0]);
 let captured=false;const commands=[];
 port.setParam=(key,value)=>{commands.push([key,value]);if(key.endsWith('trail_clear'))captured=false;return true;};
-port.getParam=key=>key.endsWith('pad_view')?'1,1,4095,1,1,2,0,0,4,2|targets1,'+targets.join(',')+'|th1,8,1'+(captured?';62,8,1':''):null;
+port.getParam=key=>key.endsWith('pad_view')?'1,1,4095,1,1,2,0,0,4,2|targets1,'+targets.join(',')+'|th2,8,1'+(captured?';62,8,1,7,1':''):null;
 seqState.playing=false;
 assert.equal(trailPadColor(0,track,120),120,'Stop hides trails immediately before the next poll');
 refreshHarmonyPads(track,Date.now()+6000);
@@ -71,3 +71,12 @@ assert.equal(trailPadColor(0,track,120),125,'New playback onsets create trails')
 const clearCount=commands.filter(([key])=>key.endsWith('trail_clear')).length;
 refreshHarmonyPads(track,Date.now()+6300);
 assert.equal(commands.filter(([key])=>key.endsWith('trail_clear')).length,clearCount,'Steady playback does not repeatedly clear history');
+
+// The physical palette must distinguish a single onset from reinforcement.
+trailHistory.readSnapshot('th2,8,1;62,8,1,0,-1');
+const singleColor=trailPadColor(0,track,120);
+trailHistory.readSnapshot('th2,8,1;62,8,1,7,1');
+const repeatedColor=trailPadColor(0,track,120);
+assert.notEqual(singleColor,repeatedColor,'80% and 100% select distinct Move palette colors');
+assert.equal(trailStyle().settings.floor,0.3);
+console.log('Trail palette: single',singleColor,'repeat',repeatedColor);
