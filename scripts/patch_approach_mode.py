@@ -7,6 +7,7 @@ def patch_approach_mode(root: Path) -> None:
     """Install controls while preserving Perform lane assignments."""
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/approach'
     (root / 'src/renderer/hb-approach.ts').write_text((assets / 'hb-approach.ts').read_text())
+    (root / 'src/renderer/hb-choice-order.ts').write_text((assets / 'hb-choice-order.ts').read_text())
     path: Path = root / 'src/renderer/hb-performance.ts'
     source: str = "import { syncApproachOwner, approachStep, paintApproach, paintApproachKnobs, drawApproachRows } from './hb-approach.js';\n" + path.read_text()
     source = source.replace('Math.min(1, Math.round(value))','Math.min(2, Math.round(value))').replace("(flagValue('hbsteprow') + 1) % 2", "(flagValue('hbsteprow') + 1) % 3")
@@ -24,14 +25,20 @@ def patch_approach_mode(root: Path) -> None:
     source = source.replace('        const bit=1<<knob,lane=assignments[knob];', "        const bit=1<<knob,lane=assignments[knob];\n        if(/^approach_bank_/.test(keys[knob]??'')||keys[knob]==='approach_motif_latch'||keys[knob]==='key_center'||keys[knob]==='parallel_mode'||keys[knob]==='dominant_color'){wanted|=bit;continue;}")
     path.write_text(source)
     path = root / 'src/renderer/hb-step-panels.ts'
-    source = "import { approachPanels } from './hb-approach.js';\n" + path.read_text()
+    source = "import { orderHarmonyChoices } from './hb-choice-order.js';\nimport { approachPanels } from './hb-approach.js';\n" + path.read_text()
     source = source.replace('    return hierarchy;\n}', '    approachPanels(hierarchy,mode);\n    return hierarchy;\n}')
+    source = source.replace('    const levels = hierarchy.levels;', '    orderHarmonyChoices(hierarchy);\n    const levels = hierarchy.levels;')
     path.write_text(source)
     path = root / 'src/seq/flags-def.ts'
     source = path.read_text().replace("labels: ['STEPS','PERFORM']", "labels: ['STEPS','PERFORM','APPROACH']").replace("min: 0, max: 1, def: 0, uiOnly: true, release: true,\n        hint: 'Copy tap: Steps or Perform.'", "min: 0, max: 2, def: 0, uiOnly: true, release: true,\n        hint: 'Copy tap: Steps, Perform or Approach.'")
     path.write_text(source)
     path = root / 'src/renderer/schwung-page.ts'
-    source = "import { approachRowsActive, approachTouched, drawApproachOperations, drawDetectedChordForm, PARALLEL_SCALES, DOMINANT_COLORS } from './hb-approach.js';\n" + path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
+    source = "import { choiceGroup, orderHarmonyChoices } from './hb-choice-order.js';\nimport { approachRowsActive, approachTouched, drawApproachOperations, drawDetectedChordForm, PARALLEL_SCALES, DOMINANT_COLORS } from './hb-approach.js';\n" + path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
+    source = replace_once(source, "            if (hostedModuleId === 'harmonybus' && k.endsWith(':ui_hierarchy') && v) {", """            if (hostedModuleId === 'harmonybus' && k.endsWith(':chain_params') && v) {
+                try { const parameters=JSON.parse(v);orderHarmonyChoices(parameters);v=JSON.stringify(parameters); } catch (_) {}
+            }
+            if (hostedModuleId === 'harmonybus' && k.endsWith(':ui_hierarchy') && v) {""")
+    source = replace_once(source, "                    readCache.set(componentKey + ':chain_params', JSON.stringify(snapshot.params));", "                    orderHarmonyChoices(snapshot.params);\n                    readCache.set(componentKey + ':chain_params', JSON.stringify(snapshot.params));")
     source = source.replace('            if (laneTouchSlots.has(slot)) {\n                releasePerformanceTouch(slot, true);', "            if (laneTouchSlots.has(slot) && !/^approach_bank_/.test(ctl.keyAt(slot))) {\n                releasePerformanceTouch(slot, true);")
     source = replace_once(source, '        knobTurn: (slot: number, delta: number) => {', """        knobTurn: (slot: number, delta: number) => {
             const keyContext=ctl.keyAt(slot);
@@ -60,7 +67,7 @@ def patch_approach_mode(root: Path) -> None:
                 if(delta&&current>=0){
                     const index=Math.max(0,Math.min(options.length-1,current+delta));
                     ctl.commitEnum(key,index);ctl.revalue();markUiStateDirty();approachTouched(lanePort);
-                    ctl.state.peek={key,title:'Approach Operation',options,index,at:Date.now()};
+                    ctl.state.peek={key,title:choiceGroup(options[index]),options,index,at:Date.now()};
                 }
                 return;
             }
