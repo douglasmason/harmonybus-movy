@@ -1,3 +1,17 @@
+Dominant to Major and Dominant to Minor now default to Simplified Target: major destinations use Major and minor destinations use Harmonic Minor. None disables dominant substitution and keeps the parent collection. Every enabled dominant family retains the dominant root, major third and flat seventh. Altered V affects V only; secondary preparation chords use the simplified target baseline. Existing saved family selections are preserved.
+
+Copy-tap filters the HarmonyBus panels by mode. Steps contains setup and diagnostics; Perform 1 contains operation controls and performance tools; Perform 2 contains Harm Play, secondary harmony and chord/arp controls. Startup and project load always select Steps. Copy hold retains native copying; switching modes does not reset latched musical operations.
+
+Learned next-harmony timelines are saved per conductor track and clip slot. Matching clips recover their predictions on the first playback after a reload; edits and incompatible render settings invalidate the corresponding record. The stopped opening-chord preview remains independent. Trail Decay has one larger preview below readable text controls; selectors clear the surrounding controls.
+
+Secondary Fifth is now a separate parent-scale degree operation. Secondary II, IV and VI (Dom) simplify the target in Auto and use its dominant-preparation family; Altered V remains V-only. Ordinary secondaries preserve the parent collection by default. Parent/Simplified explicitly overrides Auto target simplification. Existing operation IDs are unchanged.
+
+The performance footer now shows compact mode/track, sounding key center and parent scale, and current > next harmony as key-relative Roman numerals. Unknown harmony is --; h7 means half-diminished. Long scale names are abbreviated to fit. Footer data rides the existing pad snapshot without additional host reads.
+
+**HarmonyBus 0.2.244 / Movy hbclean.160 — reinforced target trails.**
+
+Trail reinforcement starts a single target onset at 80% of Trail Strength and a repeat within the selected history window at 100%. Dim Trail decays toward 30% of Trail Strength; Blend into Background still fades to the background. Repeats refresh the peak and decay continuously. Pitch Class combines octave hits. Generated chord voices and arp repeats do not count. The native history retains two onsets per pitch, including hits between UI polls. Install HarmonyBus 0.2.244 and Movy hbclean.160 together; Movy retains single-hit compatibility with older history snapshots. Validated against Schwung 1.7.3.
+
 **HarmonyBus 0.2.243 / Movy hbclean.159 — target scales and full Harm Play banks.**
 
 This release pins Schwung 1.7.3 for the shared controller, host ABI, palette and full native audio-chain checks.

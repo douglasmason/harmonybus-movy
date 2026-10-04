@@ -6,7 +6,7 @@ import { appState } from '../app/state.js';
 import { cachedSetAnimLED } from '../seq/led-cache.js';
 import { ANIM_NONE, ANIM_PULSE_SLOW } from '../seq/colors.js';
 import { seqToast } from '../seq/render.js';
-export const APPROACH_CHOICES = ['Secondary V','Secondary II','Connector Below','Connector Above','Leading Tone','Tritone Sub','Backdoor V','Backdoor II','Tritone II','Secondary VI','Secondary III','Secondary IV','Secondary VII','Upper Dim',...Array.from({length:16},(_,index)=>'Motif '+(index+1))];
+export const APPROACH_CHOICES = ['Secondary V','Secondary II','Connector Below','Connector Above','Leading Tone','Tritone Sub','Backdoor V','Backdoor II','Tritone II','Secondary VI','Secondary III','Secondary IV','Secondary VII','Upper Dim','Secondary Fifth','Secondary II (Dom)','Secondary IV (Dom)','Secondary VI (Dom)',...Array.from({length:16},(_,index)=>'Motif '+(index+1))];
 export const APPROACH_MOTIFS = ['V-Target','ii-V-Target','iv-bVII-Target','bII7-Target','ii-bII7-Target','bVI-bVII-I','bVI-V-I','bIII-IV-I','vi-V-I','iii-vi-ii-V-I','IV-iv-I','ii halfdim-V-i','I-VI7-ii-V-I','V/V-V-I','ii/V-V/V-V-I','V/ii-ii-V-I','V/vi-vi-ii-V-I','vii dim/V-V-I','III7-VI7-II7-V7-I',...Array.from({length:16},(_,index)=>'User '+(index+1))];
 export const TRIPLE_MOTIFS=['vi-ii-V','ii-V-LT','iv-bVII-LT','ii-bII7-LT','iii-vi-ii','IV-ii-V','vii-iii-vi','LT-ii-V'];
 export const BANK_CHOICES=[...APPROACH_CHOICES.filter(name=>!name.startsWith('Motif ')),...APPROACH_MOTIFS.map((name,index)=>index<19?'Stock: '+name:name),...TRIPLE_MOTIFS.map(name=>'Stock: '+name)];
@@ -189,7 +189,7 @@ export function drawApproachOperations(keys: (string | null)[], values: Record<s
         'Connector Above':'CCA', 'Leading Tone':'LT', 'Tritone Sub':'TTS',
         'Backdoor V':'Back V', 'Backdoor II':'Back II', 'Tritone II':'TTS II',
         'Secondary VI':'Sec VI', 'Secondary III':'Sec III', 'Secondary IV':'Sec IV',
-        'Secondary VII':'Sec VII', 'Upper Dim':'Upper Dim',
+        'Secondary II (Dom)':'II Dom', 'Secondary IV (Dom)':'IV Dom', 'Secondary VI (Dom)':'VI Dom', 'Secondary Fifth':'Sec 5th', 'Secondary VII':'Sec VII', 'Upper Dim':'Upper Dim',
         'Stock: ii-V-Target':'ii-V', 'Stock: iv-bVII-Target':'Back door',
         'Stock: ii-bII7-Target':'TTS ii-V', 'Stock: vi-ii-V':'vi-ii-V',
         'Stock: ii-V-LT':'ii-V LT', 'Stock: V/V-V-I':'V/V-V',

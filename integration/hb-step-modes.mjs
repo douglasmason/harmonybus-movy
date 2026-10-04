@@ -8,7 +8,7 @@ const { portFor } = await import('../dist/esm/track/registry.js');
 const { selectTrack } = await import('../dist/esm/track/focus.js');
 const { beginTrackSwitch, switchToTrack } = await import('../dist/esm/track/switch.js');
 const { schwungActiveFor } = await import('../dist/esm/renderer/schwung-grid.js');
-const { flagValue, setFlag } = await import('../dist/esm/seq/flags.js');
+const { flagValue, setFlag, resetFlags, loadPerSetFlags } = await import('../dist/esm/seq/flags.js');
 const { seqHandleButtonCc } = await import('../dist/esm/seq/router-buttons.js');
 const { onUnit, resetDuplicate } = await import('../dist/esm/seq/duplicate.js');
 const { hbPerformanceStep, hbPerformancePage } = await import('../dist/esm/renderer/schwung-page.js');
@@ -29,6 +29,13 @@ for (let track=0; track<16; track++) {
     port.getMany=keys=>keys.map(key=>port.getParam(key));
     port.setParam=(key,value)=>{writes.push([track,key,value]);values.set(key,value);return true;};
 }
+const { writePrefFlag } = await import('../dist/esm/seq/prefs.js');
+writePrefFlag('hbsteprow',2);resetFlags();
+assert.equal(flagValue('hbsteprow'),0,'Old stored mode cannot change startup from Steps');
+setFlag('hbsteprow',2);loadPerSetFlags(null);
+assert.equal(flagValue('hbsteprow'),0,'Project load returns to Steps');
+setFlag('hbsteprow',1);resetFlags();
+assert.equal(flagValue('hbsteprow'),0,'Mode selection is session-only');
 selectTrack(0);appState.currentView=VIEW_KNOBS;appState.trackChainIndex[0]=0;
 seqState.sessionMode=false;seqState.loopMode=false;appState.shiftHeld=false;
 setFlag('hbsteprow',0);
@@ -63,9 +70,11 @@ try {
     assert(!has(page,'motion_control_35'),'Secondary belongs to Harm Play');
     checkCadences();
     const firstOps=order('motion_control_1');
-    assert(firstOps>order('monitor_status'),'Copy-mode operations follow main diagnostics');
-    assert.equal(order('pad_display'),-1,'Pad Colors moved to Set pages');assert(order('fpath_0_0_0')>firstOps);
-    assert(page.ctl.pages.slice(firstOps).every(p=>p.keys?.some(key=>/^motion_(control_|lane$)/.test(key)||key==='pad_display'||key==='pad_chord_form'||key==='fpath_0_0_0')),'Only operations and end diagnostics follow the first operation page');
+    assert(firstOps>=0);
+    assert.equal(order('monitor_status'),-1,'Diagnostics stay in Steps setup');
+    assert.equal(order('pad_display'),-1,'Pad Colors moved to Set pages');
+    assert.equal(order('fpath_0_0_0'),-1,'Note diagnostics stay in Steps setup');
+    assert(!has(page,'target_scale_major'),'Scale setup does not clutter Perform');
     down();assert.equal(hbPerformancePage(),null,'Copy held exposes native input step editing');
     onUnit({kind:'step',track:0,step:0});now+=50;up();assert.equal(flagValue('hbsteprow'),1,'Copy source gesture does not cycle');
     down();now+=500;up();assert.equal(flagValue('hbsteprow'),1,'Long unused hold does not cycle');
@@ -77,6 +86,8 @@ try {
     assert(has(page,'approach_bank_1'));assert(has(page,'approach_bank_12'));assert(has(page,'approach_motif_latch'));assert(has(page,'approach_bank_7'));assert(has(page,'approach_bank_15')); assert(has(page,'motion_control_32'));
     assert(!has(page,'motion_control_1'),'Approach bank is independent of Perform');
     assert(has(page,'motion_control_17'));assert(has(page,'motion_control_35'));
+    assert.equal(order('monitor_status'),-1,'Harm Play excludes diagnostics');
+    assert(!has(page,'motion_lane'),'Harm Play excludes operation editing');
     assert.equal(page.ctl.page.keys.length,8);
     assert(page.ctl.pages.some(p=>p.keys?.includes('approach_motif_latch')&&!p.keys.some(k=>/^approach_bank_/.test(k??''))),'Shared settings have their own panel');
     for(let bank=0;bank<2;bank++){
@@ -100,7 +111,8 @@ try {
     assert(writes.slice(beforeSettings).some(([,key,value])=>key==='midi_fx1:target_scale_source'&&value==='Simplified'),'Settings knobs edit scale policy alongside step performance');
     page.goToPage(assignmentIndex);
     assert(!writes.slice(beforeSettings).some(([,key])=>key.endsWith(':performance_reset')||/^midi_fx1:approach_bank_/.test(key)),'Panel navigation preserves assignments and latches');
-    assert.equal(page.ctl.metaAt(0).options.length,57);
+    assert.equal(page.ctl.metaAt(0).options.length,61);
+    assert.deepEqual(page.ctl.metaAt(0).options.slice(14,18),['Secondary Fifth','Secondary II (Dom)','Secondary IV (Dom)','Secondary VI (Dom)']);
     assert(page.ctl.metaAt(0).options.includes('Stock: vi-ii-V'));
     assert(page.ctl.metaAt(0).options.includes('Connector Below'));
     assert(page.ctl.metaAt(0).options.includes('Secondary VII'));
@@ -134,6 +146,7 @@ try {
     assert(writes.some(([,key,value])=>key==='midi_fx1:approach_step_touch_1'&&value==='Down'));
     tap();assert.equal(flagValue('hbsteprow'),0);assert(page.ctl.page.keys.includes('version'));
     assert(!has(page,'motif_record'),'Motif editor has no permanent performance bank');
+    assert(has(page,'monitor_status'),'Steps restores setup and diagnostics');
     beforeCopy=contractReads;
     tap();assert.equal(contractReads,beforeCopy,'Copy layout reuses contract without DSP reads');assert.equal(flagValue('hbsteprow'),1);
     setFlag('hbsteprow',0);schwungActiveFor(4,'midi_fx1');setFlag('hbsteprow',1);

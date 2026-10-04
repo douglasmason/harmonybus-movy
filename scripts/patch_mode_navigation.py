@@ -35,3 +35,11 @@ def patch_mode_navigation(root: Path) -> None:
     source = replace_once(source, '    for (const owner of usedOwners) resetOwner(owner);\n    usedOwners.clear();sampledAt = -Infinity;statusMask = 0;',
         '    // Page navigation releases physical holds, not persistent musical state.\n    // Keep ownership tracked so explicit reset/stop can still clear it.\n    sampledAt = -Infinity;statusMask = 0;')
     path.write_text(source)
+
+    # Performance mode is transient navigation, never a startup preference.
+    path = root / 'src/seq/flags.ts'
+    source = path.read_text()
+    source = replace_once(source, '    perSet = perSetFlagsFrom(o);', "    perSet = perSetFlagsFrom(o);\n    setFlag('hbsteprow', 0);")
+    source = replace_once(source, '    values = v;', "    v.hbsteprow = 0; // Ignore old persisted navigation mode.\n    values = v;")
+    source = replace_once(source, '    writePrefFlag(key, next);', "    if (key !== 'hbsteprow') writePrefFlag(key, next);")
+    path.write_text(source)

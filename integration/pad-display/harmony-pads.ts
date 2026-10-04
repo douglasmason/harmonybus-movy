@@ -12,8 +12,9 @@ import { seqState } from '../seq/state.js';
 import { visualEngineTick } from '../seq/engine.js';
 import { PAD_PALETTE } from './pad-palette.js';
 
-export type HarmonySnapshot = { targets?: number[]; adjacentShading?: boolean; nextRanks?: number[]; nextPulse?: number; nextPulsePads?: number; playPads?: number; gapColors?: number[]; pianoApproach?: boolean; current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; playColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
+export type HarmonySnapshot = { footer?: number[]; targets?: number[]; adjacentShading?: boolean; nextRanks?: number[]; nextPulse?: number; nextPulsePads?: number; playPads?: number; gapColors?: number[]; pianoApproach?: boolean; current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; playColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
 let snapshot: HarmonySnapshot | null = null;
+let learnedGeneration: string | undefined;
 let requestedPads: number[] = [];
 let sentPreviewInputs = "";
 let settings = [0,3,0,4,2];
@@ -132,7 +133,10 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
     }
     const piano = sections.find(section => section.startsWith('piano1,'));
     if (piano && !['piano1,0','piano1,1'].includes(piano)) return null;
-    return { ...(targets ? {targets} : {}), ...(shadeSection ? {adjacentShading:shadeSection==='adjshade1,1'} : {}), ...(nextRanks ? {nextRanks} : {}), ...(nextPulse !== undefined ? {nextPulse, nextPulsePads} : {}), ...(playPads !== undefined ? {playPads: (playPads | playFlash) >>> 0} : {}), ...(gapColors ? {gapColors} : {}), ...(piano ? {pianoApproach: piano === 'piano1,1'} : {}), ...(playColor !== undefined ? {playColor} : {}), ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
+    const footerRaw=sections.find(section=>section.startsWith('footer1,'));
+    const footer=footerRaw?.split(',').slice(1).map(Number);
+    if(footer&&(footer.length!==6||footer.some(value=>!Number.isInteger(value))||footer[0]<0||footer[0]>11||footer[1]<-1||footer[1]>FOLLOWER_SCALE_NAMES.length||[2,4].some(index=>footer[index]<-1||footer[index]>11)||[3,5].some(index=>footer[index]<0||footer[index]>4095)))return null;
+    return { ...(footer ? {footer} : {}), ...(targets ? {targets} : {}), ...(shadeSection ? {adjacentShading:shadeSection==='adjshade1,1'} : {}), ...(nextRanks ? {nextRanks} : {}), ...(nextPulse !== undefined ? {nextPulse, nextPulsePads} : {}), ...(playPads !== undefined ? {playPads: (playPads | playFlash) >>> 0} : {}), ...(gapColors ? {gapColors} : {}), ...(piano ? {pianoApproach: piano === 'piano1,1'} : {}), ...(playColor !== undefined ? {playColor} : {}), ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
 }
 
 /** Poll one compact snapshot, never once per pad or once per display frame. */
@@ -166,9 +170,14 @@ export function refreshHarmonyPads(track: number, now = Date.now()): void {
         if (port.setParam('midi_fx1:pad_preview_inputs', payload) !== false) sentPreviewInputs = payload;
     }
     const raw = port.getParam('midi_fx1:pad_view');
+    const learned=raw?.split('|').find(section=>/^learn1,\d+$/.test(section));
+    if(learned!==undefined&&learned!==learnedGeneration){
+        if(learnedGeneration!==undefined||learned!=='learn1,0')markUiStateDirty();
+        learnedGeneration=learned;
+    }
     const next = parseHarmonySnapshot(raw || port.getParam('midi_fx1:pad_render'));
     if(trails&&next){
-        const time=trailHistory.readSnapshot(raw?.split('|').find(section=>section.startsWith('th1,'))||'');
+        const time=trailHistory.readSnapshot(raw?.split('|').find(section=>/^th[12],/.test(section))||'');
         if(time!==null){trailBeat=time;trailSampleAt=now;}
     }
     // The shared host parameter slot can miss a read while chains restore or
@@ -470,4 +479,9 @@ function padRowBrightness(index:number,track:number):number{
 }
 export function harmonyPlaybackColor(background: number, track: number, index: number, input: boolean): number {
     return finishPadColor(index,track,background,padRowBrightness(index,track),true,input);
+}
+
+/** Cached footer only: drawing must never read the host. */
+export function harmonyFooterSnapshot(track:number):readonly number[]|undefined{
+    return track===watchedTrack?snapshot?.footer:undefined;
 }

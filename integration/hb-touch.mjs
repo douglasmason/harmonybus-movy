@@ -54,7 +54,7 @@ const port = {
     },
 };
 const { setFlag: setInitialMode } = await import('../dist/esm/seq/flags.js');
-setInitialMode('hbsteprow',1);
+setInitialMode('hbsteprow',0);
 const page = createSchwungPage(port, 'midi_fx1');
 for (let tick = 0; tick < 128; tick++) page.tick();
 assert(page.ready);
@@ -85,7 +85,7 @@ console.log('HB touch: real controller labels, current value, highlighted header
 function focusKey(key) {
     if(key.startsWith('motion_')){setInitialMode('hbsteprow',/^motion_control_(17|19|20|21|22|29|30|31|32|35|36|37)$/.test(key)?2:1);page.reload();}
     let index = page.ctl.pages.findIndex(candidate => candidate.keys?.includes(key));
-    if(index<0){setInitialMode('hbsteprow',1);page.reload();index=page.ctl.pages.findIndex(candidate=>candidate.keys?.includes(key));}
+    for(const mode of [0,1,2])if(index<0){setInitialMode('hbsteprow',mode);page.reload();index=page.ctl.pages.findIndex(candidate=>candidate.keys?.includes(key));}
     assert(index >= 0, `${key} must have a knob`);
     page.goToPage(index);
     for (let tick = 0; tick < 64; tick++) page.tick();
@@ -161,6 +161,7 @@ assert.equal(values.get('pad_play_color'),'Green');
 assert.equal(values.get('pad_pulse_shape'),'None');
 console.log('Pad Colors ownership: hosted duplicate removed; standalone metadata retained; Set-page editing covered by hb-pad-settings');
 
+setInitialMode('hbsteprow',1);page.reload();
 // Lane selection must refresh both shared editors before the next encoder turn.
 const realNow = Date.now;
 Date.now = () => realNow() + 1000;
@@ -236,7 +237,7 @@ for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_
 }
 const operationSlot = focusKey('motion_operation');
 page.knobTurn(operationSlot, 100);page.knobTouch(operationSlot, false);
-for (const operation of ['Override Harmony (Live + Recorded)','Live Harmony Override','Parallel Scale','Key Center','Upper Dim','Leading Tone','Chord/Arp State','Play Motif','Secondary VII','Secondary IV','Secondary III','Tritone Sub','Tritone II','Connector Above']) {
+for (const operation of ['Secondary VI (Dom)','Secondary IV (Dom)','Secondary II (Dom)','Secondary Fifth','Override Harmony (Live + Recorded)','Live Harmony Override','Parallel Scale','Key Center','Upper Dim','Leading Tone','Chord/Arp State','Play Motif','Secondary VII','Secondary IV','Secondary III','Tritone Sub','Tritone II','Connector Above']) {
     assert.equal(values.get('motion_operation'), operation);
     page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
 }
@@ -343,8 +344,9 @@ try {
     setHbPerformanceMode(1);
     assert(syncHbPerformanceMode());
     assert(!Object.hasOwn(perSetFlagsSnapshot(),'hbsteprow'),'The choice is not stored in a set');
-    loadPerSetFlags({hbsteprow:0});assert.equal(flagValue('hbsteprow'),1);
-    resetFlags();assert.equal(flagValue('hbsteprow'),1,'The global choice survives reopening');
+    loadPerSetFlags({hbsteprow:2});assert.equal(flagValue('hbsteprow'),0,'Project load returns to Steps');
+    resetFlags();assert.equal(flagValue('hbsteprow'),0,'Reopening always starts in Steps');
+    setHbPerformanceMode(1);
     hbPerformanceStep([0x90,20,127],page);
     hbPerformanceStep([0x90,22,127],page);releaseHbPerformanceStep([0x80,22,0]);
     const before=writes.length;
@@ -769,6 +771,7 @@ console.log('Auto Off: existing eight-knob Conditions panel, Cycle retained on T
     for(const view of [VIEW_CHAIN,VIEW_KNOBS]) {
         appState.currentView=view;
         for(const key of ['pad_chord_form','motion_control_33','motion_control_15','motion_control_16']) {
+            for(const mode of [0,1,2])if(!livePage.ctl.pages.some(p=>p.keys?.includes(key))){setInitialMode('hbsteprow',mode);livePage.reload();}
             livePage.goToPage(livePage.ctl.pages.findIndex(p=>p.keys?.includes(key)));
             const slot=livePage.ctl.page.keys.indexOf(key);
             appState.dirty=true;tick();tick(); // establish the complete cached frame
