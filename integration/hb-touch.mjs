@@ -236,28 +236,21 @@ for (const key of ['motion_lane', 'motion_operation', 'motion_pattern', 'motion_
     assert.equal(page.ctl.enumPeek(), null, 'Release dismisses the list');
 }
 const operationSlot = focusKey('motion_operation');
-page.knobTurn(operationSlot, 100);page.knobTouch(operationSlot, false);
-for (const operation of ['Secondary VI (Dom)','Secondary IV (Dom)','Secondary II (Dom)','Secondary Fifth','Override Harmony (Live + Recorded)','Live Harmony Override','Parallel Scale','Key Center','Upper Dim','Leading Tone','Chord/Arp State','Play Motif','Secondary VII','Secondary IV','Secondary III','Tritone Sub','Tritone II','Connector Above']) {
-    assert.equal(values.get('motion_operation'), operation);
-    page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
+const operationChoices=page.ctl.metaAt(operationSlot).options;
+assert.deepEqual(new Set(operationChoices),new Set(module.capabilities.chain_params.find(parameter=>parameter.key==='motion_operation').options));
+page.knobTurn(operationSlot,-100);page.knobTouch(operationSlot,false);
+for(const operation of operationChoices){
+    assert.equal(values.get('motion_operation'),operation,'Displayed order writes the original operation name');
+    page.knobTurn(operationSlot,1);page.knobTouch(operationSlot,false);
 }
-assert.equal(values.get('motion_operation'), 'Backdoor V');
-page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
-assert.equal(values.get('motion_operation'), 'Backdoor II');
-page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
-assert.equal(values.get('motion_operation'), 'Secondary VI');
-page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
-assert.equal(values.get('motion_operation'), 'Secondary V');
-page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
-assert.equal(values.get('motion_operation'), 'Secondary II');
-page.knobTurn(operationSlot,-2);page.knobTouch(operationSlot,false);
-assert.equal(values.get('motion_operation'), 'Chord Form');
+page.knobTurn(operationSlot,operationChoices.indexOf('Chord Form')-operationChoices.indexOf(values.get('motion_operation')));page.knobTouch(operationSlot,false);
+assert.equal(values.get('motion_operation'),'Chord Form');
 const formSlot=page.ctl.page.keys.indexOf('motion_amount');
 assert.equal(page.ctl.metaAt(formSlot).name,'Form');
 assert.equal(page.ctl.metaAt(formSlot).type,'enum');
 page.knobTurn(formSlot,100);page.knobTurn(formSlot,100);page.knobTouch(formSlot,false);
 assert.equal(values.get('motion_amount'),'Root + Seventh');
-page.knobTurn(operationSlot,-1);page.knobTouch(operationSlot,false);
+page.knobTurn(operationSlot,operationChoices.indexOf('MIDI Echo')-operationChoices.indexOf('Chord Form'));page.knobTouch(operationSlot,false);
 assert.equal(values.get('motion_operation'), 'MIDI Echo');
 assert.equal(page.ctl.metaAt(page.ctl.page.keys.indexOf('motion_offset')).name, 'Decay %');
 page.knobTurn(operationSlot, -1);page.knobTouch(operationSlot, false);
@@ -853,7 +846,7 @@ for (const key of ['conductor_default_chord_form','follower_default_chord_form',
 }
 const localForm=focusKey('track_chord_form');
 const roleClock=Date.now;let roleNow=roleClock();Date.now=()=>roleNow;
-try {for(let turn=0;turn<128;turn++){roleNow+=100;page.knobTurn(localForm,1);page.knobTouch(localForm,false);roleNow+=100;page.tick();}}finally{Date.now=roleClock;}
+try {for(let turn=0;turn<128;turn++){roleNow+=100;page.knobTurn(localForm,-1);page.knobTouch(localForm,false);roleNow+=100;page.tick();}}finally{Date.now=roleClock;}
 assert.equal(values.get('track_chord_form'),'Follow Role');
 for(const key of ['defaults_editor','chord_edit_target','chord_state_copy'])
     assert(!page.ctl.pages.some(candidate=>candidate.keys?.includes(key)),key+' removed from normal panels');

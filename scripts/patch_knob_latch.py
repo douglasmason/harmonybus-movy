@@ -50,7 +50,7 @@ export function setHbLaneLatch(owner: PerformancePort, lane: number, on: boolean
                     const index=Math.max(0,Math.min(options.length-1,current+delta));
                     lanePort.performanceSet(key,options[index]);markUiStateDirty();
                     const pageIndex=ctl.state.pageIndex;reload();ctl.goToPage(pageIndex);
-                    ctl.state.peek={key:operationKey,title:'Lane '+fixedLane[1]+' Operation',options,index,at:Date.now()};
+                    ctl.state.peek={key:operationKey,title:'Lane '+fixedLane[1]+' / '+choiceGroup(options[index]),options,index,at:Date.now()};
                 }
                 touchPaintPending=true;return;
             }

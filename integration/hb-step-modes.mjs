@@ -49,7 +49,7 @@ const checkCadences=()=>{
         assert(!has(page,key),'Cadence shortcuts have no separate panels');
         assert(page.ctl.state.metaIndex.get(key),'Cadence metadata remains available');
     }
-    assert.deepEqual(page.ctl.state.metaIndex.get('motion_operation').options,module.capabilities.chain_params.find(p=>p.key==='motion_operation').options,'Lane assignment keeps every operation');
+    assert.deepEqual([...page.ctl.state.metaIndex.get('motion_operation').options].sort(),[...module.capabilities.chain_params.find(p=>p.key==='motion_operation').options].sort(),'Lane assignment keeps every operation');
 };
 checkCadences();
 assert(order('follower_explicit_root')<order('chord_mode'));
@@ -120,7 +120,8 @@ try {
     page.goToPage(assignmentIndex);
     assert(!writes.slice(beforeSettings).some(([,key])=>key.endsWith(':performance_reset')||/^midi_fx1:approach_bank_/.test(key)),'Panel navigation preserves assignments and latches');
     assert.equal(page.ctl.metaAt(0).options.length,61);
-    assert.deepEqual(page.ctl.metaAt(0).options.slice(14,18),['Secondary Fifth','Secondary II (Dom)','Secondary IV (Dom)','Secondary VI (Dom)']);
+    assert.deepEqual(page.ctl.metaAt(0).options.slice(2,8),['Secondary II','Secondary III','Secondary IV','Secondary Fifth','Secondary VI','Secondary VII']);
+    assert.deepEqual(page.ctl.metaAt(0).options.slice(-16),Array.from({length:16},(_,index)=>'User '+(index+1)));
     assert(page.ctl.metaAt(0).options.includes('Stock: vi-ii-V'));
     assert(page.ctl.metaAt(0).options.includes('Connector Below'));
     assert(page.ctl.metaAt(0).options.includes('Secondary VII'));
@@ -139,7 +140,7 @@ try {
     assert(order('approach_bank_1')>order('monitor_status'));
     const beforePlainTurn=writes.length;page.knobTurn(0,-1);assert.equal(writes.length,beforePlainTurn,'Unshifted approach turn does nothing');
     const beforeEdit=writes.length;
-    appState.shiftHeld=true;page.knobTouch(0,true);page.knobTurn(0,1);assert.equal(page.ctl.state.peek?.title,'Approach Operation');assert(page.ctl.state.peek.options.length>1);page.knobTouch(0,false);appState.shiftHeld=false;
+    appState.shiftHeld=true;page.knobTouch(0,true);page.knobTurn(0,1);assert.equal(page.ctl.state.peek?.title,'Connectors');assert.equal(writes.at(-1)[2],page.ctl.state.peek.options[page.ctl.state.peek.index]);assert(page.ctl.state.peek.options.length>1);page.knobTouch(0,false);appState.shiftHeld=false;
     assert(writes.slice(beforeEdit).some(([,key])=>key==='midi_fx1:approach_bank_1'),'Shift-turn edits the assignment');
     assert(!writes.slice(beforeEdit).some(([,key])=>/approach_touch_|approach_control_/.test(key)),'Shift editing does not trigger or latch');
     page.knobTouch(0,true);appState.shiftHeld=true;page.knobTurn(0,-1);page.knobTouch(0,false);appState.shiftHeld=false;
