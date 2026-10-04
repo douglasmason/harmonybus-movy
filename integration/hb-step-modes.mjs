@@ -105,7 +105,7 @@ try {
     const assignmentIndex=order('approach_bank_1');
     const beforeSettings=writes.length;
     page.goToPage(settingsIndex);
-    assert.deepEqual(page.ctl.page.keys,['key_center','parallel_mode','approach_motif_latch','motion_control_32','dominant_color','target_scale_source','harm_play_advance']);
+    assert.deepEqual(page.ctl.page.keys,['key_center','parallel_mode','approach_motif_latch','motion_control_32','dominant_color','harm_play_release_control','harm_play_advance','harm_play_release']);
     assert.equal(page.pageTitle,'Harm Play Settings');
     const settingsOwner=hbPerformancePage();assert(settingsOwner);
     page.knobTouch(6,true);assert.deepEqual(writes.at(-1).slice(1),['midi_fx1:harm_play_advance','Next']);page.knobTouch(6,false);
@@ -116,7 +116,7 @@ try {
         assert(writes.slice(beforeSettings).some(([,key,value])=>key==='midi_fx1:approach_step_touch_'+(step+1)&&value.startsWith('Up,')));
     }
     page.knobTouch(5,true);page.knobTurn(5,63);page.knobTouch(5,false);
-    assert(writes.slice(beforeSettings).some(([,key,value])=>key==='midi_fx1:target_scale_source'&&value==='Simplified'),'Settings knobs edit scale policy alongside step performance');
+    assert(writes.slice(beforeSettings).some(([,key,value])=>key==='midi_fx1:harm_play_release_control'&&value==='LatchOn'),'Settings knobs latch Release alongside step performance');
     page.knobTouch(4,true);assert.deepEqual(writes.at(-1).slice(1),['midi_fx1:dominant_color','Down']);
     page.knobTouch(4,false);assert.deepEqual(writes.at(-1).slice(1),['midi_fx1:dominant_color','Up']);
     page.knobTurn(4,1);assert.deepEqual(writes.at(-1).slice(1),['midi_fx1:dominant_color','LatchOn']);

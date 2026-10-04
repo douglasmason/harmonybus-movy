@@ -946,6 +946,8 @@ console.log('Chord Forms: eight unified controls, detected readout, no duplicate
             const paint=()=>{now+=60;ledFrameReset();paintHbOperationKnobs(owner,keys,{});};
             motifLatch='On';seqLedsInvalidate();packets.length=0;paint();paint();
             assert.equal(performKnobCaption('approach_motif_latch'),'Latch');
+            assert(packets.some(p=>p[1]===0x90&&p[2]===7&&p[3]===0),'Empty knob 8 note LED is dark');
+            assert(packets.some(p=>p[1]===0xb0&&p[2]===78&&p[3]===0),'Empty knob 8 CC LED is dark');
             assert(packets.some(p=>p[1]===0x9a&&p[2]===2&&p[3]===16),'Dedicated motif latch pulses teal');
             motifLatch='Off';paint();assert.equal(performKnobCaption('approach_motif_latch'),'Off');
             for(const state of ['Armed','Latch','Hold','Off']){
@@ -1002,3 +1004,22 @@ console.log('Perform captions and cyan Chord + Arp LED: Off/Armed/Hold/Latch, ro
     assert(!writes.slice(shifted).some(([key,value])=>key==='midi_fx1:parallel_mode'&&value==='Down'));
 }
 console.log('Key Center and Parallel Scale: global settings, physical slots, captured release, latch and Shift scale selection pass');
+
+assert(focusKey('harm_play_advance')>=0,'Harm Play settings is reachable');
+assert(focusKey('harm_play_release')===7,'Release occupies the eighth knob');
+assert(page.knobLEDMask & 128,'Release owns the eighth LED');
+console.log('Empty Harm Play knob: both LED addresses off and legacy painter excluded');
+{
+    const {approachPanels}=await import('../dist/esm/renderer/hb-approach.js');
+    const hierarchy={levels:{root:{params:[]}}};approachPanels(hierarchy,2);
+    const release=hierarchy.levels.harm_play_settings.params.find(p=>p.key==='harm_play_release');
+    assert.deepEqual(release.options,module.capabilities.chain_params.find(p=>p.key==='boundary_buffer_ms').options,'Release uses the established timing choices');
+}
+
+{
+    focusKey('harm_play_release_control');values.set('harm_play_release_harmony','Freeze at Release');
+    const before=writes.length;appState.shiftHeld=true;page.knobTurn(5,1);appState.shiftHeld=false;
+    assert(writes.slice(before).some(([key,value])=>key==='midi_fx1:harm_play_release_harmony'&&value==='Follow Harmony'));
+    assert(!writes.slice(before).some(([key])=>key==='midi_fx1:harm_play_release'),'Shift changes harmony policy, not duration');
+    assert.equal(page.ctl.state.peek.title,'Release Harmony');
+}

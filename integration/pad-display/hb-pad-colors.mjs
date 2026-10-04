@@ -582,7 +582,7 @@ for(const bank of [0,1]){
     assert.deepEqual(panel.knobs,Array.from({length:8},(_,index)=>'approach_bank_'+(bank*8+index+1)));
 }
 const settings=hierarchy.levels.harm_play_settings;
-assert.deepEqual(settings.knobs,['key_center','parallel_mode','approach_motif_latch','motion_control_32','dominant_color','target_scale_source','harm_play_advance']);
+assert.deepEqual(settings.knobs,['key_center','parallel_mode','approach_motif_latch','motion_control_32','dominant_color','harm_play_release_control','harm_play_advance','harm_play_release']);
 assert.equal(settings.params[3].name,'Chord + Arp');
 
 // Next tone selection stays independent of the general pulse shape.
