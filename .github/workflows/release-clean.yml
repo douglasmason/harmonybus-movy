@@ -19,7 +19,7 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: d54ed8388c6e554bc32475b369dc0bc8fa443349
+  HB_REF: 3ea01e20d2017ca72c423cb03a63bfe1935100b2
   HB_MOVY_VERSION: 0.34.1-hbclean.167
   HB_MOVY_TAG: v0.34.1-hbclean.167
   ASSET_NAME: harmonybus-movy-module.tar.gz
@@ -98,6 +98,8 @@ jobs:
               'src/undo/verbs.ts',
               'browser-test/logic/flags.mjs',
               'browser-test/hb-launchpad.mjs',
+              'browser-test/screenshots/baseline/flags-release.png',
+              'browser-test/screenshots/baseline/flags-scrolled.png',
               'src/app/globals.ts',
               'engine/crates/seq-core/src/shared_context.rs',
               'engine/crates/movy-dsp/src/audio_profile.rs',

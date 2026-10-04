@@ -1,4 +1,5 @@
 """Install an opt-in external surface without replacing the Move input path."""
+import base64
 from pathlib import Path
 from patch_responsive_persistence import replace_once
 
@@ -114,3 +115,7 @@ export function withSurfacePreview<T>(track: number, view: HarmonySnapshot, prev
     path.write_text(path.read_text().replace("'non', 'nof',", "'non', 'nof', 'npr',"))
     path = root / "browser-test/logic/flags.mjs"
     path.write_text(path.read_text().replace("'chtracks,chtrackset,hbsteprow'", "'chtracks,chtrackset,hbsteprow,hblaunchpad'"))
+
+    for name in ("flags-release", "flags-scrolled"):
+        (root / "browser-test/screenshots/baseline" / (name + ".png")).write_bytes(
+            base64.b64decode((integration / (name + ".png.b64")).read_text()))

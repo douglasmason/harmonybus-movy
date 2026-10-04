@@ -75,7 +75,10 @@ function configure(next: LaunchpadModel): boolean {
     if (typeof host_ext_midi_remap_set !== 'function' || typeof host_ext_midi_remap_enable !== 'function' ||
         typeof host_external_surface !== 'function' || typeof move_midi_external_send !== 'function') return false;
     // 254 is the host's BLOCK sentinel: UI receives the original note, firmware gets no note-on.
-    if (!host_ext_midi_remap_set(0, 254) || !host_ext_midi_remap_enable(true) || !host_external_surface(1)) return false;
+    if (!host_ext_midi_remap_set(0, 254)) return false;
+    if (!host_ext_midi_remap_enable(true) || !host_external_surface(1)) {
+        host_ext_midi_remap_set(0, -1); host_external_surface(0); return false;
+    }
     model = next; configured = true; ledCache.fill(-1); scan = 0;
     initialization = next === 1 ? [[11, 176, 0, 0], [11, 176, 0, 1]] : [
         sysexPackets([...prefix, 14, 1, 247]), // Programmer mode
@@ -116,6 +119,7 @@ function sample(now: number): void {
             state.payload = payload;
         }
         const view = parseHarmonySnapshot(port.getParam('midi_fx1:surface_view' + bank));
+        if (!view) { state.payload = ''; visited.delete(track); }
         if (view) {
             state.view = view;
             const scale = view.globalScale ?? view.input;
