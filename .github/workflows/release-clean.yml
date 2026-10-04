@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: efe99bcfae5fa417b98c61989cea3870b366a3a3
-  HB_MOVY_VERSION: 0.34.1-hbclean.166
-  HB_MOVY_TAG: v0.34.1-hbclean.166
+  HB_REF: 3ea01e20d2017ca72c423cb03a63bfe1935100b2
+  HB_MOVY_VERSION: 0.34.1-hbclean.167
+  HB_MOVY_TAG: v0.34.1-hbclean.167
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -92,6 +92,15 @@ jobs:
               ['git', '-C', str(root), 'ls-files', '--others', '--exclude-standard'], text=True
           ).splitlines()
           expected = {
+              'src/surfaces/launchpad.ts',
+              'src/surfaces/protocol.ts',
+              'src/surfaces/controls.ts',
+              'src/undo/verbs.ts',
+              'browser-test/logic/flags.mjs',
+              'browser-test/hb-launchpad.mjs',
+              'browser-test/screenshots/baseline/flags-release.png',
+              'browser-test/screenshots/baseline/flags-scrolled.png',
+              'src/app/globals.ts',
               'engine/crates/seq-core/src/shared_context.rs',
               'engine/crates/movy-dsp/src/audio_profile.rs',
               'src/seq/cpu-page.ts',
@@ -406,6 +415,7 @@ jobs:
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-pad-settings.mjs
           node browser-test/trail-history-test.mjs
           node browser-test/hb-footer-test.mjs
+          HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-launchpad.mjs
           node browser-test/hb-pad-trails.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-touch.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-startup-host.mjs
@@ -462,7 +472,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Pair with HarmonyBus 0.2.249. Add arp-note and arp-cycle Release Length choices and shorten millisecond timing menus across HarmonyBus. Release and Release Length remain adjacent on knobs 6 and 7."
+              --notes "Pair with HarmonyBus 0.2.250. Add opt-in LEGACY and X Launchpad profiles following Movy input layouts, top-row knob operations and LEDs, side-button latch modifier, captured release ownership, and Launchpad X polyphonic pressure recording. Read docs/launchpad.md for required dedicated-input routing and hardware checks."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
