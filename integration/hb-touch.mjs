@@ -949,7 +949,7 @@ console.log('Chord Forms: eight unified controls, detected readout, no duplicate
     try {
         keyboardState.layout=0;
         {
-            const keys=['key_center','parallel_mode','approach_motif_latch','motion_control_32','target_scale_source','target_scale_major','target_scale_minor','target_scale_diminished'];
+            const keys=['key_center','parallel_mode','approach_motif_latch','motion_control_32','dominant_color','target_scale_source'];
             const paint=()=>{now+=60;ledFrameReset();paintHbOperationKnobs(owner,keys,{});};
             motifLatch='On';seqLedsInvalidate();packets.length=0;paint();paint();
             assert.equal(performKnobCaption('approach_motif_latch'),'Latch');

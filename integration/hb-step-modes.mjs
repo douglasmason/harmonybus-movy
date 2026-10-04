@@ -98,7 +98,7 @@ try {
     const assignmentIndex=order('approach_bank_1');
     const beforeSettings=writes.length;
     page.goToPage(settingsIndex);
-    assert.deepEqual(page.ctl.page.keys,['key_center','parallel_mode','approach_motif_latch','motion_control_32','target_scale_source','target_scale_major','target_scale_minor','target_scale_diminished']);
+    assert.deepEqual(page.ctl.page.keys,['key_center','parallel_mode','approach_motif_latch','motion_control_32','dominant_color','target_scale_source']);
     assert.equal(page.pageTitle,'Harm Play Settings');
     const settingsOwner=hbPerformancePage();assert(settingsOwner);
     for(let step=0;step<16;step++){
@@ -107,8 +107,16 @@ try {
         assert(writes.slice(beforeSettings).some(([,key,value])=>key==='midi_fx1:approach_step_touch_'+(step+1)&&value==='Down'));
         assert(writes.slice(beforeSettings).some(([,key,value])=>key==='midi_fx1:approach_step_touch_'+(step+1)&&value.startsWith('Up,')));
     }
-    page.knobTouch(4,true);page.knobTurn(4,63);page.knobTouch(4,false);
+    page.knobTouch(5,true);page.knobTurn(5,63);page.knobTouch(5,false);
     assert(writes.slice(beforeSettings).some(([,key,value])=>key==='midi_fx1:target_scale_source'&&value==='Simplified'),'Settings knobs edit scale policy alongside step performance');
+    page.knobTouch(4,true);assert.deepEqual(writes.at(-1).slice(1),['midi_fx1:dominant_color','Down']);
+    page.knobTouch(4,false);assert.deepEqual(writes.at(-1).slice(1),['midi_fx1:dominant_color','Up']);
+    page.knobTurn(4,1);assert.deepEqual(writes.at(-1).slice(1),['midi_fx1:dominant_color','LatchOn']);
+    page.knobTurn(4,-1);assert.deepEqual(writes.at(-1).slice(1),['midi_fx1:dominant_color','LatchOff']);
+    appState.shiftHeld=true;page.knobTouch(4,true);page.knobTurn(4,1);
+    assert.equal(page.ctl.state.peek.title,'Dominant Color');
+    assert.equal(writes.at(-1)[1],'midi_fx1:dominant_color_family');
+    page.knobTouch(4,false);appState.shiftHeld=false;
     page.goToPage(assignmentIndex);
     assert(!writes.slice(beforeSettings).some(([,key])=>key.endsWith(':performance_reset')||/^midi_fx1:approach_bank_/.test(key)),'Panel navigation preserves assignments and latches');
     assert.equal(page.ctl.metaAt(0).options.length,61);

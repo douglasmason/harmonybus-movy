@@ -21,7 +21,7 @@ def patch_approach_mode(root: Path) -> None:
     source = replace_once(source, '    const namedLights=assignments.some(lane=>lane>=16)?readNamedLights(owner):null;', '    const namedLights=assignments.some(lane=>lane>=16)?readNamedLights(owner):null;\n    paintApproachKnobs(owner,keys);')
     source = source.replace(" : 'STEPS / NO HB',1);", " : 'STEPS / NO HB',1);\n    if(active && flagValue('hbsteprow')===2)drawApproachRows(hbPerformancePage()!);")
     source=source.replace('    const clip = operation >= 12 && operation <= 15;\n    return clip ? (active ? 17 : 97) : (active ? C_GREEN : 85);', '    return active ? 120 : 124;')
-    source = source.replace('        const bit=1<<knob,lane=assignments[knob];', "        const bit=1<<knob,lane=assignments[knob];\n        if(/^approach_bank_/.test(keys[knob]??'')||keys[knob]==='approach_motif_latch'||keys[knob]==='key_center'||keys[knob]==='parallel_mode'){wanted|=bit;continue;}")
+    source = source.replace('        const bit=1<<knob,lane=assignments[knob];', "        const bit=1<<knob,lane=assignments[knob];\n        if(/^approach_bank_/.test(keys[knob]??'')||keys[knob]==='approach_motif_latch'||keys[knob]==='key_center'||keys[knob]==='parallel_mode'||keys[knob]==='dominant_color'){wanted|=bit;continue;}")
     path.write_text(source)
     path = root / 'src/renderer/hb-step-panels.ts'
     source = "import { approachPanels } from './hb-approach.js';\n" + path.read_text()
@@ -31,20 +31,20 @@ def patch_approach_mode(root: Path) -> None:
     source = path.read_text().replace("labels: ['STEPS','PERFORM']", "labels: ['STEPS','PERFORM','APPROACH']").replace("min: 0, max: 1, def: 0, uiOnly: true, release: true,\n        hint: 'Copy tap: Steps or Perform.'", "min: 0, max: 2, def: 0, uiOnly: true, release: true,\n        hint: 'Copy tap: Steps, Perform or Approach.'")
     path.write_text(source)
     path = root / 'src/renderer/schwung-page.ts'
-    source = "import { approachRowsActive, approachTouched, drawApproachOperations, drawDetectedChordForm, PARALLEL_SCALES } from './hb-approach.js';\n" + path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
+    source = "import { approachRowsActive, approachTouched, drawApproachOperations, drawDetectedChordForm, PARALLEL_SCALES, DOMINANT_COLORS } from './hb-approach.js';\n" + path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
     source = source.replace('            if (laneTouchSlots.has(slot)) {\n                releasePerformanceTouch(slot, true);', "            if (laneTouchSlots.has(slot) && !/^approach_bank_/.test(ctl.keyAt(slot))) {\n                releasePerformanceTouch(slot, true);")
     source = replace_once(source, '        knobTurn: (slot: number, delta: number) => {', """        knobTurn: (slot: number, delta: number) => {
             const keyContext=ctl.keyAt(slot);
-            if(keyContext==='key_center'||keyContext==='parallel_mode'){
+            if(keyContext==='key_center'||keyContext==='parallel_mode'||keyContext==='dominant_color'){
                 if(appState.shiftHeld&&keyContext==='key_center')return;
                 if(appState.shiftHeld){
                     if(laneTouchSlots.has(slot))releasePerformanceTouch(slot,true);
-                    const setting=keyContext==='parallel_mode'?'parallel_scale':'key_center_scale';
-                    const options=keyContext==='parallel_mode'?PARALLEL_SCALES:['Parent Mode','Parallel Scale'];
+                    const setting=keyContext==='dominant_color'?'dominant_color_family':keyContext==='parallel_mode'?'parallel_scale':'key_center_scale';
+                    const options=keyContext==='dominant_color'?DOMINANT_COLORS:keyContext==='parallel_mode'?PARALLEL_SCALES:['Parent Mode','Parallel Scale'];
                     const current=Math.max(0,options.indexOf(lanePort.performanceGet(setting)));
                     const index=Math.max(0,Math.min(options.length-1,current+delta));
                     if(delta){lanePort.performanceSet(setting,options[index]);markUiStateDirty();}
-                    ctl.state.peek={key:keyContext,title:keyContext==='parallel_mode'?'Parallel Scale':'New Key Scale',options,index,at:Date.now()};
+                    ctl.state.peek={key:keyContext,title:keyContext==='dominant_color'?'Dominant Color':keyContext==='parallel_mode'?'Parallel Scale':'New Key Scale',options,index,at:Date.now()};
                 }else if(delta){lanePort.performanceSet(keyContext,delta>0?'LatchOn':'LatchOff');markUiStateDirty();}
                 approachTouched(lanePort);ctl.revalue();touchPaintPending=true;return;
             }
@@ -71,7 +71,7 @@ def patch_approach_mode(root: Path) -> None:
                 return;
             }
 """)
-    source = replace_once(source,'            const namedControl = /^motion_control_', '''            if(key==='key_center'||key==='parallel_mode'){
+    source = replace_once(source,'            const namedControl = /^motion_control_', '''            if(key==='key_center'||key==='parallel_mode'||key==='dominant_color'){
                 if(appState.shiftHeld)return;
                 lanePort.performanceSet(key,'Down');approachTouched(lanePort);markUiStateDirty();laneTouchSlots.add(slot);
                 ownPerformanceTouch(slot,()=>{
@@ -95,7 +95,7 @@ def patch_approach_mode(root: Path) -> None:
     path.write_text(source)
     path=root/'src/renderer/schwung-page.ts'
     source=path.read_text().replace('    readonly ready: boolean;', '    readonly ready: boolean;\n    readonly knobLEDMask: number;')
-    source=source.replace('        get ready() { return loaded; },', "        get ready() { return loaded; },\n        get knobLEDMask() { return hostedModuleId==='harmonybus'?(keysOf().reduce((mask,key,index)=>mask|(/^approach_bank_|^approach_motif_latch$|^key_center$|^parallel_mode$|^motion_control_|^follow_touch_/.test(key??'')?1<<index:0),0)|motifKnobSelectionMask(port.track.index)):0; },")
+    source=source.replace('        get ready() { return loaded; },', "        get ready() { return loaded; },\n        get knobLEDMask() { return hostedModuleId==='harmonybus'?(keysOf().reduce((mask,key,index)=>mask|(/^approach_bank_|^approach_motif_latch$|^key_center$|^parallel_mode$|^dominant_color$|^motion_control_|^follow_touch_/.test(key??'')?1<<index:0),0)|motifKnobSelectionMask(port.track.index)):0; },")
     path.write_text(source)
     path=root/'src/renderer/knob-leds.ts'
     source=path.read_text().replace('updateKnobLEDs(vm: ViewModel)', 'updateKnobLEDs(vm: ViewModel, ownedMask = 0)')

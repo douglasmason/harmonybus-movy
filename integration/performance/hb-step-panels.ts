@@ -1,7 +1,7 @@
 /* Presentation only: keep the complete parameter metadata for held gestures. */
 const operations = new Set(['follower_touch', 'operations_9_16',
     'motion_operation', 'motion_timing', 'motion_conditions']);
-const hiddenPanels = new Set(['mixed_cadences_1', 'mixed_cadences_2', 'pitch_cadences','secondary_scale']);
+const hiddenPanels = new Set(['mixed_cadences_1', 'mixed_cadences_2', 'pitch_cadences']);
 const harmonyPlay = new Set(['pitch_play','secondary']);
 const motifs = new Set(['motifs', 'motif_tools', 'motif_play']);
 const performSetup = new Set(['follower_play', 'follower_play_tools', 'motif_global']);
