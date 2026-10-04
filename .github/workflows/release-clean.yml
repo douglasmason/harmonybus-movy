@@ -112,6 +112,7 @@ jobs:
               'engine/crates/seq-core/src/hb_render_rhythm.rs',
               'src/renderer/hb-motif.ts',
               'src/renderer/hb-approach.ts',
+              'src/renderer/hb-choice-order.ts',
               'src/renderer/knob-leds.ts',
               'src/renderer/motif-feedback.ts',
               'src/seq/step-rec-target.ts',
