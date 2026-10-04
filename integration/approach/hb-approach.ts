@@ -8,13 +8,13 @@ import { cachedSetAnimLED } from '../seq/led-cache.js';
 import { ANIM_NONE, ANIM_PULSE_SLOW } from '../seq/colors.js';
 import { seqToast } from '../seq/render.js';
 export const DOMINANT_COLORS=DOMINANT_COLOR_ORDER;
-export const APPROACH_CHOICES = ['Secondary V','Secondary II','Connector Below','Connector Above','Leading Tone','Tritone Sub','Backdoor V','Backdoor II','Tritone II','Secondary VI','Secondary III','Secondary IV','Secondary VII','Upper Dim','Secondary Fifth','Secondary II (Dom)','Secondary IV (Dom)','Secondary VI (Dom)',...Array.from({length:16},(_,index)=>'Motif '+(index+1))];
+export const APPROACH_CHOICES = ['Secondary V (Dom)','Secondary II','Connector Below','Connector Above','Leading Tone','Tritone Sub','Backdoor V','Backdoor II','Tritone II','Secondary VI','Secondary III','Secondary IV','Secondary VII','Upper Dim','Secondary Fifth','Secondary II (Dom)','Secondary IV (Dom)','Secondary VI (Dom)',...Array.from({length:16},(_,index)=>'Motif '+(index+1))];
 export const APPROACH_MOTIFS = ['V-Target','ii-V-Target','iv-bVII-Target','bII7-Target','ii-bII7-Target','bVI-bVII-I','bVI-V-I','bIII-IV-I','vi-V-I','iii-vi-ii-V-I','IV-iv-I','ii halfdim-V-i','I-VI7-ii-V-I','V/V-V-I','ii/V-V/V-V-I','V/ii-ii-V-I','V/vi-vi-ii-V-I','vii dim/V-V-I','III7-VI7-II7-V7-I',...Array.from({length:16},(_,index)=>'User '+(index+1))];
 export const TRIPLE_MOTIFS=['vi-ii-V','ii-V-LT','iv-bVII-LT','ii-bII7-LT','iii-vi-ii','IV-ii-V','vii-iii-vi','LT-ii-V'];
 export const BANK_CHOICES=orderedBankChoices([...APPROACH_CHOICES.filter(name=>!name.startsWith('Motif ')),...APPROACH_MOTIFS.map((name,index)=>index<19?'Stock: '+name:name),...TRIPLE_MOTIFS.map(name=>'Stock: '+name)]);
 /** Only the two dedicated approach layouts turn bank knobs into row selectors. */
 export function approachRowsActive(): boolean { return keyboardState.layout===2||keyboardState.layout===3; }
-export const APPROACH_BANK_DEFAULTS=['Secondary V','Secondary II','Connector Below','Connector Above','Leading Tone','Tritone Sub','Backdoor V','Upper Dim','Stock: ii-V-Target','Stock: iv-bVII-Target','Stock: ii-bII7-Target','Stock: vi-ii-V','Stock: ii-V-LT','Stock: V/V-V-I','Stock: iii-vi-ii-V-I','Stock: ii/V-V/V-V-I'];
+export const APPROACH_BANK_DEFAULTS=['Secondary V (Dom)','Secondary II','Connector Below','Connector Above','Leading Tone','Tritone Sub','Backdoor V','Upper Dim','Stock: ii-V-Target','Stock: iv-bVII-Target','Stock: ii-bII7-Target','Stock: vi-ii-V','Stock: ii-V-LT','Stock: V/V-V-I','Stock: iii-vi-ii-V-I','Stock: ii/V-V/V-V-I'];
 let owner: PerformancePort | null = null;
 let keyCenterLabel='';
 let dominantColorStatus='Off',dominantColorFamily='Altered V';
@@ -146,6 +146,7 @@ export function approachPanels(hierarchy: any, mode: number): void {
         {key:'approach_motif_latch',name:'Motif Latch',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'},
         {key:'motion_control_32',name:'Chord + Arp',type:'enum',options_as_string:true,options:['Chord Only / Release','Arp Only / Release','Both / Release','Chord Only / Press','Arp Only / Press','Both / Press'],default:'Both / Release'},
         {key:'dominant_color'}, {key:'target_scale_source'},
+        {key:'harm_play_advance',name:'Advance Motif',type:'enum',options:['Next'],options_as_string:true,default:'Next'},
     ];
     levels.harm_play_settings=panel('Harm Play Settings',params.map(parameter=>parameter.key),params);
     links.push({level:'harm_play_settings'});
@@ -190,7 +191,7 @@ export function performKnobCaption(key:string|null):string {
 export function drawApproachOperations(keys: (string | null)[], values: Record<string, unknown>, touched: number): void {
     if (!keys.some(key => /^approach_bank_|^approach_motif_latch$/.test(key ?? ''))) return;
     const names: Record<string, string> = {
-        'Secondary V':'Sec V', 'Secondary II':'Sec II', 'Connector Below':'CCB',
+        'Secondary V (Dom)':'Sec V', 'Secondary II':'Sec II', 'Connector Below':'CCB',
         'Connector Above':'CCA', 'Leading Tone':'LT', 'Tritone Sub':'TTS',
         'Backdoor V':'Back V', 'Backdoor II':'Back II', 'Tritone II':'TTS II',
         'Secondary VI':'Sec VI', 'Secondary III':'Sec III', 'Secondary IV':'Sec IV',

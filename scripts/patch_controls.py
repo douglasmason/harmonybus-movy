@@ -9,6 +9,8 @@ def patch_controls(root: Path) -> None:
     source: str = path.read_text()
     source = "import { flagValue } from '../seq/flags.js';\nimport { setHbPerformanceMode } from './hb-performance.js';\n" + source
     source = replace_once(source, '        getParam: (k: string) => {', '''        getParam: (k: string) => {
+            if(k.endsWith(':harm_play_advance'))return 'Next';
+            if(k.endsWith(':track_defaults_reset'))return 'Shift+Touch';
             if (k.endsWith(':hb_step_row') || k === 'hb_step_row') return flagValue('hbsteprow') ? 'Perform' : 'Steps';''')
     source = replace_once(source, '            const v = port.getParam(qualify(k));', '''            let v = port.getParam(qualify(k));
             if (hostedModuleId === 'harmonybus' && k.endsWith(':ui_hierarchy') && v) {

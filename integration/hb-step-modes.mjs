@@ -52,6 +52,13 @@ const checkCadences=()=>{
     assert.deepEqual([...page.ctl.state.metaIndex.get('motion_operation').options].sort(),[...module.capabilities.chain_params.find(p=>p.key==='motion_operation').options].sort(),'Lane assignment keeps every operation');
 };
 checkCadences();
+const resetPage=order('track_defaults_reset');assert(resetPage>=0);
+page.goToPage(resetPage);const resetSlot=page.ctl.page.keys.indexOf('track_defaults_reset');
+const beforeReset=writes.length;page.knobTouch(resetSlot,true);page.knobTouch(resetSlot,false);
+assert.equal(writes.length,beforeReset,'Ordinary touch never resets the track');
+appState.shiftHeld=true;page.knobTouch(resetSlot,true);page.knobTouch(resetSlot,false);appState.shiftHeld=false;
+assert(writes.slice(beforeReset).some(([,key,value])=>key==='midi_fx1:track_defaults_reset'&&value==='0'),'Reset uses the selected zero-based track identity');
+page.goToPage(0);
 assert(order('follower_explicit_root')<order('chord_mode'));
 assert.equal(order('chord_mode'),3,'Chords follows Main, Global and Follower Root');
 assert.equal(order('arp_playback'),5,'Arp / Strum follows Chord Forms');
@@ -98,9 +105,10 @@ try {
     const assignmentIndex=order('approach_bank_1');
     const beforeSettings=writes.length;
     page.goToPage(settingsIndex);
-    assert.deepEqual(page.ctl.page.keys,['key_center','parallel_mode','approach_motif_latch','motion_control_32','dominant_color','target_scale_source']);
+    assert.deepEqual(page.ctl.page.keys,['key_center','parallel_mode','approach_motif_latch','motion_control_32','dominant_color','target_scale_source','harm_play_advance']);
     assert.equal(page.pageTitle,'Harm Play Settings');
     const settingsOwner=hbPerformancePage();assert(settingsOwner);
+    page.knobTouch(6,true);assert.deepEqual(writes.at(-1).slice(1),['midi_fx1:harm_play_advance','Next']);page.knobTouch(6,false);
     for(let step=0;step<16;step++){
         hbPerformanceStep([0x90,16+step,100],settingsOwner);
         now+=40;hbPerformanceStep([0x80,16+step,0],settingsOwner);

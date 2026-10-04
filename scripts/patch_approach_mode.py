@@ -28,12 +28,13 @@ def patch_approach_mode(root: Path) -> None:
     source = "import { orderHarmonyChoices } from './hb-choice-order.js';\nimport { approachPanels } from './hb-approach.js';\n" + path.read_text()
     source = source.replace('    return hierarchy;\n}', '    approachPanels(hierarchy,mode);\n    return hierarchy;\n}')
     source = source.replace('    const levels = hierarchy.levels;', '    orderHarmonyChoices(hierarchy);\n    const levels = hierarchy.levels;')
+    source = source.replace('    const levels = hierarchy.levels;', "    const levels = hierarchy.levels;\n    if(levels.secondary_scale){levels.secondary_scale.params.push({key:'track_defaults_reset',name:'Reset Track',type:'enum',options:['Shift+Touch'],options_as_string:true});levels.secondary_scale.knobs.push('track_defaults_reset');}")
     path.write_text(source)
     path = root / 'src/seq/flags-def.ts'
     source = path.read_text().replace("labels: ['STEPS','PERFORM']", "labels: ['STEPS','PERFORM','APPROACH']").replace("min: 0, max: 1, def: 0, uiOnly: true, release: true,\n        hint: 'Copy tap: Steps or Perform.'", "min: 0, max: 2, def: 0, uiOnly: true, release: true,\n        hint: 'Copy tap: Steps, Perform or Approach.'")
     path.write_text(source)
     path = root / 'src/renderer/schwung-page.ts'
-    source = "import { choiceGroup, orderHarmonyChoices } from './hb-choice-order.js';\nimport { approachRowsActive, approachTouched, drawApproachOperations, drawDetectedChordForm, PARALLEL_SCALES, DOMINANT_COLORS } from './hb-approach.js';\n" + path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
+    source = "import { seqToast } from '../seq/render.js';\nimport { choiceGroup, orderHarmonyChoices } from './hb-choice-order.js';\nimport { approachRowsActive, approachTouched, drawApproachOperations, drawDetectedChordForm, PARALLEL_SCALES, DOMINANT_COLORS } from './hb-approach.js';\n" + path.read_text().replace("['Steps','Perform']", "['Steps','Perform','Approach']").replace("v === 'Perform' || v === '1' ? 1 : 0", "v === 'Approach' || v === '2' ? 2 : v === 'Perform' || v === '1' ? 1 : 0")
     source = replace_once(source, "            if (hostedModuleId === 'harmonybus' && k.endsWith(':ui_hierarchy') && v) {", """            if (hostedModuleId === 'harmonybus' && k.endsWith(':chain_params') && v) {
                 try { const parameters=JSON.parse(v);orderHarmonyChoices(parameters);v=JSON.stringify(parameters); } catch (_) {}
             }
@@ -42,6 +43,7 @@ def patch_approach_mode(root: Path) -> None:
     source = source.replace('            if (laneTouchSlots.has(slot)) {\n                releasePerformanceTouch(slot, true);', "            if (laneTouchSlots.has(slot) && !/^approach_bank_/.test(ctl.keyAt(slot))) {\n                releasePerformanceTouch(slot, true);")
     source = replace_once(source, '        knobTurn: (slot: number, delta: number) => {', """        knobTurn: (slot: number, delta: number) => {
             const keyContext=ctl.keyAt(slot);
+            if(keyContext==='harm_play_advance'||keyContext==='track_defaults_reset')return;
             if(keyContext==='key_center'||keyContext==='parallel_mode'||keyContext==='dominant_color'){
                 if(appState.shiftHeld&&keyContext==='key_center')return;
                 if(appState.shiftHeld){
@@ -78,7 +80,17 @@ def patch_approach_mode(root: Path) -> None:
                 return;
             }
 """)
-    source = replace_once(source,'            const namedControl = /^motion_control_', '''            if(key==='key_center'||key==='parallel_mode'||key==='dominant_color'){
+    source = replace_once(source,'            const namedControl = /^motion_control_', '''            if(key==='harm_play_advance'){
+                if(!appState.shiftHeld){lanePort.performanceSet(key,'Next');approachTouched(lanePort);touchPaintPending=true;}return;
+            }
+            if(key==='track_defaults_reset'){
+                if(appState.shiftHeld){
+                    for(const heldSlot of [...laneTouchSlots])releasePerformanceTouch(heldSlot,true);
+                    lanePort.performanceSet(key,String(port.track.index));markUiStateDirty();
+                    reload();seqToast('Reset HB T'+(port.track.index+1));touchPaintPending=true;
+                }return;
+            }
+            if(key==='key_center'||key==='parallel_mode'||key==='dominant_color'){
                 if(appState.shiftHeld)return;
                 lanePort.performanceSet(key,'Down');approachTouched(lanePort);markUiStateDirty();laneTouchSlots.add(slot);
                 ownPerformanceTouch(slot,()=>{

@@ -3,7 +3,7 @@ const operationGroups: [string, string[]][] = [
     ['Off', ['Off']],
     ['Connectors', ['Connector Below','Connector Above','Enclose Above Below','Enclose Below Above']],
     ['Parent Secondaries', ['Secondary II','Secondary III','Secondary IV','Secondary Fifth','Secondary VI','Secondary VII']],
-    ['Dominant Approach', ['Secondary II (Dom)','Secondary IV (Dom)','Secondary VI (Dom)','Secondary V','Leading Tone','Upper Dim']],
+    ['Dominant Approach', ['Secondary II (Dom)','Secondary IV (Dom)','Secondary VI (Dom)','Secondary V (Dom)','Leading Tone','Upper Dim']],
     ['Substitutions', ['Backdoor II','Backdoor V','Tritone II','Tritone Sub']],
     ['Motif', ['Play Motif']],
     ['Harmony', ['Harmony','Key Center','Parallel Scale','Live Harmony Override','Override Harmony (Live + Recorded)']],
