@@ -705,3 +705,19 @@ console.log('Native LED frame: one bounded submission, whole rejection, silent u
     }finally{port.getParam=originalGet;port.setParam=originalSet;}
 }
 console.log('Harmony Off: stable scale/tonic background, no harmony pulses, live feedback and mode switching pass');
+
+// Context changes must repaint a silent footer without a note or input event.
+{
+    const {harmonyFooterSnapshot}=await import('../dist/esm/keyboard/harmony-pads.js');
+    let footer='0,1,-1,0,-1,0';
+    portFor(7).getParam=()=>`0,0,2741,1,0,0,3,0,4,2|footer1,${footer}`;
+    refreshHarmonyPads(7,testTime+=100);
+    appState.dirty=false;refreshHarmonyPads(7,testTime+=100);
+    assert.equal(appState.dirty,false,'Identical footer does not repaint');
+    footer='9,1,-1,0,-1,0';refreshHarmonyPads(7,testTime+=100);
+    assert(appState.dirty,'New tonic repaints without a note');
+    assert.deepEqual(harmonyFooterSnapshot(7),[9,1,-1,0,-1,0]);
+    appState.dirty=false;footer='9,2,-1,0,-1,0';refreshHarmonyPads(7,testTime+=100);
+    assert(appState.dirty,'Same-tonic scale change repaints without a note');
+}
+console.log('Key Center footer: idle tonic and scale changes repaint immediately');

@@ -183,7 +183,10 @@ export function refreshHarmonyPads(track: number, now = Date.now()): void {
     // The shared host parameter slot can miss a read while chains restore or
     // another page is polling. A failed read is not an empty harmony model:
     // retain the last complete frame and retry on the normal bounded cadence.
-    if (next) snapshot = next;
+    if (next) {
+        if(next.footer?.join(',')!==snapshot?.footer?.join(','))appState.dirty=true;
+        snapshot = next;
+    }
     settings = snapshot?.settings || [0,0,0,4,2];
     const input = snapshot?.input;
     const scale = snapshot?.globalScale || input;

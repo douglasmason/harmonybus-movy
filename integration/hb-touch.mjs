@@ -929,10 +929,11 @@ console.log('Chord Forms: eight unified controls, detected readout, no duplicate
     const {performKnobCaption}=await import('../dist/esm/renderer/hb-approach.js');
     const {keyboardState}=await import('../dist/esm/keyboard/state.js');
     const oldClock=Date.now,oldSend=globalThis.move_midi_internal_send,oldLayout=keyboardState.layout;
-    let now=2000000,active=0,persistent=0,down=0,motifLatch='Off';const packets=[];
+    let now=2000000,active=0,persistent=0,down=0,motifLatch='Off',keyView='Off|C||Off|Altered V';const packets=[];
     let rows=[1,0,1,0,-1,0,0,0,0,2,1,0,0,0,0,0,0];
     const owner={performanceTrack:14,performanceSet(){},performanceGet(key){
         if(key==='motion_named_lights')return [active,persistent,down,...Array(35).fill(20)].join(',');
+        if(key==='key_center_view')return keyView;
         if(key==='approach_motif_latch')return motifLatch;
         if(key==='approach_row_status')return rows.join(',');
         if(key==='approach_rows_view')return '3,CCB|2,CCA|1,LT';
@@ -950,6 +951,12 @@ console.log('Chord Forms: eight unified controls, detected readout, no duplicate
             assert(packets.some(p=>p[1]===0xb0&&p[2]===78&&p[3]===0),'Empty knob 8 CC LED is dark');
             assert(packets.some(p=>p[1]===0x9a&&p[2]===2&&p[3]===16),'Dedicated motif latch pulses teal');
             motifLatch='Off';paint();assert.equal(performKnobCaption('approach_motif_latch'),'Off');
+            keyView='Armed|C|C>A|Off|Altered V';paint();assert.equal(performKnobCaption('key_center'),'C>A');
+            appState.dirty=false;keyView='On|A|C>A|Off|Altered V';paint();
+            assert.equal(performKnobCaption('key_center'),'A','Committed tonic wins over a stale preview');
+            assert(appState.dirty,'Silent Key Center commit requests a repaint');
+            keyView='On|Am||Off|Altered V';paint();assert.equal(performKnobCaption('key_center'),'Am');
+
             for(const state of ['Armed','Latch','Hold','Off']){
                 active=state==='Off'?0:32768;persistent=state==='Latch'?32768:0;down=state==='Hold'?32768:0;
                 seqLedsInvalidate();packets.length=0;paint();paint();

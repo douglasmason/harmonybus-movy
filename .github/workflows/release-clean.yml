@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: 3ea01e20d2017ca72c423cb03a63bfe1935100b2
-  HB_MOVY_VERSION: 0.34.1-hbclean.167
-  HB_MOVY_TAG: v0.34.1-hbclean.167
+  HB_REF: e0110a582a7e3829d97e11aa90262b2085da83f7
+  HB_MOVY_VERSION: 0.34.1-hbclean.168
+  HB_MOVY_TAG: v0.34.1-hbclean.168
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -472,7 +472,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Pair with HarmonyBus 0.2.250. Add opt-in LEGACY and X Launchpad profiles following Movy input layouts, top-row knob operations and LEDs, side-button latch modifier, captured release ownership, and Launchpad X polyphonic pressure recording. Read docs/launchpad.md for required dedicated-input routing and hardware checks."
+              --notes "Pair with HarmonyBus 0.2.251. Redraw the current key and scale immediately when Key Center commits, discard stale destination captions, and preserve anticipated destination scales in recorded approach metadata."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
