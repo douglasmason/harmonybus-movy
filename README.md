@@ -433,3 +433,18 @@ Track selection pulse: allow the track-color base to drain before its white anim
 ## Key changes — hbclean.145
 
 Harm Play knobs 5–8 are Key Center, Parallel Scale, Motif Latch, and Chord + Arp, with teal feedback. Shift-turn knob 6 chooses the parallel scale. Global Transpose contains Key Change Scale (Simplified Major/Minor, Mode from Parent, Use Parallel Scale) and Conductor Travel (Relative, Closest Chord Tone). The first landing note uses the previous key; following notes and recorded playback render in the new key, including MIDI to Schwung stock tracks. Source notes remain unchanged. Relative keeps its degree and selects the nearest octave; followers retain their own travel settings. Requires the accompanying HarmonyBus 0.2.235 release.
+
+
+### Harm Play controls and settings (hbclean.171)
+
+Perform 2 now places Harm Play Controls immediately before Harm Play Settings.
+Controls activate Key Center, Parallel Scale, Motif Latch, Chord + Arp,
+Dominant Color, Release and Advance Motif. Settings exposes seven ordinary knobs:
+Key Center Scale, Conductor Travel, Parallel Scale, Target Scale Source,
+Dominant Color Family, Release Length and Chord + Arp Mode. The eighth slot is empty.
+Touch a setting to peek its choices; turn to edit without activating an operation.
+These are the existing saved values, also used by their original settings panels.
+Conductor Travel retains Relative and Closest Chord Tone; this release does not add
+Closest Split to conductors. Shift-touch/turn Key Center shows and edits its actual
+scale-choice list; Parallel Scale and Dominant Color shortcuts also show their choices.
+Pad settings remain under Shift + Step 9, outside the HarmonyBus panel list.
