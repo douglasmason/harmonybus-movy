@@ -21,7 +21,7 @@ const motifGroups: [string, string[]][] = [
     ['Secondary Chains', ['V/V-V-I','ii/V-V/V-V-I','vii dim/V-V-I','V/ii-ii-V-I','V/vi-vi-ii-V-I']],
     ['Three-Step Motifs', ['vi-ii-V','ii-V-LT','iv-bVII-LT','ii-bII7-LT','iii-vi-ii','IV-ii-V','vii-iii-vi','LT-ii-V']],
 ];
-export const DOMINANT_COLOR_ORDER=['None','Simplified Target','Major','Harmonic Major','Harmonic Minor','Melodic Minor','Altered V'];
+export const DOMINANT_COLOR_ORDER=['None','Minimal','Simplified Target','Major','Harmonic Major','Harmonic Minor','Melodic Minor','Altered V'];
 const chordOrder=['Follow Role','Follow Detected','Auto','Root Only','Root + Third','Root + Seventh','Power','Triad','Sus2','Sus4','Sixth','Add9','Seventh','6/9','Ninth','Eleventh','Thirteenth','Shell 7','Shell 9','Shell 6/9','Rootless 7','Rootless 9'];
 const operationOrder=operationGroups.flatMap(([,choices])=>choices);
 const motifOrder=motifGroups.flatMap(([,choices])=>choices);
