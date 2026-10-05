@@ -18,7 +18,10 @@ pub fn parse(message:&str)->Option<(u8,Actions)>{
     } else {actions.copy_from_slice(&words);}
     if actions[LANES]&!(8063| (127u64<<13) | (((1u64<<23)-1)<<20))!=0 || (actions[LANES]>>2)&3>2 || (((actions[LANES]>>4)&7)|((actions[LANES]>>5)&8))>10{return None;}
     let intent=actions[LANES];
-    if intent&(((1u64<<23)-1)<<20)!=0 && (intent&(1u64<<20)==0 || (intent>>21)&3>2 || (intent>>23)&15>12 || (intent>>27)&31>16 || (intent>>32)&15>11 || (intent>>36)&31>17 || (intent>>41)&3>2){return None;}
+    // Mode 3 carries the destination scale anticipated by this approach.
+    let mode=(intent>>21)&3;let scale=(intent>>36)&31;
+    let valid_scale=if mode==3 {(1..=19).contains(&scale)||scale==31} else {scale<=17};
+    if intent&(((1u64<<23)-1)<<20)!=0 && (intent&(1u64<<20)==0 || (intent>>23)&15>12 || (intent>>27)&31>16 || (intent>>32)&15>11 || !valid_scale || (intent>>41)&3>2){return None;}
     let cadence=(actions[LANES]>>13)&127;
     if cadence>0 {let index=(cadence-1) as usize;let lengths=[3,3,3,3,5,3,3,5,3,4,4,5,3,5];
         if index/6>=lengths.len() || index%6>=lengths[index/6]{return None;}}
@@ -102,5 +105,18 @@ impl Interval {
         assert_eq!(operation(parsed[18]),26);assert_eq!(parsed[LANES],4624);assert_eq!(parsed[37],0);
         let mut bad=[0u64;LANES+1];bad[LANES]=(1<<20)|(15<<32);
         assert!(parse(&format!("ra4,{}",payload(60,bad))).is_none());
+    }
+}
+
+#[cfg(test)] mod destination_scale_tests {
+    use super::*;
+    #[test] fn anticipated_scales_round_trip_without_narrowing_words() {
+        for scale in 0u64..32 {
+            let mut actions=[0;LANES+1];
+            actions[LANES]=(1u64<<20)|(3u64<<21)|(scale<<36)|(2u64<<4);
+            let parsed=parse(&format!("ra4,{}",payload(69,actions)));
+            if (1..=19).contains(&scale)||scale==31 {assert_eq!(parsed,Some((69,actions)));}
+            else {assert!(parsed.is_none());}
+        }
     }
 }

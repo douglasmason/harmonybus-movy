@@ -38,7 +38,7 @@ function refreshRows(port: PerformancePort): void {
     const color=keyView[3]||'Off',family=keyView[4]||'Altered V';
     if(color!==dominantColorStatus||family!==dominantColorFamily){dominantColorStatus=color;dominantColorFamily=family;appState.dirty=true;}
     const center=keyView.length>=2?keyView[0]:(port.performanceGet('key_center')||'Off'),parallel=port.performanceGet('parallel_mode')||'Off';
-    const label=keyView.length>=2?(keyView[2]||keyView[1]):center;
+    const label=keyView.length>=2?(center==='Armed'?(keyView[2]||keyView[1]):keyView[1]):center;
     if(label!==keyCenterLabel){keyCenterLabel=label;appState.dirty=true;}
     if(center!==keyCenterStatus||parallel!==parallelStatus){keyCenterStatus=center;parallelStatus=parallel;appState.dirty=true;}
     const latch=port.performanceGet('approach_motif_latch')||'Off';
