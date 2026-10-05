@@ -13,6 +13,7 @@ export interface TrailSettings {
     curve: TrailCurve;
     decayBeats: number;
     exponent?: TrailExponent;
+    peak?: number;
     strength: number;
     floor?: number;
 }
@@ -67,7 +68,7 @@ export class TrailHistory {
             (settings.window!=='chord'||generation===chord)&&
             (settings.window!=='previous-chord'||generation>=chord-1);
         if(!inside(latest,latestChord,beat,this.chord))return 0;
-        const peak=inside(previous,previousChord,latest,latestChord)?1:0.8;
+        const peak=inside(previous,previousChord,latest,latestChord)?1:(settings.peak??0.8);
         const fade=trailFade(beat-latest,settings.decayBeats,settings.curve,settings.exponent,settings.floor,peak);
         return fade*Math.max(0,Math.min(1,settings.strength));
     }
