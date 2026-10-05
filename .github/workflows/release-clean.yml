@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: 5fe7c62909a8290543f008015c3a272fd8f4887f
-  HB_MOVY_VERSION: 0.34.1-hbclean.168
-  HB_MOVY_TAG: v0.34.1-hbclean.168
+  HB_REF: 6f3a506b326ef5bca70b52994ad9806c9dff37a2
+  HB_MOVY_VERSION: 0.34.1-hbclean.169
+  HB_MOVY_TAG: v0.34.1-hbclean.169
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -472,7 +472,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Pair with HarmonyBus 0.2.251. Redraw the current key and scale immediately when Key Center commits, discard stale destination captions, and preserve anticipated destination scales in recorded approach metadata."
+              --notes "Pair with HarmonyBus 0.2.252. Expose Minimal dominant collections alongside unified preparation, leading-tone and sparse-form intent mapping."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
