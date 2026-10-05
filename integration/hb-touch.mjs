@@ -992,6 +992,7 @@ console.log('Perform captions and cyan Chord + Arp LED: Off/Armed/Hold/Latch, ro
 // Key controls preserve captured releases and route Shift edits to the scale selector.
 {
     const {appState}=await import('../dist/esm/app/state.js');
+    setInitialMode('hbsteprow',0);page.reload();
     for(const key of ['key_center_scale','conductor_key_travel','parallel_scale']){
         const slot=focusKey(key);
         assert.equal(page.pageTitle,'Key & Scale');
@@ -1013,8 +1014,8 @@ console.log('Perform captions and cyan Chord + Arp LED: Off/Armed/Hold/Latch, ro
 console.log('Key Center and Parallel Scale: global settings, physical slots, captured release, latch and Shift scale selection pass');
 
 assert(focusKey('harm_play_advance')>=0,'Harm Play settings is reachable');
-assert(focusKey('harm_play_release')===6,'Release Length sits beside Release on the seventh knob');
-assert(page.knobLEDMask & 64,'Release Length owns the seventh LED');
+assert(focusKey('harm_play_release')===5,'Release Length is the sixth configuration knob');
+assert(page.knobLEDMask & 32,'Release Length owns its setting LED');
 console.log('Empty Harm Play knob: both LED addresses off and legacy painter excluded');
 {
     const {approachPanels}=await import('../dist/esm/renderer/hb-approach.js');
@@ -1030,3 +1031,32 @@ console.log('Empty Harm Play knob: both LED addresses off and legacy painter exc
     assert(!writes.slice(before).some(([key])=>key==='midi_fx1:harm_play_release'),'Shift changes harmony policy, not duration');
     assert.equal(page.ctl.state.peek.title,'Release Harmony');
 }
+
+// The settings page edits configuration without arming performance operations.
+{
+    setInitialMode('hbsteprow',2);page.reload();
+    const index=page.ctl.pages.findIndex(candidate=>candidate.keys?.[0]==='key_center_scale'&&candidate.keys?.[3]==='target_scale_source');
+    assert(index>=0);page.goToPage(index);for(let tick=0;tick<64;tick++)page.tick();
+    assert.equal(page.pageTitle,'Harm Play Settings');
+    assert.deepEqual(page.ctl.page.keys,['key_center_scale','conductor_key_travel','parallel_scale','target_scale_source','dominant_color_family','harm_play_release','harm_play_chord_arp_mode']);
+    for(let slot=0;slot<7;slot++){
+        const before=writes.length;page.knobTouch(slot,true);
+        assert(page.ctl.state.peek?.options?.length>1,'Settings touch shows the choices');
+        page.knobTouch(slot,false);
+        assert.equal(writes.length,before,'Settings touch must never activate an operation');
+    }
+    const before=writes.length;page.knobTouch(6,true);page.knobTurn(6,1);page.knobTouch(6,false);
+    assert(writes.slice(before).some(([key,value])=>key==='midi_fx1:motion_control_32'&&!['Down','Up','Touch','LatchOn'].includes(value)),'Mode edits use the existing saved chord/arp choice');
+    assert(!writes.slice(before).some(([key])=>key.includes('gesture')));
+    const controls=page.ctl.pages.findIndex(candidate=>candidate.keys?.[0]==='key_center');page.goToPage(controls);
+    for(let tick=0;tick<64;tick++)page.tick();
+    appState.shiftHeld=true;const shifted=writes.length;page.knobTouch(0,true);
+    assert.equal(page.ctl.state.peek.title,'Key Center Scale');
+    const choices=JSON.parse(readFileSync(process.env.HB_MODULE,'utf8')).capabilities.chain_params.find(parameter=>parameter.key==='key_center_scale').options;
+    assert.deepEqual(page.ctl.state.peek.options,choices);
+    assert.equal(writes.length,shifted,'Shift touch only peeks');
+    page.knobTurn(0,-1);page.knobTurn(0,1);page.knobTouch(0,false);appState.shiftHeld=false;
+    assert(writes.slice(shifted).some(([key,value])=>key==='midi_fx1:key_center_scale'&&choices.includes(value)));
+    assert(!writes.slice(shifted).some(([key])=>key==='midi_fx1:key_center'),'Shift edits never arm Key Center');
+}
+console.log('Harm Play: separate activation/settings, harmless touches, saved chord/arp mode and Key Center scale peek pass');

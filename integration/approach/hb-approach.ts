@@ -136,7 +136,7 @@ export function paintApproachKnobs(port: PerformancePort, keys: (string | null)[
 export function approachPanels(hierarchy: any, mode: number): void {
     if(mode!==2)return;
     const levels=hierarchy.levels;
-    const panel=(name:string,keys:string[],params:any[])=>({name,knobs:keys,params});
+    const panel=(name:string,keys:(string|null)[],params:any[])=>({name,knobs:keys,params});
     const links: {level:string}[]=[];
     for(let bank=0;bank<2;bank++){
         const params:any[]=Array.from({length:8},(_,index)=>({key:'approach_bank_'+(bank*8+index+1),name:'Operation',type:'enum',options_as_string:true,options:BANK_CHOICES,default:APPROACH_BANK_DEFAULTS[bank*8+index]}));
@@ -152,7 +152,21 @@ export function approachPanels(hierarchy: any, mode: number): void {
         {key:'harm_play_release',name:'Release Length',type:'enum',options:["0 ms", "25 ms", "50 ms", "100 ms", "200 ms", "350 ms", "500 ms", "750 ms", "1000 ms", "1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "1 Bar", "2 Bars", "4 Bars", "Arp Note 1/2", "Arp Note 1", "Arp Note 2", "Arp Note 3", "Arp Note 4", "Arp Note 8", "Arp Cycle 1/4", "Arp Cycle 1/2", "Arp Cycle 1", "Arp Cycle 2", "Arp Cycle 4"],options_as_string:true,default:'0 ms'},
         {key:'harm_play_advance',name:'Advance Motif',type:'enum',options:['Next'],options_as_string:true,default:'Next'},
     ];
-    levels.harm_play_settings=panel('Harm Play Settings',params.map(parameter=>parameter.key),params);
+    const release=params.find(parameter=>parameter.key==='harm_play_release');
+    const controls=params.filter(parameter=>parameter.key!=='harm_play_release');
+    levels.harm_play_controls=panel('Harm Play Controls',[...controls.map(parameter=>parameter.key),null],controls);
+    links.push({level:'harm_play_controls'});
+    const settings=[
+        {key:'key_center_scale',name:'Key Center Scale'},
+        {key:'conductor_key_travel',name:'Conductor Travel'},
+        {key:'parallel_scale',name:'Parallel Scale'},
+        {key:'target_scale_source',name:'Target Scale Source'},
+        {key:'dominant_color_family',name:'Dominant Color Family'},
+        release,
+        {key:'harm_play_chord_arp_mode',name:'Chord + Arp Mode',type:'enum',options_as_string:true,
+            options:['Chord Only / Release','Arp Only / Release','Both / Release','Chord Only / Press','Arp Only / Press','Both / Press'],default:'Both / Release'},
+    ];
+    levels.harm_play_settings=panel('Harm Play Settings',[...settings.map(parameter=>parameter.key),null],settings);
     links.push({level:'harm_play_settings'});
     levels.root.params.push(...links);
 }

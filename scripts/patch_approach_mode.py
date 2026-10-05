@@ -41,8 +41,34 @@ def patch_approach_mode(root: Path) -> None:
             if (hostedModuleId === 'harmonybus' && k.endsWith(':ui_hierarchy') && v) {""")
     source = replace_once(source, "                    readCache.set(componentKey + ':chain_params', JSON.stringify(snapshot.params));", "                    orderHarmonyChoices(snapshot.params);\n                    readCache.set(componentKey + ':chain_params', JSON.stringify(snapshot.params));")
     source = source.replace('            if (laneTouchSlots.has(slot)) {\n                releasePerformanceTouch(slot, true);', "            if (laneTouchSlots.has(slot) && !/^approach_bank_/.test(ctl.keyAt(slot))) {\n                releasePerformanceTouch(slot, true);")
+    source = replace_once(source, "    const qualify = (k: string) => (k.indexOf(':') >= 0 ? k : componentKey + ':' + k);", """    const qualify = (k: string) => (k.indexOf(':') >= 0 ? k : componentKey + ':' + k).replace(':harm_play_chord_arp_mode', ':motion_control_32');
+    function isHarmSettings(): boolean {
+        return ctl.page?.keys?.[0]==='key_center_scale'&&ctl.page?.keys?.[3]==='target_scale_source';
+    }
+    function editHarmSetting(slot: number, delta: number): void {
+        const key=ctl.keyAt(slot),meta=ctl.metaAt(slot),options=meta?.options||[];
+        if(!key||!options.length)return;
+        const current=Math.max(0,options.indexOf(String(ctl.state.values[key])));
+        const index=Math.max(0,Math.min(options.length-1,current+delta));
+        if(delta&&index!==current){ctl.commitEnum(key,index);ctl.revalue();markUiStateDirty();}
+        ctl.state.peek={key,title:meta.label||meta.name||key,options,index,at:Date.now()};
+        touchPaintPending=true;
+    }
+    function editKeyContextSetting(key: string, slot: number, delta: number): void {
+        const setting=key==='dominant_color'?'dominant_color_family':key==='parallel_mode'?'parallel_scale':'key_center_scale';
+        let metadata:any[]=[];
+        try { metadata=JSON.parse(readCache.get(componentKey+':chain_params')||'[]'); } catch (_) {}
+        const options:string[]=metadata.find(parameter=>parameter.key===setting)?.options ||
+            (key==='dominant_color'?DOMINANT_COLORS:key==='parallel_mode'?PARALLEL_SCALES:['Simplified Major/Minor','Mode from Parent','Use Parallel Scale']);
+        const current=Math.max(0,options.indexOf(lanePort.performanceGet(setting)));
+        const index=Math.max(0,Math.min(options.length-1,current+delta));
+        if(delta&&index!==current){lanePort.performanceSet(setting,options[index]);markUiStateDirty();}
+        ctl.state.peek={key,title:key==='dominant_color'?'Dominant Color Family':key==='parallel_mode'?'Parallel Scale':'Key Center Scale',options,index,at:Date.now()};
+        touchPaintPending=true;
+    }""")
     source = replace_once(source, '        knobTurn: (slot: number, delta: number) => {', """        knobTurn: (slot: number, delta: number) => {
             const keyContext=ctl.keyAt(slot);
+            if(isHarmSettings()){editHarmSetting(slot,delta);return;}
             if(keyContext==='harm_play_advance'||keyContext==='track_defaults_reset')return;
             if(keyContext==='harm_play_release_control'&&appState.shiftHeld){
                 if(laneTouchSlots.has(slot))releasePerformanceTouch(slot,true);
@@ -58,15 +84,9 @@ def patch_approach_mode(root: Path) -> None:
                 approachTouched(lanePort);ctl.revalue();touchPaintPending=true;return;
             }
             if(keyContext==='key_center'||keyContext==='parallel_mode'||keyContext==='dominant_color'){
-                if(appState.shiftHeld&&keyContext==='key_center')return;
                 if(appState.shiftHeld){
                     if(laneTouchSlots.has(slot))releasePerformanceTouch(slot,true);
-                    const setting=keyContext==='dominant_color'?'dominant_color_family':keyContext==='parallel_mode'?'parallel_scale':'key_center_scale';
-                    const options=keyContext==='dominant_color'?DOMINANT_COLORS:keyContext==='parallel_mode'?PARALLEL_SCALES:['Parent Mode','Parallel Scale'];
-                    const current=Math.max(0,options.indexOf(lanePort.performanceGet(setting)));
-                    const index=Math.max(0,Math.min(options.length-1,current+delta));
-                    if(delta){lanePort.performanceSet(setting,options[index]);markUiStateDirty();}
-                    ctl.state.peek={key:keyContext,title:keyContext==='dominant_color'?'Dominant Color':keyContext==='parallel_mode'?'Parallel Scale':'New Key Scale',options,index,at:Date.now()};
+                    editKeyContextSetting(keyContext,slot,delta);
                 }else if(delta){lanePort.performanceSet(keyContext,delta>0?'LatchOn':'LatchOff');markUiStateDirty();}
                 approachTouched(lanePort);ctl.revalue();touchPaintPending=true;return;
             }
@@ -93,7 +113,14 @@ def patch_approach_mode(root: Path) -> None:
                 return;
             }
 """)
-    source = replace_once(source,'            const namedControl = /^motion_control_', '''            if(key==='harm_play_advance'){
+    source = replace_once(source,'            const namedControl = /^motion_control_', '''            if(isHarmSettings()){
+                editHarmSetting(slot,0);
+                ownPerformanceTouch(slot,()=>{
+                    ctl.state.peek=null;touchPaintPending=true;
+                    touchReadOnly=true;try{ctl.onKnobTouch(slot,false);}finally{touchReadOnly=false;}
+                });return;
+            }
+            if(key==='harm_play_advance'){
                 if(!appState.shiftHeld){lanePort.performanceSet(key,'Next');approachTouched(lanePort);touchPaintPending=true;}return;
             }
             if(key==='track_defaults_reset'){
@@ -112,7 +139,7 @@ def patch_approach_mode(root: Path) -> None:
                 });return;
             }
             if(key==='key_center'||key==='parallel_mode'||key==='dominant_color'){
-                if(appState.shiftHeld)return;
+                if(appState.shiftHeld){editKeyContextSetting(key,slot,0);return;}
                 lanePort.performanceSet(key,'Down');approachTouched(lanePort);markUiStateDirty();laneTouchSlots.add(slot);
                 ownPerformanceTouch(slot,()=>{
                     laneTouchSlots.delete(slot);lanePort.performanceSet(key,'Up');touchPaintPending=true;
