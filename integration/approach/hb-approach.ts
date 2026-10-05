@@ -158,15 +158,15 @@ export function approachPanels(hierarchy: any, mode: number): void {
     links.push({level:'harm_play_controls'});
     const settings=[
         {key:'key_center_scale',name:'Key Center Scale'},
-        {key:'conductor_key_travel',name:'Conductor Travel'},
+        {key:'conductor_key_travel',name:'Key Travel: Conductor'},
+        {key:'follower_recorded_key_travel',name:'Key Travel: Follower Rec'},
+        {key:'follower_live_key_travel',name:'Key Travel: Follower Live'},
         {key:'parallel_scale',name:'Parallel Scale'},
         {key:'target_scale_source',name:'Target Scale Source'},
         {key:'dominant_color_family',name:'Dominant Color Family'},
         release,
-        {key:'harm_play_chord_arp_mode',name:'Chord + Arp Mode',type:'enum',options_as_string:true,
-            options:['Chord Only / Release','Arp Only / Release','Both / Release','Chord Only / Press','Arp Only / Press','Both / Press'],default:'Both / Release'},
     ];
-    levels.harm_play_settings=panel('Harm Play Settings',[...settings.map(parameter=>parameter.key),null],settings);
+    levels.harm_play_settings=panel('Harm Play Settings',settings.map(parameter=>parameter.key),settings);
     links.push({level:'harm_play_settings'});
     levels.root.params.push(...links);
 }

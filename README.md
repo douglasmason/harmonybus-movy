@@ -1,3 +1,5 @@
+**Movy hbclean.172 / HarmonyBus 0.2.253:** Update both modules. Harm Play Settings groups Key Center Scale with key travel for Conductor, Follower Recorded and Follower Live. The two follower policies default to Same as Conductor and apply when Follower Travel is None (including legacy Direct). Choices: Relative, Closest Chord Tone, Closest Scale Tone and Closest Split. Relative now uses one tonic displacement across the melody instead of independently folding each note. Chromatic remains On by default; approach targets move before their approach is constructed. Recorded input/approach intent stays editable and key travel is a playback setting, not a per-note capture.
+
 **Movy hbclean.163 / HarmonyBus 0.2.246:** Harm Play Settings knob 7 is Advance Motif: touch once per step while holding a target pad. With no active motif/held target it does nothing. It adds no clip input press. Harmony Setup in Steps now has Reset Track, activated with Shift + touch; it resets HarmonyBus settings using that track number, preserving clips, instruments, mixer settings, shared defaults and other tracks. Update both modules.
 
 Chord + Arp and chord-state controls adopt already-held target pads independently of Retrigger Held. One-shot Chord + Arp ends on the adopted target’s release; explicit latch persists. Rapid release/repress now preserves an attack and restarts a momentary arp without waiting for the old arp division. Secondary V is labeled Secondary V (Dom) and uses a semitone-below leading-tone approach to diminished targets.
@@ -435,16 +437,27 @@ Track selection pulse: allow the track-color base to drain before its white anim
 Harm Play knobs 5–8 are Key Center, Parallel Scale, Motif Latch, and Chord + Arp, with teal feedback. Shift-turn knob 6 chooses the parallel scale. Global Transpose contains Key Change Scale (Simplified Major/Minor, Mode from Parent, Use Parallel Scale) and Conductor Travel (Relative, Closest Chord Tone). The first landing note uses the previous key; following notes and recorded playback render in the new key, including MIDI to Schwung stock tracks. Source notes remain unchanged. Relative keeps its degree and selects the nearest octave; followers retain their own travel settings. Requires the accompanying HarmonyBus 0.2.235 release.
 
 
-### Harm Play controls and settings (hbclean.171)
+### Harm Play controls and settings (hbclean.172)
 
-Perform 2 now places Harm Play Controls immediately before Harm Play Settings.
+Perform 2 places Harm Play Controls immediately before Harm Play Settings.
 Controls activate Key Center, Parallel Scale, Motif Latch, Chord + Arp,
-Dominant Color, Release and Advance Motif. Settings exposes seven ordinary knobs:
-Key Center Scale, Conductor Travel, Parallel Scale, Target Scale Source,
-Dominant Color Family, Release Length and Chord + Arp Mode. The eighth slot is empty.
+Dominant Color, Release and Advance Motif. Settings has eight knobs:
+Key Center Scale; Key Travel: Conductor; Key Travel: Follower Rec;
+Key Travel: Follower Live; Parallel Scale; Target Scale Source;
+Dominant Color Family; Release Length.
 Touch a setting to peek its choices; turn to edit without activating an operation.
-These are the existing saved values, also used by their original settings panels.
-Conductor Travel retains Relative and Closest Chord Tone; this release does not add
-Closest Split to conductors. Shift-touch/turn Key Center shows and edits its actual
-scale-choice list; Parallel Scale and Dominant Color shortcuts also show their choices.
-Pad settings remain under Shift + Step 9, outside the HarmonyBus panel list.
+Follower key travel policies are global by live/recorded context, default to Same as
+Conductor, and only affect Follower Travel=None (or saved legacy Direct). Other
+follower travel modes keep their own mapping. Closest Split uses the track's Split
+setting: parent degrees for explicit 135/1357 groups, harmony/active membership
+for the other groups. Closest Scale Tone uses the new parent scale, rather than
+forcing chord tones. Relative preserves degree contour with a consistent tonic
+shift; closest modes intentionally permit melodic reshaping to limit travel.
+Chromatic On resolves the next target first and keeps the semitone-below approach.
+Explicit approach-row and motif intent is also constructed from its mapped target.
+Existing recordings keep their source and approach metadata; their current track
+Follower Travel and global key-travel choices determine playback.
+The optional Chord + Arp Mode settings duplicate was removed to fit these controls;
+its Shift-turn shortcut on Harm Play Controls remains available.
+Shift-touch/turn Key Center shows its scale-choice list; Parallel Scale and Dominant
+Color shortcuts also show their choices. Pad settings remain under Shift + Step 9.

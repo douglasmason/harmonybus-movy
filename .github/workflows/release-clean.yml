@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: 7fd2904065f868752dcc4e82089c07bc6228a20a
-  HB_MOVY_VERSION: 0.34.1-hbclean.171
-  HB_MOVY_TAG: v0.34.1-hbclean.171
+  HB_REF: bc1b860bd6a974c4040f2df91bc102b6f1971222
+  HB_MOVY_VERSION: 0.34.1-hbclean.172
+  HB_MOVY_TAG: v0.34.1-hbclean.172
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -472,7 +472,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Separate Harm Play Controls from seven explicit settings with touch peeks. Restore the Key Center Shift-scale peek, keep settings touches non-triggering, and share saved values with existing controls. Compatible with HarmonyBus 0.2.252."
+              --notes "Group conductor, recorded follower and live follower key travel on Harm Play Settings. Preserve chromatic approaches and consistent Relative register. Requires HarmonyBus 0.2.253."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
