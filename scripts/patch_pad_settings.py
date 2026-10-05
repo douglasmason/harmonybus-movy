@@ -21,7 +21,7 @@ def patch_pad_settings(root: Path) -> None:
     source = replace_once(source, '    mainPageState.touchedKnob = -1;', '    mainPageState.page = 0;\n    mainPageState.touchedKnob = -1;')
     source = replace_once(source, 'export function mainPageTouch(k: number, down: boolean): void {', '''export function mainPageJog(delta: number): void {
     if (mainPageState.overlayKnob >= 0 || mainPageState.touchedKnob >= 0) return;
-    const next = Math.max(0,Math.min(3,mainPageState.page + Math.sign(delta)));
+    const next = Math.max(0,Math.min(4,mainPageState.page + Math.sign(delta)));
     if (next === mainPageState.page) return;
     clearMainPage();mainPageState.page=next;appState.dirty=true;
 }
@@ -34,19 +34,19 @@ export function mainPageTouch(k: number, down: boolean): void {
     source = replace_once(source, 'export function mainPageKnob(k: number, delta: number): void {', '''export function mainPageKnob(k: number, delta: number): void {
     if (mainPageState.page) {
         mainPageState.touchedKnob=k;
-        const steps=countDetents(accum,k,delta);if(steps){if(mainPageState.page===1)padSettingsTurn(k,steps);else trailSettingsTurn(mainPageState.page,k,steps);}
+        const steps=countDetents(accum,k,delta);if(steps){if(mainPageState.page===1||mainPageState.page===4)padSettingsTurn(k,steps,mainPageState.page);else trailSettingsTurn(mainPageState.page,k,steps);}
         return;
     }''')
     path.write_text(source)
     path = root / 'src/seq/main-page-vm.ts'
     source = "import { padSettingsCells } from './pad-settings.js';\nimport { trailSettingsCells } from './trail-settings.js';\n" + path.read_text()
-    source = replace_once(source, '    const layout = null;', "    const layout = cell({shortName:'MORE',fullName:'Turn jog dial: more panels',renderStyle:'preset',displayValue:'JOG DIAL',normalizedValue:0});")
-    source = replace_once(source, '    return {\n        moduleName:', '''    const padCells = mainPageState.page===1 ? padSettingsCells(tk) : mainPageState.page>1 ? trailSettingsCells(mainPageState.page,tk) : null;
+    source = replace_once(source, '    const layout = null;', "    const layout = cell({shortName:'MORE ->',fullName:'Turn jog dial: more panels',renderStyle:'preset',displayValue:'JOG DIAL',normalizedValue:0});")
+    source = replace_once(source, '    return {\n        moduleName:', '''    const padCells = (mainPageState.page===1||mainPageState.page===4) ? padSettingsCells(tk,mainPageState.page) : mainPageState.page>1 ? trailSettingsCells(mainPageState.page,tk) : null;
     if (padCells && tk >= 0 && padCells[tk]) toast={fullName:padCells[tk].fullName,value:padCells[tk].displayValue,browseHint:false};
     return {
         moduleName:''')
-    source = source.replace("headerOverride: 'SET PARAMETERS'", "headerOverride: ['SET PARAMS','PAD COLORS','PAD TRAILS','TRAIL DECAY'][mainPageState.page]")
-    source = source.replace("bankName: '', bankIndex: 0, bankCount: 1", "bankName: (mainPageState.page + 1) + '/4 >', bankIndex: mainPageState.page, bankCount: 4")
+    source = source.replace("headerOverride: 'SET PARAMETERS'", "headerOverride: ['SET PARAMS','PAD COLORS','PAD TRAILS','TRAIL DECAY','PAD PULSE'][mainPageState.page]")
+    source = source.replace("bankName: '', bankIndex: 0, bankCount: 1", "bankName: (mainPageState.page + 1) + '/5 >', bankIndex: mainPageState.page, bankCount: 5")
     source = source.replace('rows: [[tempo, sw, link, quant], [root, key, mode, layout]],', 'rows: padCells ? [padCells.slice(0,4),padCells.slice(4,8)] : [[tempo, sw, link, quant], [root, key, mode, layout]],')
     source = source.replace('const overlay = mainPageState.overlayKnob', 'let overlay = mainPageState.overlayKnob')
     source = replace_once(source, '    return {\n        moduleName:', '''    if (padCells) {

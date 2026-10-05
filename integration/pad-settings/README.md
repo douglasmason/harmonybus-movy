@@ -2,7 +2,7 @@ The performance footer now shows compact mode/track, sounding key center and par
 
 # Movy pad settings and trails
 
-Shift + Step 9 has four jog-dial-selectable pages: Set Parameters, Pad Colors, Pad Trails and Trail Decay. The main page shows `1/4 >` and `MORE / JOG DIAL`. Chord Forms remains grouped as before. Settings persist with the Set; onset history is transient per HB track instance.
+Shift + Step 9 has five jog-dial-selectable pages: Set Parameters, Pad Colors, Pad Trails, Trail Decay and Pad Pulse. The main page shows `1/5 >` and `MORE -> / JOG DIAL`. Chord Forms remains grouped as before. Settings persist with the Set; onset history is transient per HB track instance.
 
 The native renderer stores resolved single-target onsets in fixed 128-pitch history. Chord voices and arp repeats do not refresh that input's history. Delayed rhythm output carries its target through the MIDI queues. Motif steps stamp their target at emission. Past sounding pitches never remap after a key change; visible pads query history using their resolved displayed-context targets. A phrase pad previews its first scheduled target.
 
@@ -21,3 +21,5 @@ Dim Trail uses a 50% brightness floor, like next-harmony pulsing. The floor is r
 Trails follow transport: hidden and capture-disabled while stopped, with fresh history on resume. Inactive track history is cleared on its next visit after a transport change, avoiding a burst of writes at Stop.
 
 Build 160: Trail reinforcement starts a single target onset at 80% of Trail Strength and a repeat within the selected history window at 100%. Dim Trail decays toward 30% of Trail Strength; Blend into Background still fades to the background. Repeats refresh the peak and decay continuously. Pitch Class combines octave hits. Generated chord voices and arp repeats do not count. The native history retains two onsets per pitch, including hits between UI polls. Install HarmonyBus 0.2.244 and Movy hbclean.160 together; Movy retains single-hit compatibility with older history snapshots. Validated against Schwung 1.7.3.
+
+Build 170 restores Next Harmony Pulse (None, chord-tone selections, extensions and All) on Pad Pulse beside Rate and Shape. These remain in Shift + Step 9 settings, outside the HB panel list. Trail Decay has Start and Floor brightness controls in 5% increments with a shared-renderer curve preview. Defaults remain 80% and 30%; repeat reinforcement remains 100%. Floor cannot exceed Start. Blend into Background uses zero floor. Existing saved sets acquire the previous endpoint defaults.

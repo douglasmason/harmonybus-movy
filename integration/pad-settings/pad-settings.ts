@@ -14,6 +14,10 @@ const parameters = [
     ['pad_both_color','BOTH','Both Color',[]],
     ['pad_tonic_color','TONIC','Tonic Color',[]],
 ] as const;
+const pulseParameters = [
+    ['pad_next_pulse','NEXT','Next Harmony Pulse',['None','3','7','3+7','1','5','1+5','9','11','13','9+11+13','All']],
+    parameters[1], parameters[2],
+] as const;
 let track = -1, sampledAt = -Infinity;
 let metadata: any[] = [];
 const values = new Map<string,string>();
@@ -27,11 +31,11 @@ function refresh(): void {
         catch { metadata = []; }
     }
     track = current;sampledAt = now;
-    for (const [key] of parameters) values.set(key, port.getParam('midi_fx1:'+key) || '');
+    for (const [key] of [...parameters,...pulseParameters]) values.set(key, port.getParam('midi_fx1:'+key) || '');
 }
-export function padSettingsCells(touched: number): any[] {
+export function padSettingsCells(touched: number, page = 1): any[] {
     refresh();
-    return parameters.map(([key,shortName,fullName,fallback],index) => {
+    const cells:any[] = (page===4?pulseParameters:parameters).map(([key,shortName,fullName,fallback],index) => {
         const meta = metadata.find(parameter => parameter.key === key);
         const options: string[] = meta?.options || [...fallback];
         const value = values.get(key) || '--';
@@ -41,10 +45,12 @@ export function padSettingsCells(touched: number): any[] {
         cell.touched = touched === index;
         return cell;
     });
+    while(cells.length<8)cells.push(null);
+    return cells;
 }
-export function padSettingsTurn(knob: number, delta: number): void {
+export function padSettingsTurn(knob: number, delta: number, page = 1): void {
     refresh();
-    const specification = parameters[knob];if (!specification) return;
+    const specification = (page===4?pulseParameters:parameters)[knob];if (!specification) return;
     const [key] = specification;
     const options: string[] = metadata.find(parameter => parameter.key === key)?.options || [];
     if (!options.length) return;
