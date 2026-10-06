@@ -20,8 +20,8 @@ env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
   HB_REF: 1146da55c60ea70a09298f70863304b8021d1fe0
-  HB_MOVY_VERSION: 0.34.1-hbclean.179
-  HB_MOVY_TAG: v0.34.1-hbclean.179
+  HB_MOVY_VERSION: 0.34.1-hbclean.180
+  HB_MOVY_TAG: v0.34.1-hbclean.180
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -106,7 +106,9 @@ jobs:
               'browser-test/screenshots/baseline/flags-scrolled.png',
               'src/app/globals.ts',
               'engine/crates/seq-core/src/shared_context.rs',
+              'browser-test/hb-audio-profile.mjs',
               'engine/crates/movy-dsp/src/audio_profile.rs',
+              'engine/crates/movy-dsp/src/chain_cost.rs',
               'src/seq/cpu-page.ts',
               'src/seq/pad-settings.ts',
               'src/seq/trail-history.ts',
@@ -401,6 +403,8 @@ jobs:
           cargo test -p seq-core --lib
           cargo test -p movy-dsp piano_gap_tests --lib
           cargo test -p movy-dsp surface_route --lib
+          cargo test -p movy-dsp audio_profile --lib
+          cargo test -p movy-dsp chain_cost --lib
           HB_TIMING_TRACE=/tmp/hb-timing.trace cargo test -p movy-dsp hb_loop --lib
 
       - name: Replay real sequencer timing through HarmonyBus
@@ -424,6 +428,7 @@ jobs:
           node browser-test/trail-history-test.mjs
           node browser-test/hb-footer-test.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-launchpad.mjs
+          node browser-test/hb-audio-profile.mjs
           node browser-test/hb-pad-trails.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-touch.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-startup-host.mjs
@@ -480,7 +485,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Launchpad pulses now hold steady while chord colors and note feedback remain active. Ordered external note batches handle sound and recording together with safe retries and pressure coalescing. LED frames respect the existing host transport budget, and Move plus both Launchpad banks share one snapshot. Roman-numeral footer arrows have wider spacing. Requires HarmonyBus 0.2.262; no Schwung host update. Device latency and crackle verification remain outstanding."
+              --notes "Spread Launchpad bank previews across separate host requests again to remove the three-surface work burst introduced in hbclean.179. Keep steady external pulses, paced LEDs, batched notes and footer spacing. Add opt-in UI/MIDI PEAK with slow read/write names and request bursts, plus same-render track attribution on AUDIO PEAK. Shift+Step 12 opens/resets; jog cycles the three views. Keep HarmonyBus 0.2.262; no host update. Hardware crackle improvement remains to be verified."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
