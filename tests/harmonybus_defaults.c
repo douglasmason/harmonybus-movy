@@ -64,7 +64,7 @@ int main(int argument_count, char **arguments) {
         snprintf(expected_state,sizeof(expected_state),"%s;pd1,6,3,3,2,0;dc1,3;ts1,0,0,2,0;pas1,0;pf1,17;pnf1,17;pb1,2;pc2,2;pp1,3;hu1,0,0,0;ss1,6,0;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,3,0,2,0,0,0,6,0,6,17,0,8,0,0,3,0,2,0,0,0,6,0,6;named1",seed);
         /* New versioned fields have explicit neutral defaults; preserve the
            legacy prefix exactly, then verify the complete state round-trip. */
-        strcat(expected_state,";kc1,1,0,2;kt2,0,-1,-1;mf1,0,2,0,2,0,0,0:00");
+        strcat(expected_state,";kc1,1,3,2;kt2,3,0,0;kt3,3,0;mf1,0,2,0,2,0,0,0:00");
         for(int slot=0;slot<16;slot++)strcat(expected_state,"0000");
         strcat(expected_state,";mp1,0,0,1,0;mg1,0,0;rr1,0,0,0,0");
         strcat(expected_state,";ar1,13,14,15,16,17,18,19,20,-5,-4,-1,-2,-30,-10,-8,-31,2,3,5,36,37,14,10,15,1,1;ar2,0;ar3,2,1,0;ar4,0;ar5,1");
@@ -80,8 +80,8 @@ int main(int argument_count, char **arguments) {
         assert(instances[track]->motif.editor.armed==-1);
         assert(instances[track]->rhythm_mode==0&&g_motif_rhythm==0&&g_render_window==0);
         assert(g_pad_settings[0]==6&&g_pad_tonic_color==9&&g_pad_play_color==3);
-        assert(g_key_scale_mode==1&&g_key_conductor_travel==0&&g_parallel_scale==2);
-        assert(g_key_follower_recorded_travel==-1&&g_key_follower_live_travel==-1);
+        assert(g_key_scale_mode==1&&g_key_conductor_travel==3&&g_parallel_scale==2);
+        assert(g_key_follower_travel==0);
         assert(!g_key_context.active&&!g_key_armed&&!g_parallel_on);
         assert(strcmp(serialized_state, expected_state) == 0);
         const char *keys[]={"humanize_timing","humanize_velocity","humanize_gate"};
