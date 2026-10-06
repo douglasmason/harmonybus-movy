@@ -12,6 +12,7 @@ impl Engine {
             let clip=&mut self.tracks[track].clips[slot];
             if !clip.exists(){continue;}
             crate::shared_context::record(&mut clip.shared_events,crate::shared_context::Event{tick:position,kind,value});
+            if kind==0 {self.key_playback[track].value=self.key_playback[track].sequence.apply(value);}
             self.dirty=true;
         }
     }
@@ -31,9 +32,20 @@ impl Engine {
             // Same owner across wrap is not released/restarted. An explicit
             // event at this tick can reassert precedence on its next pass.
             let retrigger=next.is_some_and(|(_,_,age)|age==0)&&self.shared_tick_seen[track]!=self.master_tick;
-            if previous!=signature||retrigger||(self.master_tick<self.shared_tick_seen[track]&&signature.is_some()) {
+            let mut key_changed=false;
+            if kind==0 {
+                if let Some((slot,_,_))=next {
+                    let clip=&self.tracks[track].clips[slot];
+                    key_changed=self.key_playback[track].resolve(&clip.shared_events,slot,self.tracks[track].pos_tick,clip.loop_start_ticks(),clip.length_ticks(),self.master_tick,self.tracks[track].cycle.max(1),previous!=signature);
+                }else if self.key_playback[track].sequence.valid {self.key_playback[track].reset();key_changed=true;}
+            }
+            if previous!=signature||retrigger||key_changed||(self.master_tick<self.shared_tick_seen[track]&&signature.is_some()) {
                 self.shared_seen[track][kind]=signature;
-                let (value,age)=next.map_or((crate::shared_context::Value::default(),0),|(_,event,age)|(event.value,age));
+                let (mut value,age)=next.map_or((crate::shared_context::Value::default(),0),|(_,event,age)|(event.value,age));
+                if kind==0 {
+                    if next.is_some(){value=self.key_playback[track].value;}
+                    out.push(OutEvent::SharedKeySequence{track:track as u8,state:self.key_playback[track].sequence});
+                }
                 // Preserve chronological priority when reconstructing from a
                 // stopped or mid-loop playhead. Track index breaks exact ties.
                 let age=next.map_or(age as u64,|(slot,_,_)|{let clip=&self.tracks[track].clips[slot];age as u64*clip.scale_den.max(1) as u64/clip.scale_num.max(1) as u64});
@@ -108,7 +120,7 @@ impl Engine {
         engine.tracks[1].clips[0].length_steps=16;engine.tracks[1].playing_slot=Some(0);engine.tracks[1].clips[0].shared_events.push(event);
         let mut out=Vec::new();engine.shared_track(0,&mut out);engine.shared_track(1,&mut out);out.clear();engine.master_tick+=1;
         engine.tracks[0].playing_slot=None;engine.shared_transport(&mut out);
-        assert_eq!(out.len(),1);assert!(matches!(out[0],OutEvent::SharedContext{track:0,value,..} if !value.on));
+        assert_eq!(out.iter().filter(|event|matches!(event,OutEvent::SharedContext{..})).count(),1);assert!(matches!(out.last(),Some(OutEvent::SharedContext{track:0,value,..}) if !value.on));
         assert!(engine.shared_seen[1][0].is_some());
         engine.tracks[1].clips[0].clear();out.clear();engine.shared_track(1,&mut out);
         assert!(matches!(out.last(),Some(OutEvent::SharedContext{track:1,value,..}) if !value.on));
@@ -126,6 +138,43 @@ impl Engine {
             let note=out.iter().position(|event|matches!(event,OutEvent::NoteOn{pitch:62,..})).unwrap();
             assert!(anchor<note);
         }
+    }
+
+    #[test] fn recursive_loops_undo_and_transport_restart(){
+        let mut engine=setup();let mut out=Vec::new();
+        engine.tracks[0].clips[0].shared_events.push(Event{tick:0,kind:0,value:Value{on:true,a:13,b:2741,c:(2741<<13)|(1<<26)}});
+        let snapshot=crate::persist::serialize(&engine);
+        for tick in 0..800 {
+            engine.master_tick=tick;engine.tracks[0].pos_tick=(tick%384) as u32;engine.tracks[0].cycle=(tick/384+1) as u32;
+            out.clear();engine.shared_track(0,&mut out);
+        }
+        assert_eq!(engine.key_playback[0].value.a,3);
+        assert_eq!(engine.key_playback[0].sequence.count,3);
+        assert!(engine.undo_restore(&snapshot));out.clear();engine.shared_transport(&mut out);
+        assert_eq!(engine.key_playback[0].value.a,3); // Unrelated clip Undo cannot rewind the cascade.
+        engine.playing=false;engine.shared_transport(&mut out);assert!(!engine.key_playback[0].sequence.valid);
+        engine.start_transport();engine.shared_track(0,&mut out);assert_eq!(engine.key_playback[0].value.a,1);
+    }
+    #[test] fn recursive_capture_roundtrip_and_absolute_payload_to_native(){
+        let mut engine=setup();engine.recording=true;engine.rec_track=0;
+        engine.shared_capture(&format!("sc1,0,0,1,13,2741,{}",(2741<<13)|(1<<26)));
+        let saved=crate::persist::serialize(&engine);let mut restored=setup();assert!(crate::persist::load(&mut restored,&saved));
+        restored.playing=true;restored.tracks[0].playing_slot=Some(0);let mut out=Vec::new();restored.shared_track(0,&mut out);
+        assert!(out.iter().any(|event|matches!(event,OutEvent::SharedContext{kind:0,value,..} if value.a==1&&value.c>>26==0)));
+        assert!(out.iter().any(|event|matches!(event,OutEvent::SharedKeySequence{state,..} if state.count==1&&state.depth==1)));
+        // A history snapshot does not enlarge the existing note-action event payload.
+        assert!(std::mem::size_of::<crate::shared_context::KeySequence>()<std::mem::size_of::<crate::recorded_actions::Actions>());
+    }
+
+    #[test] fn relaunch_of_same_clip_restarts_sequence_even_in_first_pass(){
+        let mut engine=setup();let mut out=Vec::new();
+        engine.tracks[0].clips[0].shared_events=vec![
+            Event{tick:0,kind:0,value:Value{on:true,a:13,b:2741,c:(2741<<13)|(1<<26)}},
+            Event{tick:100,kind:0,value:Value{on:true,a:13,b:2741,c:(2741<<13)|(1<<26)}}];
+        engine.shared_track(0,&mut out);engine.master_tick=100;engine.tracks[0].pos_tick=100;engine.shared_track(0,&mut out);
+        assert_eq!(engine.key_playback[0].value.a,2);
+        engine.launch_clip(0,0);engine.master_tick=384;engine.service_tick(&mut out);
+        assert_eq!(engine.key_playback[0].value.a,1);assert_eq!(engine.key_playback[0].sequence.count,1);
     }
 
 }

@@ -23,15 +23,18 @@ def patch_shared_context(root: Path) -> None:
     source=path.read_text().replace('pub enum OutEvent {','''pub enum OutEvent {
     SharedFrame, SharedReset,
     SharedContext {track:u8,kind:u8,value:crate::shared_context::Value,order:u64},
+    SharedKeySequence {track:u8,state:crate::shared_context::KeySequence},
     SharedAnchor {track:u8,pitch:u8,value:crate::shared_context::Value},
     SharedRecord {track:i32},
     SharedHandoff {track:u8},''')
     source=source.replace('pub struct Engine {','''pub struct Engine {
+    pub key_playback: [crate::shared_context::KeyPlayback;16],
     pub shared_seen: [[Option<(usize,crate::shared_context::Event)>;3];16],
     pub shared_tick_seen: [u64;16],
     pub shared_recording: Option<usize>,
     pub shared_reset_needed: bool,''')
     source=source.replace('            follower_inputs: [None;16],','''            follower_inputs: [None;16],
+            key_playback: std::array::from_fn(|_|crate::shared_context::KeyPlayback::default()),
             shared_seen: [[None;3];16],shared_tick_seen:[u64::MAX;16],shared_recording:None,shared_reset_needed:false,''')
     source=source.replace('    pub fn follower_input_context(&mut self, message: &str) {','    pub fn follower_input_context(&mut self, message: &str) {\n        self.shared_capture(message);')
     source=source.replace('Humanize::parse(humanize,','Humanize::parse(humanize.split(\'|\').next().unwrap_or(""),')
@@ -42,15 +45,20 @@ def patch_shared_context(root: Path) -> None:
                             if let Ok(index)=clip.shared_events.binary_search_by_key(&(0,n.tick),|event|(event.kind,event.tick)) {
                                 let event=clip.shared_events[index];
                                 if event.value.on&&((event.value.c>>1)&255)==n.pitch as i32+1 {
-                                    out.push(OutEvent::SharedAnchor{track:ti as u8,pitch:emit_pitch,value:event.value});
+                                    out.push(OutEvent::SharedAnchor{track:ti as u8,pitch:emit_pitch,value:if self.key_playback[ti].sequence.valid {self.key_playback[ti].value}else{event.value}});
                                 }
                             }
                         }
                         out.push(OutEvent::RecordedActions {track:ti as u8,pitch:emit_pitch,''')
+    source=source.replace('        let live_link = self.link_enabled;','        let live_key_playback=self.key_playback.clone();\n        let live_link = self.link_enabled;')
+    source=source.replace('        self.link_enabled = live_link;','        self.key_playback=live_key_playback;\n        self.link_enabled = live_link;')
+    source=source.replace('    fn start_transport(&mut self) {','    fn start_transport(&mut self) {\n        self.key_playback=std::array::from_fn(|_|crate::shared_context::KeyPlayback::default());\n        self.shared_seen=[[None;3];16];')
+    source=source.replace('            for (t,performance) in self.tracks.iter_mut().zip(self.hb_performance.iter_mut()) {','''            for (index,(t,performance)) in self.tracks.iter_mut().zip(self.hb_performance.iter_mut()).enumerate() {
+                if t.queued_slot.is_some()||t.pending_stop {self.key_playback[index].reset();self.shared_seen[index]=[None;3];}''')
     source+='\n'+(assets/'engine.rs').read_text()
     path.write_text(source)
     path=core/'persist.rs'
-    source=path.read_text().replace('    engine.follower_inputs.fill(None);','    engine.follower_inputs.fill(None);\n    engine.shared_seen=[[None;3];16];engine.shared_tick_seen=[u64::MAX;16];engine.shared_recording=None;engine.shared_reset_needed=true;')
+    source=path.read_text().replace('    engine.follower_inputs.fill(None);','    engine.follower_inputs.fill(None);\n    engine.key_playback=std::array::from_fn(|_|crate::shared_context::KeyPlayback::default());engine.shared_seen=[[None;3];16];engine.shared_tick_seen=[u64::MAX;16];engine.shared_recording=None;engine.shared_reset_needed=true;')
     source=source.replace('            for interval in &c.operation_intervals {','''            for event in &c.shared_events {
                 s.push_str(&format!("sc {} {} {} {} {} {} {} {}\\n",ti,ci,event.tick,event.kind,event.value.on as u8,event.value.a,event.value.b,event.value.c));
             }
@@ -95,6 +103,7 @@ def patch_shared_context(root: Path) -> None:
                         OutEvent::SharedContext{track,kind,value,order}=>{
                             self.chains.hb_shared("midi_fx1:hb_shared_context",&format!("{},{},{},{},{},{},{}",track,kind,value.on as u8,value.a,value.b,value.c,order));changed=true;
                         },
+                        OutEvent::SharedKeySequence{track,state}=>{self.chains.hb_shared("midi_fx1:hb_key_sequence_state",&state.wire(track));changed=true;},
                         OutEvent::SharedReset=>{self.chains.hb_shared("midi_fx1:hb_shared_reset","");changed=true;},
                         OutEvent::SharedRecord{track}=>self.chains.hb_shared("midi_fx1:hb_shared_record",&track.to_string()),
                         OutEvent::SharedHandoff{track}=>{self.chains.hb_shared("midi_fx1:hb_shared_handoff",&track.to_string());changed=true;},
@@ -104,7 +113,7 @@ def patch_shared_context(root: Path) -> None:
                 if changed {self.chains.hb_shared("midi_fx1:hb_shared_flush","");}
             }
             match self.out[i] {
-                OutEvent::SharedReset|OutEvent::SharedFrame|OutEvent::SharedContext{..}|OutEvent::SharedRecord{..}|OutEvent::SharedHandoff{..}=>{},
+                OutEvent::SharedKeySequence{..}|OutEvent::SharedReset|OutEvent::SharedFrame|OutEvent::SharedContext{..}|OutEvent::SharedRecord{..}|OutEvent::SharedHandoff{..}=>{},
                 OutEvent::SharedAnchor{track,pitch,value}=>self.chains.hb_shared("midi_fx1:hb_shared_anchor",&format!("{},{},{},{}",track,pitch,value.b,value.c)),''')
     source=source.replace('        self.drain_out();\n        // Every conductor','        self.engine.shared_transport(&mut self.out);\n        self.drain_out();\n        // Every conductor')
     source=source.replace('if seq_core::persist::load(&mut self.engine, val) {','if seq_core::persist::load(&mut self.engine, val) {\n                    self.chains.hb_shared("midi_fx1:hb_shared_reset","All");')
