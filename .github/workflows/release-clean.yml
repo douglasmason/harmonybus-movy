@@ -134,6 +134,7 @@ jobs:
               'src/app/state.ts',
               'browser-test/logic/session-shift.mjs',  # destination startup view is now Knobs
               'src/keyboard/layouts.ts',
+              'src/keyboard/state.ts',
               'browser-test/screenshots/baseline/main-mode-overlay.png',
               'browser-test/screenshots/baseline/main-layout-overlay.png',
               'build/browser.mjs',  # expose the real app tick to release-latency tests
