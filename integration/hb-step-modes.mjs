@@ -43,6 +43,7 @@ const page=schwungActiveFor(0,'midi_fx1');assert(page?.ready);
 const has=(p,key)=>p.ctl.pages.some(candidate=>candidate.keys?.includes(key));
 assert(!has(page,'motion_control_1'));assert(!has(page,'motif_slot'));
 assert(has(page,'chord_mode'),'Common chord controls remain reachable in Steps');
+assert(has(page,'content_map')&&has(page,'travel_map'),'Steps exposes regular follower mapping');
 const order=key=>page.ctl.pages.findIndex(p=>p.keys?.includes(key));
 const checkCadences=()=>{
     for(const key of ['motion_control_23','motion_control_34','motion_control_38','motion_control_45']) {
@@ -73,6 +74,7 @@ try {
     beforeCopy=contractReads;
     tap();assert.equal(contractReads,beforeCopy,'Copy layout reuses contract without DSP reads');assert.equal(flagValue('hbsteprow'),1);assert(page.ctl.page.keys.includes('motion_control_1'));
     assert(!has(page,'motif_slot'));assert(has(page,'motion_lane'));
+    assert(has(page,'content_map')&&has(page,'travel_map'),'Perform exposes regular follower mapping');
     assert(!has(page,'motion_control_17'),'Approach Harmony belongs to Harm Play');
     assert(!has(page,'motion_control_35'),'Secondary belongs to Harm Play');
     checkCadences();
@@ -93,6 +95,7 @@ try {
     assert(has(page,'approach_bank_1'));assert(has(page,'approach_bank_12'));assert(has(page,'approach_motif_latch'));assert(has(page,'approach_bank_7'));assert(has(page,'approach_bank_15')); assert(has(page,'motion_control_32'));
     assert(!has(page,'motion_control_1'),'Approach bank is independent of Perform');
     assert(has(page,'motion_control_17'));assert(has(page,'motion_control_35'));
+    assert(has(page,'content_map')&&has(page,'travel_map'),'Harm Play exposes regular follower mapping');
     assert.equal(order('monitor_status'),-1,'Harm Play excludes diagnostics');
     assert(!has(page,'motion_lane'),'Harm Play excludes operation editing');
     assert.equal(page.ctl.page.keys.length,8);
@@ -363,3 +366,29 @@ console.log('Startup hierarchy: late layout replaces generic pages and then stop
     } finally {port.getParam=originalGet;Date.now=originalClock;}
 }
 console.log('Native fallback: Version dial and enum metadata recover, including same-track reinstall');
+
+// Every Copy-tap mode presents the same saved Content/Travel controls.
+{
+    const { createSchwungPage } = await import('../dist/esm/renderer/schwung-page.js');
+    const port=portFor(0), savedKeys=['content_map','travel_map'];
+    selectTrack(0);appState.shiftHeld=false;
+    let saved=savedKeys.map(key=>port.getParam('midi_fx1:'+key));
+    for(const mode of [0,1,2,0]){
+        setFlag('hbsteprow',mode);
+        const mappingPage=createSchwungPage(port,'midi_fx1');
+        const matches=mappingPage.ctl.pages.filter(candidate=>candidate.keys?.includes('travel_map'));
+        assert.equal(matches.length,1,'One Foll Map page in every mode');
+        assert.deepEqual(matches[0].keys.slice(0,2),savedKeys);
+        assert.deepEqual(savedKeys.map(key=>port.getParam('midi_fx1:'+key)),saved,'Mode switch preserves mapping');
+        mappingPage.goToPage(mappingPage.ctl.pages.indexOf(matches[0]));
+        for(let tick=0;tick<64;tick++)mappingPage.tick();
+        for(let knob=0;knob<2;knob++){
+            const before=writes.length;
+            mappingPage.knobTouch(knob,true);mappingPage.knobTurn(knob,-1);mappingPage.knobTurn(knob,1);mappingPage.knobTouch(knob,false);
+            assert(writes.slice(before).some(([,key])=>key==='midi_fx1:'+savedKeys[knob]),'Knob edits the regular follower parameter');
+            assert(!writes.slice(before).some(([,key])=>key.includes('key_travel')||key.includes('gesture')),'Mapping edits do not arm operations or edit Key Center travel');
+        }
+        saved=savedKeys.map(key=>port.getParam('midi_fx1:'+key));
+    }
+}
+console.log('Foll Map: one shared page, direct Content/Travel edits, saved values across every Copy-tap mode');
