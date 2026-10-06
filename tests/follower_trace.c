@@ -30,6 +30,7 @@ int main(int argc,char **argv){
     Inst *conductor=API.create_instance("",NULL),*follower=API.create_instance("",NULL);
     API.set_param(conductor,"role","Conductor");
     API.set_param(follower,"role","Follower");
+    API.set_param(follower,"travel_map","Relative"); /* Timing fixture explicitly follows chord roots. */
     API.set_param(follower,"render_channel","4");
     API.set_param(conductor,"source_channel","1");
     API.set_param(follower,"source_channel","1");
