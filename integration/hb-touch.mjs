@@ -1014,8 +1014,8 @@ console.log('Perform captions and cyan Chord + Arp LED: Off/Armed/Hold/Latch, ro
 console.log('Key Center and Parallel Scale: global settings, physical slots, captured release, latch and Shift scale selection pass');
 
 assert(focusKey('harm_play_advance')>=0,'Harm Play settings is reachable');
-assert(focusKey('harm_play_release')===7,'Release Length is the eighth configuration knob');
-assert(page.knobLEDMask & 128,'Release Length owns its setting LED');
+assert(focusKey('harm_play_release')===6,'Release Length follows the six shared configuration knobs');
+assert(page.knobLEDMask & 64,'Release Length owns its setting LED');
 console.log('Empty Harm Play knob: both LED addresses off and legacy painter excluded');
 {
     const {approachPanels}=await import('../dist/esm/renderer/hb-approach.js');
@@ -1035,18 +1035,18 @@ console.log('Empty Harm Play knob: both LED addresses off and legacy painter exc
 // The settings page edits configuration without arming performance operations.
 {
     setInitialMode('hbsteprow',2);page.reload();
-    const index=page.ctl.pages.findIndex(candidate=>candidate.keys?.[0]==='key_center_scale'&&candidate.keys?.[5]==='target_scale_source');
+    const index=page.ctl.pages.findIndex(candidate=>candidate.keys?.[0]==='key_center_scale'&&candidate.keys?.[4]==='target_scale_source');
     assert(index>=0);page.goToPage(index);for(let tick=0;tick<64;tick++)page.tick();
     assert.equal(page.pageTitle,'Harm Play Settings');
-    assert.deepEqual(page.ctl.page.keys,['key_center_scale','conductor_key_travel','follower_recorded_key_travel','follower_live_key_travel','parallel_scale','target_scale_source','dominant_color_family','harm_play_release']);
-    for(let slot=0;slot<8;slot++){
+    assert.deepEqual(page.ctl.page.keys,['key_center_scale','conductor_key_travel','follower_key_travel','parallel_scale','target_scale_source','dominant_color_family','harm_play_release']);
+    for(let slot=0;slot<7;slot++){
         const before=writes.length;page.knobTouch(slot,true);
-        assert(page.ctl.state.peek?.options?.length>1,'Settings touch shows the choices');
+        assert(page.ctl.state.peek?.options?.length>1,'Settings touch shows the choices for '+page.ctl.page.keys[slot]);
         page.knobTouch(slot,false);
         assert.equal(writes.length,before,'Settings touch must never activate an operation');
     }
     const before=writes.length;page.knobTouch(2,true);page.knobTurn(2,1);page.knobTouch(2,false);
-    assert(writes.slice(before).some(([key,value])=>key==='midi_fx1:follower_recorded_key_travel'&&!['Down','Up','Touch','LatchOn'].includes(value)),'Recorded key travel edits the saved policy');
+    assert(writes.slice(before).some(([key,value])=>key==='midi_fx1:follower_key_travel'&&!['Down','Up','Touch','LatchOn'].includes(value)),'Follower key travel edits the shared live/recorded policy');
     assert(!writes.slice(before).some(([key])=>key.includes('gesture')));
     const controls=page.ctl.pages.findIndex(candidate=>candidate.keys?.[0]==='key_center');page.goToPage(controls);
     for(let tick=0;tick<64;tick++)page.tick();
@@ -1059,4 +1059,4 @@ console.log('Empty Harm Play knob: both LED addresses off and legacy painter exc
     assert(writes.slice(shifted).some(([key,value])=>key==='midi_fx1:key_center_scale'&&choices.includes(value)));
     assert(!writes.slice(shifted).some(([key])=>key==='midi_fx1:key_center'),'Shift edits never arm Key Center');
 }
-console.log('Harm Play: separate activation/settings, harmless touches, three key travel contexts and Key Center scale peek pass');
+console.log('Harm Play: separate activation/settings, harmless touches, shared follower key travel and Key Center scale peek pass');

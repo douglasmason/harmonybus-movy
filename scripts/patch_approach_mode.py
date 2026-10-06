@@ -43,7 +43,7 @@ def patch_approach_mode(root: Path) -> None:
     source = source.replace('            if (laneTouchSlots.has(slot)) {\n                releasePerformanceTouch(slot, true);', "            if (laneTouchSlots.has(slot) && !/^approach_bank_/.test(ctl.keyAt(slot))) {\n                releasePerformanceTouch(slot, true);")
     source = replace_once(source, "    const qualify = (k: string) => (k.indexOf(':') >= 0 ? k : componentKey + ':' + k);", """    const qualify = (k: string) => (k.indexOf(':') >= 0 ? k : componentKey + ':' + k).replace(':harm_play_chord_arp_mode', ':motion_control_32');
     function isHarmSettings(): boolean {
-        return ctl.page?.keys?.[0]==='key_center_scale'&&ctl.page?.keys?.[5]==='target_scale_source';
+        return ctl.page?.keys?.[0]==='key_center_scale'&&ctl.page?.keys?.includes('target_scale_source');
     }
     function editHarmSetting(slot: number, delta: number): void {
         const key=ctl.keyAt(slot),meta=ctl.metaAt(slot),options=meta?.options||[];

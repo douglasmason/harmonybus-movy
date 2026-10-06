@@ -151,12 +151,20 @@ activePort.getParam=key=>{
 };
 setFlag('hblaunchpad',2);tickLaunchpad(1000);tickLaunchpad(1010);tickLaunchpad(1020);
 assert.equal(previewReads,1,'one expensive preview per polling slot, including startup');
+const firstFrame=unpack(sent.at(-1));
+assert.equal(firstFrame[6],3);
+assert.equal((firstFrame.length-8)/5,73,'X paints every dirty LED in one message rather than eight at a time');
+const stagedStart=sent.length;
 const beforeNotes=previewReads;
 onMidiMessageExternal([144,11,100]);onMidiMessageExternal([128,11,0]);
 onMidiMessageExternal([144,81,100]);onMidiMessageExternal([128,81,0]);
 assert.equal(previewReads,beforeNotes,'playing either bank does not synchronously refresh pad colors');
 for(let now=1021;now<=1070;now++)tickLaunchpad(now);
 assert.equal(previewReads,2,'banks alternate at a bounded cadence');
+const painted=sent.slice(stagedStart).map(unpack).filter(frame=>frame[6]===3);
+const addresses=painted.flatMap(frame=>Array.from({length:(frame.length-8)/5},(_,index)=>frame[8+index*5]));
+assert(addresses.some(address=>address>=11&&address<=48)&&addresses.some(address=>address>=51&&address<=88),
+    'completed surface updates both halves together');
 missingPreview=true;
 const beforeMiss=writes.length;
 for(let now=1120;now<=1420;now+=50)tickLaunchpad(now);
