@@ -270,7 +270,7 @@ export function colorHarmonyPitch(pitch: number, inputRoot: number, track: numbe
     return harmonyMix(background, currentColor, effectiveColor, first, second);
 }
 
-/** Tone selection has its own smooth brightness pulse, independent of general shape. */
+/** The selected tones use the public pulse shape and keep a visible floor. */
 function nextTonePulse(background: number, selected: boolean, track: number, rank = 0): number {
     const period = periods[settings[1]];
     const mode = settings[0];
@@ -279,7 +279,7 @@ function nextTonePulse(background: number, selected: boolean, track: number, ran
     const color = choice === 8 ? trackColor(track) : colors[choice];
     const peak = rank === 2 ? 0.55 : rank === 1 ? 0.75 : 1;
     const floor = 0.5 * peak;
-    return paletteMix(0, color, 0, floor + (peak - floor) * harmonyPulse(harmonyBeat() / period, 0), 0);
+    return paletteMix(0, color, 0, floor + (peak - floor) * harmonyPulse(harmonyBeat() / period, settings[2]), 0);
 }
 
 /** Null disables the play overlay and exposes the normal harmony background. */

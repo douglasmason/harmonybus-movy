@@ -585,12 +585,12 @@ const settings=hierarchy.levels.harm_play_controls;
 assert.deepEqual(settings.knobs,['key_center','parallel_mode','approach_motif_latch','motion_control_32','dominant_color','harm_play_release_control','harm_play_advance',null]);
 assert.equal(settings.params[3].name,'Chord + Arp');
 
-// Next tone selection stays independent of the general pulse shape.
+// Next tone selection respects the public pulse shape and retains a visible floor.
 {
     const {seqState}=await import('../dist/esm/seq/state.js');
     const clock=Date.now;let now=0;
     seqState.playing=false;seqState.bpmX100=12000;
-    const raw='145,145,2741,0,0,6,3,3,2,0|full1,1,145|nextpulse1,16,0';
+    const raw='145,145,2741,0,0,6,3,0,2,0|full1,1,145|nextpulse1,16,0';
     assert.equal(parseHarmonySnapshot(raw).nextPulse,16);
     for(const bad of ['4096,0','16,-1','16,4294967296','16,0,1','NaN,0'])
         assert.equal(parseHarmonySnapshot(raw.replace('16,0',bad)),null);
@@ -600,7 +600,7 @@ assert.equal(settings.params[3].name,'Chord + Arp');
         const peak=harmonyPadColor(64,0),unselected=harmonyPadColor(67,0);
         assert.equal(peak,127,'Selected next tone uses pure next color, not current or overlap color');
         now=250;
-        assert.notEqual(harmonyPadColor(64,0),peak,'Selected third breathes even with general Shape None');
+        assert.notEqual(harmonyPadColor(64,0),peak,'Selected third breathes with Smooth shape');
         assert.notEqual(harmonyPadColor(64,0),0,'Next-tone pulse trough stays illuminated');
         assert.equal(harmonyPadColor(67,0),unselected,'Unselected fifth remains unchanged');
         assert.equal(harmonyPadColor(64,0,true),120,'Held edit highlight remains solid');
@@ -620,15 +620,15 @@ assert.equal(settings.params[3].name,'Chord + Arp');
         } finally { Object.assign(keyboardState,savedKeyboard);portFor(0).getParam=()=>raw;refreshHarmonyPads(0,testTime+=100); }
 
         for (const mode of [1,2,3,4,5,6]) {
-            portFor(0).getParam=()=>raw.replace('6,3,3,2,0',mode+',3,3,2,0');refreshHarmonyPads(0,testTime+=100);
+            portFor(0).getParam=()=>raw.replace('6,3,0,2,0',mode+',3,0,2,0');refreshHarmonyPads(0,testTime+=100);
             now=0;const first=harmonyPadColor(64,0);now=250;const second=harmonyPadColor(64,0);
             if ([1,3,4].includes(mode)) assert.equal(first,second,'Current-only or unavailable Next has no pulse '+mode);
             else {assert.notEqual(first,second,'Displayed preview pulses '+mode);assert.equal(first,mode===0||mode===2?7:127,'Pure displayed harmony color '+mode);}
         }
-        portFor(0).getParam=()=>raw.replace('6,3,3,2,0','6,0,3,2,0');refreshHarmonyPads(0,testTime+=100);
+        portFor(0).getParam=()=>raw.replace('6,3,0,2,0','6,0,0,2,0');refreshHarmonyPads(0,testTime+=100);
         const off=harmonyPadColor(64,0);now=0;assert.equal(harmonyPadColor(64,0),off,'Pulse Rate Off disables selection animation');
-        portFor(0).getParam=()=>raw.replace('|nextpulse1,16,0','');refreshHarmonyPads(0,testTime+=100);
-        const none=harmonyPadColor(64,0);now=250;assert.equal(harmonyPadColor(64,0),none,'None preserves original steady colors');
+        portFor(0).getParam=()=>raw.replace('|nextpulse1,16,0','|nextpulse1,0,0');refreshHarmonyPads(0,testTime+=100);
+        const none=harmonyPadColor(64,0);now=250;assert.equal(harmonyPadColor(64,0),none,'Next Pulse Off preserves steady colors');
     } finally {Date.now=clock;}
 }
 console.log('Next Pulse: strict snapshot parsing, selected tones only, default-off and solid highlights pass');
@@ -647,7 +647,10 @@ console.log('Next Pulse: strict snapshot parsing, selected tones only, default-o
                 return [36,48,60,72,84,64,67,71].map(pitch=>harmonyPadColor(pitch,0));
             });
             for(let index=0;index<7;index++)assert.equal(new Set(frames.map(frame=>frame[index])).size,1,`Unselected root/third/fifth stays steady: mode ${mode}, shape ${shape}`);
-            assert(new Set(frames.map(frame=>frame[7])).size>2,'Selected seventh changes through intermediate brightness levels');
+            const levels=new Set(frames.map(frame=>frame[7])).size;
+            if(shape===3)assert.equal(levels,1,'Shape None stays steady');
+            else if(shape===2)assert.equal(levels,2,'Square switches between floor and peak');
+            else assert(levels>2,'Smooth and Triangle include intermediate brightness levels');
         }
     } finally {Object.assign(seqState,saved);}
 }
