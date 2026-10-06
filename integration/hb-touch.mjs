@@ -1038,8 +1038,8 @@ console.log('Empty Harm Play knob: both LED addresses off and legacy painter exc
     const index=page.ctl.pages.findIndex(candidate=>candidate.keys?.[0]==='key_center_scale'&&candidate.keys?.[4]==='target_scale_source');
     assert(index>=0);page.goToPage(index);for(let tick=0;tick<64;tick++)page.tick();
     assert.equal(page.pageTitle,'Harm Play Settings');
-    assert.deepEqual(page.ctl.page.keys,['key_center_scale','conductor_key_travel','follower_key_travel','parallel_scale','target_scale_source','dominant_color_family','harm_play_release']);
-    for(let slot=0;slot<7;slot++){
+    assert.deepEqual(page.ctl.page.keys,['key_center_scale','conductor_key_travel','follower_key_travel','parallel_scale','target_scale_source','dominant_color_family','harm_play_release','motif_placement']);
+    for(let slot=0;slot<8;slot++){
         const before=writes.length;page.knobTouch(slot,true);
         assert(page.ctl.state.peek?.options?.length>1,'Settings touch shows the choices for '+page.ctl.page.keys[slot]);
         page.knobTouch(slot,false);

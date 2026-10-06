@@ -577,6 +577,8 @@ def main() -> int:
     patch_launchpad(root)
     from patch_travel_defaults import patch_travel_defaults
     patch_travel_defaults(root)
+    from patch_motif_loader import patch_motif_loader
+    patch_motif_loader(root)
     print("HarmonyBus clean integration applied")
     return 0
 
