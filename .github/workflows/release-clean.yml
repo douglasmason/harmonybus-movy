@@ -19,7 +19,7 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: e7e5cfbd9736ff40365a17b8016f82478c36954e
+  HB_REF: 243a996f79d86f312f67a0d521b85fa3701efcc1
   HB_MOVY_VERSION: 0.34.1-hbclean.178
   HB_MOVY_TAG: v0.34.1-hbclean.178
   ASSET_NAME: harmonybus-movy-module.tar.gz
@@ -478,7 +478,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Launchpad X sends changed LEDs in one bounded frame, with matching preview banks and a shared pulse phase. Harm Play Settings uses one Follower Key Travel control for live and recorded notes, defaulting to Relative, alongside Conductor Closest Split. Includes HarmonyBus 0.2.258 key-center class preservation, cheaper single-note previews and Follow Notes input ownership. Device crackling still needs physical Move testing."
+              --notes "Motif to Clip adds stock and user motifs to any melodic track with target input, Parent/Parallel approaches, rhythmic units, target placement and even-unit padding. Preview before Replace, Append or Overdub; every successful write uses normal Undo. Notes and harmonic operations stay editable. Motif Targets is shared with live playback, and Harm Play Settings gains target placement on knob 8. Requires HarmonyBus 0.2.261. Includes prior Approach defaults, shared travel choices and performance improvements; physical Move and Launchpad audio testing is still needed."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
