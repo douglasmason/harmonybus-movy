@@ -6,6 +6,7 @@ from patch_responsive_persistence import replace_once
 def patch_audio_profile(root: Path) -> None:
     """Install fixed-size timing counters and reuse the normal status poll."""
     assets: Path = Path(__file__).resolve().parent.parent / 'integration/audio-profile'
+    (root / 'browser-test/hb-audio-profile.mjs').write_text((assets / 'hb-audio-profile.mjs').read_text())
     (root / 'engine/crates/movy-dsp/src/audio_profile.rs').write_text((assets / 'audio_profile.rs').read_text())
     path: Path = root / 'engine/crates/movy-dsp/src/lib.rs'
     source: str = path.read_text()
@@ -23,19 +24,19 @@ def patch_audio_profile(root: Path) -> None:
     source = replace_once(source, '        // Every conductor sees', '        self.profile.mark(&mut profile_stamp, &mut profile_spans, 3);\n        // Every conductor sees')
     source = replace_once(source, '        self.click.render(out_audio);', '        self.profile.mark(&mut profile_stamp, &mut profile_spans, 4);\n        self.click.render(out_audio);')
     source = replace_once(source, '        self.chains.render(out_audio);', '        self.profile.mark(&mut profile_stamp, &mut profile_spans, 5);\n        self.chains.render(out_audio);')
-    source = replace_once(source, '        hb_record::QUEUE.drain(|_,_,_,_|{});', '        hb_record::QUEUE.drain(|_,_,_,_|{});\n        self.profile.mark(&mut profile_stamp, &mut profile_spans, 6);\n        self.profile.finish(profile_spans, out_audio.len()/2, host::sample_rate());')
+    source = replace_once(source, '        hb_record::QUEUE.drain(|_,_,_,_|{});', '        hb_record::QUEUE.drain(|_,_,_,_|{});\n        self.profile.mark(&mut profile_stamp, &mut profile_spans, 6);\n        self.profile.finish(profile_spans, out_audio.len()/2, host::sample_rate(), self.chains.profile_top());')
     path.write_text(source)
     path = root / 'src/seq/state.ts'
-    source = path.read_text().replace('    cpuCost: string;', '    cpuProfile: string;\n    cpuCost: string;').replace("        cpuCost: '',", "        cpuProfile: '',\n        cpuCost: '',")
+    source = path.read_text().replace('    cpuCost: string;', '    cpuRequests: string;\n    cpuProfile: string;\n    cpuCost: string;').replace("        cpuCost: '',", "        cpuRequests: '',\n        cpuProfile: '',\n        cpuCost: '',")
     path.write_text(source)
     path = root / 'src/seq/engine.ts'
-    source = path.read_text().replace("    seqState.cpuCost = '';", "    seqState.cpuProfile = '';\n    seqState.cpuCost = '';")
-    source = source.replace("else if (key === 'chcost')", "else if (key === 'aprof') seqState.cpuProfile = val;\n        else if (key === 'chcost')")
+    source = path.read_text().replace("    seqState.cpuCost = '';", "    seqState.cpuRequests = '';\n    seqState.cpuProfile = '';\n    seqState.cpuCost = '';")
+    source = source.replace("else if (key === 'chcost')", "else if (key === 'aprof') seqState.cpuProfile = val;\n        else if (key === 'rprof') seqState.cpuRequests = val;\n        else if (key === 'chcost')")
     path.write_text(source)
     path = root / 'src/seq/cpu-page.ts'
-    source = path.read_text().replace('export function cpuPageActive()', 'export const cpuDetail = { active: false };\nexport function toggleCpuDetail(): void { cpuDetail.active = !cpuDetail.active; }\n\nexport function cpuPageActive()')
+    source = path.read_text().replace('export function cpuPageActive()', 'export const cpuDetail = { page: 0 };\nexport function toggleCpuDetail(): void { cpuDetail.page = (cpuDetail.page + 1) % 3; }\n\nexport function cpuPageActive()')
     source = source.replace("    seqCmd('cpurst');", "    seqCmd('cpurst');\n    seqCmd('aprof_on');")
-    source = source.replace('export function clearCpuPage(): void {}', "export function clearCpuPage(): void {\n    if (cpuPageActive()) seqCmd('aprof_off');\n    cpuDetail.active = false;\n}")
+    source = source.replace('export function clearCpuPage(): void {}', "export function clearCpuPage(): void {\n    if (cpuPageActive()) seqCmd('aprof_off');\n    cpuDetail.page = 0;\n}")
     path.write_text(source)
     path = root / 'src/midi/router.ts'
     source = path.read_text().replace("import { cpuPageActive }", "import { cpuPageActive, toggleCpuDetail }")
@@ -45,7 +46,20 @@ def patch_audio_profile(root: Path) -> None:
     source = path.read_text()
     source = "import { cpuDetail } from '../seq/cpu-page.js';\nimport { seqState } from '../seq/state.js';\n" + source
     source = replace_once(source, '    clear_screen();', '''    clear_screen();
-    if (cpuDetail.active) {
+    if (cpuDetail.page === 2) {
+        const values = seqState.cpuRequests.split(',');
+        const compactKey = (key: string): string => key.replace(/^ch(\\d+):midi_fx(\\d+):/, (_, track, slot) => 'T' + (Number(track)+1) + '/FX' + slot + ':').toUpperCase().replace(/_/g, '-').slice(0, 31);
+        drawHeader('UI/MIDI PEAK', 'US');
+        fontPrint5x3(0, 9, 'READ ' + (values[3] || 0), 1);
+        fontPrint5x3(0, 17, compactKey(values[4] || '-'), 1);
+        fontPrint5x3(0, 25, 'WRITE ' + (values[5] || 0), 1);
+        fontPrint5x3(0, 33, compactKey(values[6] || '-'), 1);
+        fontPrint5x3(0, 41, 'MIDI ' + (values[7] || 0), 1);
+        fontPrint5x3(0, 49, 'BURST ' + (values[1] || 0) + ' / ' + (values[2] || 0) + ' CALLS', 1);
+        fontPrint5x3(0, 59, 'BETWEEN RENDERS - JOG:TRACKS', 1);
+        return;
+    }
+    if (cpuDetail.page === 1) {
         const values = seqState.cpuProfile.split(',').map(Number);
         drawHeader('AUDIO PEAK', (values[2] || 0) + ' OVER');
         const names = ['INPUT/CONFIG','SEQUENCER','CLIP METADATA','MIDI/CONTEXT','HB PREPARE','CLICK/LOAD','CHAIN RENDER'];
@@ -55,12 +69,12 @@ def patch_audio_profile(root: Path) -> None:
             const value = String(values[6 + index] || 0);
             fontPrint5x3(W - fontWidth5x3(value), 17 + index * 6, value, 1);
         }
-        fontPrint5x3(0, 59, '>70%: ' + (values[3] || 0) + ' JOG DIAL: TRACKS', 1);
+        fontPrint5x3(0, 59, 'PEAK T' + (values[20] || '-') + ' ' + (values[21] || 0) + 'US JOG:MORE', 1);
         return;
     }''')
     path.write_text(source)
     path = root / 'src/app/tick.ts'
     source = path.read_text().replace("import { cpuPageActive }", "import { cpuPageActive, cpuDetail }")
-    source = source.replace("+ '|' + seqState.cpuSend;", "+ '|' + seqState.cpuSend + (cpuDetail.active ? '|' + seqState.cpuProfile : '');")
-    source = source.replace("+ vm.scaleUs + '|' + cols.join(',') + '|' + snd.join(',');", "+ vm.scaleUs + '|' + cols.join(',') + '|' + snd.join(',') + (cpuDetail.active ? '|' + seqState.cpuProfile.split(',').slice(2,13).join(',') : '');")
+    source = source.replace("+ '|' + seqState.cpuSend;", "+ '|' + seqState.cpuSend + ('|' + cpuDetail.page + (cpuDetail.page === 1 ? '|' + seqState.cpuProfile : cpuDetail.page === 2 ? '|' + seqState.cpuRequests : ''));")
+    source = source.replace("+ vm.scaleUs + '|' + cols.join(',') + '|' + snd.join(',');", "+ vm.scaleUs + '|' + cols.join(',') + '|' + snd.join(',') + ('|' + cpuDetail.page + (cpuDetail.page === 1 ? '|' + seqState.cpuProfile.split(',').slice(2).join(',') : cpuDetail.page === 2 ? '|' + seqState.cpuRequests : ''));")
     path.write_text(source)
