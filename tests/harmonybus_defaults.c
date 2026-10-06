@@ -65,9 +65,9 @@ int main(int argument_count, char **arguments) {
         snprintf(expected_state,sizeof(expected_state),"%s;pd1,6,3,3,2,0;dc1,3;ts1,0,0,2,0;pas1,0;pf1,17;pnf1,17;pb1,2;pc2,2;pp1,3;hu1,0,0,0;ss1,6,0;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,3,0,2,0,0,0,6,0,6,17,0,8,0,0,3,0,2,0,0,0,6,0,6;named1",seed);
         /* New versioned fields have explicit neutral defaults; preserve the
            legacy prefix exactly, then verify the complete state round-trip. */
-        strcat(expected_state,";kc1,1,3,2;kt2,3,0,0;kt3,3,0;mf1,0,2,0,2,0,0,0:00");
-        for(int slot=0;slot<16;slot++)strcat(expected_state,"0000");
-        strcat(expected_state,";mp1,0,0,1,0;mg1,0,0;rr1,0,0,0,0");
+        strcat(expected_state,";kc1,1,3,2;kt2,3,0,0;kt3,3,0;ml1,1,60,0,12,0,0;mf2,0,2,0,2,0,0,0:00");
+        for(int slot=0;slot<16;slot++)strcat(expected_state,"00000000000");
+        strcat(expected_state,";mp1,0,0,1,0;mg1,0,0;mt1,0;rr1,0,0,0,0");
         strcat(expected_state,";ar1,13,14,15,16,17,18,19,20,-5,-4,-1,-2,-30,-10,-8,-31,2,3,5,36,37,14,10,15,1,1;ar2,0;ar3,2,1,0;ar4,0;ar5,1");
         assert(instances[track]->player.config.start==5);
         const hb_ar_state *approach=&instances[track]->approach_rows;
