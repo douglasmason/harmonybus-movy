@@ -575,6 +575,10 @@ def main() -> int:
     patch_harmony_footer(root)
     from patch_launchpad import patch_launchpad
     patch_launchpad(root)
+    from patch_surface_input import patch_surface_input
+    patch_surface_input(root)
+    from patch_surface_frame import patch_surface_frame
+    patch_surface_frame(root)
     from patch_travel_defaults import patch_travel_defaults
     patch_travel_defaults(root)
     from patch_motif_loader import patch_motif_loader

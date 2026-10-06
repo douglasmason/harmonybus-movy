@@ -19,7 +19,7 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: 243a996f79d86f312f67a0d521b85fa3701efcc1
+  HB_REF: bda5beefe37ef87592c22c70e00fa9ba39e7cdb3
   HB_MOVY_VERSION: 0.34.1-hbclean.178
   HB_MOVY_TAG: v0.34.1-hbclean.178
   ASSET_NAME: harmonybus-movy-module.tar.gz
@@ -92,6 +92,7 @@ jobs:
               ['git', '-C', str(root), 'ls-files', '--others', '--exclude-standard'], text=True
           ).splitlines()
           expected = {
+              'engine/crates/movy-dsp/src/surface_route.rs',
               'engine/crates/seq-core/src/motif_load.rs',
               'src/renderer/hb-motif-loader.ts',
               'browser-test/hb-motif-loader.mjs',
@@ -399,6 +400,7 @@ jobs:
         run: |
           cargo test -p seq-core --lib
           cargo test -p movy-dsp piano_gap_tests --lib
+          cargo test -p movy-dsp surface_route --lib
           HB_TIMING_TRACE=/tmp/hb-timing.trace cargo test -p movy-dsp hb_loop --lib
 
       - name: Replay real sequencer timing through HarmonyBus
