@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: e1d645c79e30ee84c7300704da60178700988ca3
-  HB_MOVY_VERSION: 0.34.1-hbclean.176
-  HB_MOVY_TAG: v0.34.1-hbclean.176
+  HB_REF: 2eeed07d78b713172eddf8ccdb571cc1f392409b
+  HB_MOVY_VERSION: 0.34.1-hbclean.177
+  HB_MOVY_TAG: v0.34.1-hbclean.177
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
