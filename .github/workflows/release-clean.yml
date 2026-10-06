@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: 2eeed07d78b713172eddf8ccdb571cc1f392409b
-  HB_MOVY_VERSION: 0.34.1-hbclean.177
-  HB_MOVY_TAG: v0.34.1-hbclean.177
+  HB_REF: 968f2a008f2306ec81e7139844af76566842c67d
+  HB_MOVY_VERSION: 0.34.1-hbclean.178
+  HB_MOVY_TAG: v0.34.1-hbclean.178
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -92,6 +92,9 @@ jobs:
               ['git', '-C', str(root), 'ls-files', '--others', '--exclude-standard'], text=True
           ).splitlines()
           expected = {
+              'engine/crates/seq-core/src/motif_load.rs',
+              'src/renderer/hb-motif-loader.ts',
+              'browser-test/hb-motif-loader.mjs',
               'src/surfaces/launchpad.ts',
               'src/surfaces/protocol.ts',
               'src/surfaces/controls.ts',
@@ -325,7 +328,9 @@ jobs:
       - name: Verify motif editor and feedback
         if: steps.plan.outputs.mode != 'reused'
         working-directory: movy
-        run: node browser-test/hb-motifs.mjs
+        run: |
+          node browser-test/hb-motifs.mjs
+          node browser-test/hb-motif-loader.mjs
 
       - name: Verify harmony pad colors
         if: steps.plan.outputs.mode != 'reused'
