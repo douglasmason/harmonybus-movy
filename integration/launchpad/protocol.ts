@@ -2,6 +2,11 @@
 export type LaunchpadModel = 1 | 2;
 export type SurfaceCell = { pitch: number; target: number; row: number };
 
+/** Center Move's four rows, retaining complete approach/keyboard groups.
+ * Triple Approach needs four rows per octave, so its single extra octave
+ * cannot be divided between both ends without splitting a target group. */
+export function surfaceFirstRow(layout: number): number { return layout === 3 ? 0 : -2; }
+
 /** Index zero is bottom left on both generations. */
 export function launchpadIndex(model: LaunchpadModel, note: number): number {
     if (model === 1) {
