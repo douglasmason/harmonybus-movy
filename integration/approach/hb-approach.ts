@@ -159,8 +159,7 @@ export function approachPanels(hierarchy: any, mode: number): void {
     const settings=[
         {key:'key_center_scale',name:'Key Center Scale'},
         {key:'conductor_key_travel',name:'Key Travel: Conductor'},
-        {key:'follower_recorded_key_travel',name:'Key Travel: Follower Rec'},
-        {key:'follower_live_key_travel',name:'Key Travel: Follower Live'},
+        {key:'follower_key_travel',name:'Key Travel: Follower'},
         {key:'parallel_scale',name:'Parallel Scale'},
         {key:'target_scale_source',name:'Target Scale Source'},
         {key:'dominant_color_family',name:'Dominant Color Family'},
