@@ -20,8 +20,8 @@ env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
   HB_REF: 4ef412d8f31ba0cbc45ae5eb4e1780cc4ed5d868
-  HB_MOVY_VERSION: 0.34.1-hbclean.173
-  HB_MOVY_TAG: v0.34.1-hbclean.173
+  HB_MOVY_VERSION: 0.34.1-hbclean.174
+  HB_MOVY_TAG: v0.34.1-hbclean.174
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -472,7 +472,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Expose Foll Map in Steps, Perform and Harm Play so regular Content and Travel are always available. Preserve the same saved controls and separate Key Center travel policies. Tag recorded pressure with playback origin. Pair with HarmonyBus 0.2.257 for current-output pad colors, separate live/clip note ownership, and preserved Held Retrigger behavior."
+              --notes "Next Pulse selected tones now follow Pad Colors Shape: Smooth, Triangle, Square or steady None. Animated shapes keep a visible floor. Pair with HarmonyBus 0.2.257; includes existing Foll Map, current-output feedback and live-overdub fixes."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
