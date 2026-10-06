@@ -20,8 +20,8 @@ env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
   HB_REF: ccab0b74231465897ab4f5326745048d6333d82a
-  HB_MOVY_VERSION: 0.34.1-hbclean.181
-  HB_MOVY_TAG: v0.34.1-hbclean.181
+  HB_MOVY_VERSION: 0.34.1-hbclean.182
+  HB_MOVY_TAG: v0.34.1-hbclean.182
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -110,6 +110,14 @@ jobs:
               'engine/crates/movy-dsp/src/audio_profile.rs',
               'engine/crates/movy-dsp/src/chain_cost.rs',
               'src/seq/cpu-page.ts',
+              'src/seq/preview-test.ts',
+              'src/renderer/preview-test-view.ts',
+              'browser-test/screenshots/baseline/cpu-movy-tracks.png',
+              'browser-test/screenshots/baseline/cpu-schwung-tracks.png',
+              'browser-test/screenshots/baseline/cpu-overscale.png',
+              'browser-test/screenshots/baseline/cpu-empty.png',
+              'browser-test/screenshots/baseline/cpu-sends.png',
+              'browser-test/screenshots/baseline/cpu-sends-quiet.png',
               'src/seq/pad-settings.ts',
               'src/seq/trail-history.ts',
               'src/seq/trail-settings.ts',
@@ -485,7 +493,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Live Key Center survives recording and clip Undo. New Recordable Key Center, recursive Relative Key Center, Key Step Back and Key Return to Start operations provide signed shifts and optional return after N steps. Normal loops accumulate; clip relaunch and Stop-to-Play reconstruct from the starting key and scale. Update both HarmonyBus 0.2.263 and Movy hbclean.181. No Schwung host update is required. Device audio crackling remains a separate unresolved issue."
+              --notes "Permanent guided Launchpad A/B diagnostic: Shift+Step 12, press the jog knob, then press again to start. Uses your loaded set and starts playback if stopped. Automatically measures 20 seconds with normal lighting and 20 seconds with frozen external previews/LEDs, restores lighting and the initial playing/stopped state, and holds three labeled photo pages. Notes, pressure and releases remain live. Existing key-center operations from hbclean.181 are preserved. Keep HarmonyBus 0.2.263; no Schwung host update. This is a diagnostic, not a confirmed crackle fix."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

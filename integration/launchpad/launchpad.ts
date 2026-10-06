@@ -68,6 +68,21 @@ let sampledAt = -Infinity, ledAt = -Infinity, layoutSignature = '', scan = 0;
 let recoverAt = Infinity, ledReadyAt = -Infinity;
 let ledCache: number[] = new Array(73).fill(-1);
 let initialization: number[][] = [];
+let previewFrozen = false;
+/** Temporary diagnostic override. Does not alter the saved surface setting. */
+export function setLaunchpadPreviewFrozen(frozen: boolean): void {
+    if (previewFrozen === frozen) return;
+    previewFrozen = frozen;
+    sampledAt = -Infinity;
+    pendingViews.fill(null);
+}
+export function launchpadPreviewFrozen(): boolean { return previewFrozen; }
+export function launchpadAvailable(): boolean {
+    return configured && flagValue('hblaunchpad') === model && globalThis.overtakeParked !== true;
+}
+export function launchpadPreviewReady(): boolean {
+    return launchpadAvailable() && frameReady && initialization.length === 0;
+}
 const prefix = [240, 0, 32, 41, 2, 12];
 function currentLayoutSignature(): string {
     const selected=appState.activeTrack.index;
@@ -102,6 +117,7 @@ export function releaseLaunchpad(): void {
 
 /** Undo only the channel claim owned here; other channel remaps are untouched. */
 export function unloadLaunchpad(): void {
+    setLaunchpadPreviewFrozen(false);
     releaseLaunchpad();
     for (const ownerTrack of visited) portFor(ownerTrack).setParam('midi_fx1:surface_enabled', '0');
     visited.clear();
@@ -141,16 +157,21 @@ function sample(now: number): void {
     if (uuid !== setUuid) { releaseLaunchpad(); visited.clear(); setUuid = uuid; track = -1; }
     const signature = currentLayoutSignature();
     if (signature !== layoutSignature) {
+        // A frozen display can retain instance-wide approach capability while
+        // the normal key/scale mapping changes during recorded modulation.
+        const retainView = previewFrozen && selected === track;
         layoutSignature = signature; track = selected; sampledAt = -Infinity;
         const notes = buildPadMap(keyboardState.mode, keyboardState.layout, keyboardState.scale, baseNoteFor(track), 8,
             surfaceFirstRow(keyboardState.layout));
         const cells = buildSurfaceCells(notes, keyboardState.layout, isPianoLayout(keyboardState.mode, keyboardState.layout));
         for (let bank = 0; bank < 2; bank++) {
-            banks[bank].cells = cells.slice(bank * 32, bank * 32 + 32); banks[bank].view = null; banks[bank].payload = '';
+            banks[bank].cells = cells.slice(bank * 32, bank * 32 + 32);
+            if (!retainView) banks[bank].view = null;
+            banks[bank].payload = '';
         }
-        ledCache.fill(-1); frameReady = false; pendingViews.fill(null); sampleBank = 0; recoverAt=now+1000;
+        ledCache.fill(-1); frameReady = retainView && frameReady; pendingViews.fill(null); sampleBank = 0; recoverAt=now+1000;
     }
-    if (now - sampledAt < 50) return;
+    if (previewFrozen || now - sampledAt < 50) return;
     sampledAt = now;
     const page = schwungPageFor(track, 'midi_fx1');
     if(sampleBank===0)controlLights = page.ready && page.moduleId === 'harmonybus' ? surfaceControlLights(page) : [];
@@ -234,6 +255,7 @@ export function tickLaunchpad(now = Date.now()): void {
         return;
     }
     sample(now);
+    if (previewFrozen) return;
     // Original Launchpad accepts at most 400 MIDI messages/sec; leave headroom.
     if (now < ledReadyAt || now - ledAt < (model === 1 ? 6 : 25)) return;
     // Bound attempts too: a full USB queue must not cause a retry storm.
