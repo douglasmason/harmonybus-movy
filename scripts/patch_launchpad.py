@@ -37,9 +37,10 @@ def patch_launchpad(root: Path) -> None:
     path.write_text(source)
 
     path = root / "src/keyboard/layouts.ts"
-    source = replace_once(path.read_text(), "scaleIdx: number, base: number): Int16Array", "scaleIdx: number, base: number, rows = 4): Int16Array")
+    source = replace_once(path.read_text(), "scaleIdx: number, base: number): Int16Array", "scaleIdx: number, base: number, rows = 4, firstRow = 0): Int16Array")
     source = replace_once(source, "new Int16Array(PAD_COUNT)", "new Int16Array(COLS * rows)")
     source = replace_once(source, "i < PAD_COUNT; i++", "i < map.length; i++")
+    source = replace_once(source, "const row = (i / COLS) | 0;", "const row = ((i / COLS) | 0) + firstRow;")
     source = replace_once(source, "pitch = row ? -1 : degreeToPitch(base, degrees, col);", "pitch = row % 4 ? -1 : degreeToPitch(base, degrees, (row >> 2) * degrees.length + col);")
     path.write_text(source)
     path = root / "build/browser.mjs"

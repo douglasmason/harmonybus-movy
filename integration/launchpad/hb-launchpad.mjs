@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { installEnv } from './env.mjs';
 installEnv();
-const { launchpadIndex, launchpadNote, sysexPackets, buildSurfaceCells, previewPayload, legacyColor } = await import('../dist/esm/surfaces/protocol.js');
+const { launchpadIndex, launchpadNote, sysexPackets, buildSurfaceCells, previewPayload, legacyColor, surfaceFirstRow } = await import('../dist/esm/surfaces/protocol.js');
 const { buildPadMap } = await import('../dist/esm/keyboard/layouts.js');
 for (const model of [1, 2]) {
     for (let index = 0; index < 64; index++) assert.equal(launchpadIndex(model, launchpadNote(model, index)), index);
@@ -16,12 +16,15 @@ for (let length = 8; length <= 48; length++) {
 }
 for (let mode = 0; mode < 2; mode++) for (let layout = 0; layout < 4; layout++) {
     const move = buildPadMap(mode, layout, 0, 48);
-    const external = buildPadMap(mode, layout, 0, 48, 8);
-    assert.deepEqual([...external.slice(0, 32)], [...move], 'the lower half is exactly the selected Move layout');
+    const external = buildPadMap(mode, layout, 0, 48, 8, surfaceFirstRow(layout));
+    const moveStart=layout===3?0:16;
+    assert.deepEqual([...external.slice(moveStart, moveStart+32)], [...move], 'the Move layout remains intact inside the extended surface');
     const cells = buildSurfaceCells(external, layout, mode === 0 && layout === 1);
     assert.equal(cells.length, 64);
     if (layout === 3) { assert.equal(cells[8].target, 48);assert.equal(cells[24].row, 3);assert.equal(cells[40].target, 60); }
-    if (layout === 2) { assert.equal(cells[8].target, 48);assert.equal(cells[24].target, 60); }
+    if (layout === 2) { assert.equal(cells[8].target, 36);assert.equal(cells[24].target, 48);assert.equal(cells[56].target,72); }
+    if (layout === 1 && mode===0) {assert.equal(cells[0].pitch,36);assert.equal(cells[48].pitch,72);}
+    if (layout === 1 && mode===1) {assert.equal(cells[0].pitch,24);assert.equal(cells[56].pitch,108);}
     for (let bank = 0; bank < 2; bank++) assert.equal(previewPayload(cells.slice(bank * 32, bank * 32 + 32), layout >= 2).length, 164);
 }
 assert.equal(legacyColor(118, false, false, false, false), 28);
@@ -133,9 +136,37 @@ onMidiMessageExternal([176,89,127]);values.set('approach_latch_slots','0');
 onMidiMessageExternal([176,91,127]);onMidiMessageExternal([176,91,0]);onMidiMessageExternal([176,89,0]);
 assert(writes.slice(xStart).some(([,key,value])=>key.endsWith('approach_control_1')&&value==='LatchOn'));
 onMidiMessageExternal([144,11,110]);onMidiMessageExternal([160,11,0]);
-assert.deepEqual(midi.at(-1),[0,160,48,0], 'zero pressure is pressure, not a release');
+assert.deepEqual(midi.at(-1),[0,160,38,0], 'zero pressure is pressure, not a release');
 globalThis.overtakeParked=true;tickLaunchpad(800);
-assert.deepEqual(midi.at(-1),[0,128,48,0], 'parking releases live notes');
+assert.deepEqual(midi.at(-1),[0,128,38,0], 'parking releases live notes');
 assert.deepEqual(claims.at(-1),[0,-1], 'parking releases channel ownership');
 globalThis.overtakeParked=false;setFlag('hblaunchpad',0);unloadLaunchpad();
 console.log('Launchpad X: top/side addresses, zero pressure and parked teardown pass');
+
+const activePort=portFor(appState.activeTrack.index),previousGet=activePort.getParam;
+let previewReads=0,missingPreview=false;
+activePort.getParam=key=>{
+    if(key.includes('surface_view')){previewReads++;return missingPreview?'':'145,145,145,1,2741,2,0,3,2,0|piano1,1';}
+    return previousGet(key);
+};
+setFlag('hblaunchpad',2);tickLaunchpad(1000);tickLaunchpad(1010);tickLaunchpad(1020);
+assert.equal(previewReads,1,'one expensive preview per polling slot, including startup');
+const beforeNotes=previewReads;
+onMidiMessageExternal([144,11,100]);onMidiMessageExternal([128,11,0]);
+onMidiMessageExternal([144,81,100]);onMidiMessageExternal([128,81,0]);
+assert.equal(previewReads,beforeNotes,'playing either bank does not synchronously refresh pad colors');
+for(let now=1021;now<=1070;now++)tickLaunchpad(now);
+assert.equal(previewReads,2,'banks alternate at a bounded cadence');
+missingPreview=true;
+const beforeMiss=writes.length;
+for(let now=1120;now<=1420;now+=50)tickLaunchpad(now);
+assert.equal(writes.slice(beforeMiss).filter(([,key])=>key.includes('surface_preview')||key.endsWith('surface_enabled')).length,0,
+    'missed reads do not resend geometry and enable writes');
+let failedSends=0;
+globalThis.move_midi_external_send=()=>{failedSends++;return false;};
+onMidiMessageExternal([176,89,127]);
+for(let now=1421;now<=1520;now++)tickLaunchpad(now);
+assert(failedSends>0&&failedSends<=4,'a full LED queue retries at most 40 times per second');
+globalThis.move_midi_external_send=packets=>{sent.push([...packets]);return true;};
+activePort.getParam=previousGet;setFlag('hblaunchpad',0);unloadLaunchpad();
+console.log('Launchpad load: bounded native reads, input independent of preview, and USB backpressure pass');
