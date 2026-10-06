@@ -140,7 +140,16 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
 }
 
 /** Poll one compact snapshot, never once per pad or once per display frame. */
+let movePreviewFrozen = false;
+/** Diagnostic only: retain the last complete view, and refresh immediately on exit. */
+export function setMovePreviewFrozen(frozen: boolean): void {
+    if (movePreviewFrozen === frozen) return;
+    movePreviewFrozen = frozen;
+    polledAt = -Infinity;
+}
+export function isMovePreviewFrozen(): boolean { return movePreviewFrozen; }
 export function refreshHarmonyPads(track: number, now = Date.now()): void {
+    if (movePreviewFrozen) return;
     if(trailTransport!==seqState.playing){
         trailTransport=seqState.playing;trailEpoch++;
         trailHistory.clear();trailSampleAt=-Infinity;polledAt=-Infinity;

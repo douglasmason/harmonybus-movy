@@ -1,9 +1,10 @@
-/** Guided A/B observation; uses the existing engine status poll only. */
+/** Guided preview isolation; uses the existing engine status poll only. */
 import { appState, VIEW_CPU } from '../app/state.js';
 import { seqState } from './state.js';
 import { seqCmd, statusSeq, engineReady } from './engine.js';
 import { currentSetUuid, sessionReady } from './set-session.js';
 import { keyboardState } from '../keyboard/state.js';
+import { setMovePreviewFrozen, isMovePreviewFrozen } from '../keyboard/harmony-pads.js';
 import { launchpadAvailable, launchpadPreviewReady, launchpadPreviewFrozen, setLaunchpadPreviewFrozen } from '../surfaces/launchpad.js';
 
 type Stage = 'idle' | 'intro' | 'starting' | 'settle' | 'arming' | 'run' | 'stop' | 'results' | 'error';
@@ -13,6 +14,8 @@ export const previewTest = {
     captures: [] as Capture[],
 };
 const RUN_MS = 20000, SETTLE_MS = 1000, TIMEOUT_MS = 5000;
+export const PREVIEW_TEST_LABELS = ['A NORMAL', 'B X FROZEN', 'C BOTH FROZEN'];
+export const PREVIEW_TEST_PHOTOS = PREVIEW_TEST_LABELS.length + 1;
 let enteredAt = 0, runningAt = 0, requestedAfter = 0, lastSeenStatus = 0, lastStatusAt = 0;
 let context = '', duration = 0;
 let startedTransport = false, transportSet = '';
@@ -33,6 +36,7 @@ function fail(message: string, now: number): void {
 }
 export function previewTestVisible(): boolean { return previewTest.stage !== 'idle'; }
 function restore(): void {
+    setMovePreviewFrozen(false);
     setLaunchpadPreviewFrozen(false);
     if (startedTransport && currentSetUuid() === transportSet) seqCmd('stop');
     startedTransport = false;
@@ -48,7 +52,7 @@ export function clickPreviewTest(now = Date.now()): void {
         previewTest.error = ''; enter('intro', now); return;
     }
     if (previewTest.stage === 'results') {
-        previewTest.photo = (previewTest.photo + 1) % 3; appState.dirty = true; return;
+        previewTest.photo = (previewTest.photo + 1) % PREVIEW_TEST_PHOTOS; appState.dirty = true; return;
     }
     if (previewTest.stage !== 'intro') return;
     if (!engineReady() || !sessionReady()) { fail('WAIT FOR SET TO LOAD', now); return; }
@@ -56,7 +60,7 @@ export function clickPreviewTest(now = Date.now()): void {
     if (!launchpadPreviewReady()) { fail('ENABLE LAUNCHPAD FIRST', now); return; }
     previewTest.pass = 0; previewTest.captures = []; previewTest.photo = 0;
     context = contextKey(); lastSeenStatus = statusSeq(); lastStatusAt = now;
-    setLaunchpadPreviewFrozen(false); seqCmd('aprof_off');
+    setMovePreviewFrozen(false); setLaunchpadPreviewFrozen(false); seqCmd('aprof_off');
     startedTransport = !seqState.playing; transportSet = currentSetUuid();
     if (startedTransport) command('play', 'starting', now);
     else enter('settle', now);
@@ -68,7 +72,8 @@ export function tickPreviewTest(now = Date.now()): void {
     if (['intro', 'results', 'error'].includes(previewTest.stage)) return;
     if (!sessionReady() || !engineReady() || seqState.recording || seqState.countingIn ||
         (previewTest.stage !== 'starting' && !seqState.playing) || contextKey() !== context ||
-        !launchpadAvailable() || launchpadPreviewFrozen() !== (previewTest.pass === 1)) {
+        !launchpadAvailable() || launchpadPreviewFrozen() !== (previewTest.pass > 0) ||
+        isMovePreviewFrozen() !== (previewTest.pass === 2)) {
         fail('PLAY OR SETUP CHANGED', now); return;
     }
     const sequence = statusSeq();
@@ -96,10 +101,13 @@ export function tickPreviewTest(now = Date.now()): void {
     } else if (previewTest.stage === 'stop') {
         // Wait for a fresh OFF status, retaining the final block, not a stale UI peak.
         if (fresh && audio.length >= 22 && requests.length >= 9 && audio[0] === 0 && audio[1] > 0 && requests[0] === '0' &&
-            (previewTest.pass === 1 || launchpadPreviewReady())) {
+            (previewTest.pass > 0 || launchpadPreviewReady())) {
             previewTest.captures.push({ audio, requests, seconds: duration });
-            if (previewTest.pass === 0) {
-                previewTest.pass = 1; setLaunchpadPreviewFrozen(true); enter('settle', now);
+            if (previewTest.pass < PREVIEW_TEST_LABELS.length - 1) {
+                previewTest.pass++;
+                setLaunchpadPreviewFrozen(true);
+                setMovePreviewFrozen(previewTest.pass === 2);
+                enter('settle', now);
             } else {
                 restore(); enter('results', now);
             }
@@ -111,20 +119,20 @@ function compactKey(key: string): string {
     return key.replace(/^ch(\d+):midi_fx(\d+):/, (_, track, slot) => 'T' + (Number(track) + 1) + '/FX' + slot + ':')
         .toUpperCase().replace(/_/g, '-');
 }
-/** Fixed lines keep the measured passes' UI workload the same (one countdown). */
+/** Static instruction/photo lines; the renderer owns the large running display. */
 export function previewTestLines(): string[] {
     if (previewTest.stage === 'intro') return [
-        'LAUNCHPAD A/B TEST', 'A: NORMAL LIGHTS 20S', 'B: FROZEN LIGHTS 20S',
-        'USES YOUR LOADED SET.', 'PLAYBACK STARTS AUTOMATICALLY.',
-        'LISTEN. PAD PLAY IS OPTIONAL.', 'RESTORES LIGHTS + PLAY/STOP.', 'CLICK:START  BACK:CANCEL'];
+        'PREVIEW TEST - 3 X 20S', 'A: NORMAL PREVIEWS', 'B: LAUNCHPAD PREVIEW FROZEN',
+        'C: BOTH PREVIEWS FROZEN', 'AUTO-PLAYS YOUR LOADED SET.',
+        'LISTEN HANDS-OFF FOR 60S.', 'RESTORES PREVIEWS + PLAY/STOP.', 'CLICK:START  BACK:CANCEL'];
     if (previewTest.stage === 'error') return ['TEST NOT COMPLETED', previewTest.error,
-        'NORMAL LIGHTS RESTORED', 'NO COMPLETE A/B COMPARISON', '', '', '', 'CLICK:RETRY  BACK:EXIT'];
+        'NORMAL PREVIEWS RESTORED', 'NO COMPLETE A/B/C COMPARISON', '', '', '', 'CLICK:RETRY  BACK:EXIT'];
     if (previewTest.stage === 'results') {
         if (previewTest.photo === 0) return []; // Numeric comparison uses columns.
         const capture = previewTest.captures[previewTest.photo - 1];
         const { audio: values, requests } = capture;
         return [
-            'PHOTO ' + (previewTest.photo + 1) + '/3 ' + (previewTest.photo === 1 ? 'A NORMAL' : 'B FROZEN'),
+            'PHOTO ' + (previewTest.photo + 1) + '/' + PREVIEW_TEST_PHOTOS + ' ' + PREVIEW_TEST_LABELS[previewTest.photo - 1],
             'R ' + compactKey(requests[4]), 'W ' + compactKey(requests[6]),
             'IN ' + values[6] + ' SEQ ' + values[7] + ' META ' + values[8],
             'MID ' + values[9] + ' HB ' + values[10] + ' LD ' + values[11],
@@ -132,9 +140,5 @@ export function previewTestLines(): string[] {
             'N ' + values[1] + ' BUD ' + values[5] + ' C ' + requests[2],
             'CLICK:NEXT  BACK:EXIT'];
     }
-    const pass = previewTest.pass === 0 ? 'A NORMAL LIGHTS' : 'B FROZEN LIGHTS';
-    return [pass, previewTest.stage === 'run' ? 'LISTEN FOR ' + previewTest.remaining + ' SECONDS' : 'PREPARING / SAVING...',
-        'LISTEN: WHICH PASS CRACKLES?', 'OPTIONAL: PLAY PADS THE SAME.', 'NO SETTINGS CHANGES.',
-        previewTest.pass === 0 ? 'NEXT: B FROZEN AUTOMATICALLY' : 'NEXT: PHOTO RESULTS',
-        'NOTES AND RELEASES STAY LIVE.', 'BACK:CANCEL + RESTORE LIGHTS'];
+    return [];
 }

@@ -256,7 +256,13 @@ assert.equal(previewTest.captures[0].audio[4],1900,'final acknowledged sample su
 assert(launchpadPreviewFrozen());
 const readsBeforeFreeze=previewReads,packetsBeforeFreeze=sent.length,eventsBeforeFreeze=nativeWrites.length;
 const diagnosticPort=portFor(appState.activeTrack.index),diagnosticGet=diagnosticPort.getParam;
-diagnosticPort.getParam=key=>{if(key.includes('surface_view'))previewReads++;return diagnosticGet(key);};
+let movePreviewReads=0;
+diagnosticPort.getParam=key=>{
+    if(key.includes('surface_view'))previewReads++;
+    if(key.endsWith(':pad_view')||key.endsWith(':pad_render')){movePreviewReads++;return frame();}
+    return diagnosticGet(key);
+};
+const {refreshHarmonyPads,isMovePreviewFrozen,pianoApproachTarget}=await import('../dist/esm/keyboard/harmony-pads.js');
 onMidiMessageExternal([144,11,99]);onMidiMessageExternal([160,11,45]);
 for(let now=25050;now<25200;now+=10)tickLaunchpad(now);
 assert.equal(previewReads,readsBeforeFreeze,'frozen pass performs no external preview reads');
@@ -274,15 +280,34 @@ keyboardState.rootPc=0;tickLaunchpad(25230);
 poll(26040,0,1900,1460);assert.equal(previewTest.stage,'arming');
 poll(26060,1,1000,100,'status');
 for(let now=27060;now<=46060;now+=1000)poll(now,1,1000,100,'status');
+refreshHarmonyPads(appState.activeTrack.index,46060);
+assert(movePreviewReads>0,'B retains Move preview reads');
+const moveApproachBefore=pianoApproachTarget(appState.activeTrack.index,8);
 poll(46080,0,1100,150,'status');
+assert.equal(previewTest.pass,2);assert(isMovePreviewFrozen());assert(launchpadPreviewFrozen());
+const readsBeforeBoth=movePreviewReads,surfaceReadsBeforeBoth=previewReads,writesBeforeBoth=writes.length;
+refreshHarmonyPads(appState.activeTrack.index,46100);tickLaunchpad(46100);
+refreshHarmonyPads(appState.activeTrack.index,46500);tickLaunchpad(46500);
+assert.equal(movePreviewReads,readsBeforeBoth,'C suppresses pad_view and pad_render, including fallback reads');
+assert.equal(previewReads,surfaceReadsBeforeBoth,'C keeps external preview reads frozen');
+assert.equal(writes.length,writesBeforeBoth,'C does not write preview geometry or trail settings');
+assert.equal(pianoApproachTarget(appState.activeTrack.index,8),moveApproachBefore,'C retains Move input capability');
+onMidiMessageExternal([144,11,99]);onMidiMessageExternal([128,11,0]);tickLaunchpad(46510);
+assert(nativeWrites.at(-1)[1].includes(',128,'),'C keeps input and release batches live');
+poll(47080,0,1100,150,'status');poll(47100,1,900,60,'status');
+for(let now=48100;now<=67100;now+=1000)poll(now,1,900,60,'status');
+poll(67120,0,950,65,'status');
 assert.equal(previewTest.stage,'results');assert.equal(launchpadPreviewFrozen(),false);
-assert.equal(previewTest.captures.length,2);
+assert.equal(isMovePreviewFrozen(),false);
+assert.equal(previewTest.captures.length,3);
 assert.equal(previewTest.captures[0].audio[4],1900,'A is retained independently of B');
 assert.equal(previewTest.captures[1].audio[4],1100);
+assert.equal(previewTest.captures[2].audio[4],950);
 const resultsBeforeRefresh=JSON.stringify(previewTest.captures);
-tickLaunchpad(46100);tickLaunchpad(46150);
+tickLaunchpad(67150);tickLaunchpad(67200);refreshHarmonyPads(appState.activeTrack.index,67200);
 assert(previewReads>readsBeforeFreeze,'preview polling resumes automatically after the test');
-poll(46200,0,9999,9999);assert.equal(JSON.stringify(previewTest.captures),resultsBeforeRefresh,'photographs remain stable');
+assert(movePreviewReads>readsBeforeBoth,'Move preview refresh resumes immediately on restoration');
+poll(67220,0,9999,9999);assert.equal(JSON.stringify(previewTest.captures),resultsBeforeRefresh,'photographs remain stable');
 const pixels=new Uint8Array(128*64),screens=[];let overflow=false;
 globalThis.clear_screen=()=>pixels.fill(0);
 globalThis.fill_rect=(x,y,width,height,value)=>{
@@ -290,16 +315,31 @@ globalThis.fill_rect=(x,y,width,height,value)=>{
     for(let row=Math.max(0,y);row<Math.min(64,y+height);row++)
         for(let column=Math.max(0,x);column<Math.min(128,x+width);column++)pixels[row*128+column]=Number(!!value);
 };
-for(let photo=0;photo<3;photo++){
+for(let photo=0;photo<4;photo++){
     assert.equal(previewTest.photo,photo);renderCpuView(buildCpuPageVM());screens.push(pixels.slice());clickJog();
 }
 assert.equal(overflow,false,'all result pages fit the physical display');
 assert.notDeepEqual(screens[0],screens[1]);assert.notDeepEqual(screens[1],screens[2]);
+const runningScreens=[];
+const savedDisplayState={stage:previewTest.stage,pass:previewTest.pass,remaining:previewTest.remaining};
+previewTest.remaining=20;
+for(let pass=0;pass<3;pass++){
+    for(const stage of ['settle','arming','run','stop']){
+        previewTest.pass=pass;previewTest.stage=stage;renderCpuView(buildCpuPageVM());
+        if(stage==='run')runningScreens.push(pixels.slice());
+    }
+}
+Object.assign(previewTest,savedDisplayState);
+assert.equal(overflow,false,'large phase labels and countdown fit every running and transition screen');
+assert.notDeepEqual(runningScreens[0],runningScreens[1]);assert.notDeepEqual(runningScreens[1],runningScreens[2]);
 if(process.env.HB_TEST_PREVIEW){
     const {PNG}=await import('pngjs');const {writeFileSync}=await import('node:fs');
-    const preview=new PNG({width:128,height:64*3});
+    const preview=new PNG({width:128,height:64*4});
     screens.forEach((screen,page)=>screen.forEach((value,index)=>preview.data.set(value?[212,208,200,255]:[0,0,0,255],(page*128*64+index)*4)));
     writeFileSync(process.env.HB_TEST_PREVIEW,PNG.sync.write(preview));
+    const runningPreview=new PNG({width:128,height:64*3});
+    runningScreens.forEach((screen,page)=>screen.forEach((value,index)=>runningPreview.data.set(value?[212,208,200,255]:[0,0,0,255],(page*128*64+index)*4)));
+    writeFileSync(process.env.HB_TEST_PREVIEW+'.phases.png',PNG.sync.write(runningPreview));
 }
 clearCpuPage();assert.equal(previewTest.stage,'idle');
 clickPreviewTest(47000);clickPreviewTest(47010);poll(48010,0,1100,150);poll(48020,1,1100,150);
@@ -309,7 +349,11 @@ cancelPreviewTest();clickPreviewTest(55000);clickPreviewTest(55010);
 poll(56010,0,1100,150);poll(56020,1,1100,150);
 for(let now=57020;now<=76020;now+=1000)poll(now,1,1100,150);
 poll(76040,0,1100,150);assert(launchpadPreviewFrozen());
-clearCpuPage();assert.equal(launchpadPreviewFrozen(),false,'Back/page exit immediately restores previews');
+poll(77040,0,1100,150);poll(77060,1,1100,150);
+for(let now=78060;now<=97060;now+=1000)poll(now,1,1100,150);
+poll(97080,0,1100,150);assert(isMovePreviewFrozen());
+clearCpuPage();assert.equal(launchpadPreviewFrozen(),false,'Back/page exit immediately restores external previews');
+assert.equal(isMovePreviewFrozen(),false,'Back/page exit immediately restores Move previews');
 cancelPreviewTest();clickPreviewTest(77000);
 renderCpuView(buildCpuPageVM());assert.equal(overflow,false,'instructions also fit');
 assert(previewTestLines().some(line=>line.includes('20S')));
@@ -324,4 +368,4 @@ cancelPreviewTest();for(let repeat=0;repeat<8;repeat++)seqEngineTick();
 assert(nativeWrites.slice(restoreStart).some(([key,value])=>key==='cmd'&&value.split(';').includes('stop')),
     'cancel stops playback if the test started it');
 diagnosticPort.getParam=diagnosticGet;unloadLaunchpad();
-console.log('Guided preview test: real jog, timed A/B, fresh acknowledgements, stable photos, live input, timeout and cancel restore pass');
+console.log('Guided preview test: real jog, timed A/B/C, fresh acknowledgements, stable photos, live input, both preview gates and restoration pass');
