@@ -2,6 +2,7 @@
 const operations = new Set(['follower_touch', 'operations_9_16',
     'motion_operation', 'motion_timing', 'motion_conditions']);
 const hiddenPanels = new Set(['mixed_cadences_1', 'mixed_cadences_2', 'pitch_cadences']);
+const commonPanels = new Set(['root', 'follower_source']);
 const harmonyPlay = new Set(['pitch_play','secondary']);
 const motifs = new Set(['motifs', 'motif_tools', 'motif_play']);
 const performSetup = new Set(['follower_play', 'follower_play_tools', 'motif_global']);
@@ -21,7 +22,7 @@ export function hbStepHierarchy(hierarchy: any, mode: number): any {
     const levels = hierarchy.levels;
     if (!levels?.root) return hierarchy;
     for (const [key, level] of Object.entries<any>(levels)) {
-        const visible = hiddenPanels.has(key) ? false : harmonyPlay.has(key) ? mode === 2 : operations.has(key) ? mode === 1 : motifs.has(key) ? mode === 2 : key === 'root' || mode === 0 || (mode === 1 ? performSetup : harmonySetup).has(key);
+        const visible = hiddenPanels.has(key) ? false : harmonyPlay.has(key) ? mode === 2 : operations.has(key) ? mode === 1 : motifs.has(key) ? mode === 2 : commonPanels.has(key) || mode === 0 || (mode === 1 ? performSetup : harmonySetup).has(key);
         if (!visible) level.visible_if = { movyStepVisible: false };
         // Render Rhythm has multiple incoming links. Place it once, at the end.
         if (key !== 'root') level.params = level.params?.filter((p: any) => p.level !== 'motif_global');

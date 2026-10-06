@@ -124,7 +124,9 @@ def patch_pressure_recording(root: Path) -> None:
                         None => { host::midi_send_internal(0xA0|track,pitch,value); }
                         Some(chain) => {
                             self.chains.set_param(chain,"midi_fx1:hb_pressure_full_velocity",if self.pads.full_velocity() {"1"} else {"0"});
+                            self.chains.hb_playback(chain,false);
                             self.chains.on_midi(chain,&[0xA0,pitch,value],MOVE_MIDI_SOURCE_INTERNAL);
+                            self.chains.hb_playback_done(chain);
                         }
                     }
                 }
