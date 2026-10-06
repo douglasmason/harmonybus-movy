@@ -24,7 +24,7 @@ export function harmonyFooterText(mode:number,track:number,data?:readonly number
     const [key,scale,current,currentMask,next,nextMask]=data;
     const raw=scale===-1?'Blues':scale===0?'Custom':FOLLOWER_SCALE_NAMES[scale-1]??'Custom';
     let label=raw.replace('Harmonic','Harm').replace('Melodic','Mel').replace('Natural Minor','Min').replace('Major','Maj').replace('Minor','Min').replace('Dorian','Dor').replace('Phrygian','Phr').replace('Lydian','Lyd').replace('Mixolydian','Mix').replace('Locrian','Loc').replace('Dominant','Dom').replace('Augmented','Aug').replace(/ /g,'');
-    const suffix=romanHarmony(key,current,currentMask)+'>'+romanHarmony(key,next,nextMask);
+    const suffix=romanHarmony(key,current,currentMask)+'  >  '+romanHarmony(key,next,nextMask);
     const text=():string=>prefix+' '+roots[key]+' '+label+' '+suffix;
     while(fontWidth(text())>126&&label.length>2)label=label.slice(0,-1);
     return text();
@@ -32,7 +32,8 @@ export function harmonyFooterText(mode:number,track:number,data?:readonly number
 
 /** The stock font uppercases letters; small i/v preserve Roman chord quality. */
 export function drawHarmonyFooter(text:string):void{
-    const split=text.lastIndexOf(' ')+1;
+    const arrow=text.indexOf('  >  ');
+    const split=text.lastIndexOf(' ',arrow<0?text.length:arrow-1)+1;
     const prefix=text.slice(0,split),roman=text.slice(split);
     fontPrint(1,58,prefix,1);
     drawGlyphRun(1+fontWidth(prefix)-1,58,roman,1,code=>{

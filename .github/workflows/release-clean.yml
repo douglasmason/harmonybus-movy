@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: 243a996f79d86f312f67a0d521b85fa3701efcc1
-  HB_MOVY_VERSION: 0.34.1-hbclean.178
-  HB_MOVY_TAG: v0.34.1-hbclean.178
+  HB_REF: 1146da55c60ea70a09298f70863304b8021d1fe0
+  HB_MOVY_VERSION: 0.34.1-hbclean.179
+  HB_MOVY_TAG: v0.34.1-hbclean.179
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -92,6 +92,7 @@ jobs:
               ['git', '-C', str(root), 'ls-files', '--others', '--exclude-standard'], text=True
           ).splitlines()
           expected = {
+              'engine/crates/movy-dsp/src/surface_route.rs',
               'engine/crates/seq-core/src/motif_load.rs',
               'src/renderer/hb-motif-loader.ts',
               'browser-test/hb-motif-loader.mjs',
@@ -399,6 +400,7 @@ jobs:
         run: |
           cargo test -p seq-core --lib
           cargo test -p movy-dsp piano_gap_tests --lib
+          cargo test -p movy-dsp surface_route --lib
           HB_TIMING_TRACE=/tmp/hb-timing.trace cargo test -p movy-dsp hb_loop --lib
 
       - name: Replay real sequencer timing through HarmonyBus
@@ -478,7 +480,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Motif to Clip adds stock and user motifs to any melodic track with target input, Parent/Parallel approaches, rhythmic units, target placement and even-unit padding. Preview before Replace, Append or Overdub; every successful write uses normal Undo. Notes and harmonic operations stay editable. Motif Targets is shared with live playback, and Harm Play Settings gains target placement on knob 8. Requires HarmonyBus 0.2.261. Includes prior Approach defaults, shared travel choices and performance improvements; physical Move and Launchpad audio testing is still needed."
+              --notes "Launchpad pulses now hold steady while chord colors and note feedback remain active. Ordered external note batches handle sound and recording together with safe retries and pressure coalescing. LED frames respect the existing host transport budget, and Move plus both Launchpad banks share one snapshot. Roman-numeral footer arrows have wider spacing. Requires HarmonyBus 0.2.262; no Schwung host update. Device latency and crackle verification remain outstanding."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

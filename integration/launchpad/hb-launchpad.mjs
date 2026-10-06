@@ -40,6 +40,7 @@ const { seqEngineTick } = await import('../dist/esm/seq/engine.js');
 const { setPhase } = await import('../dist/esm/seq/set-session.js');
 const { tick } = await import('../dist/esm/app/tick.js');
 const sent = [], claims = [], midi = [], writes = [];
+const frame = () => 'sf1\n' + new Array(3).fill('145,145,145,1,2741,2,0,3,2,0|piano1,1').join('\n');
 globalThis.move_midi_external_send = packets => { sent.push([...packets]); return true; };
 globalThis.host_ext_midi_remap_set = (input, output) => { claims.push([input, output]); return true; };
 globalThis.host_ext_midi_remap_enable = () => true;
@@ -58,7 +59,7 @@ for (let ownerTrack = 0; ownerTrack < 16; ownerTrack++) {
     const port = portFor(ownerTrack);
     port.setParam = (key, value) => { writes.push([ownerTrack, key, value]); return true; };
     port.sendMidi = (status, note, value) => { midi.push([ownerTrack, status, note, value]); };
-    port.getParam = key => key.includes('surface_view') ? '145,145,145,1,2741,2,0,3,2,0|piano1,1' : '';
+    port.getParam = key => key.includes('surface_frame') ? frame() : '';
 }
 keyboardState.mode = 1;keyboardState.layout = 3;keyboardState.scale = 0;keyboardState.rootPc = 0;
 keyboardState.octave.fill(4);selectTrack(0);seqState.sessionMode = true;seqState.fullVelocity = false;
@@ -95,7 +96,7 @@ values.set('motion_gesture_binding_1', '1,0,0,0,350,0,0,1');
 values.set('motion_lights', [0,0,0,...new Array(16).fill(1)].join(','));
 const controlPort = portFor(0);
 controlPort.getParam = key => key === 'midi_fx1_module' ? 'harmonybus' : key.endsWith(':chain_params') ? JSON.stringify(contract.capabilities.chain_params) :
-    key.endsWith(':ui_hierarchy') ? JSON.stringify(contract.capabilities.ui_hierarchy) : key.includes('surface_view') ? '145,145,145,1,2741,2,0,3,2,0|piano1,1' : values.get(key.split(':').at(-1)) ?? '';
+    key.endsWith(':ui_hierarchy') ? JSON.stringify(contract.capabilities.ui_hierarchy) : key.includes('surface_frame') ? frame() : values.get(key.split(':').at(-1)) ?? '';
 controlPort.getMany = keys => keys.map(key => controlPort.getParam(key));
 controlPort.setParam = (key, value) => { writes.push([0,key,value]); return true; };
 selectTrack(0);schwungGridReload();appState.currentView = VIEW_KNOBS;seqState.sessionMode = false;seqState.loopMode = false;
@@ -146,25 +147,27 @@ console.log('Launchpad X: top/side addresses, zero pressure and parked teardown 
 const activePort=portFor(appState.activeTrack.index),previousGet=activePort.getParam;
 let previewReads=0,missingPreview=false;
 activePort.getParam=key=>{
-    if(key.includes('surface_view')){previewReads++;return missingPreview?'':'145,145,145,1,2741,2,0,3,2,0|piano1,1';}
+    if(key.includes('surface_frame')){previewReads++;return missingPreview?'':frame();}
     return previousGet(key);
 };
 setFlag('hblaunchpad',2);tickLaunchpad(1000);tickLaunchpad(1010);tickLaunchpad(1020);
-assert.equal(previewReads,1,'one expensive preview per polling slot, including startup');
+assert.equal(previewReads,1,'one coherent surface-frame read per polling slot, including startup');
 const firstFrame=unpack(sent.at(-1));
 assert.equal(firstFrame[6],3);
 assert.equal((firstFrame.length-8)/5,73,'X paints every dirty LED in one message rather than eight at a time');
 const stagedStart=sent.length;
+onMidiMessageExternal([176,89,127]);
 const beforeNotes=previewReads;
 onMidiMessageExternal([144,11,100]);onMidiMessageExternal([128,11,0]);
 onMidiMessageExternal([144,81,100]);onMidiMessageExternal([128,81,0]);
 assert.equal(previewReads,beforeNotes,'playing either bank does not synchronously refresh pad colors');
 for(let now=1021;now<=1070;now++)tickLaunchpad(now);
-assert.equal(previewReads,2,'banks alternate at a bounded cadence');
-const painted=sent.slice(stagedStart).map(unpack).filter(frame=>frame[6]===3);
-const addresses=painted.flatMap(frame=>Array.from({length:(frame.length-8)/5},(_,index)=>frame[8+index*5]));
+assert.equal(previewReads,2,'both banks share one bounded polling cadence');
+assert.equal(sent.length,stagedStart,'a full RGB frame drains before another LED frame is queued');
+onMidiMessageExternal([176,89,0]);
+const addresses=Array.from({length:(firstFrame.length-8)/5},(_,index)=>firstFrame[8+index*5]);
 assert(addresses.some(address=>address>=11&&address<=48)&&addresses.some(address=>address>=51&&address<=88),
-    'completed surface updates both halves together');
+    'the first complete frame already updates both halves together');
 missingPreview=true;
 const beforeMiss=writes.length;
 for(let now=1120;now<=1420;now+=50)tickLaunchpad(now);
@@ -178,3 +181,43 @@ assert(failedSends>0&&failedSends<=4,'a full LED queue retries at most 40 times 
 globalThis.move_midi_external_send=packets=>{sent.push([...packets]);return true;};
 activePort.getParam=previousGet;setFlag('hblaunchpad',0);unloadLaunchpad();
 console.log('Launchpad load: bounded native reads, input independent of preview, and USB backpressure pass');
+
+// Existing host APIs only: a burst has one engine write for sound plus recording.
+const { flushLaunchpadInput } = await import('../dist/esm/surfaces/launchpad.js');
+const nativeWrites=[];
+let acknowledge=true;
+globalThis.host_module_set_param_blocking=(key,value,timeout)=>{nativeWrites.push([key,value,timeout]);return acknowledge;};
+selectTrack(5);keyboardState.layout=3;keyboardState.scale=0;keyboardState.rootPc=0;
+portFor(5).getParam=key=>key.includes('surface_frame')?frame():'';
+setFlag('hblaunchpad',2);tickLaunchpad(2000);tickLaunchpad(2010);tickLaunchpad(2020);
+const beforeBurst=nativeWrites.length, beforeLegacy=midi.length;
+onMidiMessageExternal([144,11,90]);onMidiMessageExternal([160,11,30]);onMidiMessageExternal([160,11,70]);
+onMidiMessageExternal([128,11,0]);
+assert.equal(nativeWrites.length,beforeBurst,'input callbacks do not block once per note or pressure report');
+assert.equal(midi.length,beforeLegacy,'batched notes have no duplicate legacy send');
+assert(flushLaunchpadInput());
+const batch=nativeWrites.at(-1);
+assert.equal(batch[0],'surface_events');
+assert.deepEqual(batch[1].split(';').map(event=>Number(event.split(',')[2])),[144,160,128]);
+assert.equal(Number(batch[1].split(';')[1].split(',')[5]),70,'pressure coalesces without crossing a note edge');
+assert.equal(batch[2],8,'input waits have a short bound');
+acknowledge=false;
+onMidiMessageExternal([144,11,100]);assert.equal(flushLaunchpadInput(),false);
+const retried=nativeWrites.at(-1)[1];acknowledge=true;assert(flushLaunchpadInput());
+assert.equal(nativeWrites.at(-1)[1],retried,'retry serials are stable for DSP duplicate suppression');
+const beforePriority=nativeWrites.length;
+onMidiMessageExternal([128,11,0]);tickLaunchpad(2070);
+assert.equal(nativeWrites[beforePriority][0],'surface_events','pending notes precede frame polling');
+unloadLaunchpad();assert.equal(nativeWrites.at(-1)[0],'surface_release');
+console.log('Launchpad batches: existing host API, ordered note edges, coalesced pressure, bounded waits, retry identity and teardown pass');
+
+// The external renderer holds pulse peaks, including nested/error restoration.
+const { withSteadyHarmonyLights, harmonyPulse } = await import('../dist/esm/keyboard/harmony-pads.js');
+assert.equal(harmonyPulse(0.5,0),0);
+withSteadyHarmonyLights(() => {
+    for (const shape of [0,1,2,3]) for (const phase of [0,0.25,0.5,0.75]) assert.equal(harmonyPulse(phase,shape),1);
+    assert.equal(withSteadyHarmonyLights(() => harmonyPulse(0.5,0)),1);
+});
+assert.throws(() => withSteadyHarmonyLights(() => { throw new Error('paint'); }));
+assert.equal(harmonyPulse(0.5,0),0,'Move keeps its pulse behavior after external painting');
+console.log('Launchpad steady lights: all pulse shapes hold their peak and Move animation is restored');

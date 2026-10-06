@@ -82,7 +82,7 @@ static void test_shared_context(void){
     puts("shared context: real recording bridge, independent conductor aggregation, loop carry, release, repeated key landing and stop pass");
 }
 static void test_capture(void){
-    for(int running=0;running<2;running++)for(int arp=0;arp<2;arp++){
+    for(int batched=0;batched<2;batched++)for(int running=0;running<2;running++)for(int arp=0;arp<2;arp++){
         set("state","movy1\nbpm 12000\nlink 0\n");
         set("ch0:midi_fx1:chord_mode","Scale Root");
         set("ch0:midi_fx1:chord_form","Triad");
@@ -92,8 +92,18 @@ static void test_capture(void){
         if(running){set("cmd","play");render(32);}
         sent_on=sent_off=rejected=0;rendered_mask=0;
         uint8_t down[]={0x90,68,100},up[]={0x80,68,0};
-        api->on_midi(instance,down,3,0);set("cmd","non 0 60 100");render(128);
-        api->on_midi(instance,up,3,0);set("cmd","nof 0 60");render(128);
+        static unsigned long long surface_serial=0;
+        char event[128];
+        if(batched){
+            snprintf(event,sizeof(event),"%llu,0,144,11,60,100,0,-1,0",++surface_serial);
+            set("surface_events",event);set("surface_events",event); /* timeout retry */
+        }else {api->on_midi(instance,down,3,0);set("cmd","non 0 60 100");}
+        render(128);
+        if(batched){
+            snprintf(event,sizeof(event),"%llu,0,128,11,60,0,0,-1,0",++surface_serial);
+            set("surface_events",event);set("surface_events",event);
+        }else {api->on_midi(instance,up,3,0);set("cmd","nof 0 60");}
+        render(128);
         int played=sent_on;unsigned played_mask=rendered_mask;
         fprintf(stderr,"capture input running=%d arp=%d on=%d off=%d mask=%u\n",running,arp,played,sent_off,played_mask);
         assert(played>0&&sent_off==played);

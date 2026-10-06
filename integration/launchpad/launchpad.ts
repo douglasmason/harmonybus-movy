@@ -3,11 +3,11 @@ import { appState } from '../app/state.js';
 import { keyboardState, baseNoteFor } from '../keyboard/state.js';
 import { buildPadMap, isPianoLayout } from '../keyboard/layouts.js';
 import { parseHarmonySnapshot, withSurfacePreview, harmonyPadColor, harmonyApproachColor,
-    harmonyPlaybackColor, harmonyPadPlaying, pianoApproachIdentity, withHarmonyPadFrame } from '../keyboard/harmony-pads.js';
+    harmonyPlaybackColor, harmonyPadPlaying, pianoApproachIdentity, withHarmonyPadFrame,
+    refreshHarmonyPads, setSurfaceFrameReader, withSteadyHarmonyLights } from '../keyboard/harmony-pads.js';
 import type { HarmonySnapshot } from '../keyboard/harmony-pads.js';
-import { FOLLOWER_KEYBOARD_SCALES } from '../scale-catalog.js';
-import { markUiStateDirty } from '../seq/ui-dirty.js';
 import { PAD_PALETTE } from '../keyboard/pad-palette.js';
+import { chainInstance } from '../track/ref.js';
 import { portFor } from '../track/registry.js';
 import { flagValue } from '../seq/flags.js';
 import { seqCmd, seqCmdFlush, engineReady } from '../seq/engine.js';
@@ -20,19 +20,49 @@ import { schwungPageFor } from '../renderer/schwung-grid.js';
 import { beginSurfaceControl, toggleSurfaceLatch, surfaceControlLights } from './controls.js';
 import type { Release, ControlLight } from './controls.js';
 
-type Owner = { track: number; pitch: number };
+type Owner = { track: number; pitch: number; engine: boolean };
 type Bank = { cells: SurfaceCell[]; view: HarmonySnapshot | null; payload: string };
 const held = new Map<number, Owner>();
 const controls = new Map<number, Release | null>();
 let modifier = false;
 let controlLights: ControlLight[] = [];
 const visited = new Set<number>();
-const pendingViews: (HarmonySnapshot | null)[] = [null, null];
+let eventSerial = Date.now() * 128;
+type InputEvent = { serial: number; track: number; status: number; note: number; pitch: number; value: number; shift: number; row: number; full: number };
+const eventQueue: InputEvent[] = [];
+let releaseFence = 0, attemptedThrough = 0;
+
+/** One ordered round trip per burst, before any display reads. */
+export function flushLaunchpadInput(): boolean {
+    if (releaseFence) {
+        if (!host_module_set_param_blocking('surface_release', String(releaseFence), 8)) return false;
+        releaseFence = 0;
+    }
+    if (!eventQueue.length) return true;
+    const batch = eventQueue.slice(0, 32);
+    const payload = batch.map(event => [event.serial,event.track,event.status,event.note,event.pitch,event.value,event.shift,event.row,event.full].join(',')).join(';');
+    attemptedThrough = batch[batch.length - 1].serial;
+    if (!host_module_set_param_blocking('surface_events', payload, 8)) return false;
+    eventQueue.splice(0, batch.length);
+    return eventQueue.length === 0;
+}
+
+function queueInput(status: number, note: number, value: number, owner: Owner, shift = 0, row = -1): void {
+    const previous = eventQueue[eventQueue.length - 1];
+    // Consecutive pressure reports supersede one another; note edges never do.
+    if (status === 160 && previous?.status === 160 && previous.note === note && previous.serial > attemptedThrough) { previous.value = value; return; }
+    if (eventQueue.length >= 32) flushLaunchpadInput();
+    // Fail closed if the engine stops acknowledging for an entire input ring.
+    // A fenced all-off also cancels any older request that arrives late.
+    if (eventQueue.length >= 256) { eventQueue.length = 0; releaseFence = ++eventSerial; held.clear(); return; }
+    eventQueue.push({ serial: ++eventSerial, track: owner.track, status, note, pitch: owner.pitch,
+        value, shift, row, full: Number(seqState.fullVelocity) });
+}
+let frameReady = false;
 const banks: Bank[] = [0, 1].map(() => ({ cells: [], view: null, payload: '' }));
 let model: LaunchpadModel | 0 = 0, configured = false, track = -1, setUuid = '';
 let sampledAt = -Infinity, ledAt = -Infinity, layoutSignature = '', scan = 0;
-let sampleBank = 0;
-let recoverAt = Infinity;
+let recoverAt = Infinity, ledReadyAt = -Infinity;
 let ledCache: number[] = new Array(73).fill(-1);
 let initialization: number[][] = [];
 const prefix = [240, 0, 32, 41, 2, 12];
@@ -51,11 +81,16 @@ function release(index: number): void {
     held.delete(index);
     // Aliases in inline/piano layouts keep the note until their last physical release.
     if ([...held.values()].some(other => other.track === owner.track && other.pitch === owner.pitch)) return;
+    if (owner.engine) return;
     portFor(owner.track).sendMidi(0x80, owner.pitch, 0);
     seqCmd(`nof ${owner.track} ${owner.pitch}`);
 }
 
 export function releaseLaunchpad(): void {
+    eventQueue.length = 0;
+    if (typeof host_module_set_param_blocking === 'function') {
+        releaseFence = ++eventSerial; flushLaunchpadInput();
+    }
     for (const index of [...held.keys()]) release(index);
     for (const releaseControl of controls.values()) releaseControl?.(true);
     controls.clear(); modifier = false;
@@ -73,9 +108,10 @@ export function unloadLaunchpad(): void {
         if (model === 2) send(sysexPackets([...prefix, 14, 0, 247]));
         else if (model === 1) send([11, 176, 0, 0]);
     }
+    frameReady = false; setSurfaceFrameReader(null);
     model = 0; configured = false; track = -1; setUuid = '';
-    initialization = []; layoutSignature = ''; sampledAt = ledAt = -Infinity; sampleBank = 0;
-    pendingViews.fill(null);
+    initialization = []; layoutSignature = ''; sampledAt = ledAt = ledReadyAt = -Infinity;
+
     banks.forEach(bank => { bank.cells = []; bank.view = null; bank.payload = ''; });
 }
 
@@ -92,7 +128,26 @@ function configure(next: LaunchpadModel): boolean {
         sysexPackets([...prefix, 14, 1, 247]), // Programmer mode
         sysexPackets([...prefix, 11, 0, 1, 247]), // polyphonic pressure, medium threshold
     ];
+    setSurfaceFrameReader(readSurfaceFrame);
     return true;
+}
+
+/** Accept all three snapshots together, before either surface advances. */
+function readSurfaceFrame(selected: number, now: number): string | null | undefined {
+    if (!configured || selected !== track) return undefined;
+    if (banks.some(bank => !bank.payload)) return null;
+    const raw = portFor(track).getParam('midi_fx1:surface_frame');
+    const parts = raw?.split('\n');
+    const views = parts?.slice(1).map(parseHarmonySnapshot);
+    if (!parts || parts[0] !== 'sf1' || parts.length !== 4 || !views?.every(Boolean)) {
+        if (now >= recoverAt) {
+            banks.forEach(bank => { bank.payload = ''; }); visited.delete(track); recoverAt = now + 1000;
+        }
+        return null;
+    }
+    banks[0].view = views[1]; banks[1].view = views[2];
+    frameReady = true; recoverAt = now + 1000;
+    return parts[1];
 }
 
 function sample(now: number): void {
@@ -103,65 +158,33 @@ function sample(now: number): void {
     const signature = currentLayoutSignature();
     if (signature !== layoutSignature) {
         layoutSignature = signature; track = selected; sampledAt = -Infinity;
+        setSurfaceFrameReader(readSurfaceFrame);
         const notes = buildPadMap(keyboardState.mode, keyboardState.layout, keyboardState.scale, baseNoteFor(track), 8,
             surfaceFirstRow(keyboardState.layout));
         const cells = buildSurfaceCells(notes, keyboardState.layout, isPianoLayout(keyboardState.mode, keyboardState.layout));
         for (let bank = 0; bank < 2; bank++) {
             banks[bank].cells = cells.slice(bank * 32, bank * 32 + 32); banks[bank].view = null; banks[bank].payload = '';
         }
-        ledCache.fill(-1); pendingViews.fill(null); sampleBank = 0; recoverAt=now+1000;
+        ledCache.fill(-1); frameReady = false; recoverAt=now+1000;
     }
-    if (now - sampledAt < 50) return;
+    if (now >= sampledAt && now - sampledAt < 50) return;
     sampledAt = now;
     const page = schwungPageFor(track, 'midi_fx1');
-    if(sampleBank===0)controlLights = page.ready && page.moduleId === 'harmonybus' ? surfaceControlLights(page) : [];
+    controlLights = page.ready && page.moduleId === 'harmonybus' ? surfaceControlLights(page) : [];
     const port = portFor(track);
     if (!visited.has(track)) {
         if (port.setParam('midi_fx1:surface_enabled', '1') === false) return;
         visited.add(track);
     }
-    // One native preview per poll: each bank updates at 10 Hz, with no
-    // two-bank burst on the audio thread. MIDI input is never throttled.
-    {
-        const bank=sampleBank;sampleBank=1-sampleBank;
-        const state = banks[bank];
-        const payload = previewPayload(state.cells, keyboardState.layout === 2 || keyboardState.layout === 3);
-        if (payload !== state.payload) {
-            if (port.setParam('midi_fx1:surface_preview' + bank, payload) === false) return;
-            state.payload = payload;
-        }
-        const view = parseHarmonySnapshot(port.getParam('midi_fx1:surface_view' + bank));
-        // A busy shared parameter slot is not evidence that geometry was
-        // lost. Retain the last complete snapshot and retry at normal rate.
-        if(!view&&now>=recoverAt){
-            // A restored/replaced HB instance may have lost runtime geometry.
-            // Re-establish it with a bounded one-second recovery backoff.
-            banks.forEach(entry=>{entry.payload='';});visited.delete(track);recoverAt=now+1000;
-        }
-        if (view) {
-            pendingViews[bank] = view;
-            if (pendingViews[0] && pendingViews[1]) {
-                // Both halves must describe the same harmony/key context.
-                // A transition between polls waits for the other half.
-                const signatureFor = (snapshot: HarmonySnapshot): string => JSON.stringify([
-                    snapshot.current, snapshot.lookahead, snapshot.scale, snapshot.footer,
-                    snapshot.settings, snapshot.globalScale, snapshot.tonic, snapshot.fullLookahead]);
-                if (signatureFor(pendingViews[0]) === signatureFor(pendingViews[1])) {
-                    banks[0].view = pendingViews[0]; banks[1].view = pendingViews[1];
-                    pendingViews.fill(null);
-                }
-            }
-            recoverAt=now+1000;
-            const scale = view.globalScale ?? view.input;
-            const resolved = scale ? FOLLOWER_KEYBOARD_SCALES[scale.resolved - 1] : undefined;
-            if (resolved !== undefined && (keyboardState.scale !== resolved || (view.input && keyboardState.rootPc !== view.input.root))) {
-                keyboardState.scale = resolved;
-                if (view.input) keyboardState.rootPc = view.input.root;
-                markUiStateDirty(); appState.dirty = true;
-                layoutSignature = ''; sampledAt = -Infinity;
-            }
+    for (const bank of banks) {
+        const payload = previewPayload(bank.cells, keyboardState.layout === 2 || keyboardState.layout === 3);
+        if (payload !== bank.payload) {
+            if (port.setParam('midi_fx1:surface_preview' + banks.indexOf(bank), payload) === false) return;
+            bank.payload = payload;
         }
     }
+    // Own the normal 50 ms Move poll too: one response, no second bank wait.
+    refreshHarmonyPads(track, now);
 }
 
 function colors(): number[] {
@@ -185,6 +208,7 @@ function colors(): number[] {
 /** One X SysEx per visual frame; legacy hardware retains its message limit.
  * Failed queue writes keep the entire frame pending for a bounded retry. */
 export function tickLaunchpad(now = Date.now()): void {
+    if (!flushLaunchpadInput()) return;
     const next = (globalThis.overtakeParked === true ? 0 : flagValue('hblaunchpad')) as LaunchpadModel | 0;
     if (next !== model) { unloadLaunchpad(); if (next) configure(next); }
     if (!configured || globalThis.overtakeParked === true) return;
@@ -194,25 +218,16 @@ export function tickLaunchpad(now = Date.now()): void {
     }
     sample(now);
     // Original Launchpad accepts at most 400 MIDI messages/sec; leave headroom.
-    if (now - ledAt < (model === 1 ? 6 : 25)) return;
+    if (now < ledReadyAt || now - ledAt < (model === 1 ? 6 : 25)) return;
     // Bound attempts too: a full USB queue must not cause a retry storm.
     ledAt = now;
-    const desired = withHarmonyPadFrame(colors);
-    // Preserve the Move painter's two endpoint colors. Legacy has discrete levels.
-    const phase = Math.round((Math.sin(now * Math.PI / 1000) + 1) * 8) / 16;
+    if (!frameReady) return;
+    // Pulses stay at their on endpoint: no repeated animation traffic on USB.
+    const desired = withSteadyHarmonyLights(() => withHarmonyPadFrame(colors));
     for (let slot = 0; slot < 8; slot++) {
         const light = controlLights[slot] ?? { base: 0, color: 0, animation: 0 };
-        const color = light.animation ? (phase < 0.5 ? light.base : light.color) : light.base;
-        if (model === 1) {
-            let level = legacyColor(color, false, false, false, false);
-            if (light.animation && phase < 0.5 && level !== 12) level = 12 + Math.min(1, level & 3) + 16 * Math.min(1, (level >> 4) & 3);
-            desired.push(level);
-        }
-        else {
-            const rgb = PAD_PALETTE[light.base].map((component, index) => Math.round(
-                (component + (light.animation ? (PAD_PALETTE[light.color][index] - component) * phase : 0)) * 127 / 255));
-            desired.push(0x200000 + rgb[0] * 16384 + rgb[1] * 128 + rgb[2]);
-        }
+        const color = light.animation ? light.color : light.base;
+        desired.push(model === 1 ? legacyColor(color, false, false, false, false) : color);
     }
     desired.push(modifier ? (model === 1 ? 63 : 120) : (model === 1 ? 12 : 0));
     const changed: number[] = desired[72] !== ledCache[72] ? [72] : [];
@@ -228,7 +243,12 @@ export function tickLaunchpad(now = Date.now()): void {
         sysexPackets([...prefix, 3, ...changed.flatMap(index => [3, address(index),
             ...(desired[index] >= 0x200000 ? [(desired[index] >> 14) & 127, (desired[index] >> 7) & 127, desired[index] & 127] :
                 PAD_PALETTE[desired[index]].map(component => Math.round(component * 127 / 255)))]), 247]);
-    if (send(packets)) { changed.forEach(index => { ledCache[index] = desired[index]; }); ledAt = now; }
+    if (send(packets)) {
+        changed.forEach(index => { ledCache[index] = desired[index]; });
+        // Existing host defaults drain three USB MIDI packets per 128-sample
+        // callback. Keep only the latest desired frame while this one drains.
+        ledReadyAt = model === 2 ? now + Math.ceil((packets.length / 4) * 128000 / (44100 * 3)) : now;
+    }
 }
 
 /** Releases retain the press owner across track, page and performance-mode changes. */
@@ -241,6 +261,7 @@ export function onMidiMessageExternal(data: number[]): void {
     const isModifier = model === 1 ? note === 8 && (type === 144 || type === 128) : note === 89 && type === 176;
     if (isModifier) { modifier = type !== 128 && value > 0; return; }
     if (top >= 0 && top < 8) {
+        flushLaunchpadInput();
         if (!value) { controls.get(top)?.(); controls.delete(top); sampledAt = -Infinity; return; }
         if (controls.has(top) || !sessionReady() || !engineReady() || globalThis.overtakeParked === true) return;
         const page = schwungPageFor(appState.activeTrack.index, 'midi_fx1');
@@ -250,9 +271,14 @@ export function onMidiMessageExternal(data: number[]): void {
         sampledAt = -Infinity; return;
     }
     if (index < 0) return;
-    if (type === 128 || (type === 144 && value === 0)) { release(index); if (engineReady()) seqCmdFlush(); return; }
+    if (type === 128 || (type === 144 && value === 0)) {
+        const owner = held.get(index);
+        if (owner?.engine) queueInput(128, note, 0, owner);
+        release(index); if (!owner?.engine && engineReady()) seqCmdFlush(); return;
+    }
     if (type === 160) {
         const owner = held.get(index);
+        if (owner?.engine) { queueInput(160, note, value, owner); return; }
         if (owner) {
             portFor(owner.track).sendMidi(160, owner.pitch, value);
             seqCmd(`npr ${owner.track} ${owner.pitch} ${value}`); seqCmdFlush();
@@ -264,14 +290,17 @@ export function onMidiMessageExternal(data: number[]): void {
     // change needs to establish geometry before the first note.
     if(currentLayoutSignature()!==layoutSignature)sample(Date.now());
     const bank = banks[index >> 5], cell = bank.cells[index % 32];
-    const inputView=pendingViews[index>>5]??bank.view??pendingViews[1-(index>>5)]??banks[1-(index>>5)].view;
+    const inputView=bank.view;
     if (!cell || !inputView || (cell.pitch < 0 && (cell.target < 0 || !inputView.pianoApproach))) return;
     release(index); // rapid repeats are distinct onsets, even if a release was lost
     const pitch = cell.target >= 0 ? pianoApproachIdentity(cell.target, cell.row) : cell.pitch;
     const port = portFor(track), velocity = seqState.fullVelocity ? 127 : value;
     const alias = [...held.values()].some(owner => owner.track === track && owner.pitch === pitch);
-    held.set(index, { track, pitch });
-    if (!alias) {
+    const owner = { track, pitch, engine: chainInstance(track) >= 0 && typeof host_module_set_param_blocking === 'function' };
+    held.set(index, owner);
+    if (owner.engine) queueInput(144, note, velocity, owner, cell.target >= 0 ? cell.target - pitch : 0,
+        cell.target >= 0 ? cell.row ? cell.row - 1 : 3 : -1);
+    if (!alias && !owner.engine) {
         if (cell.target >= 0) port.setParam('midi_fx1:hb_movy_input_approach', `${pitch},${cell.target - pitch},${cell.row ? cell.row - 1 : 3}`);
         port.sendMidi(144, pitch, velocity);
         seqCmd(`non ${track} ${pitch} ${velocity}`); seqCmdFlush();
@@ -282,3 +311,5 @@ declare function host_ext_midi_remap_set(input: number, output: number): boolean
 declare function host_ext_midi_remap_enable(enabled: boolean): boolean;
 declare function host_external_surface(enabled: number): boolean;
 declare function move_midi_external_send(packets: number[]): boolean;
+
+declare function host_module_set_param_blocking(key: string, value: string, timeout: number): boolean;
