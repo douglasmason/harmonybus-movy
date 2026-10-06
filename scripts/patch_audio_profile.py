@@ -6,6 +6,8 @@ from patch_responsive_persistence import replace_once
 def patch_audio_profile(root: Path) -> None:
     """Install fixed-size timing counters and reuse the normal status poll."""
     assets: Path = Path(__file__).resolve().parent.parent / 'integration/audio-profile'
+    (root / 'src/seq/preview-test.ts').write_text((assets / 'preview-test.ts').read_text())
+    (root / 'src/renderer/preview-test-view.ts').write_text((assets / 'preview-test-view.ts').read_text())
     (root / 'browser-test/hb-audio-profile.mjs').write_text((assets / 'hb-audio-profile.mjs').read_text())
     (root / 'engine/crates/movy-dsp/src/audio_profile.rs').write_text((assets / 'audio_profile.rs').read_text())
     path: Path = root / 'engine/crates/movy-dsp/src/lib.rs'
@@ -37,14 +39,21 @@ def patch_audio_profile(root: Path) -> None:
     source = path.read_text().replace('export function cpuPageActive()', 'export const cpuDetail = { page: 0 };\nexport function toggleCpuDetail(): void { cpuDetail.page = (cpuDetail.page + 1) % 3; }\n\nexport function cpuPageActive()')
     source = source.replace("    seqCmd('cpurst');", "    seqCmd('cpurst');\n    seqCmd('aprof_on');")
     source = source.replace('export function clearCpuPage(): void {}', "export function clearCpuPage(): void {\n    if (cpuPageActive()) seqCmd('aprof_off');\n    cpuDetail.page = 0;\n}")
+    source = "import { cancelPreviewTest, previewTestVisible } from './preview-test.js';\n" + source
+    source = replace_once(source, 'export function toggleCpuDetail(): void {', 'export function toggleCpuDetail(): void { if (previewTestVisible()) return;')
+    source = replace_once(source, 'export function openCpuPage(): void {', 'export function openCpuPage(): void {\n    cancelPreviewTest();')
+    source = replace_once(source, 'export function clearCpuPage(): void {', 'export function clearCpuPage(): void {\n    cancelPreviewTest();')
     path.write_text(source)
     path = root / 'src/midi/router.ts'
     source = path.read_text().replace("import { cpuPageActive }", "import { cpuPageActive, toggleCpuDetail }")
     source = replace_once(source, 'if (cpuPageActive()) return;   // sixteen columns fit; nothing to scroll', 'if (cpuPageActive()) { toggleCpuDetail(); appState.dirty = true; return; }')
+    source = "import { clickPreviewTest } from '../seq/preview-test.js';\n" + source
+    source = replace_once(source, 'if (flagsPageActive()) return;', 'if (flagsPageActive() || cpuPageActive()) return;')
+    source = replace_once(source, 'if (d1 === MoveMainButton && d2 > 0) {', 'if (d1 === MoveMainButton && d2 > 0) {\n        if (cpuPageActive()) { clickPreviewTest(); return; }')
     path.write_text(source)
     path = root / 'src/renderer/cpu-view.ts'
     source = path.read_text()
-    source = "import { cpuDetail } from '../seq/cpu-page.js';\nimport { seqState } from '../seq/state.js';\n" + source
+    source = "import { renderPreviewTest } from './preview-test-view.js';\nimport { cpuDetail } from '../seq/cpu-page.js';\nimport { seqState } from '../seq/state.js';\n" + source
     source = replace_once(source, '    clear_screen();', '''    clear_screen();
     if (cpuDetail.page === 2) {
         const values = seqState.cpuRequests.split(',');
@@ -72,9 +81,21 @@ def patch_audio_profile(root: Path) -> None:
         fontPrint5x3(0, 59, 'PEAK T' + (values[20] || '-') + ' ' + (values[21] || 0) + 'US JOG:MORE', 1);
         return;
     }''')
+    source = replace_once(source, '    clear_screen();', '    clear_screen();\n    if (renderPreviewTest()) return;')
+    source = replace_once(source, "drawHeader('CPU',", "drawHeader('CPU CLICK:TEST',")
     path.write_text(source)
     path = root / 'src/app/tick.ts'
     source = path.read_text().replace("import { cpuPageActive }", "import { cpuPageActive, cpuDetail }")
     source = source.replace("+ '|' + seqState.cpuSend;", "+ '|' + seqState.cpuSend + ('|' + cpuDetail.page + (cpuDetail.page === 1 ? '|' + seqState.cpuProfile : cpuDetail.page === 2 ? '|' + seqState.cpuRequests : ''));")
     source = source.replace("+ vm.scaleUs + '|' + cols.join(',') + '|' + snd.join(',');", "+ vm.scaleUs + '|' + cols.join(',') + '|' + snd.join(',') + ('|' + cpuDetail.page + (cpuDetail.page === 1 ? '|' + seqState.cpuProfile.split(',').slice(2).join(',') : cpuDetail.page === 2 ? '|' + seqState.cpuRequests : ''));")
+    source = "import { tickPreviewTest, previewTestVisible } from '../seq/preview-test.js';\n" + source
+    source = replace_once(source, 'export function tick(): void {', 'export function tick(): void {\n    tickPreviewTest();')
+    source = replace_once(source, 'if (!cpuPageActive()) return;', 'if (!cpuPageActive() || previewTestVisible()) return;')
+    path.write_text(source)
+    path = root / 'src/app/unload.ts'
+    source = "import { cancelPreviewTest } from '../seq/preview-test.js';\n" + path.read_text()
+    source = replace_once(source, 'export function onUnload(): void {', 'export function onUnload(): void {\n    cancelPreviewTest();')
+    path.write_text(source)
+    path = root / 'build/browser.mjs'
+    source = replace_once(path.read_text(), '    entryPoints: [', "    entryPoints: [\n        resolve(root, 'src/seq/preview-test.ts'),\n        resolve(root, 'src/renderer/preview-test-view.ts'),")
     path.write_text(source)
