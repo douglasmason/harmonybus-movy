@@ -3,7 +3,7 @@ import { appState } from '../app/state.js';
 import { keyboardState, baseNoteFor } from '../keyboard/state.js';
 import { buildPadMap, isPianoLayout } from '../keyboard/layouts.js';
 import { parseHarmonySnapshot, withSurfacePreview, harmonyPadColor, harmonyApproachColor,
-    harmonyPlaybackColor, harmonyPadPlaying, pianoApproachIdentity } from '../keyboard/harmony-pads.js';
+    harmonyPlaybackColor, harmonyPadPlaying, pianoApproachIdentity, withHarmonyPadFrame } from '../keyboard/harmony-pads.js';
 import type { HarmonySnapshot } from '../keyboard/harmony-pads.js';
 import { FOLLOWER_KEYBOARD_SCALES } from '../scale-catalog.js';
 import { markUiStateDirty } from '../seq/ui-dirty.js';
@@ -27,6 +27,7 @@ const controls = new Map<number, Release | null>();
 let modifier = false;
 let controlLights: ControlLight[] = [];
 const visited = new Set<number>();
+const pendingViews: (HarmonySnapshot | null)[] = [null, null];
 const banks: Bank[] = [0, 1].map(() => ({ cells: [], view: null, payload: '' }));
 let model: LaunchpadModel | 0 = 0, configured = false, track = -1, setUuid = '';
 let sampledAt = -Infinity, ledAt = -Infinity, layoutSignature = '', scan = 0;
@@ -74,6 +75,7 @@ export function unloadLaunchpad(): void {
     }
     model = 0; configured = false; track = -1; setUuid = '';
     initialization = []; layoutSignature = ''; sampledAt = ledAt = -Infinity; sampleBank = 0;
+    pendingViews.fill(null);
     banks.forEach(bank => { bank.cells = []; bank.view = null; bank.payload = ''; });
 }
 
@@ -107,7 +109,7 @@ function sample(now: number): void {
         for (let bank = 0; bank < 2; bank++) {
             banks[bank].cells = cells.slice(bank * 32, bank * 32 + 32); banks[bank].view = null; banks[bank].payload = '';
         }
-        ledCache.fill(-1); sampleBank = 0; recoverAt=now+1000;
+        ledCache.fill(-1); pendingViews.fill(null); sampleBank = 0; recoverAt=now+1000;
     }
     if (now - sampledAt < 50) return;
     sampledAt = now;
@@ -137,7 +139,18 @@ function sample(now: number): void {
             banks.forEach(entry=>{entry.payload='';});visited.delete(track);recoverAt=now+1000;
         }
         if (view) {
-            state.view = view;
+            pendingViews[bank] = view;
+            if (pendingViews[0] && pendingViews[1]) {
+                // Both halves must describe the same harmony/key context.
+                // A transition between polls waits for the other half.
+                const signatureFor = (snapshot: HarmonySnapshot): string => JSON.stringify([
+                    snapshot.current, snapshot.lookahead, snapshot.scale, snapshot.footer,
+                    snapshot.settings, snapshot.globalScale, snapshot.tonic, snapshot.fullLookahead]);
+                if (signatureFor(pendingViews[0]) === signatureFor(pendingViews[1])) {
+                    banks[0].view = pendingViews[0]; banks[1].view = pendingViews[1];
+                    pendingViews.fill(null);
+                }
+            }
             recoverAt=now+1000;
             const scale = view.globalScale ?? view.input;
             const resolved = scale ? FOLLOWER_KEYBOARD_SCALES[scale.resolved - 1] : undefined;
@@ -169,7 +182,8 @@ function colors(): number[] {
     });
 }
 
-/** Bounded delta painting; failed queue writes remain pending and retry. */
+/** One X SysEx per visual frame; legacy hardware retains its message limit.
+ * Failed queue writes keep the entire frame pending for a bounded retry. */
 export function tickLaunchpad(now = Date.now()): void {
     const next = (globalThis.overtakeParked === true ? 0 : flagValue('hblaunchpad')) as LaunchpadModel | 0;
     if (next !== model) { unloadLaunchpad(); if (next) configure(next); }
@@ -183,7 +197,7 @@ export function tickLaunchpad(now = Date.now()): void {
     if (now - ledAt < (model === 1 ? 6 : 25)) return;
     // Bound attempts too: a full USB queue must not cause a retry storm.
     ledAt = now;
-    const desired = colors();
+    const desired = withHarmonyPadFrame(colors);
     // Preserve the Move painter's two endpoint colors. Legacy has discrete levels.
     const phase = Math.round((Math.sin(now * Math.PI / 1000) + 1) * 8) / 16;
     for (let slot = 0; slot < 8; slot++) {
@@ -202,7 +216,7 @@ export function tickLaunchpad(now = Date.now()): void {
     }
     desired.push(modifier ? (model === 1 ? 63 : 120) : (model === 1 ? 12 : 0));
     const changed: number[] = desired[72] !== ledCache[72] ? [72] : [];
-    for (let checked = 0; checked < 73 && changed.length < (model === 1 ? 2 : 8); checked++) {
+    for (let checked = 0; checked < 73 && changed.length < (model === 1 ? 2 : 73); checked++) {
         const index = scan++ % 73;
         if (desired[index] !== ledCache[index] && !changed.includes(index)) changed.push(index);
     }
@@ -250,7 +264,7 @@ export function onMidiMessageExternal(data: number[]): void {
     // change needs to establish geometry before the first note.
     if(currentLayoutSignature()!==layoutSignature)sample(Date.now());
     const bank = banks[index >> 5], cell = bank.cells[index % 32];
-    const inputView=bank.view??banks[1-(index>>5)].view;
+    const inputView=pendingViews[index>>5]??bank.view??pendingViews[1-(index>>5)]??banks[1-(index>>5)].view;
     if (!cell || !inputView || (cell.pitch < 0 && (cell.target < 0 || !inputView.pianoApproach))) return;
     release(index); // rapid repeats are distinct onsets, even if a release was lost
     const pitch = cell.target >= 0 ? pianoApproachIdentity(cell.target, cell.row) : cell.pitch;
