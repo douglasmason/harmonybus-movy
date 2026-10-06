@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: 1146da55c60ea70a09298f70863304b8021d1fe0
-  HB_MOVY_VERSION: 0.34.1-hbclean.180
-  HB_MOVY_TAG: v0.34.1-hbclean.180
+  HB_REF: ccab0b74231465897ab4f5326745048d6333d82a
+  HB_MOVY_VERSION: 0.34.1-hbclean.181
+  HB_MOVY_TAG: v0.34.1-hbclean.181
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -485,7 +485,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Spread Launchpad bank previews across separate host requests again to remove the three-surface work burst introduced in hbclean.179. Keep steady external pulses, paced LEDs, batched notes and footer spacing. Add opt-in UI/MIDI PEAK with slow read/write names and request bursts, plus same-render track attribution on AUDIO PEAK. Shift+Step 12 opens/resets; jog cycles the three views. Keep HarmonyBus 0.2.262; no host update. Hardware crackle improvement remains to be verified."
+              --notes "Live Key Center survives recording and clip Undo. New Recordable Key Center, recursive Relative Key Center, Key Step Back and Key Return to Start operations provide signed shifts and optional return after N steps. Normal loops accumulate; clip relaunch and Stop-to-Play reconstruct from the starting key and scale. Update both HarmonyBus 0.2.263 and Movy hbclean.181. No Schwung host update is required. Device audio crackling remains a separate unresolved issue."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

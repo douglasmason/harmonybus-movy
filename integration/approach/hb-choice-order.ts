@@ -6,7 +6,7 @@ const operationGroups: [string, string[]][] = [
     ['Dominant Approach', ['Secondary II (Dom)','Secondary IV (Dom)','Secondary VI (Dom)','Secondary V (Dom)','Leading Tone','Upper Dim']],
     ['Substitutions', ['Backdoor II','Backdoor V','Tritone II','Tritone Sub']],
     ['Motif', ['Play Motif']],
-    ['Harmony', ['Harmony','Key Center','Parallel Scale','Live Harmony Override','Override Harmony (Live + Recorded)']],
+    ['Harmony', ['Harmony','Live Key Center','Key Center','Recordable Key Center','Relative Key Center','Key Step Back','Key Return to Start','Parallel Scale','Live Harmony Override','Override Harmony (Live + Recorded)']],
     ['Chord / Arp', ['Chord Form','Chord/Arp State','Auto Chord Repeat']],
     ['Pitch', ['Transpose','Octave','Rotate']],
     ['Expression', ['Velocity','Pan']],

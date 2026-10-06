@@ -144,7 +144,7 @@ export function approachPanels(hierarchy: any, mode: number): void {
         links.push({level:'approach_bank_'+bank});
     }
     const params:any[]=[
-        {key:'key_center',name:'Key Center',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'},
+        {key:'key_center',name:'Live Key Center',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'},
         {key:'parallel_mode',name:'Parallel Scale',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'},
         {key:'approach_motif_latch',name:'Motif Latch',type:'enum',options_as_string:true,options:['Off','On'],default:'Off'},
         {key:'motion_control_32',name:'Chord + Arp',type:'enum',options_as_string:true,options:['Chord Only / Release','Arp Only / Release','Both / Release','Chord Only / Press','Arp Only / Press','Both / Press'],default:'Both / Release'},

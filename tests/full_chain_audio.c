@@ -71,15 +71,54 @@ static void test_shared_context(void){
     set("ch0:midi_fx1:key_center_scale","Use Parallel Scale");set("ch0:midi_fx1:parallel_scale","Major");
     set("padmap","0,62,64,67,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60");
     set("cmd","play");render(16);set("cmd","rec 0");render(800);
-    set("ch0:midi_fx1:key_center","On");
+    set("ch0:midi_fx1:motion_operation_1","Recordable Key Center");
+    set("ch0:midi_fx1:motion_hold_1","On");
     uint8_t down[]={0x90,68,100},up[]={0x80,68,0};
     api->on_midi(instance,down,3,0);set("cmd","non 0 62 100");render(16);
+    set("ch0:midi_fx1:motion_hold_1","Off");
     api->on_midi(instance,up,3,0);set("cmd","nof 0 62");render(16);set("cmd","stop");render(8);
     api->get_param(instance,"state",state,sizeof(state));assert(strstr(state,"sc 0 0 "));
     rendered_mask=0;sent_on=sent_off=0;set("cmd","play");render(1500);set("cmd","stop");render(16);
     fprintf(stderr,"key landing replay: mask=%u ons=%d offs=%d\n",rendered_mask,sent_on,sent_off);
     assert(rendered_mask==(1u<<2)&&sent_on>=2&&sent_on==sent_off);
     puts("shared context: real recording bridge, independent conductor aggregation, loop carry, release, repeated key landing and stop pass");
+}
+static void test_key_operation_ownership(void){
+    char state[65536],view[2048];
+    set("cmd","stop");render(4);
+    set("ch0:midi_fx1:performance_reset","1");
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 16 0 \n");
+    set("cmd","usnap 500;play");render(16);set("cmd","rec 0");render(800);
+    set("ch0:midi_fx1:key_center","On");
+    uint8_t down[]={0x90,68,100},up[]={0x80,68,0};
+    api->on_midi(instance,down,3,0);set("cmd","non 0 62 100");render(16);
+    api->on_midi(instance,up,3,0);set("cmd","nof 0 62");render(16);
+    set("cmd","stop");render(4);
+    api->get_param(instance,"state",state,sizeof(state));assert(!strstr(state,"sc 0 0 "));
+    api->get_param(instance,"ch0:midi_fx1:shared_context_snapshot",view,sizeof(view));assert(strstr(view,"dp1|D|")&&strstr(view,"LIVE"));
+    set("cmd","uswap 500 501");render(4);
+    api->get_param(instance,"ch0:midi_fx1:shared_context_snapshot",view,sizeof(view));assert(strstr(view,"dp1|D|")&&strstr(view,"LIVE"));
+    /* A captured no-note modulation must reach the native sequence exactly
+       once, repeat across loops, and restart from its stored origin. */
+    set("ch0:midi_fx1:performance_reset","1");
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 16 0 \n");
+    set("ch0:midi_fx1:motion_operation_1","Relative Key Center");
+    set("cmd","play");render(16);set("cmd","rec 0");render(800);
+    set("ch0:midi_fx1:motion_hold_1","On");render(4);
+    set("ch0:midi_fx1:motion_hold_1","Off");render(4);
+    api->get_param(instance,"state",state,sizeof(state));assert(strstr(state,"sc 0 0 "));
+    set("cmd","stop");render(4);
+    /* A known one-bar timeline checks the recording wire format and loop
+       reconstruction independently of when the host polls the live event. */
+    snprintf(state,sizeof(state),"movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 16 0 \nsc 0 0 0 0 1 13 2741 %d\n",(2741<<13)|(1<<26));
+    set("state",state);set("cmd","play");render(4);
+    api->get_param(instance,"ch0:midi_fx1:shared_context_snapshot",view,sizeof(view));assert(strstr(view,"dp1|C#|")&&strstr(view,"REC"));
+    render(700);
+    api->get_param(instance,"ch0:midi_fx1:shared_context_snapshot",view,sizeof(view));assert(strstr(view,"dp1|D|"));
+    set("cmd","stop");render(4);set("cmd","play");render(4);
+    api->get_param(instance,"ch0:midi_fx1:shared_context_snapshot",view,sizeof(view));assert(strstr(view,"dp1|C#|"));
+    set("cmd","stop");render(4);
+    puts("key operations: live Record/Undo isolation, no-note capture, recursive loops and restart pass");
 }
 static void test_capture(void){
     for(int batched=0;batched<2;batched++)for(int running=0;running<2;running++)for(int arp=0;arp<2;arp++){
@@ -269,6 +308,7 @@ int main(int argc,char **argv){
     set("cmd","aprof_on");
     test_capture();
     test_shared_context();
+    test_key_operation_ownership();
     api->get_param(instance,"status",status,sizeof(status));
     char *profile=strstr(status," aprof=1,");assert(profile);
     assert(strstr(status," rprof=1,"));
