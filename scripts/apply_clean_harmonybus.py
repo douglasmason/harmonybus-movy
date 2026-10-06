@@ -567,6 +567,8 @@ def main() -> int:
     patch_panel_cleanup(root)
     from patch_audio_profile import patch_audio_profile
     patch_audio_profile(root)
+    from patch_request_profile import patch_request_profile
+    patch_request_profile(root)
     from patch_mode_navigation import patch_mode_navigation
     patch_mode_navigation(root)
     from patch_pad_settings import patch_pad_settings

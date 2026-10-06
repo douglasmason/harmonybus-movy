@@ -271,8 +271,9 @@ int main(int argc,char **argv){
     test_shared_context();
     api->get_param(instance,"status",status,sizeof(status));
     char *profile=strstr(status," aprof=1,");assert(profile);
+    assert(strstr(status," rprof=1,"));
     printf("audio callback profile (desktop fixture, microseconds): %s\n",profile);
     set("cmd","aprof_off");
-    api->get_param(instance,"status",status,sizeof(status));assert(strstr(status," aprof=0,"));
+    api->get_param(instance,"status",status,sizeof(status));assert(strstr(status," aprof=0,")&&strstr(status," rprof=0,"));
     api->destroy_instance(instance);return 0;
 }
