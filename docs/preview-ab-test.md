@@ -10,7 +10,7 @@ running labels. No host changes or separate diagnostic build.
    each. A large TEST A/B/C label and countdown identify the current observation;
    NEXT labels mark the brief settling transitions. Per-surface ON/PAUSED lines
    describe exactly which preview readers are running. Audio continues throughout.
-5. Photograph PHOTO 1/4, then press the jog for PHOTO 2/4, 3/4 and 4/4.
+5. Photograph PHOTO 1/5, then press the jog for PHOTO 2/5 through 5/5.
    Include whether A, B or C crackled more. Back exits.
 
 The test uses the currently loaded clips and instruments. It does not create a
@@ -21,8 +21,12 @@ tracks during a pass. Recorded harmonic and key changes continue normally.
 
 ## Protocol
 
-Each condition has a one-second settling period, followed by a fresh meter reset
-and approximately 20 seconds of observation. Start and final stop acknowledgements
+In hbclean.184, each condition has a one-second preparation period under the
+previous preview setting, followed by a fresh meter reset. Only after the engine
+acknowledges measurement is active does the preview setting change. The subsequent
+20-second window therefore retains the transition instead of resetting afterward.
+The first condition still starts after playback has begun; transport startup and
+the final restoration are not included in these per-condition measurements. Start and final stop acknowledgements
 come from the existing status poll, not additional parameter requests. All three
 conditions use the same countdown screen; the live meter repaint gate is suspended
 while the guide is visible. The engine's final OFF snapshot supplies the saved
@@ -49,9 +53,9 @@ effects of normal playback. No diagnostic state is saved in the set.
 
 ## Photograph fields
 
-- PHOTO 1/4: separate A/B/C peaks for AUDIO, OVER count, READ, WRITE, MIDI and BURST.
+- PHOTO 1/5: separate A/B/C peaks for AUDIO, OVER count, READ, WRITE, MIDI and BURST.
   Column labels describe which preview readers remain: A ALL, B MOVE, C NONE.
-- PHOTO 2/4, 3/4 and 4/4: A, B and C request names plus stages from each worst audio render.
+- PHOTO 2/5 through 5/5: A, B and C request names plus stages from each worst audio render.
   IN=input/config; SEQ=sequencer; META=clip metadata; MID=MIDI/context;
   HB=HarmonyBus preparation; LD=click/load; CHAIN=chain render.
   T identifies the largest timed track render from that same audio block.
@@ -66,5 +70,29 @@ needed. Sequential windows may include different musical material, so a quieter 
 is evidence to investigate the display path, not proof of causation. Repeat with
 the same looping passage if needed.
 
-The readable four-photo format fits the 128x64 screen without requiring a fragile
+The readable five-photo format fits the 128x64 screen without requiring a fragile
 single-pixel QR code or another encoder/decoder dependency.
+
+## Cadence photograph (5/5)
+
+All time fields are microseconds. Each column is a separate condition.
+
+- GAP: longest observed render-start to render-start interval.
+- >1.5X: number of intervals longer than 1.5 times the preceding block's duration.
+  This is a cadence threshold, not an underrun or audible-crackle count.
+- IDLE: previous render end to current render start, from the GAP interval.
+- PREV: previous instrumented render duration, from that same interval.
+- REQ: measured external request work in that interval (a subset of elapsed time,
+  not something to add to GAP, IDLE, or PREV).
+- BLOCK: one-based destination render block of the longest interval.
+
+GAP is approximately IDLE + PREV, allowing microsecond truncation. This is elapsed
+wall time and can include scheduling/preemption. It does not identify the host's
+buffer depth, device underruns, or which thread caused a delay. Host batching can
+also produce uneven call intervals. Compare phases and listening reports before
+attributing crackles to these observations. The first block after reset has no
+previous start and is excluded. Existing N counts include that first block.
+
+Cadence uses fixed counters and existing profiling timestamps, one additional
+end timestamp per profiled render, no per-block allocation/logging, and the existing
+status poll. It is disabled with the other diagnostics on exit.

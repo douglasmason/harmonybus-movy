@@ -20,8 +20,8 @@ env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
   HB_REF: ccab0b74231465897ab4f5326745048d6333d82a
-  HB_MOVY_VERSION: 0.34.1-hbclean.183
-  HB_MOVY_TAG: v0.34.1-hbclean.183
+  HB_MOVY_VERSION: 0.34.1-hbclean.184
+  HB_MOVY_TAG: v0.34.1-hbclean.184
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -493,7 +493,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Guided preview isolation now has three 20-second passes: A normal, B Launchpad preview paused, C Move and Launchpad previews paused. Large phase labels, countdown and explicit per-surface ON/PAUSED indicators identify the running test. Four stable photo pages compare the results. Uses your loaded set, starts playback automatically if stopped, and restores previews and the original playing/stopped state. Keep HarmonyBus 0.2.263; no host update. This diagnoses the remaining Move pad_view cost after equally crackly A/B listening reports; it is not a confirmed audio fix."
+              --notes "Adds opt-in render cadence measurements: longest start-to-start interval, coincident idle/render/request times and counts above 1.5 block periods. The guided ABC test arms measurement before changing previews, retaining transition stalls. Photograph all five results pages. Uses your loaded set and restores previews and transport ownership. Keep HarmonyBus 0.2.263 and current host. Timing observations are not driver underrun counts; this is a diagnostic update, not a confirmed crackle fix."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

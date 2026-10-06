@@ -15,17 +15,19 @@ export function renderPreviewTest(): boolean {
             fontPrintBig(128 - fontWidthBig(countdown), 0, countdown, 1);
         }
         fontPrintBig(0, 17, ['NORMAL', 'LP PAUSED', 'BOTH PAUSED'][previewTest.pass], 1);
-        fontPrint5x3(0, 33, 'MOVE PREVIEW: ' + (previewTest.pass === 2 ? 'PAUSED' : 'ON'), 1);
-        fontPrint5x3(0, 41, 'LAUNCHPAD PREVIEW: ' + (previewTest.pass > 0 ? 'PAUSED' : 'ON'), 1);
+        const activePass = ['settle', 'arming'].includes(previewTest.stage) ? Math.max(0, previewTest.pass - 1) : previewTest.pass;
+        fontPrint5x3(0, 33, 'MOVE PREVIEW: ' + (activePass === 2 ? 'PAUSED' : 'ON'), 1);
+        fontPrint5x3(0, 41, 'LAUNCHPAD PREVIEW: ' + (activePass > 0 ? 'PAUSED' : 'ON'), 1);
         fontPrint5x3(0, 49, running ? 'LISTEN NOW. KEEP HANDS OFF.' : 'WAIT - AUDIO KEEPS PLAYING', 1);
         fontPrint5x3(0, 59, 'BACK:CANCEL + RESTORE', 1);
         return true;
     }
-    if (previewTest.stage === 'results' && previewTest.photo === 0) {
-        fontPrint5x3(0, 0, 'PHOTO 1/' + PREVIEW_TEST_PHOTOS + '  ABC PEAK US', 1);
+    if (previewTest.stage === 'results' && (previewTest.photo === 0 || previewTest.photo === 4)) {
+        const cadence = previewTest.photo === 4;
+        fontPrint5x3(0, 0, 'PHOTO ' + (previewTest.photo + 1) + '/' + PREVIEW_TEST_PHOTOS + (cadence ? '  CADENCE US' : '  ABC PEAK US'), 1);
         ['A ALL', 'B MOVE', 'C NONE'].forEach((label, column) => fontPrint5x3(36 + column * 34, 8, label, 1));
-        const rows = ['AUDIO', 'OVER', 'READ', 'WRITE', 'MIDI', 'BURST'];
-        const columns = previewTest.captures.map(capture => [capture.audio[4], capture.audio[2],
+        const rows = cadence ? ['GAP', '>1.5X', 'IDLE', 'PREV', 'REQ', 'BLOCK'] : ['AUDIO', 'OVER', 'READ', 'WRITE', 'MIDI', 'BURST'];
+        const columns = previewTest.captures.map(capture => cadence ? [24,23,25,26,27,28].map(index => capture.audio[index]) : [capture.audio[4], capture.audio[2],
             ...[3, 5, 7, 1].map(index => Number(capture.requests[index]))]);
         rows.forEach((label, index) => {
             const row = 16 + index * 7;

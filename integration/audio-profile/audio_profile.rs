@@ -23,10 +23,48 @@ pub struct AudioProfile {
     pending_count: u64,
     burst_ns: u64,
     burst_count: u64,
+    previous_start: Option<Instant>,
+    previous_end: Option<Instant>,
+    previous_budget: u64,
+    intervals: u64,
+    long_intervals: u64,
+    cadence_peak: u64,
+    cadence_idle: u64,
+    cadence_render: u64,
+    cadence_requests: u64,
+    cadence_block: u64,
 }
 impl AudioProfile {
     pub fn start(&mut self) { *self = Self { enabled: true, ..Self::default() }; }
     pub fn stamp(&self) -> Option<Instant> { self.enabled.then(Instant::now) }
+    /// Timestamp at the render boundary. No clocks when profiling is disabled.
+    pub fn begin(&mut self) -> Option<Instant> {
+        let now = self.stamp()?;
+        self.begin_at(now);
+        Some(now)
+    }
+    fn begin_at(&mut self, now: Instant) {
+        if !self.enabled { return; }
+        if let (Some(start), Some(end)) = (self.previous_start, self.previous_end) {
+            let interval = now.duration_since(start).as_nanos().min(u64::MAX as u128) as u64;
+            self.intervals = self.intervals.saturating_add(1);
+            // Observed cadence, NOT proof of a driver underrun. Host buffering
+            // and batching can legitimately change intervals between calls.
+            self.long_intervals = self.long_intervals.saturating_add(u64::from(
+                self.previous_budget > 0 && interval > self.previous_budget.saturating_mul(3) / 2));
+            if interval > self.cadence_peak {
+                self.cadence_peak = interval;
+                self.cadence_idle = now.duration_since(end).as_nanos().min(u64::MAX as u128) as u64;
+                self.cadence_render = end.duration_since(start).as_nanos().min(u64::MAX as u128) as u64;
+                self.cadence_requests = self.pending_ns;
+                self.cadence_block = self.blocks + 1;
+            }
+        }
+        self.previous_start = Some(now);
+        self.previous_end = None;
+        self.pending_ns = 0;
+        self.pending_count = 0;
+    }
     pub fn mark(&self, last: &mut Option<Instant>, spans: &mut [u64; STAGES], stage: usize) {
         if let Some(previous) = *last {
             let now = Instant::now();
@@ -62,9 +100,9 @@ impl AudioProfile {
         if !self.enabled || rate == 0 { return; }
         // A request burst is bounded by successive render calls. It is NOT a
         // host callback measurement and is never added to unrelated render peaks.
-        self.pending_ns = 0;
-        self.pending_count = 0;
+        self.previous_end = Some(Instant::now());
         self.budget = (frames as u64).saturating_mul(1_000_000_000) / u64::from(rate);
+        self.previous_budget = self.budget;
         let total: u64 = spans.iter().sum();
         self.blocks = self.blocks.saturating_add(1);
         self.over = self.over.saturating_add(u64::from(total > self.budget));
@@ -79,6 +117,9 @@ impl AudioProfile {
         for value in self.worst { let _ = write!(result, ",{}", value / 1000); }
         for value in self.maxima { let _ = write!(result, ",{}", value / 1000); }
         let _ = write!(result, ",{},{}", if self.worst_track.1 > 0 { self.worst_track.0 + 1 } else { 0 }, self.worst_track.1 / 1000);
+        let _ = write!(result, ",{},{},{},{},{},{},{}", self.intervals, self.long_intervals,
+            self.cadence_peak / 1000, self.cadence_idle / 1000, self.cadence_render / 1000,
+            self.cadence_requests / 1000, self.cadence_block);
         let _ = write!(result, " rprof={},{},{}", self.enabled as u8, self.burst_ns / 1000, self.burst_count);
         for peak in &self.requests {
             let name = std::str::from_utf8(&peak.key[..peak.length]).unwrap_or("?");
@@ -118,6 +159,7 @@ mod tests {
         meter.request_ns(Request::Midi,"note_on",50_000);
         assert!(meter.status().contains(" rprof=1,1250,3,900,ch4:midi_fx1:surface_frame,300,surface_events,50,note_on"));
         meter.finish([100_000,0,0,0,0,0,0],128,44100,(0,0));
+        meter.begin();
         meter.request_ns(Request::Read,"small",100_000);
         assert_eq!((meter.burst_ns,meter.burst_count),(1_250_000,3));
         // Do not add a previous request burst to the render peak.
@@ -127,5 +169,42 @@ mod tests {
         assert!(!std::str::from_utf8(&meter.requests[1].key).unwrap().contains([',',' ']));
         meter.start();
         assert_eq!((meter.burst_ns,meter.burst_count,meter.requests[0].ns),(0,0,0));
+    }
+}
+
+#[cfg(test)]
+mod cadence_tests {
+    use super::*;
+    use std::time::Duration;
+    #[test]
+    fn distinguishes_render_work_from_time_between_calls_and_resets() {
+        let origin = Instant::now();
+        let mut meter = AudioProfile::default();
+        assert!(meter.begin().is_none());
+        meter.start();
+        meter.begin_at(origin);
+        assert_eq!(meter.intervals, 0); // Never count time before enabling.
+        meter.previous_end = Some(origin + Duration::from_micros(800));
+        meter.previous_budget = 1_000_000;
+        meter.blocks = 1;
+        meter.request_ns(Request::Read, "status", 100_000);
+        meter.begin_at(origin + Duration::from_micros(1000));
+        assert_eq!((meter.intervals, meter.long_intervals), (1, 0));
+        meter.previous_end = Some(origin + Duration::from_micros(1400));
+        meter.blocks = 2;
+        meter.request_ns(Request::Read, "pad_view", 200_000);
+        meter.begin_at(origin + Duration::from_micros(5000));
+        assert_eq!((meter.intervals, meter.long_intervals), (2, 1));
+        assert_eq!((meter.cadence_peak, meter.cadence_idle, meter.cadence_render),
+            (4_000_000, 3_600_000, 400_000));
+        assert_eq!((meter.cadence_requests, meter.cadence_block), (200_000, 3));
+        assert_eq!(meter.pending_ns, 0);
+        assert!(meter.status().contains(",2,1,4000,3600,400,200,3 rprof="));
+        meter.enabled = false;
+        meter.begin_at(origin + Duration::from_secs(2));
+        assert_eq!(meter.intervals, 2);
+        meter.start();
+        meter.begin_at(origin + Duration::from_secs(3));
+        assert_eq!((meter.intervals, meter.cadence_peak), (0, 0));
     }
 }
