@@ -44,3 +44,20 @@ const returned=schwungPageFor(2,'midi_fx1');assert.notEqual(returned,recovered);
 returned.performanceSet('parallel_mode','Off');
 assert.deepEqual(writes.at(-1),['returned-host','midi_fx1:parallel_mode','Off']);
 console.log('Opening-track host change: editor metadata and writes follow the current port; stable pages remain cached');
+
+const { keyboardState } = await import('../dist/esm/keyboard/state.js');
+const { resetUiState, applyUiState } = await import('../dist/esm/seq/ui-state.js');
+assert.equal(keyboardState.layout,2,'Fresh process uses Approach');
+keyboardState.layout=0;resetUiState();
+assert.equal(keyboardState.layout,2,'New set uses Approach');
+applyUiState(JSON.stringify({mode:0,layout:0}));
+assert.equal(keyboardState.layout,0,'Saved Fourths choice survives');
+applyUiState(JSON.stringify({mode:0,layout:3}));
+assert.equal(keyboardState.layout,3,'Saved Triple Approach choice survives');
+const choices=['Relative','Nearest Octave','Closest Chord Tone','Closest Scale Tone','Closest Split','Upward','Downward'];
+for(const key of ['travel_map','conductor_key_travel','follower_key_travel']){
+    const parameter=module.capabilities.chain_params.find(p=>p.key===key);
+    for(const choice of choices)assert(parameter.options.includes(choice),key+' exposes '+choice);
+}
+assert.equal(module.capabilities.chain_params.find(p=>p.key==='travel_map').default,'None');
+console.log('Approach defaults, saved layouts, and shared travel menu choices verified');

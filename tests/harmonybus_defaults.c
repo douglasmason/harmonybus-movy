@@ -35,6 +35,7 @@ int main(int argument_count, char **arguments) {
         assert(instances[track]->player.config.chromatic_quality == 3);
         assert(instances[track]->retrigger_held == 1);
         assert(instances[track]->chromatic_map == 1);
+        assert(instances[track]->travel_map == 7);
         for (int lane = 0; lane < HB_MOTION_USER_LANES; lane++)
             assert(instances[track]->motion.lanes[lane].operation == HB_MO_OFF);
         assert(instances[track]->motion.lanes[16].operation == HB_MO_BELOW);
