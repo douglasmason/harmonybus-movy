@@ -1,4 +1,5 @@
 """Extend the existing CPU page with opt-in whole-callback stage timing."""
+import base64
 from pathlib import Path
 from patch_responsive_persistence import replace_once
 
@@ -6,6 +7,9 @@ from patch_responsive_persistence import replace_once
 def patch_audio_profile(root: Path) -> None:
     """Install fixed-size timing counters and reuse the normal status poll."""
     assets: Path = Path(__file__).resolve().parent.parent / 'integration/audio-profile'
+    for name in ('cpu-movy-tracks', 'cpu-schwung-tracks', 'cpu-overscale', 'cpu-empty', 'cpu-sends', 'cpu-sends-quiet'):
+        (root / 'browser-test/screenshots/baseline' / (name + '.png')).write_bytes(
+            base64.b64decode((assets / (name + '.png.b64')).read_text()))
     (root / 'src/seq/preview-test.ts').write_text((assets / 'preview-test.ts').read_text())
     (root / 'src/renderer/preview-test-view.ts').write_text((assets / 'preview-test-view.ts').read_text())
     (root / 'browser-test/hb-audio-profile.mjs').write_text((assets / 'hb-audio-profile.mjs').read_text())
