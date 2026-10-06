@@ -19,7 +19,7 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: 53bbd076a77ae62458c9db8cda50ff8d52159d01
+  HB_REF: e1d645c79e30ee84c7300704da60178700988ca3
   HB_MOVY_VERSION: 0.34.1-hbclean.176
   HB_MOVY_TAG: v0.34.1-hbclean.176
   ASSET_NAME: harmonybus-movy-module.tar.gz
@@ -472,7 +472,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Next Pulse selected tones now follow Pad Colors Shape: Smooth, Triangle, Square or steady None. Animated shapes keep a visible floor. Pair with HarmonyBus 0.2.257; includes existing Foll Map, current-output feedback and live-overdub fixes."
+              --notes "Launchpad X sends changed LEDs in one bounded frame, with matching preview banks and a shared pulse phase. Harm Play Settings uses one Follower Key Travel control for live and recorded notes, defaulting to Relative, alongside Conductor Closest Split. Includes HarmonyBus 0.2.258 key-center class preservation, cheaper single-note previews and Follow Notes input ownership. Device crackling still needs physical Move testing."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
