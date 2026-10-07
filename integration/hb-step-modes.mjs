@@ -61,8 +61,9 @@ appState.shiftHeld=true;page.knobTouch(resetSlot,true);page.knobTouch(resetSlot,
 assert(writes.slice(beforeReset).some(([,key,value])=>key==='midi_fx1:track_defaults_reset'&&value==='0'),'Reset uses the selected zero-based track identity');
 page.goToPage(0);
 assert(order('follower_explicit_root')<order('chord_mode'));
-assert.equal(order('chord_mode'),3,'Chords follows Main, Global and Follower Root');
-assert.equal(order('arp_playback'),5,'Arp / Strum follows Chord Forms');
+assert.equal(order('key_center_tonic'),2,'Set Live Key follows Key & Scale');
+assert.equal(order('chord_mode'),4,'Chords follows Main, Global, Set Live Key and Follower Root');
+assert.equal(order('arp_playback'),6,'Arp / Strum follows Chord Forms');
 for(const key of ['defaults_editor'])
     assert.equal(order(key),-1,'Role Defaults panel removed');
 assert(order('render_channel')<order('chord_mode'));
