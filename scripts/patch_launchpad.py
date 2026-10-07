@@ -50,6 +50,7 @@ def patch_launchpad(root: Path) -> None:
     # Share the exact existing color renderer, using a scoped external snapshot.
     path = root / "src/keyboard/harmony-pads.ts"
     source = replace_once(path.read_text(), "keyboardState, padMapFor }", "keyboardState, padMapFor as movePadMapFor }")
+    source = "import { currentSetUuid } from '../seq/set-session.js';\nimport { previewPayload } from '../surfaces/protocol.js';\n" + source
     source = replace_once(source, "let snapshot: HarmonySnapshot | null = null;", """let snapshot: HarmonySnapshot | null = null;
 type SurfacePreview = { notes: Int16Array; targets: number[]; rows: number[] };
 let surfacePreview: SurfacePreview | null = null;
@@ -65,6 +66,25 @@ export function withSurfacePreview<T>(track: number, view: HarmonySnapshot, prev
     source = replace_once(source, "export function pianoApproachTarget(track: number, index: number): number {", "export function pianoApproachTarget(track: number, index: number): number {\n    if (surfacePreview) return surfacePreview.targets[index] ?? -1;")
     source = replace_once(source, "return keyboardState.layout===3?index>>3:0;", "return surfacePreview ? surfacePreview.rows[index] ?? 0 : keyboardState.layout===3?index>>3:0;")
     source = replace_once(source, "function padRowBrightness(index:number,track:number):number{", "function padRowBrightness(index:number,track:number):number{\n    if(surfacePreview)return surfacePreview.targets[index]>=0?1/3:1;")
+    source = replace_once(source, "let requestedPads: number[] = [];", """let requestedPads: number[] = [];
+// Share only a successfully acquired, exact-geometry Move snapshot. This is
+// bounded by Move's existing 50 ms polling period; no native state is cached.
+let sharedMoveView: { track: number; set: string; geometry: string; at: number; view: HarmonySnapshot } | null = null;
+export function matchingMovePreview(track: number, geometry: string, now: number): HarmonySnapshot | null {
+    const cached = sharedMoveView;
+    return !movePreviewFrozen && cached && cached.track === track && cached.set === currentSetUuid() &&
+        cached.geometry === geometry && now >= cached.at && now - cached.at < 50 ? cached.view : null;
+}""")
+    source = replace_once(source, "    const raw = port.getParam('midi_fx1:pad_view');", """    sharedMoveView = null;
+    const raw = port.getParam('midi_fx1:pad_view');""")
+    source = replace_once(source, "        snapshot = next;", """        snapshot = next;
+        // A failed geometry write must never lend a view for the new layout.
+        if (raw && sentPreviewInputs === payload) sharedMoveView = {
+            track, set: currentSetUuid(), at: now, view: next,
+            geometry: previewPayload(requestedPads.map((pitch, index) => ({ pitch,
+                target: targets[index], row: targets[index] >= 0 ? approachRowCode(index) : 0 })),
+                keyboardState.layout === 2 || keyboardState.layout === 3),
+        };""")
     path.write_text(source)
 
     # External raw notes must not masquerade as Move pads in the audio fast path.

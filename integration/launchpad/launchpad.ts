@@ -4,7 +4,7 @@ import { keyboardState, baseNoteFor } from '../keyboard/state.js';
 import { buildPadMap, isPianoLayout } from '../keyboard/layouts.js';
 import { parseHarmonySnapshot, withSurfacePreview, harmonyPadColor, harmonyApproachColor,
     harmonyPlaybackColor, harmonyPadPlaying, pianoApproachIdentity, withHarmonyPadFrame,
-    withSteadyHarmonyLights } from '../keyboard/harmony-pads.js';
+    withSteadyHarmonyLights, matchingMovePreview } from '../keyboard/harmony-pads.js';
 import type { HarmonySnapshot } from '../keyboard/harmony-pads.js';
 import { FOLLOWER_KEYBOARD_SCALES } from '../scale-catalog.js';
 import { markUiStateDirty } from '../seq/ui-dirty.js';
@@ -190,7 +190,8 @@ function sample(now: number): void {
             if (port.setParam('midi_fx1:surface_preview' + bank, payload) === false) return;
             state.payload = payload;
         }
-        const view = parseHarmonySnapshot(port.getParam('midi_fx1:surface_view' + bank));
+        const view = matchingMovePreview(track, payload, now) ??
+            parseHarmonySnapshot(port.getParam('midi_fx1:surface_view' + bank));
         // A busy shared parameter slot is not evidence that geometry was
         // lost. Retain the last complete snapshot and retry at normal rate.
         if(!view&&now>=recoverAt){
