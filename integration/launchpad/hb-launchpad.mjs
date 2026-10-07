@@ -383,7 +383,7 @@ const quickPoll=(now,enabled,milliseconds,tone='2,262836,0,0,132300')=>{
     for(let repeat=0;repeat<8;repeat++)seqEngineTick();
     tickPreviewTest(now);
 };
-clickJog();assert.equal(previewTest.quick,true);assert.equal(previewTest.stage,'intro');
+clickPreviewTest(99990);assert.equal(previewTest.quick,true);assert.equal(previewTest.stage,'intro');
 assert(previewTestLines().some(line=>line.includes('35 SECONDS')));
 clickPreviewTest(100000);assert.equal(previewTest.stage,'settle');
 quickPoll(101000,0,0);assert.equal(previewTest.stage,'arming');
@@ -418,3 +418,86 @@ cancelPreviewTest();
 console.log('Quick check: default jog, Launchpad-off support, engine deadline acknowledgement, one frozen screen, failure/incomplete distinction and timeout pass');
 diagnosticPort.getParam=diagnosticGet;unloadLaunchpad();
 console.log('Guided preview test: real jog, timed A/B/C, fresh acknowledgements, stable photos, live input, both preview gates and restoration pass');
+
+// Sharing never substitutes a different layout or an old/failed native read.
+const { matchingMovePreview, setMovePreviewFrozen } = await import('../dist/esm/keyboard/harmony-pads.js');
+const { padMapFor, baseNoteFor } = await import('../dist/esm/keyboard/state.js');
+setPhase('ready');setMovePreviewFrozen(false);selectTrack(0);seqState.holdStep=-1;
+keyboardState.mode=1;keyboardState.layout=3;keyboardState.scale=0;keyboardState.rootPc=0;
+let sharedReads=0, rejectGeometry=false, rejectRead=false;
+portFor(0).setParam=(key,value)=>!(rejectGeometry&&key.endsWith('pad_preview_inputs'));
+portFor(0).getParam=key=>{
+    if(key.includes('surface_view'))sharedReads++;
+    return rejectRead?'':frame();
+};
+const geometry=()=>previewPayload(buildSurfaceCells(padMapFor(0),3,false),true);
+refreshHarmonyPads(0,199900);refreshHarmonyPads(0,200000);
+assert(matchingMovePreview(0,geometry(),200001),'fresh exact Move geometry can be shared');
+assert.equal(matchingMovePreview(1,geometry(),200001),null,'track ownership is exact');
+assert.equal(matchingMovePreview(0,geometry()+'x',200001),null,'geometry is exact');
+assert.equal(matchingMovePreview(0,geometry(),199999),null,'clock rollback cannot reuse');
+assert.equal(matchingMovePreview(0,geometry(),200050),null,'50 ms old snapshot expires');
+setMovePreviewFrozen(true);
+assert.equal(matchingMovePreview(0,geometry(),200002),null,'diagnostic freeze cannot lend a stale frame');
+setMovePreviewFrozen(false);refreshHarmonyPads(0,200010);
+unloadLaunchpad();setFlag('hblaunchpad',2);
+tickLaunchpad(200011);tickLaunchpad(200012);tickLaunchpad(200013);
+assert.equal(sharedReads,0,'matching lower bank needs no duplicate native render');
+tickLaunchpad(200063);
+assert.equal(sharedReads,1,'different upper bank still uses native production renderer');
+rejectRead=true;refreshHarmonyPads(0,200080);
+assert.equal(matchingMovePreview(0,geometry(),200081),null,'failed reads invalidate the shared result');
+rejectRead=false;rejectGeometry=true;keyboardState.octave[0]++;
+refreshHarmonyPads(0,200150);
+assert.equal(matchingMovePreview(0,geometry(),200151),null,'unacknowledged geometry cannot be shared');
+rejectGeometry=false;unloadLaunchpad();
+console.log('Shared preview: exact track/geometry, freshness, clock rollback, freeze, failed read/write and duplicate-read elimination pass');
+
+// No physical Launchpad is connected: independently exercise each workload.
+const {setLaunchpadIsolation,launchpadIsolationMetrics,launchpadAvailable}=await import('../dist/esm/surfaces/launchpad.js');
+cancelPreviewTest();setFlag('hblaunchpad',0);appState.currentView=VIEW_CPU;
+let isolationReads=0;
+const isolationPort=portFor(appState.activeTrack.index),originalIsolationGet=isolationPort.getParam;
+isolationPort.getParam=key=>{if(key.includes('surface_view')){isolationReads++;return frame();}return originalIsolationGet(key);};
+for(const mode of ['off','route','preview','led']){
+    setLaunchpadIsolation(mode);
+    const sentBefore=sent.length,claimsBefore=claims.length,readsBefore=isolationReads;
+    for(let now=300000;now<302000;now+=50)tickLaunchpad(now);
+    assert.equal(isolationReads>readsBefore,mode==='preview',mode+' preview isolation');
+    assert.equal(sent.length>sentBefore,mode==='led',mode+' output isolation');
+    assert.equal(claims.slice(claimsBefore).some(entry=>entry[1]===254),mode==='route',mode+' routing isolation');
+    const metrics=launchpadIsolationMetrics();
+    if(mode==='led')assert(metrics.packets>0);
+    if(mode==='preview')assert(metrics.reads>0);
+}
+setLaunchpadIsolation(null);
+// Real jog selects the new default; each phase requires its own completed native capture.
+engine.status.play=1;seqState.playing=true;clickJog();
+assert(previewTest.isolation);assert(previewTestLines()[0].includes('ISOLATION'));
+const savedReports=new Map();
+const previousWrite=globalThis.host_write_file,previousRead=globalThis.host_read_file;
+globalThis.host_write_file=(path,content)=>{savedReports.set(path,content);return true;};
+globalThis.host_read_file=path=>savedReports.get(path)??null;
+clickPreviewTest(400000);
+for(let phase=0;phase<4;phase++){
+    const start=401000+phase*37000;
+    quickPoll(start,0,0);assert.equal(previewTest.stage,'arming');
+    quickPoll(start+10,1,10,'1,0,0,0,0');assert.equal(previewTest.stage,'run');
+    assert.equal(previewTest.pass,phase);
+    for(let now=start+20;now<start+1020;now+=50)tickLaunchpad(now);
+    assert.equal(savedReports.size,0,'no disk writes during measurements');
+    quickPoll(start+35020,0,35005);
+}
+assert.equal(previewTest.stage,'results');assert.equal(previewTest.captures.length,4);
+assert.equal(savedReports.size,1);assert(previewTest.reportPath);
+const report=JSON.parse(savedReports.get(previewTest.reportPath));
+assert.equal(report.format,'movy-x-isolation-v1');assert.equal(report.captures.length,4);
+assert(previewTestLines().at(-1).includes('LOG SAVED'));
+renderCpuView(buildCpuPageVM());assert.equal(overflow,false);
+tickLaunchpad(600000);assert.equal(launchpadAvailable(),false,'saved Off setting restored');
+cancelPreviewTest();clickPreviewTest(700000,false,true);clickPreviewTest(700001);
+quickPoll(701002,0,0);quickPoll(701012,1,10,'1,0,0,0,0');
+cancelPreviewTest();tickLaunchpad(701020);assert.equal(launchpadAvailable(),false,'cancel restores saved setting');
+globalThis.host_write_file=previousWrite;globalThis.host_read_file=previousRead;
+isolationPort.getParam=originalIsolationGet;
+console.log('Disconnected X isolation: independent routing/preview/TX, four acknowledged captures, one verified report, cancel and restoration pass');

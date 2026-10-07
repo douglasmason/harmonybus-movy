@@ -4,7 +4,7 @@ import { keyboardState, baseNoteFor } from '../keyboard/state.js';
 import { buildPadMap, isPianoLayout } from '../keyboard/layouts.js';
 import { parseHarmonySnapshot, withSurfacePreview, harmonyPadColor, harmonyApproachColor,
     harmonyPlaybackColor, harmonyPadPlaying, pianoApproachIdentity, withHarmonyPadFrame,
-    withSteadyHarmonyLights } from '../keyboard/harmony-pads.js';
+    withSteadyHarmonyLights, matchingMovePreview } from '../keyboard/harmony-pads.js';
 import type { HarmonySnapshot } from '../keyboard/harmony-pads.js';
 import { FOLLOWER_KEYBOARD_SCALES } from '../scale-catalog.js';
 import { markUiStateDirty } from '../seq/ui-dirty.js';
@@ -69,6 +69,16 @@ let recoverAt = Infinity, ledReadyAt = -Infinity;
 let ledCache: number[] = new Array(73).fill(-1);
 let initialization: number[][] = [];
 let previewFrozen = false;
+export type LaunchpadIsolation = 'off' | 'route' | 'preview' | 'led';
+let isolation: LaunchpadIsolation | null = null;
+const isolationMetrics = { reads: 0, waitMs: 0, packets: 0, refusals: 0 };
+/** Temporary workload override; the saved Launchpad setting is never changed. */
+export function setLaunchpadIsolation(mode: LaunchpadIsolation | null): void {
+    if (mode === isolation) return;
+    unloadLaunchpad(); isolation = mode;
+    Object.assign(isolationMetrics, { reads: 0, waitMs: 0, packets: 0, refusals: 0 });
+}
+export function launchpadIsolationMetrics(): typeof isolationMetrics { return { ...isolationMetrics }; }
 /** Temporary diagnostic override. Does not alter the saved surface setting. */
 export function setLaunchpadPreviewFrozen(frozen: boolean): void {
     if (previewFrozen === frozen) return;
@@ -90,7 +100,9 @@ function currentLayoutSignature(): string {
 }
 
 function send(packets: number[]): boolean {
-    return typeof move_midi_external_send === 'function' && move_midi_external_send(packets) === true;
+    const accepted = typeof move_midi_external_send === 'function' && move_midi_external_send(packets) === true;
+    if (isolation) { if (accepted) isolationMetrics.packets += packets.length / 4; else isolationMetrics.refusals++; }
+    return accepted;
 }
 
 function release(index: number): void {
@@ -124,7 +136,7 @@ export function unloadLaunchpad(): void {
     if (configured) {
         host_ext_midi_remap_set(0, -1);
         host_external_surface(0);
-        if (model === 2) send(sysexPackets([...prefix, 14, 0, 247]));
+        if (model === 2 && (!isolation || isolation === 'led')) send(sysexPackets([...prefix, 14, 0, 247]));
         else if (model === 1) send([11, 176, 0, 0]);
     }
     frameReady = false; sampleBank = 0; pendingViews.fill(null);
@@ -138,8 +150,9 @@ function configure(next: LaunchpadModel): boolean {
     if (typeof host_ext_midi_remap_set !== 'function' || typeof host_ext_midi_remap_enable !== 'function' ||
         typeof host_external_surface !== 'function' || typeof move_midi_external_send !== 'function') return false;
     // 254 is the host's BLOCK sentinel: UI receives the original note, firmware gets no note-on.
-    if (!host_ext_midi_remap_set(0, 254)) return false;
-    if (!host_ext_midi_remap_enable(true) || !host_external_surface(1)) {
+    const routing = !isolation || isolation === 'route';
+    if (routing && !host_ext_midi_remap_set(0, 254)) return false;
+    if (routing && (!host_ext_midi_remap_enable(true) || !host_external_surface(1))) {
         host_ext_midi_remap_set(0, -1); host_external_surface(0); return false;
     }
     model = next; configured = true; ledCache.fill(-1); scan = 0;
@@ -147,6 +160,7 @@ function configure(next: LaunchpadModel): boolean {
         sysexPackets([...prefix, 14, 1, 247]), // Programmer mode
         sysexPackets([...prefix, 11, 0, 1, 247]), // polyphonic pressure, medium threshold
     ];
+    if (isolation && isolation !== 'led') initialization = [];
     return true;
 }
 
@@ -190,7 +204,14 @@ function sample(now: number): void {
             if (port.setParam('midi_fx1:surface_preview' + bank, payload) === false) return;
             state.payload = payload;
         }
-        const view = parseHarmonySnapshot(port.getParam('midi_fx1:surface_view' + bank));
+        const readStarted = Date.now();
+        const sharedView = isolation ? null : matchingMovePreview(track, payload, now);
+        const view = sharedView ??
+            parseHarmonySnapshot(port.getParam('midi_fx1:surface_view' + bank));
+        if (isolation && !sharedView) {
+            isolationMetrics.reads++;
+            isolationMetrics.waitMs = Math.max(isolationMetrics.waitMs, Date.now() - readStarted);
+        }
         // A busy shared parameter slot is not evidence that geometry was
         // lost. Retain the last complete snapshot and retry at normal rate.
         if(!view&&now>=recoverAt){
@@ -247,14 +268,26 @@ function colors(): number[] {
  * Failed queue writes keep the entire frame pending for a bounded retry. */
 export function tickLaunchpad(now = Date.now()): void {
     if (!flushLaunchpadInput()) return;
-    const next = (globalThis.overtakeParked === true ? 0 : flagValue('hblaunchpad')) as LaunchpadModel | 0;
+    const next = (globalThis.overtakeParked === true ? 0 : isolation ? isolation === 'off' ? 0 : 2 : flagValue('hblaunchpad')) as LaunchpadModel | 0;
     if (next !== model) { unloadLaunchpad(); if (next) configure(next); }
     if (!configured || globalThis.overtakeParked === true) return;
+    if (isolation === 'route') return;
     if (initialization.length) {
         if (send(initialization[0])) initialization.shift();
         return;
     }
+    if (isolation === 'led') {
+        // Fixed four-Hz frame: no harmony reads, colors, layout, or live inputs.
+        if (now - ledAt >= 250) {
+            ledAt = now;
+            const level = Math.floor(now / 250) % 2 ? 16 : 32;
+            send(sysexPackets([...prefix, 3, ...Array.from({ length: 64 }, (_, index) =>
+                [3, launchpadNote(2, index), level, level, level]).flat(), 247]));
+        }
+        return;
+    }
     sample(now);
+    if (isolation === 'preview') return;
     if (previewFrozen) return;
     // Original Launchpad accepts at most 400 MIDI messages/sec; leave headroom.
     if (now < ledReadyAt || now - ledAt < (model === 1 ? 6 : 25)) return;
@@ -292,6 +325,7 @@ export function tickLaunchpad(now = Date.now()): void {
 
 /** Releases retain the press owner across track, page and performance-mode changes. */
 export function onMidiMessageExternal(data: number[]): void {
+    if (isolation) return; // Isolate generated workload from physical external input.
     if (!configured || data.length < 3 || !data.every(value => Number.isInteger(value))) return;
     const [status, note, value] = data;
     if (status < 128 || status > 239 || (status & 15) !== 0 || note < 0 || note > 127 || value < 0 || value > 127) return;
