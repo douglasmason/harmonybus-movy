@@ -587,6 +587,8 @@ def main() -> int:
     patch_motif_loader(root)
     from patch_worker_profile import patch_worker_profile
     patch_worker_profile(root)
+    from patch_thread_profile import patch_thread_profile
+    patch_thread_profile(root)
     print("HarmonyBus clean integration applied")
     return 0
 
