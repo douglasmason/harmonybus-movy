@@ -418,3 +418,37 @@ cancelPreviewTest();
 console.log('Quick check: default jog, Launchpad-off support, engine deadline acknowledgement, one frozen screen, failure/incomplete distinction and timeout pass');
 diagnosticPort.getParam=diagnosticGet;unloadLaunchpad();
 console.log('Guided preview test: real jog, timed A/B/C, fresh acknowledgements, stable photos, live input, both preview gates and restoration pass');
+
+// Sharing never substitutes a different layout or an old/failed native read.
+const { matchingMovePreview, setMovePreviewFrozen } = await import('../dist/esm/keyboard/harmony-pads.js');
+const { padMapFor, baseNoteFor } = await import('../dist/esm/keyboard/state.js');
+setPhase('ready');setMovePreviewFrozen(false);selectTrack(0);seqState.holdStep=-1;
+keyboardState.mode=1;keyboardState.layout=3;keyboardState.scale=0;keyboardState.rootPc=0;
+let sharedReads=0, rejectGeometry=false, rejectRead=false;
+portFor(0).setParam=(key,value)=>!(rejectGeometry&&key.endsWith('pad_preview_inputs'));
+portFor(0).getParam=key=>{
+    if(key.includes('surface_view'))sharedReads++;
+    return rejectRead?'':frame();
+};
+const geometry=()=>previewPayload(buildSurfaceCells(padMapFor(0),3,false),true);
+refreshHarmonyPads(0,199900);refreshHarmonyPads(0,200000);
+assert(matchingMovePreview(0,geometry(),200001),'fresh exact Move geometry can be shared');
+assert.equal(matchingMovePreview(1,geometry(),200001),null,'track ownership is exact');
+assert.equal(matchingMovePreview(0,geometry()+'x',200001),null,'geometry is exact');
+assert.equal(matchingMovePreview(0,geometry(),199999),null,'clock rollback cannot reuse');
+assert.equal(matchingMovePreview(0,geometry(),200050),null,'50 ms old snapshot expires');
+setMovePreviewFrozen(true);
+assert.equal(matchingMovePreview(0,geometry(),200002),null,'diagnostic freeze cannot lend a stale frame');
+setMovePreviewFrozen(false);refreshHarmonyPads(0,200010);
+unloadLaunchpad();setFlag('hblaunchpad',2);
+tickLaunchpad(200011);tickLaunchpad(200012);tickLaunchpad(200013);
+assert.equal(sharedReads,0,'matching lower bank needs no duplicate native render');
+tickLaunchpad(200063);
+assert.equal(sharedReads,1,'different upper bank still uses native production renderer');
+rejectRead=true;refreshHarmonyPads(0,200080);
+assert.equal(matchingMovePreview(0,geometry(),200081),null,'failed reads invalidate the shared result');
+rejectRead=false;rejectGeometry=true;keyboardState.octave[0]++;
+refreshHarmonyPads(0,200150);
+assert.equal(matchingMovePreview(0,geometry(),200151),null,'unacknowledged geometry cannot be shared');
+rejectGeometry=false;unloadLaunchpad();
+console.log('Shared preview: exact track/geometry, freshness, clock rollback, freeze, failed read/write and duplicate-read elimination pass');
