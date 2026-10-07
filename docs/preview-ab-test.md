@@ -1,3 +1,5 @@
+From hbclean.185, the default jog action opens the shorter [automatic audio check](automatic-audio-check.md). Hold Shift while clicking the jog on the ordinary CPU meter to open the legacy ABC test described below.
+
 # Preview isolation maintenance test
 
 Available from Movy hbclean.182; hbclean.183 adds the third condition and larger

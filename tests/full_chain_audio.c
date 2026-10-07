@@ -170,6 +170,36 @@ static void test_capture(void){
         printf("capture running=%d arp=%d: one input regenerates five ninth voices with paired releases\n",running,arp);
     }
 }
+/* Independent C oracle at the actual plugin ABI output, outside Movy's checker. */
+static void test_diagnostic_tone(void){
+    set("cmd","stop");render(16);
+    set("cmd","acapture");
+    const uint64_t total=44100u*30u,step=((uint64_t)220<<32)/44100u;
+    uint64_t checked=0;
+    int16_t output[256];
+    for(uint64_t block=0;block*128<total;block++){
+        memset(output,0,sizeof(output));api->render_block(instance,output,128);
+        beat+=256.0/44100.0;
+        for(int frame=0;frame<128;frame++){
+            uint64_t absolute=block*128+(uint64_t)frame;
+            if(absolute<441||absolute>=total-441)continue;
+            uint32_t phase=(uint32_t)(absolute*step);
+            int position=(int)(phase>>16);
+            int value=(position<32768?position-16384:49151-position)/4;
+            assert(output[2*frame]==value/2);
+            assert(output[2*frame+1]==-value/4);checked+=2;
+        }
+    }
+    char status[4096];api->get_param(instance,"status",status,sizeof(status));
+    char *probe=strstr(status," tonecheck=");assert(probe);
+    unsigned state=0,max_error=1;
+    unsigned long long internal_checked=0,bad=1,frames=0;
+    assert(sscanf(probe," tonecheck=%u,%llu,%llu,%u,%llu",&state,&internal_checked,&bad,&max_error,&frames)==5);
+    assert(state==2&&bad==0&&max_error==0&&internal_checked==checked&&frames==total);
+    set("cmd","aprof_off");
+    printf("tone integration: %llu stereo samples match the independent ABI-output oracle\n",(unsigned long long)checked);
+}
+
 int main(int argc,char **argv){
     assert(argc==4);
     void *handle=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL);
@@ -315,5 +345,6 @@ int main(int argc,char **argv){
     printf("audio callback profile (desktop fixture, microseconds): %s\n",profile);
     set("cmd","aprof_off");
     api->get_param(instance,"status",status,sizeof(status));assert(strstr(status," aprof=0,")&&strstr(status," rprof=0,"));
+    test_diagnostic_tone();
     api->destroy_instance(instance);return 0;
 }

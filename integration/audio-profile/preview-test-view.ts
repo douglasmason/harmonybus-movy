@@ -5,6 +5,19 @@ import { fontPrintBig, fontWidthBig } from '../font/big.js';
 /** Stable photo pages; each number is a separate peak, never a summed deadline. */
 export function renderPreviewTest(): boolean {
     if (!previewTestVisible()) return false;
+    if (previewTest.quick) {
+        if (['intro','results','error'].includes(previewTest.stage)) {
+            previewTestLines().forEach((line,index) => fontPrint5x3(0,index===7?59:index*8,line.slice(0,32),1));
+        } else {
+            fontPrintBig(0,0,'AUTO CHECK',1);
+            fontPrintBig(0,18,previewTest.stage==='run'?previewTest.remaining+' SECONDS':'PREPARING',1);
+            fontPrint5x3(0,36,'PCM + CALLBACK TIMING',1);
+            fontPrint5x3(0,44,'NO LISTENING REPORT NEEDED',1);
+            fontPrint5x3(0,52,'ONE PHOTO WHEN FINISHED',1);
+            fontPrint5x3(0,59,'CLICK:STOP BACK:KEEP RUNNING',1);
+        }
+        return true;
+    }
     if (!['intro', 'results', 'error'].includes(previewTest.stage)) {
         const letter = String.fromCharCode(65 + previewTest.pass);
         const running = previewTest.stage === 'run';

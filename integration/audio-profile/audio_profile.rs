@@ -3,6 +3,7 @@ use std::time::Instant;
 const STAGES: usize = 7;
 #[derive(Clone, Copy)]
 pub enum Request { Read = 0, Write = 1, Midi = 2 }
+#[derive(Clone, Copy)]
 struct RequestPeak { ns: u64, key: [u8; 64], length: usize }
 impl Default for RequestPeak {
     fn default() -> Self { Self { ns: 0, key: [0; 64], length: 0 } }
@@ -33,9 +34,23 @@ pub struct AudioProfile {
     cadence_render: u64,
     cadence_requests: u64,
     cadence_block: u64,
+    pending_request: RequestPeak,
+    cadence_request: RequestPeak,
+    short_intervals: u64,
+    late_groups: u64,
+    group_start: Option<Instant>,
+    last_late: Option<Instant>,
+    group_count: u64,
+    largest_group: u64,
+    largest_group_span: u64,
+    capture_limit_ns: u64,
+    capture_start: Option<Instant>,
+    duration_ns: u64,
 }
 impl AudioProfile {
     pub fn start(&mut self) { *self = Self { enabled: true, ..Self::default() }; }
+    /// Engine-owned deadline: a stalled or closed UI cannot prolong the capture.
+    pub fn start_capture(&mut self) { self.start(); self.capture_limit_ns = 35_000_000_000; }
     pub fn stamp(&self) -> Option<Instant> { self.enabled.then(Instant::now) }
     /// Timestamp at the render boundary. No clocks when profiling is disabled.
     pub fn begin(&mut self) -> Option<Instant> {
@@ -45,6 +60,7 @@ impl AudioProfile {
     }
     fn begin_at(&mut self, now: Instant) {
         if !self.enabled { return; }
+        if self.capture_start.is_none() { self.capture_start = Some(now); }
         if let (Some(start), Some(end)) = (self.previous_start, self.previous_end) {
             let interval = now.duration_since(start).as_nanos().min(u64::MAX as u128) as u64;
             self.intervals = self.intervals.saturating_add(1);
@@ -52,18 +68,37 @@ impl AudioProfile {
             // and batching can legitimately change intervals between calls.
             self.long_intervals = self.long_intervals.saturating_add(u64::from(
                 self.previous_budget > 0 && interval > self.previous_budget.saturating_mul(3) / 2));
+            self.short_intervals = self.short_intervals.saturating_add(u64::from(
+                self.previous_budget > 0 && interval < self.previous_budget / 2));
+            if self.previous_budget > 0 && interval > self.previous_budget.saturating_mul(3) / 2 {
+                // Group threshold crossings separated by no more than 100 ms.
+                // These are timing clusters, never audible-glitch counts.
+                let same_group = self.last_late.is_some_and(|last| now.duration_since(last).as_nanos() <= 100_000_000);
+                if !same_group {
+                    self.late_groups = self.late_groups.saturating_add(1);
+                    self.group_start = Some(now); self.group_count = 0;
+                }
+                self.last_late = Some(now);
+                self.group_count = self.group_count.saturating_add(1);
+                let span = now.duration_since(self.group_start.unwrap()).as_nanos().min(u64::MAX as u128) as u64;
+                if self.group_count >= self.largest_group {
+                    self.largest_group = self.group_count; self.largest_group_span = span;
+                }
+            }
             if interval > self.cadence_peak {
                 self.cadence_peak = interval;
                 self.cadence_idle = now.duration_since(end).as_nanos().min(u64::MAX as u128) as u64;
                 self.cadence_render = end.duration_since(start).as_nanos().min(u64::MAX as u128) as u64;
                 self.cadence_requests = self.pending_ns;
                 self.cadence_block = self.blocks + 1;
+                self.cadence_request = self.pending_request;
             }
         }
         self.previous_start = Some(now);
         self.previous_end = None;
         self.pending_ns = 0;
         self.pending_count = 0;
+        self.pending_request = RequestPeak::default();
     }
     pub fn mark(&self, last: &mut Option<Instant>, spans: &mut [u64; STAGES], stage: usize) {
         if let Some(previous) = *last {
@@ -88,19 +123,25 @@ impl AudioProfile {
             self.burst_count = self.pending_count;
         }
         let peak = &mut self.requests[request as usize];
-        if elapsed <= peak.ns { return; }
-        peak.ns = elapsed;
-        peak.length = key.len().min(peak.key.len());
-        for (destination, source) in peak.key[..peak.length].iter_mut().zip(key.bytes()) {
+        if elapsed <= peak.ns && elapsed <= self.pending_request.ns { return; }
+        let mut observation = RequestPeak { ns: elapsed, ..RequestPeak::default() };
+        observation.length = key.len().min(observation.key.len());
+        for (destination, source) in observation.key[..observation.length].iter_mut().zip(key.bytes()) {
             // Status is whitespace/comma delimited. Names are diagnostic only.
             *destination = if source.is_ascii_graphic() && source != b',' { source } else { b'_' };
         }
+        if elapsed > peak.ns { *peak = observation; }
+        if elapsed > self.pending_request.ns { self.pending_request = observation; }
     }
     pub fn finish(&mut self, spans: [u64; STAGES], frames: usize, rate: u32, top_track: (usize, u64)) {
         if !self.enabled || rate == 0 { return; }
+        self.finish_at(spans, frames, rate, top_track, Instant::now());
+    }
+    fn finish_at(&mut self, spans: [u64; STAGES], frames: usize, rate: u32, top_track: (usize, u64), now: Instant) {
+        if !self.enabled || rate == 0 { return; }
         // A request burst is bounded by successive render calls. It is NOT a
         // host callback measurement and is never added to unrelated render peaks.
-        self.previous_end = Some(Instant::now());
+        self.previous_end = Some(now);
         self.budget = (frames as u64).saturating_mul(1_000_000_000) / u64::from(rate);
         self.previous_budget = self.budget;
         let total: u64 = spans.iter().sum();
@@ -109,6 +150,10 @@ impl AudioProfile {
         self.near = self.near.saturating_add(u64::from(total > self.budget * 7 / 10));
         for (peak, value) in self.maxima.iter_mut().zip(spans) { *peak = (*peak).max(value); }
         if total > self.peak { self.peak = total; self.worst = spans; self.worst_track = top_track; }
+        if let Some(start) = self.capture_start {
+            self.duration_ns = now.duration_since(start).as_nanos().min(u64::MAX as u128) as u64;
+            if self.capture_limit_ns > 0 && self.duration_ns >= self.capture_limit_ns { self.enabled = false; }
+        }
     }
     pub fn status(&self) -> String {
         use std::fmt::Write;
@@ -120,6 +165,10 @@ impl AudioProfile {
         let _ = write!(result, ",{},{},{},{},{},{},{}", self.intervals, self.long_intervals,
             self.cadence_peak / 1000, self.cadence_idle / 1000, self.cadence_render / 1000,
             self.cadence_requests / 1000, self.cadence_block);
+        let name = std::str::from_utf8(&self.cadence_request.key[..self.cadence_request.length]).unwrap_or("?");
+        let _ = write!(result, ",{},{},{},{},{},{},{}", self.short_intervals, self.late_groups,
+            self.largest_group, self.largest_group_span / 1000, self.cadence_request.ns / 1000,
+            if name.is_empty() { "-" } else { name }, self.duration_ns / 1_000_000);
         let _ = write!(result, " rprof={},{},{}", self.enabled as u8, self.burst_ns / 1000, self.burst_count);
         for peak in &self.requests {
             let name = std::str::from_utf8(&peak.key[..peak.length]).unwrap_or("?");
@@ -199,12 +248,39 @@ mod cadence_tests {
             (4_000_000, 3_600_000, 400_000));
         assert_eq!((meter.cadence_requests, meter.cadence_block), (200_000, 3));
         assert_eq!(meter.pending_ns, 0);
-        assert!(meter.status().contains(",2,1,4000,3600,400,200,3 rprof="));
+        assert!(meter.status().contains(",2,1,4000,3600,400,200,3,"));
         meter.enabled = false;
         meter.begin_at(origin + Duration::from_secs(2));
         assert_eq!(meter.intervals, 2);
         meter.start();
         meter.begin_at(origin + Duration::from_secs(3));
         assert_eq!((meter.intervals, meter.cadence_peak), (0, 0));
+    }
+    #[test]
+    fn captures_clusters_catchup_coincident_request_and_engine_deadline() {
+        let origin=Instant::now();
+        let mut meter=AudioProfile::default();meter.start_capture();
+        meter.begin_at(origin);
+        meter.finish_at([200_000,0,0,0,0,0,0],48,48000,(0,0),origin+Duration::from_micros(200));
+        // An unrelated earlier request peak must not be blamed on the worst gap.
+        meter.request_ns(Request::Read,"earlier",900_000);
+        meter.begin_at(origin+Duration::from_micros(2000));
+        meter.finish_at([200_000,0,0,0,0,0,0],48,48000,(0,0),origin+Duration::from_micros(2200));
+        meter.request_ns(Request::Read,"same_gap",700_000);
+        meter.begin_at(origin+Duration::from_micros(5000));
+        meter.finish_at([100_000,0,0,0,0,0,0],48,48000,(0,0),origin+Duration::from_micros(5100));
+        meter.begin_at(origin+Duration::from_micros(5200));
+        assert_eq!((meter.long_intervals,meter.late_groups,meter.largest_group,meter.short_intervals),(2,1,2,1));
+        assert_eq!(meter.largest_group_span,3_000_000);
+        assert_eq!(meter.cadence_request.ns,700_000);
+        assert_eq!(&meter.cadence_request.key[..meter.cadence_request.length],b"same_gap");
+        meter.finish_at([100_000,0,0,0,0,0,0],48,48000,(0,0),origin+Duration::from_micros(5300));
+        meter.begin_at(origin+Duration::from_millis(200));
+        assert_eq!(meter.late_groups,2);
+        meter.finish_at([100_000,0,0,0,0,0,0],48,48000,(0,0),origin+Duration::from_secs(35));
+        assert!(!meter.enabled);assert_eq!(meter.duration_ns,35_000_000_000);
+        let snapshot=meter.status();meter.begin_at(origin+Duration::from_secs(36));
+        meter.request_ns(Request::Write,"ignored",99_000_000);
+        assert_eq!(meter.status(),snapshot);
     }
 }

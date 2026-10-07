@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: ccab0b74231465897ab4f5326745048d6333d82a
-  HB_MOVY_VERSION: 0.34.1-hbclean.184
-  HB_MOVY_TAG: v0.34.1-hbclean.184
+  HB_REF: acf06e2f4ceb1cfdd1b5ed68a22ac1bbe420177e
+  HB_MOVY_VERSION: 0.34.1-hbclean.185
+  HB_MOVY_TAG: v0.34.1-hbclean.185
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -108,6 +108,7 @@ jobs:
               'engine/crates/seq-core/src/shared_context.rs',
               'browser-test/hb-audio-profile.mjs',
               'engine/crates/movy-dsp/src/audio_profile.rs',
+              'engine/crates/movy-dsp/src/tone_check.rs',
               'engine/crates/movy-dsp/src/chain_cost.rs',
               'src/seq/cpu-page.ts',
               'src/seq/preview-test.ts',
@@ -412,6 +413,7 @@ jobs:
           cargo test -p movy-dsp piano_gap_tests --lib
           cargo test -p movy-dsp surface_route --lib
           cargo test -p movy-dsp audio_profile --lib
+          cargo test -p movy-dsp tone_check --lib
           cargo test -p movy-dsp chain_cost --lib
           HB_TIMING_TRACE=/tmp/hb-timing.trace cargo test -p movy-dsp hb_loop --lib
 
@@ -493,7 +495,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Adds opt-in render cadence measurements: longest start-to-start interval, coincident idle/render/request times and counts above 1.5 block periods. The guided ABC test arms measurement before changing previews, retaining transition stalls. Photograph all five results pages. Uses your loaded set and restores previews and transport ownership. Keep HarmonyBus 0.2.263 and current host. Timing observations are not driver underrun counts; this is a diagnostic update, not a confirmed crackle fix."
+              --notes "Adds a 35-second automatic capture with a 30-second known tone, PCM handoff checks, late-callback clusters and coincident request attribution. One results screen; no listening comparison required. Shift+Step 12, click twice. Back keeps the short check running while you use performance controls; reopen diagnostics for the result. The tone temporarily replaces Movy local audio while normal processing continues. Keep HarmonyBus 0.2.264 and current host. PCM OK covers the tested software handoff, not hardware output; timing events are not underrun counts. Legacy ABC remains available via Shift-click. This is diagnostic tooling, not a confirmed crackle fix."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
