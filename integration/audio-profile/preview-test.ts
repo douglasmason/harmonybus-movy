@@ -4,16 +4,20 @@ import { seqState } from './state.js';
 import { seqCmd, statusSeq, engineReady } from './engine.js';
 import { currentSetUuid, sessionReady } from './set-session.js';
 import { keyboardState } from '../keyboard/state.js';
+import { safeWrite } from './persist-store.js';
 import { setMovePreviewFrozen, isMovePreviewFrozen } from '../keyboard/harmony-pads.js';
-import { launchpadAvailable, launchpadPreviewReady, launchpadPreviewFrozen, setLaunchpadPreviewFrozen } from '../surfaces/launchpad.js';
+import { launchpadAvailable, launchpadPreviewReady, launchpadPreviewFrozen, setLaunchpadPreviewFrozen, setLaunchpadIsolation, launchpadIsolationMetrics } from '../surfaces/launchpad.js';
 
 type Stage = 'idle' | 'intro' | 'starting' | 'settle' | 'arming' | 'run' | 'stop' | 'results' | 'error';
-type Capture = { audio: number[]; requests: string[]; seconds: number; tone?: number[]; gapRequest?: string };
+type Capture = { audio: number[]; requests: string[]; seconds: number; tone?: number[]; gapRequest?: string; surface?: ReturnType<typeof launchpadIsolationMetrics> };
 export const previewTest = {
     stage: 'idle' as Stage, pass: 0, photo: 0, remaining: 20, error: '',
     captures: [] as Capture[],
     quick: true,
+    isolation: false,
+    reportPath: '',
 };
+export const ISOLATION_LABELS = ['OFF', 'ROUTING', 'PREVIEWS', 'LED SEND'];
 const RUN_MS = 20000, SETTLE_MS = 1000, TIMEOUT_MS = 5000;
 export const PREVIEW_TEST_LABELS = ['A NORMAL', 'B X FROZEN', 'C BOTH FROZEN'];
 export const PREVIEW_TEST_PHOTOS = PREVIEW_TEST_LABELS.length + 2;
@@ -35,9 +39,20 @@ function fail(message: string, now: number): void {
     restore(); seqCmd('aprof_off');
     previewTest.error = message; enter('error', now);
 }
+/** Write once after collection; file I/O must not perturb a measured phase. */
+function saveIsolationReport(): void {
+    const path = '/data/UserData/schwung/x-test-' + Date.now() + '.json';
+    const report = JSON.stringify({ format: 'movy-x-isolation-v1', capturedAt: new Date().toISOString(),
+        conditions: ISOLATION_LABELS, captures: previewTest.captures,
+        limitations: ['PCM checks internal generated tone, not host/DAC output',
+            'Late callback counts are not audible crackle counts', 'LED phase uses a fixed four-Hz 64-pad RGB pattern'],
+    }, null, 2);
+    previewTest.reportPath = safeWrite(path, report) ? path : '';
+}
 export function keepQuickCapture(): boolean { return previewTest.quick && !['idle','intro','error'].includes(previewTest.stage); }
 export function previewTestVisible(): boolean { return previewTest.stage !== 'idle'; }
 function restore(): void {
+    setLaunchpadIsolation(null);
     setMovePreviewFrozen(false);
     setLaunchpadPreviewFrozen(false);
     if (startedTransport && currentSetUuid() === transportSet) seqCmd('stop');
@@ -49,9 +64,10 @@ export function cancelPreviewTest(): void {
     previewTest.stage = 'idle'; previewTest.captures = []; previewTest.photo = 0;
 }
 /** One physical jog click advances instructions/results; running ignores clicks. */
-export function clickPreviewTest(now = Date.now(), compare = false): void {
+export function clickPreviewTest(now = Date.now(), compare = false, isolation = false): void {
     if (previewTest.stage === 'idle' || previewTest.stage === 'error') {
         previewTest.quick = !compare;
+        previewTest.isolation = !compare && isolation;
         previewTest.error = ''; enter('intro', now); return;
     }
     if (previewTest.stage === 'results') {
@@ -63,9 +79,10 @@ export function clickPreviewTest(now = Date.now(), compare = false): void {
     if (!engineReady() || !sessionReady()) { fail('WAIT FOR SET TO LOAD', now); return; }
     if (seqState.recording || seqState.countingIn) { fail('STOP RECORDING FIRST', now); return; }
     if (!previewTest.quick && !launchpadPreviewReady()) { fail('ENABLE LAUNCHPAD FIRST', now); return; }
-    previewTest.pass = 0; appliedPass = 0; previewTest.captures = []; previewTest.photo = 0;
-    context = previewTest.quick ? currentSetUuid() : contextKey(); lastSeenStatus = statusSeq(); lastStatusAt = now;
+    previewTest.pass = 0; appliedPass = 0; previewTest.captures = []; previewTest.photo = 0; previewTest.reportPath = '';
+    context = previewTest.quick && !previewTest.isolation ? currentSetUuid() : contextKey(); lastSeenStatus = statusSeq(); lastStatusAt = now;
     setMovePreviewFrozen(false); setLaunchpadPreviewFrozen(false); seqCmd('aprof_off');
+    if (previewTest.isolation) setLaunchpadIsolation('off');
     startedTransport = !seqState.playing; transportSet = currentSetUuid();
     if (startedTransport) command('play', 'starting', now);
     else enter('settle', now);
@@ -76,7 +93,7 @@ export function tickPreviewTest(now = Date.now()): void {
     if (appState.currentView !== VIEW_CPU && !keepQuickCapture()) { cancelPreviewTest(); return; }
     if (['intro', 'results', 'error'].includes(previewTest.stage)) return;
     if (!sessionReady() || !engineReady() || seqState.recording || seqState.countingIn ||
-        (previewTest.stage !== 'starting' && !seqState.playing) || (previewTest.quick ? currentSetUuid() : contextKey()) !== context ||
+        (previewTest.stage !== 'starting' && !seqState.playing) || (previewTest.quick && !previewTest.isolation ? currentSetUuid() : contextKey()) !== context ||
         (!previewTest.quick && !launchpadAvailable()) || launchpadPreviewFrozen() !== (appliedPass > 0) ||
         isMovePreviewFrozen() !== (appliedPass === 2)) {
         fail('PLAY OR SETUP CHANGED', now); return;
@@ -96,9 +113,10 @@ export function tickPreviewTest(now = Date.now()): void {
     } else if (previewTest.stage === 'arming') {
         if (fresh && audio.length >= (previewTest.quick ? 36 : 29) && requests.length >= 9 && audio[0] === 1 && requests[0] === '1') {
             // Arm first, then change the workload. Never discard the transition.
-            appliedPass = previewTest.pass;
+            appliedPass = previewTest.isolation ? 0 : previewTest.pass;
             setLaunchpadPreviewFrozen(appliedPass > 0);
             setMovePreviewFrozen(appliedPass === 2);
+            if (previewTest.isolation) setLaunchpadIsolation((['off', 'route', 'preview', 'led'] as const)[previewTest.pass]);
             runningAt = now; previewTest.remaining = previewTest.quick ? 35 : 20; enter('run', now);
         } else if (now - enteredAt > TIMEOUT_MS) fail('METER START TIMED OUT', now);
     } else if (previewTest.stage === 'run') {
@@ -107,8 +125,12 @@ export function tickPreviewTest(now = Date.now()): void {
             if (remaining !== previewTest.remaining) { previewTest.remaining = remaining; appState.dirty = true; }
             if (fresh && audio[0] === 0 && audio[1] > 0 && audio[35] >= 35000 && requests[0] === '0') {
                 previewTest.captures.push({ audio, requests, seconds: audio[35]/1000,
-                    tone: seqState.cpuTone.split(',').map(Number), gapRequest: seqState.cpuProfile.split(',')[34] });
-                seqCmd('cpulog'); restore(); enter('results', now);
+                    tone: seqState.cpuTone.split(',').map(Number), gapRequest: seqState.cpuProfile.split(',')[34],
+                    surface: previewTest.isolation ? launchpadIsolationMetrics() : undefined });
+                seqCmd('cpulog');
+                if (previewTest.isolation && previewTest.pass < 3) {
+                    previewTest.pass++; setLaunchpadIsolation('off'); enter('settle', now);
+                } else { restore(); if (previewTest.isolation) saveIsolationReport(); enter('results', now); }
             } else if (now - runningAt > 42000) fail('CAPTURE DID NOT COMPLETE', now);
             return;
         }
@@ -138,6 +160,19 @@ function compactKey(key: string): string {
 }
 /** Static instruction/photo lines; the renderer owns the large running display. */
 export function previewTestLines(): string[] {
+    if (previewTest.isolation && previewTest.stage === 'intro') return [
+        'X ISOLATION - ABOUT 2.5 MIN', 'OFF / ROUTE / PREVIEW / LED', '4 X 35S TIMING + TEST TONE',
+        'NO LAUNCHPAD NEEDED', 'AUTO-PLAYS YOUR LOADED SET', 'ONE SUMMARY PHOTO AT END',
+        'HOST OUTPUT NOT MEASURED', 'CLICK:START BACK:CANCEL'];
+    if (previewTest.isolation && previewTest.stage === 'results') {
+        const compact = (value: number): string => value > 9999 ? Math.round(value / 1000) + 'K' : String(value);
+        return ['X TEST  GAPus LATE WAITms', ...previewTest.captures.map((capture,index) =>
+            ['OFF ', 'ROUT', 'PREV', 'LED '][index] + ' ' + compact(capture.audio[24]) + ' ' +
+            compact(capture.audio[23]) + ' ' + compact(capture.surface?.waitMs || 0)),
+            'PCM BAD ' + previewTest.captures.map(capture => capture.tone?.[0] === 2 ? compact(capture.tone[2]) : '?').join('/'),
+            'TX ' + compact(previewTest.captures[3].surface?.packets || 0) + ' REFUSED ' + compact(previewTest.captures[3].surface?.refusals || 0),
+            previewTest.reportPath ? 'LOG SAVED: schwung/x-test-*.json' : 'LOG FAILED - PHOTO THIS'];
+    }
     if (previewTest.quick && previewTest.stage === 'error') return ['CHECK NOT COMPLETED', previewTest.error,
         'TEST TONE STOPPED', 'NO COMPLETE RESULT', '', '', '', 'CLICK:RETRY  BACK:EXIT'];
     if (previewTest.quick && previewTest.stage === 'intro') return [

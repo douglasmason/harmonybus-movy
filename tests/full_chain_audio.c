@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 static int sent_on,sent_off,rejected;
+static int capture_edges,edge_count,edges[128];
 static int move_play_presses,move_play_releases;
 static unsigned rendered_mask;
 static double beat;
@@ -18,6 +19,10 @@ static double position(void){return beat;}
 static int clock_status(void){return 0;}
 static int send_packet(const uint8_t *packet,int length){
     if(length!=4){rejected++;return 0;}
+    if(capture_edges&&((packet[1]&0xf0)==0x90||(packet[1]&0xf0)==0x80)){
+        assert(edge_count<128);
+        edges[edge_count++]=(packet[1]&0xf0)==0x90&&packet[3]?1:0;
+    }
     if((packet[1]&0xf0)==0x90&&packet[3]){sent_on++;rendered_mask|=1u<<(packet[2]%12);}
     if((packet[1]&0xf0)==0x80||((packet[1]&0xf0)==0x90&&!packet[3]))sent_off++;
     return 4;
@@ -238,6 +243,22 @@ int main(int argc,char **argv){
         render(64);long tail=render(64);
         printf("%s mode=%d track=%d local_pcm=%ld routed_on=%d routed_off=%d rejected=%d tail=%ld\n",argv[3],mode,track,energy,sent_on,sent_off,rejected,tail);fflush(stdout);
         assert(energy>0);assert(sent_on>=3&&sent_off>=3&&rejected==0);assert(tail==0);
+        /* A short release followed by a new strike must remain two edges,
+           including both arriving before the next audio callback. */
+        uint8_t press[]={0x90,68,100},release[]={0x80,68,0};
+        sent_on=sent_off=0;api->on_midi(instance,press,3,0);render(4);
+        int voices=sent_on;assert(voices>0);
+        for(int gap_blocks=0;gap_blocks<5;gap_blocks++)for(int repeat=0;repeat<20;repeat++){
+            edge_count=0;capture_edges=1;
+            api->on_midi(instance,release,3,0);
+            render(gap_blocks);
+            api->on_midi(instance,press,3,0);render(4);
+            capture_edges=0;
+            assert(edge_count==2*voices);
+            for(int event=0;event<edge_count;event++)assert(edges[event]==(event>=voices));
+        }
+        api->on_midi(instance,release,3,0);render(4);
+        printf("short release/repress: mode=%d track=%d, 100 ordered strike pairs at 0..4 block gaps\n",mode,track);
         snprintf(parameter,sizeof(parameter),"ch%d:mix",track);set(parameter,"1,0,1,0,0");
     }
     set("ch0:mix","1,0,0,0,0");set("ch1:mix","1,0,1,0,0");

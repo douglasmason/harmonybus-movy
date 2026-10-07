@@ -54,7 +54,7 @@ def patch_audio_profile(root: Path) -> None:
     source = replace_once(source, 'if (cpuPageActive()) return;   // sixteen columns fit; nothing to scroll', 'if (cpuPageActive()) { toggleCpuDetail(); appState.dirty = true; return; }')
     source = "import { clickPreviewTest } from '../seq/preview-test.js';\n" + source
     source = replace_once(source, 'if (flagsPageActive()) return;', 'if (flagsPageActive() || cpuPageActive()) return;')
-    source = replace_once(source, 'if (d1 === MoveMainButton && d2 > 0) {', 'if (d1 === MoveMainButton && d2 > 0) {\n        if (cpuPageActive()) { clickPreviewTest(Date.now(), appState.shiftHeld); return; }')
+    source = replace_once(source, 'if (d1 === MoveMainButton && d2 > 0) {', 'if (d1 === MoveMainButton && d2 > 0) {\n        if (cpuPageActive()) { clickPreviewTest(Date.now(), appState.shiftHeld, !appState.shiftHeld); return; }')
     path.write_text(source)
     path = root / 'src/renderer/cpu-view.ts'
     source = path.read_text()
