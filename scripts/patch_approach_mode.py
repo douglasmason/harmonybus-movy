@@ -69,7 +69,8 @@ def patch_approach_mode(root: Path) -> None:
     source = replace_once(source, '        knobTurn: (slot: number, delta: number) => {', """        knobTurn: (slot: number, delta: number) => {
             const keyContext=ctl.keyAt(slot);
             if(isHarmSettings()){editHarmSetting(slot,delta);return;}
-            if(keyContext==='harm_play_advance'||keyContext==='track_defaults_reset')return;
+            if(keyContext==='harm_play_advance'||keyContext==='track_defaults_reset'||keyContext==='key_center_apply')return;
+            if(keyContext==='key_center_tonic'||keyContext==='key_center_explicit_scale'){editHarmSetting(slot,delta);return;}
             if(keyContext==='harm_play_release_control'&&appState.shiftHeld){
                 if(laneTouchSlots.has(slot))releasePerformanceTouch(slot,true);
                 const setting='harm_play_release_harmony',options=['Freeze at Release','Follow Harmony'];
@@ -113,7 +114,10 @@ def patch_approach_mode(root: Path) -> None:
                 return;
             }
 """)
-    source = replace_once(source,'            const namedControl = /^motion_control_', '''            if(isHarmSettings()){
+    source = replace_once(source,'            const namedControl = /^motion_control_', '''            if(key==='key_center_apply'){
+                lanePort.performanceSet(key,'Apply');approachTouched(lanePort);ctl.revalue();markUiStateDirty();touchPaintPending=true;return;
+            }
+            if(isHarmSettings()||key==='key_center_tonic'||key==='key_center_explicit_scale'){
                 editHarmSetting(slot,0);
                 ownPerformanceTouch(slot,()=>{
                     ctl.state.peek=null;touchPaintPending=true;

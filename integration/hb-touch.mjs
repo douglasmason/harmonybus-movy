@@ -1060,3 +1060,24 @@ console.log('Empty Harm Play knob: both LED addresses off and legacy painter exc
     assert(!writes.slice(shifted).some(([key])=>key==='midi_fx1:key_center'),'Shift edits never arm Key Center');
 }
 console.log('Harm Play: separate activation/settings, harmless touches, shared follower key travel and Key Center scale peek pass');
+
+// Explicit entry stages choices, and only an Apply touch changes the live key.
+{
+    for(const mode of [0,1,2]){
+        setInitialMode('hbsteprow',mode);page.reload();
+        const index=page.ctl.pages.findIndex(candidate=>candidate.keys?.[0]==='key_center_tonic');
+        assert(index>=0,'Set Live Key is available in every mode');
+        page.goToPage(index);for(let tick=0;tick<64;tick++)page.tick();
+        assert.equal(page.pageTitle,'Set Live Key');
+        const before=writes.length;
+        for(const slot of [0,1]){page.knobTouch(slot,true);page.knobTurn(slot,1);page.knobTouch(slot,false);}
+        assert(writes.slice(before).some(([key])=>key==='midi_fx1:key_center_tonic'));
+        assert(writes.slice(before).some(([key])=>key==='midi_fx1:key_center_explicit_scale'));
+        assert(!writes.slice(before).some(([key])=>key==='midi_fx1:key_center_apply'||key==='midi_fx1:key_center'));
+        page.knobTurn(2,1);
+        assert(!writes.slice(before).some(([key])=>key==='midi_fx1:key_center_apply'));
+        page.knobTouch(2,true);page.knobTouch(2,false);
+        assert.equal(writes.slice(before).filter(([key,value])=>key==='midi_fx1:key_center_apply'&&value==='Apply').length,1);
+    }
+}
+console.log('Explicit live key: staged tonic/scale and deliberate Apply in every mode pass');

@@ -43,7 +43,7 @@ def patch_motif_loader(root: Path) -> None:
     source = replace_once(source, '        render(title: string, auto?: AutomationView, _touched = -1) {', '        render(title: string, auto?: AutomationView, _touched = -1) {\n            if(drawMotifLoader(lanePort))return;')
     path.write_text(source)
     path = root / 'src/renderer/hb-step-panels.ts'
-    path.write_text(replace_once(path.read_text(), "const commonPanels = new Set(['root', 'follower_source']);", "const commonPanels = new Set(['root', 'follower_source', 'motif_load', 'motif_targets']);"))
+    path.write_text(replace_once(path.read_text(), "const commonPanels = new Set(['root', 'follower_source', 'explicit_key']);", "const commonPanels = new Set(['root', 'follower_source', 'explicit_key', 'motif_load', 'motif_targets']);"))
     path = root / 'src/renderer/hb-approach.ts'
     source = replace_once(path.read_text(), '        release,\n    ];', "        release,\n        {key:'motif_placement',name:'Motif Target',type:'enum',options:['Saved','End','Start','Both','Omit'],options_as_string:true,default:'Saved'},\n    ];")
     path.write_text(source)
