@@ -109,7 +109,7 @@ def patch_worker_profile(root: Path) -> None:
             "acapture" =>''')
     source = replace_once(source, '"acapture" => { self.profile', '"acapture" => { self.chains.worker_profile.stop(); self.profile')
     source = replace_once(source, '"aprof_on" => { self.tone_check', '"aprof_on" => { self.chains.worker_profile.stop(); self.tone_check')
-    source = replace_once(source, '            "state" => {\n                if seq_core::persist::load', '            "state" => {\n                self.chains.worker_profile.stop(); self.profile.enabled = false; self.tone_check.cancel();\n                if seq_core::persist::load')
+    source = replace_once(source, '            "state" => {\n                if seq_core::persist::load', '            "state" => {\n                if self.chains.worker_profile.enabled { self.profile.enabled = false; self.tone_check.cancel(); } self.chains.worker_profile.stop();\n                if seq_core::persist::load')
     source = replace_once(source, '"aprof_off" => { self.profile.enabled = false;', '"aprof_off" => { self.chains.worker_profile.stop(); self.profile.enabled = false;')
     source = replace_once(source, 's.push_str(&self.tone_check.status());', '''s.push_str(&self.tone_check.status());
                 s.push_str(&self.chains.worker_profile.status());

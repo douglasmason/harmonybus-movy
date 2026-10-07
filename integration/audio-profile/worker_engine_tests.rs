@@ -25,6 +25,9 @@
         instance.render(&mut serial);
         assert!(!instance.chains.worker_profile.serial);
         assert!(!instance.chains.worker_profile.enabled);
+        instance.set_param("cmd", "aprof_on");
+        instance.set_param("state", "movy1\n");
+        assert!(instance.profile.enabled, "ordinary profiling survives set loads");
         instance.set_param("cmd", "wserial");
         instance.set_param("cmd", "acapture");
         assert!(!instance.chains.worker_profile.serial);
