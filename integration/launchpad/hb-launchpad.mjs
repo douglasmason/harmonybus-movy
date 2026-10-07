@@ -89,7 +89,7 @@ const { readFileSync } = await import('node:fs');
 const contract = JSON.parse(readFileSync(process.env.HB_MODULE, 'utf8'));
 const { schwungPageFor, schwungGridReload } = await import('../dist/esm/renderer/schwung-grid.js');
 const { seqHandleButtonCc } = await import('../dist/esm/seq/router-buttons.js');
-const { VIEW_KNOBS } = await import('../dist/esm/app/state.js');
+const { VIEW_KNOBS, VIEW_CPU } = await import('../dist/esm/app/state.js');
 const { beginSurfaceControl, toggleSurfaceLatch, surfaceControlLights } = await import('../dist/esm/surfaces/controls.js');
 const values = new Map(contract.capabilities.chain_params.map(param => [param.key, String(param.default ?? param.options?.[0] ?? '0')]));
 values.set('motion_gesture_binding_1', '1,0,0,0,350,0,0,1');
@@ -235,8 +235,8 @@ setFlag('hblaunchpad',2);tickLaunchpad(3000);tickLaunchpad(3010);tickLaunchpad(3
 assert(launchpadPreviewReady());
 engine.status.play=1;seqState.playing=true;openCpuPage();
 const clickJog=()=>{onMidiMessageInternal([176,MoveMainButton,127]);onMidiMessageInternal([176,MoveMainButton,0]);};
-clickJog();assert.equal(previewTest.stage,'intro','real jog click opens guided instructions');
-clickPreviewTest(4000);assert.equal(previewTest.stage,'settle');
+appState.shiftHeld=true;clickJog();appState.shiftHeld=false;assert.equal(previewTest.stage,'intro','real jog click opens guided instructions');
+clickPreviewTest(4000,true);assert.equal(previewTest.stage,'settle');
 const sampleAudio=(enabled,peak)=>[enabled,6900,0,1,peak,2902,204,50,229,305,184,0,890,0,0,0,0,0,0,0,4,176,6899,7,9000,8100,900,400,123].join(',');
 const sampleRequests=(enabled,read,key='surface_view0')=>`${enabled},1452,2,${read},ch3:midi_fx1:${key},634,surface_events,302,midi`;
 const poll=(now,enabled,peak,read,key)=>{
@@ -347,10 +347,10 @@ if(process.env.HB_TEST_PREVIEW){
     writeFileSync(process.env.HB_TEST_PREVIEW+'.phases.png',PNG.sync.write(runningPreview));
 }
 clearCpuPage();assert.equal(previewTest.stage,'idle');
-clickPreviewTest(47000);clickPreviewTest(47010);poll(48010,0,1100,150);poll(48020,1,1100,150);
+clickPreviewTest(47000,true);clickPreviewTest(47010,true);poll(48010,0,1100,150);poll(48020,1,1100,150);
 tickPreviewTest(54000);assert.equal(previewTest.stage,'error','status failure aborts instead of presenting a result');
 assert.equal(launchpadPreviewFrozen(),false);
-cancelPreviewTest();clickPreviewTest(55000);clickPreviewTest(55010);
+cancelPreviewTest();clickPreviewTest(55000,true);clickPreviewTest(55010,true);
 poll(56010,0,1100,150);poll(56020,1,1100,150);
 for(let now=57020;now<=76020;now+=1000)poll(now,1,1100,150);
 poll(76040,0,1100,150);assert.equal(launchpadPreviewFrozen(),false);
@@ -360,12 +360,12 @@ poll(97080,0,1100,150);
 poll(98080,0,1100,150);poll(98100,1,1100,150);assert(isMovePreviewFrozen());
 clearCpuPage();assert.equal(launchpadPreviewFrozen(),false,'Back/page exit immediately restores external previews');
 assert.equal(isMovePreviewFrozen(),false,'Back/page exit immediately restores Move previews');
-cancelPreviewTest();clickPreviewTest(77000);
+cancelPreviewTest();clickPreviewTest(77000,true);
 renderCpuView(buildCpuPageVM());assert.equal(overflow,false,'instructions also fit');
 assert(previewTestLines().some(line=>line.includes('20S')));
 cancelPreviewTest();
 engine.status.play=0;seqState.playing=false;
-clickPreviewTest(78000);clickPreviewTest(78010);
+clickPreviewTest(78000,true);clickPreviewTest(78010,true);
 assert.equal(previewTest.stage,'starting','stopped transport starts without manual preparation');
 assert(nativeWrites.every(([key])=>key!=='state'),'test does not replace the set');
 engine.status.play=1;poll(78030,0,1100,150);assert.equal(previewTest.stage,'settle');
@@ -373,5 +373,48 @@ const restoreStart=nativeWrites.length;
 cancelPreviewTest();for(let repeat=0;repeat<8;repeat++)seqEngineTick();
 assert(nativeWrites.slice(restoreStart).some(([key,value])=>key==='cmd'&&value.split(';').includes('stop')),
     'cancel stops playback if the test started it');
+// Default quick capture needs no Launchpad and no listening comparison.
+appState.currentView=VIEW_CPU;setFlag('hblaunchpad',0);
+engine.status.play=1;seqState.playing=true;
+const quickPoll=(now,enabled,milliseconds,tone='2,262836,0,0,132300')=>{
+    engine.status.aprof=sampleAudio(enabled,1800)+`,2,2,3,4000,700,ch3:midi_fx1:surface_view0,${milliseconds}`;
+    engine.status.rprof=sampleRequests(enabled,1450);
+    engine.status.tonecheck=tone;
+    for(let repeat=0;repeat<8;repeat++)seqEngineTick();
+    tickPreviewTest(now);
+};
+clickJog();assert.equal(previewTest.quick,true);assert.equal(previewTest.stage,'intro');
+assert(previewTestLines().some(line=>line.includes('35 SECONDS')));
+clickPreviewTest(100000);assert.equal(previewTest.stage,'settle');
+quickPoll(101000,0,0);assert.equal(previewTest.stage,'arming');
+quickPoll(101010,1,10,'1,0,0,0,0');assert.equal(previewTest.stage,'run');
+assert.equal(launchpadPreviewFrozen(),false);assert.equal(isMovePreviewFrozen(),false);
+quickPoll(102010,1,1010);assert.equal(previewTest.remaining,34);
+clearCpuPage();appState.currentView=0;
+quickPoll(104010,1,3010);assert.equal(previewTest.stage,'run','capture survives navigating to performance controls');
+openCpuPage();assert.equal(previewTest.stage,'run','reopening does not reset the capture');
+quickPoll(136020,0,35005);assert.equal(previewTest.stage,'results');
+assert.equal(previewTest.captures.length,1);
+assert.equal(previewTest.captures[0].gapRequest,'ch3:midi_fx1:surface_view0');
+assert(previewTestLines()[0].includes('PCM OK'));
+renderCpuView(buildCpuPageVM());assert.equal(overflow,false);
+const quickFrame=pixels.slice();
+if(process.env.HB_QUICK_PREVIEW){
+    const {PNG}=await import('pngjs');const {writeFileSync}=await import('node:fs');
+    const png=new PNG({width:128,height:64});
+    quickFrame.forEach((value,index)=>png.data.set(value?[212,208,200,255]:[0,0,0,255],index*4));
+    writeFileSync(process.env.HB_QUICK_PREVIEW,PNG.sync.write(png));
+}
+const frozenQuick=JSON.stringify(previewTest.captures);
+quickPoll(136040,0,99000,'2,100000,12,100,132300');
+assert.equal(JSON.stringify(previewTest.captures),frozenQuick,'later status cannot replace the result');
+previewTest.captures[0].tone=[2,200000,3,100,132300];assert(previewTestLines()[0].includes('PCM FAIL'));
+previewTest.captures[0].tone=[3,200000,0,0,10000];assert(previewTestLines()[0].includes('INCOMPLETE'));
+clickJog();assert.equal(previewTest.stage,'intro','one-screen result can restart the short check');
+cancelPreviewTest();clickPreviewTest(120000);clickPreviewTest(120010);
+quickPoll(121010,0,0);quickPoll(121020,1,10);
+quickPoll(164030,1,12000);assert.equal(previewTest.stage,'error','live status without completion cannot claim a result');
+cancelPreviewTest();
+console.log('Quick check: default jog, Launchpad-off support, engine deadline acknowledgement, one frozen screen, failure/incomplete distinction and timeout pass');
 diagnosticPort.getParam=diagnosticGet;unloadLaunchpad();
 console.log('Guided preview test: real jog, timed A/B/C, fresh acknowledgements, stable photos, live input, both preview gates and restoration pass');

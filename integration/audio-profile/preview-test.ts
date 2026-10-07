@@ -8,10 +8,11 @@ import { setMovePreviewFrozen, isMovePreviewFrozen } from '../keyboard/harmony-p
 import { launchpadAvailable, launchpadPreviewReady, launchpadPreviewFrozen, setLaunchpadPreviewFrozen } from '../surfaces/launchpad.js';
 
 type Stage = 'idle' | 'intro' | 'starting' | 'settle' | 'arming' | 'run' | 'stop' | 'results' | 'error';
-type Capture = { audio: number[]; requests: string[]; seconds: number };
+type Capture = { audio: number[]; requests: string[]; seconds: number; tone?: number[]; gapRequest?: string };
 export const previewTest = {
     stage: 'idle' as Stage, pass: 0, photo: 0, remaining: 20, error: '',
     captures: [] as Capture[],
+    quick: true,
 };
 const RUN_MS = 20000, SETTLE_MS = 1000, TIMEOUT_MS = 5000;
 export const PREVIEW_TEST_LABELS = ['A NORMAL', 'B X FROZEN', 'C BOTH FROZEN'];
@@ -34,6 +35,7 @@ function fail(message: string, now: number): void {
     restore(); seqCmd('aprof_off');
     previewTest.error = message; enter('error', now);
 }
+export function keepQuickCapture(): boolean { return previewTest.quick && !['idle','intro','error'].includes(previewTest.stage); }
 export function previewTestVisible(): boolean { return previewTest.stage !== 'idle'; }
 function restore(): void {
     setMovePreviewFrozen(false);
@@ -47,19 +49,22 @@ export function cancelPreviewTest(): void {
     previewTest.stage = 'idle'; previewTest.captures = []; previewTest.photo = 0;
 }
 /** One physical jog click advances instructions/results; running ignores clicks. */
-export function clickPreviewTest(now = Date.now()): void {
+export function clickPreviewTest(now = Date.now(), compare = false): void {
     if (previewTest.stage === 'idle' || previewTest.stage === 'error') {
+        previewTest.quick = !compare;
         previewTest.error = ''; enter('intro', now); return;
     }
     if (previewTest.stage === 'results') {
+        if (previewTest.quick) { previewTest.captures = []; enter('intro', now); return; }
         previewTest.photo = (previewTest.photo + 1) % PREVIEW_TEST_PHOTOS; appState.dirty = true; return;
     }
+    if (previewTest.quick && keepQuickCapture()) { cancelPreviewTest(); return; }
     if (previewTest.stage !== 'intro') return;
     if (!engineReady() || !sessionReady()) { fail('WAIT FOR SET TO LOAD', now); return; }
     if (seqState.recording || seqState.countingIn) { fail('STOP RECORDING FIRST', now); return; }
-    if (!launchpadPreviewReady()) { fail('ENABLE LAUNCHPAD FIRST', now); return; }
+    if (!previewTest.quick && !launchpadPreviewReady()) { fail('ENABLE LAUNCHPAD FIRST', now); return; }
     previewTest.pass = 0; appliedPass = 0; previewTest.captures = []; previewTest.photo = 0;
-    context = contextKey(); lastSeenStatus = statusSeq(); lastStatusAt = now;
+    context = previewTest.quick ? currentSetUuid() : contextKey(); lastSeenStatus = statusSeq(); lastStatusAt = now;
     setMovePreviewFrozen(false); setLaunchpadPreviewFrozen(false); seqCmd('aprof_off');
     startedTransport = !seqState.playing; transportSet = currentSetUuid();
     if (startedTransport) command('play', 'starting', now);
@@ -68,11 +73,11 @@ export function clickPreviewTest(now = Date.now()): void {
 /** Called before surface work, so cancel/exit restores it on the same tick. */
 export function tickPreviewTest(now = Date.now()): void {
     if (!previewTestVisible()) return;
-    if (appState.currentView !== VIEW_CPU) { cancelPreviewTest(); return; }
+    if (appState.currentView !== VIEW_CPU && !keepQuickCapture()) { cancelPreviewTest(); return; }
     if (['intro', 'results', 'error'].includes(previewTest.stage)) return;
     if (!sessionReady() || !engineReady() || seqState.recording || seqState.countingIn ||
-        (previewTest.stage !== 'starting' && !seqState.playing) || contextKey() !== context ||
-        !launchpadAvailable() || launchpadPreviewFrozen() !== (appliedPass > 0) ||
+        (previewTest.stage !== 'starting' && !seqState.playing) || (previewTest.quick ? currentSetUuid() : contextKey()) !== context ||
+        (!previewTest.quick && !launchpadAvailable()) || launchpadPreviewFrozen() !== (appliedPass > 0) ||
         isMovePreviewFrozen() !== (appliedPass === 2)) {
         fail('PLAY OR SETUP CHANGED', now); return;
     }
@@ -86,17 +91,27 @@ export function tickPreviewTest(now = Date.now()): void {
         if (fresh && seqState.playing) enter('settle', now);
         else if (now - enteredAt > TIMEOUT_MS) fail('PLAY START TIMED OUT', now);
     } else if (previewTest.stage === 'settle') {
-        if (now - enteredAt >= SETTLE_MS && audio[0] === 0 && requests[0] === '0') command('aprof_on', 'arming', now);
+        if (now - enteredAt >= SETTLE_MS && audio[0] === 0 && requests[0] === '0') command(previewTest.quick ? 'acapture' : 'aprof_on', 'arming', now);
         else if (now - enteredAt > TIMEOUT_MS) fail('METER RESET TIMED OUT', now);
     } else if (previewTest.stage === 'arming') {
-        if (fresh && audio.length >= 29 && requests.length >= 9 && audio[0] === 1 && requests[0] === '1') {
+        if (fresh && audio.length >= (previewTest.quick ? 36 : 29) && requests.length >= 9 && audio[0] === 1 && requests[0] === '1') {
             // Arm first, then change the workload. Never discard the transition.
             appliedPass = previewTest.pass;
             setLaunchpadPreviewFrozen(appliedPass > 0);
             setMovePreviewFrozen(appliedPass === 2);
-            runningAt = now; previewTest.remaining = 20; enter('run', now);
+            runningAt = now; previewTest.remaining = previewTest.quick ? 35 : 20; enter('run', now);
         } else if (now - enteredAt > TIMEOUT_MS) fail('METER START TIMED OUT', now);
     } else if (previewTest.stage === 'run') {
+        if (previewTest.quick) {
+            const remaining = Math.max(0, Math.ceil((35000 - (audio[35] || 0)) / 1000));
+            if (remaining !== previewTest.remaining) { previewTest.remaining = remaining; appState.dirty = true; }
+            if (fresh && audio[0] === 0 && audio[1] > 0 && audio[35] >= 35000 && requests[0] === '0') {
+                previewTest.captures.push({ audio, requests, seconds: audio[35]/1000,
+                    tone: seqState.cpuTone.split(',').map(Number), gapRequest: seqState.cpuProfile.split(',')[34] });
+                seqCmd('cpulog'); restore(); enter('results', now);
+            } else if (now - runningAt > 42000) fail('CAPTURE DID NOT COMPLETE', now);
+            return;
+        }
         const remaining = Math.max(0, Math.ceil((RUN_MS - (now - runningAt)) / 1000));
         if (remaining !== previewTest.remaining) { previewTest.remaining = remaining; appState.dirty = true; }
         if (now - runningAt >= RUN_MS) {
@@ -123,6 +138,25 @@ function compactKey(key: string): string {
 }
 /** Static instruction/photo lines; the renderer owns the large running display. */
 export function previewTestLines(): string[] {
+    if (previewTest.quick && previewTest.stage === 'error') return ['CHECK NOT COMPLETED', previewTest.error,
+        'TEST TONE STOPPED', 'NO COMPLETE RESULT', '', '', '', 'CLICK:RETRY  BACK:EXIT'];
+    if (previewTest.quick && previewTest.stage === 'intro') return [
+        'AUTO CHECK - 35 SECONDS', '30S TEST TONE + YOUR PLAYBACK', 'CHECKS PCM + TIMING CLUSTERS',
+        'BACK:KEEP TESTING WHILE PLAYING', 'AUTO-PLAYS THE LOADED SET', 'RETURN HERE FOR ONE PHOTO',
+        'HOST OUTPUT NOT MEASURED', 'CLICK:START  BACK:CANCEL'];
+    if (previewTest.quick && previewTest.stage === 'results') {
+        const capture = previewTest.captures[0], values = capture.audio, tone = capture.tone || [];
+        const compact = (value: number): string => value < 100000 ? String(value) : (value/1000).toFixed(0)+'K';
+        const toneResult = tone[0] !== 2 || !tone[1] ? 'INCOMPLETE' : tone[2] ? 'FAIL' : 'OK';
+        return ['35S CHECK  PCM ' + toneResult,
+            'GAP ' + compact(values[24]) + ' BUD ' + values[5],
+            'LATE ' + compact(values[23]) + ' GROUP ' + compact(values[30]) + ' MAX ' + compact(values[31]),
+            'SHORT ' + compact(values[29]) + ' WORK ' + compact(values[4]) + ' O' + compact(values[2]),
+            'AT GAP R' + compact(values[26]) + ' Q' + compact(values[27]),
+            compactKey(capture.gapRequest || '-'),
+            'PCM BAD ' + compact(tone[2] || 0) + ' N ' + compact(tone[1] || 0),
+            'PHOTO THIS  CLICK:REPEAT'];
+    }
     if (previewTest.stage === 'intro') return [
         'PREVIEW TEST - 3 X 20S', 'A: NORMAL PREVIEWS', 'B: LAUNCHPAD PREVIEW FROZEN',
         'C: BOTH PREVIEWS FROZEN', 'AUTO-PLAYS YOUR LOADED SET.',
