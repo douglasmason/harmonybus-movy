@@ -36,6 +36,7 @@ export function beginSurfaceControl(page: SchwungPage, slot: number): Release | 
     if (lane >= 0) return beginHbLaneTouch(page, lane);
     if (/^approach_bank_\d+$/.test(key)) return beginControlTouch(page, key.replace('bank', 'touch'));
     if (['key_center', 'parallel_mode', 'dominant_color', 'harm_play_release_control'].includes(key)) return beginControlTouch(page, key);
+    if (key === 'key_center_apply') { page.performanceSet(key, 'Apply'); approachTouched(page); return () => {}; }
     if (key === 'harm_play_advance') { page.performanceSet(key, 'Next'); return () => {}; }
     return null;
 }
