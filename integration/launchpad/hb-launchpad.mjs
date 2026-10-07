@@ -471,8 +471,8 @@ for(const mode of ['off','route','preview','led']){
     if(mode==='preview')assert(metrics.reads>0);
 }
 setLaunchpadIsolation(null);
-// Real jog selects the new default; each phase requires its own completed native capture.
-engine.status.play=1;seqState.playing=true;clickJog();
+// Explicit isolation mode remains available to the controller.
+engine.status.play=1;seqState.playing=true;clickPreviewTest(399000,false,true);
 assert(previewTest.isolation);assert(previewTestLines()[0].includes('ISOLATION'));
 const savedReports=new Map();
 const previousWrite=globalThis.host_write_file,previousRead=globalThis.host_read_file;
@@ -501,3 +501,40 @@ cancelPreviewTest();tickLaunchpad(701020);assert.equal(launchpadAvailable(),fals
 globalThis.host_write_file=previousWrite;globalThis.host_read_file=previousRead;
 isolationPort.getParam=originalIsolationGet;
 console.log('Disconnected X isolation: independent routing/preview/TX, four acknowledged captures, one verified report, cancel and restoration pass');
+
+// Real jog now selects worker comparison. Native statuses, not UI timers, end phases.
+cancelPreviewTest();engine.status.play=1;seqState.playing=true;openCpuPage();clickJog();
+assert(previewTest.workers);assert(previewTestLines()[0].includes('WORKER'));
+savedReports.clear();
+globalThis.host_write_file=(path,content)=>{savedReports.set(path,content);return true;};
+globalThis.host_read_file=path=>savedReports.get(path)??null;
+clickPreviewTest(800000);
+engine.status.workerbuild='0.34.1-hbclean.188';
+for(let phase=0;phase<3;phase++) {
+    const start=801000+phase*37000;
+    engine.status.workerprof='0,0,0,0,0,0,0,0,0,0,0,0,0,0';
+    quickPoll(start,0,0);assert.equal(previewTest.stage,'arming');
+    engine.status.workerprof=`1,${phase===1?1:0},0,10,0,0,0,0,0,0,0,0,0,0`;
+    quickPoll(start+10,1,10,'1,0,0,0,0');assert.equal(previewTest.stage,'run');
+    assert.equal(savedReports.size,0,'no report writes during measured phases');
+    engine.status.workerprof=`0,0,0,12000,${phase===1?12000:0},${phase===1?0:100},300,700,50,120,60,800,70,900`;
+    quickPoll(start+35020,0,35005);
+}
+assert.equal(previewTest.stage,'results');assert.equal(savedReports.size,1);
+const workerReport=JSON.parse(savedReports.get(previewTest.reportPath));
+assert.equal(workerReport.complete,true);assert.equal(workerReport.engineBuild,'0.34.1-hbclean.188');
+assert.deepEqual(workerReport.conditions,['PARALLEL 1','SERIAL','PARALLEL 2']);
+assert.equal(workerReport.captures[1].worker[4],12000);
+renderCpuView(buildCpuPageVM());assert.equal(overflow,false);
+cancelPreviewTest();clickPreviewTest(1000000,false,false,true);clickPreviewTest(1000001);
+quickPoll(1001002,0,0);
+engine.status.workerprof='1,1,0,10,0,0,0,0,0,0,0,0,0,0';
+quickPoll(1001012,1,10,'1,0,0,0,0');
+setFlag('hblaunchpad',2);tickPreviewTest(1001020);
+assert.equal(previewTest.stage,'error','changed workload invalidates comparison');
+assert.equal(JSON.parse(savedReports.get(previewTest.reportPath)).complete,false);
+for(let repeat=0;repeat<8;repeat++)seqEngineTick();
+assert(nativeWrites.some(([key,value])=>key==='cmd' && value.split(';').includes('aprof_off')),'failure sends native restore command');
+cancelPreviewTest();
+globalThis.host_write_file=previousWrite;globalThis.host_read_file=previousRead;
+console.log('Worker comparison: real jog, three acknowledged phases, one report, unchanged workloads and failure restoration pass');

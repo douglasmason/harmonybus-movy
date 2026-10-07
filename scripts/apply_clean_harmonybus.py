@@ -585,6 +585,8 @@ def main() -> int:
     patch_travel_defaults(root)
     from patch_motif_loader import patch_motif_loader
     patch_motif_loader(root)
+    from patch_worker_profile import patch_worker_profile
+    patch_worker_profile(root)
     print("HarmonyBus clean integration applied")
     return 0
 
