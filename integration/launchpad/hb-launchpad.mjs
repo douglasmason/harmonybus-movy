@@ -503,7 +503,7 @@ isolationPort.getParam=originalIsolationGet;
 console.log('Disconnected X isolation: independent routing/preview/TX, four acknowledged captures, one verified report, cancel and restoration pass');
 
 // Real jog now selects worker comparison. Native statuses, not UI timers, end phases.
-cancelPreviewTest();engine.status.play=1;seqState.playing=true;openCpuPage();clickJog();
+cancelPreviewTest();engine.status.play=1;seqState.playing=true;openCpuPage();clickPreviewTest(799000,false,false,true);
 assert(previewTest.workers);assert(previewTestLines()[0].includes('WORKER'));
 savedReports.clear();
 globalThis.host_write_file=(path,content)=>{savedReports.set(path,content);return true;};
@@ -538,3 +538,26 @@ assert(nativeWrites.some(([key,value])=>key==='cmd' && value.split(';').includes
 cancelPreviewTest();
 globalThis.host_write_file=previousWrite;globalThis.host_read_file=previousRead;
 console.log('Worker comparison: real jog, three acknowledged phases, one report, unchanged workloads and failure restoration pass');
+
+// Default jog chooses the single-run thread/CPU test; no data is written mid-capture.
+engine.status.play=1;seqState.playing=true;openCpuPage();clickJog();
+assert(previewTest.thread);assert(previewTestLines()[0].includes('65 SECONDS'));
+savedReports.clear();
+globalThis.host_write_file=(path,content)=>{savedReports.set(path,content);return true;};
+globalThis.host_read_file=path=>savedReports.get(path)??null;
+clickPreviewTest(1100000);
+quickPoll(1101000,0,0);assert.equal(previewTest.stage,'arming');
+engine.status.threadprof='1;'+Array(9).fill('1,1,100,40,900,100,1,400,450,800,preview').join(';');
+quickPoll(1101010,1,10,'1,0,0,0,0');assert.equal(previewTest.stage,'run');
+quickPoll(1136010,1,35010);assert.equal(previewTest.stage,'run','must run longer than old 35-second deadline');
+assert.equal(savedReports.size,0);
+engine.status.threadprof='0;'+Array(9).fill('22000,22000,100,40,900,100,1,400,450,800,preview').join(';');
+quickPoll(1166020,0,65005);
+assert.equal(previewTest.stage,'results');assert.equal(savedReports.size,1);
+const threadReport=JSON.parse(savedReports.get(previewTest.reportPath));
+assert.equal(threadReport.format,'movy-thread-test-v1');assert.equal(threadReport.complete,true);
+assert.equal(threadReport.captures[0].thread.parameterRead.cpuAtWallPeakUs,100);
+assert.equal(threadReport.captures[0].thread.parameterRead.cpuPeakUs,400);
+renderCpuView(buildCpuPageVM());assert.equal(overflow,false);
+cancelPreviewTest();globalThis.host_write_file=previousWrite;globalThis.host_read_file=previousRead;
+console.log('Thread CPU test: real jog, native 65-second completion, paired timing, one report and display bounds pass');

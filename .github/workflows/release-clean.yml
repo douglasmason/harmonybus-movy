@@ -20,8 +20,8 @@ env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
   HB_REF: 2c386a48b921d419a97bb2ccc34c28f0e06b5589
-  HB_MOVY_VERSION: 0.34.1-hbclean.188
-  HB_MOVY_TAG: v0.34.1-hbclean.188
+  HB_MOVY_VERSION: 0.34.1-hbclean.189
+  HB_MOVY_TAG: v0.34.1-hbclean.189
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -110,6 +110,7 @@ jobs:
               'engine/crates/movy-dsp/src/audio_profile.rs',
               'engine/crates/movy-dsp/src/tone_check.rs',
               'engine/crates/movy-dsp/src/worker_profile.rs',
+              'engine/crates/movy-dsp/src/thread_profile.rs',
               'engine/crates/movy-dsp/src/render_pool.rs',
               'engine/crates/movy-dsp/src/chain_cost.rs',
               'src/seq/cpu-page.ts',
@@ -417,6 +418,7 @@ jobs:
           cargo test -p movy-dsp audio_profile --lib
           cargo test -p movy-dsp tone_check --lib
           cargo test -p movy-dsp worker_profile --lib
+          cargo test -p movy-dsp thread_profile --lib
           cargo test -p movy-dsp render_pool --lib
           cargo test -p movy-dsp chain_cost --lib
           HB_TIMING_TRACE=/tmp/hb-timing.trace cargo test -p movy-dsp hb_loop --lib
