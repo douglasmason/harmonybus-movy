@@ -20,8 +20,8 @@ env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
   HB_REF: 2c386a48b921d419a97bb2ccc34c28f0e06b5589
-  HB_MOVY_VERSION: 0.34.1-hbclean.189
-  HB_MOVY_TAG: v0.34.1-hbclean.189
+  HB_MOVY_VERSION: 0.34.1-hbclean.190
+  HB_MOVY_TAG: v0.34.1-hbclean.190
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -68,6 +68,10 @@ jobs:
       - name: Apply clean HarmonyBus integration
         if: steps.plan.outputs.mode != 'reused'
         run: python3 scripts/apply_clean_harmonybus.py movy
+
+      - name: Verify pressure does not invalidate clip configuration
+        if: steps.plan.outputs.mode != 'reused'
+        run: python3 tests/pressure_config_invalidation.py movy
 
       - name: Test prepared states with the actual HarmonyBus loader
         if: steps.plan.outputs.mode != 'reused'
