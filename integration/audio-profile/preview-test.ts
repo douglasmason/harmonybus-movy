@@ -11,7 +11,7 @@ import { setMovePreviewFrozen, isMovePreviewFrozen } from '../keyboard/harmony-p
 import { launchpadAvailable, launchpadPreviewReady, launchpadPreviewFrozen, setLaunchpadPreviewFrozen, setLaunchpadIsolation, launchpadIsolationMetrics } from '../surfaces/launchpad.js';
 
 type Stage = 'idle' | 'intro' | 'starting' | 'settle' | 'arming' | 'run' | 'stop' | 'results' | 'error';
-type Capture = { audio: number[]; requests: string[]; seconds: number; pressure?: ReturnType<typeof parsePressureTrace>; thread?: ReturnType<typeof parseThreadMetrics>; worker?: number[]; tone?: number[]; gapRequest?: string; surface?: ReturnType<typeof launchpadIsolationMetrics> };
+type Capture = { audio: number[]; requests: string[]; seconds: number; idle?: ReturnType<typeof parseIdleProbe>; pressure?: ReturnType<typeof parsePressureTrace>; thread?: ReturnType<typeof parseThreadMetrics>; worker?: number[]; tone?: number[]; gapRequest?: string; surface?: ReturnType<typeof launchpadIsolationMetrics> };
 export const previewTest = {
     stage: 'idle' as Stage, pass: 0, photo: 0, remaining: 20, error: '',
     captures: [] as Capture[],
@@ -48,11 +48,19 @@ function parsePressureTrace() {
         eventKinds: ['rawOn','rawOff','routedOn','routedOff','pressureReceived','pressureForwarded','renderOnSubmitted','renderOffSubmitted'],
         events: parts.slice(5).map(part => part.split(',').map(Number)) };
 }
-export function pressurePhaseLabel(): string {
-    const elapsed = 85 - previewTest.remaining;
-    return elapsed < 20 ? 'A PRESSURE ON' : elapsed < 40 ? 'B PRESSURE OFF' : elapsed < 60 ? 'C PRESSURE ON' : 'D HANDS OFF';
+function parseIdleProbe() {
+    const parts = seqState.cpuIdle.split(';');
+    return { headerFields: ['active','aborted'], header: parts[0].split(',').map(Number),
+        phaseFields: ['blocks','intervals','overPeriod','over1p5Period','maxGapUs','meanWorkUs','maxWorkUs','maxIdleUs'],
+        phases: parts.slice(1,4).map(part => part.split(',').map(Number)),
+        gapFields: ['elapsedMs','phase','previousPhase','gapUs','previousWorkUs','idleUs','requestWorkUs'],
+        gaps: parts.slice(4).map(part => part.split(',').map(Number)).sort((first,second) => first[0]-second[0]) };
 }
-function captureMs(): number { return previewTest.thread ? 85000 : 35000; }
+export function pressurePhaseLabel(): string {
+    const elapsed = 65 - previewTest.remaining;
+    return elapsed < 20 ? 'A NORMAL' : elapsed < 40 ? 'B TONE ONLY' : elapsed < 60 ? 'C NORMAL' : 'RESTORING';
+}
+function captureMs(): number { return previewTest.thread ? 65000 : 35000; }
 const RUN_MS = 20000, SETTLE_MS = 1000, TIMEOUT_MS = 5000;
 export const PREVIEW_TEST_LABELS = ['A NORMAL', 'B X FROZEN', 'C BOTH FROZEN'];
 export const PREVIEW_TEST_PHOTOS = PREVIEW_TEST_LABELS.length + 2;
@@ -87,12 +95,12 @@ function saveIsolationReport(): void {
 }
 /** One report, saved after measurement; partial/error runs are explicitly marked. */
 function saveWorkerReport(error = ''): void {
-    const path = '/data/UserData/schwung/' + (previewTest.thread ? 'pressure-test-' : 'worker-test-') + Date.now() + '.json';
+    const path = '/data/UserData/schwung/' + (previewTest.thread ? 'idle-test-' : 'worker-test-') + Date.now() + '.json';
     const report = {
-        format: previewTest.thread ? 'movy-pressure-test-v1' : 'movy-worker-test-v1', capturedAt: new Date().toISOString(),
+        format: previewTest.thread ? 'movy-idle-test-v1' : 'movy-worker-test-v1', capturedAt: new Date().toISOString(),
         engineBuild: seqState.workerBuild || 'unknown', setup: workerSetup,
-        complete: !error && previewTest.captures.length === (previewTest.thread ? 1 : 3), error,
-        conditions: previewTest.thread ? ['ON 0-20s','OFF 20-40s','ON 40-60s','RECOVERY 60-85s'] : WORKER_LABELS, workerFields: previewTest.thread ? undefined : WORKER_FIELDS,
+        complete: !error && previewTest.captures.length === (previewTest.thread ? 1 : 3) && (!previewTest.thread || previewTest.captures[0].idle?.header[1] === 0), error,
+        conditions: previewTest.thread ? ['NORMAL 0-20s','CALLBACK BYPASS 20-40s','NORMAL 40-60s','RESTORE 60-65s'] : WORKER_LABELS, workerFields: previewTest.thread ? undefined : WORKER_FIELDS,
         captures: previewTest.captures,
         limitations: [...(previewTest.thread ? ['Thread CPU excludes other threads, including render helpers; elapsed minus CPU does not identify the reason for waiting',
             'Callback/chain/MIDI-tick and callback/tone measurements are nested; do not add them',
@@ -104,13 +112,16 @@ function saveWorkerReport(error = ''): void {
             'No parallel rounds means this workload did not exercise helper rendering',
             'Serial watchdog abort invalidates serial comparison; later blocks may be parallel']),
             'PCM checks internal generated tone, not host/DAC output; late callbacks are not crackle counts',
-            'Uses current loaded set; no synthetic notes or set edits; phase order and playing may affect workload',
-            'Pressure forwarding bypassed only at 20-40s; note events and stored curves unchanged',
+            'Uses current loaded set; phase order and changing background workload may affect results',
+            'Idle comparison stops playback and leaves it stopped; no clip or configuration edits',
+            'Bypass skips only Movy callback musical work: sequencer, metadata, chain preparation/rendering; UI requests and host processing remain active',
+            'Per-phase work is elapsed callback time, not CPU time; whole-run thread metrics are separate',
+            'Twelve largest gaps retained; previousPhase identifies intervals crossing phase boundaries',
             'Trace records host-delivered events, not physical sensor time; no host queue depth/age is available',
             'Render events are cable-2 submissions, not confirmation of hardware consumption; no per-voice causal IDs',
             'Only the latest 96 note events are retained; overwrittenEvents and lockMisses identify incomplete traces',
             'Raw duplicate/unmatched counts can include notes held before capture; pressure counts combine live and replay',
-            'Thread CPU and PCM metrics cover the whole capture; callback gaps and event counts are per phase'],
+            'Thread CPU and PCM metrics cover the whole capture; idle callback metrics are per phase'],
     };
     previewTest.reportPath = safeWrite(path, JSON.stringify(report, null, 2)) ? path : '';
 }
@@ -154,8 +165,9 @@ export function clickPreviewTest(now = Date.now(), compare = false, isolation = 
     context = previewTest.quick && !previewTest.isolation && !previewTest.workers && !previewTest.thread ? currentSetUuid() : contextKey(); lastSeenStatus = statusSeq(); lastStatusAt = now;
     setMovePreviewFrozen(false); setLaunchpadPreviewFrozen(false); seqCmd('aprof_off');
     if (previewTest.isolation) setLaunchpadIsolation('off');
-    startedTransport = !seqState.playing; transportSet = currentSetUuid();
-    if (startedTransport) command('play', 'starting', now);
+    startedTransport = !previewTest.thread && !seqState.playing; transportSet = currentSetUuid();
+    if (previewTest.thread && seqState.playing) command('stop', 'starting', now);
+    else if (startedTransport) command('play', 'starting', now);
     else enter('settle', now);
 }
 /** Called before surface work, so cancel/exit restores it on the same tick. */
@@ -164,7 +176,7 @@ export function tickPreviewTest(now = Date.now()): void {
     if (appState.currentView !== VIEW_CPU && !keepQuickCapture()) { cancelPreviewTest(); return; }
     if (['intro', 'results', 'error'].includes(previewTest.stage)) return;
     if (!sessionReady() || !engineReady() || seqState.recording || seqState.countingIn ||
-        (previewTest.stage !== 'starting' && !seqState.playing) || (previewTest.quick && !previewTest.isolation && !previewTest.workers && !previewTest.thread ? currentSetUuid() : contextKey()) !== context ||
+        (previewTest.stage !== 'starting' && (previewTest.thread ? seqState.playing : !seqState.playing)) || (previewTest.quick && !previewTest.isolation && !previewTest.workers && !previewTest.thread ? currentSetUuid() : contextKey()) !== context ||
         (!previewTest.quick && !launchpadAvailable()) || launchpadPreviewFrozen() !== (appliedPass > 0) ||
         isMovePreviewFrozen() !== (appliedPass === 2)) {
         fail('PLAY OR SETUP CHANGED', now); return;
@@ -179,11 +191,15 @@ export function tickPreviewTest(now = Date.now()): void {
     const audio = seqState.cpuProfile.split(',').map(Number);
     const requests = seqState.cpuRequests.split(',');
     const fresh = sequence > requestedAfter;
+    if (previewTest.thread && previewTest.stage === 'run' && seqState.cpuIdle.split(';')[0] === '0,1') {
+        previewTest.captures.push({ audio, requests, seconds: (audio[35] || 0)/1000, idle: parseIdleProbe(), thread: parseThreadMetrics(), tone: seqState.cpuTone.split(',').map(Number) });
+        fail('INPUT INTERRUPTED TEST', now); return;
+    }
     if (previewTest.stage === 'starting') {
-        if (fresh && seqState.playing) enter('settle', now);
+        if (fresh && (previewTest.thread ? !seqState.playing : seqState.playing)) enter('settle', now);
         else if (now - enteredAt > TIMEOUT_MS) fail('PLAY START TIMED OUT', now);
     } else if (previewTest.stage === 'settle') {
-        if (now - enteredAt >= SETTLE_MS && audio[0] === 0 && requests[0] === '0') command(previewTest.thread ? 'tcapture' : previewTest.workers ? (previewTest.pass === 1 ? 'wserial' : 'wparallel') : previewTest.quick ? 'acapture' : 'aprof_on', 'arming', now);
+        if (now - enteredAt >= SETTLE_MS && audio[0] === 0 && requests[0] === '0') command(previewTest.thread ? 'icapture' : previewTest.workers ? (previewTest.pass === 1 ? 'wserial' : 'wparallel') : previewTest.quick ? 'acapture' : 'aprof_on', 'arming', now);
         else if (now - enteredAt > TIMEOUT_MS) fail('METER RESET TIMED OUT', now);
     } else if (previewTest.stage === 'arming') {
         if (fresh && audio.length >= (previewTest.quick ? 36 : 29) && requests.length >= 9 && audio[0] === 1 && requests[0] === '1' && (!previewTest.thread || (seqState.cpuThread.startsWith('1;') && seqState.cpuThread.split(';').length === 10)) && (!previewTest.workers || (seqState.workerBuild !== '' && seqState.cpuWorker.split(',')[0] === '1'))) {
@@ -202,7 +218,7 @@ export function tickPreviewTest(now = Date.now()): void {
                 (!previewTest.thread || (seqState.cpuThread.startsWith('0;') && seqState.cpuThread.split(';').length === 10))) {
                 previewTest.captures.push({ audio, requests, seconds: audio[35]/1000,
                     thread: previewTest.thread ? parseThreadMetrics() : undefined,
-                    pressure: previewTest.thread ? parsePressureTrace() : undefined,
+                    idle: previewTest.thread ? parseIdleProbe() : undefined,
                     worker: previewTest.workers ? seqState.cpuWorker.split(',').map(Number) : undefined,
                     tone: seqState.cpuTone.split(',').map(Number), gapRequest: seqState.cpuProfile.split(',')[34],
                     surface: previewTest.isolation ? launchpadIsolationMetrics() : undefined });
@@ -242,8 +258,8 @@ function compactKey(key: string): string {
 /** Static instruction/photo lines; the renderer owns the large running display. */
 export function previewTestLines(): string[] {
     if (previewTest.thread && previewTest.stage === 'intro') return [
-        'PRESSURE CHECK - 85 SECONDS', '0-60S: PLAY RAPID REPEATS', '60-85S: RELEASE ALL PADS',
-        'ON / OFF / ON THEN RECOVERY', 'BACK TO PLAY; KEEP SAME TRACK', 'TEST TONE MASKS YOUR NOTES',
+        'IDLE AUDIO CHECK - 65 SECONDS', 'HANDS OFF FOR THE WHOLE TEST', 'PLAYBACK STOPS AUTOMATICALLY',
+        'NORMAL / TONE ONLY / NORMAL', 'KEEP TRACK AND SETTINGS FIXED', 'PLAYBACK WILL STAY STOPPED',
         'ONE DOWNLOAD WHEN FINISHED', 'CLICK:START BACK:CANCEL'];
     if (previewTest.thread && previewTest.stage === 'results') {
         const metrics = previewTest.captures[0].thread || {};
@@ -253,7 +269,7 @@ export function previewTestLines(): string[] {
         };
         return ['SAME CALL: WALLus / CPUus', row('callbackBody','AUDIO'), row('parameterRead','READ'),
             row('idleMidiTicks','MIDI TICK'), row('toneVerify','TONE CHECK'),
-            'HOST OUTPUT NOT MEASURED', previewTest.reportPath ? 'SAVED: schwung/pressure-test-*.json' : 'SAVE FAILED - PHOTO THIS',
+            'HOST OUTPUT NOT MEASURED', previewTest.reportPath ? 'SAVED: schwung/idle-test-*.json' : 'SAVE FAILED - PHOTO THIS',
             'CLICK:REPEAT BACK:EXIT'];
     }
 
