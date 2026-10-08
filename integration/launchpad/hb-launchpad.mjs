@@ -539,8 +539,12 @@ cancelPreviewTest();
 globalThis.host_write_file=previousWrite;globalThis.host_read_file=previousRead;
 console.log('Worker comparison: real jog, three acknowledged phases, one report, unchanged workloads and failure restoration pass');
 
-// Default jog chooses the single-run thread/CPU test; no data is written mid-capture.
+// Default jog selects host output capture; legacy idle comparison remains testable.
+const { outputCapture, outputCaptureLines }=await import('../dist/esm/seq/output-capture.js');
 engine.status.play=1;seqState.playing=true;openCpuPage();clickJog();
+assert.equal(outputCapture.stage,'intro');assert.equal(outputCaptureLines()[0],'HOST OUTPUT CHECK');
+renderCpuView(buildCpuPageVM());assert.equal(overflow,false);cancelPreviewTest();
+clickPreviewTest(1099990,false,false,false,true);
 assert(previewTest.thread);assert(previewTestLines()[0].includes('65 SECONDS'));
 savedReports.clear();
 globalThis.host_write_file=(path,content)=>{savedReports.set(path,content);return true;};
@@ -569,4 +573,4 @@ assert.deepEqual(threadReport.captures[0].idle.gaps[0],[20000,1,0,4400,1500,2900
 assert.equal(seqState.playing,false,'idle test leaves transport stopped');
 renderCpuView(buildCpuPageVM());assert.equal(overflow,false);
 cancelPreviewTest();globalThis.host_write_file=previousWrite;globalThis.host_read_file=previousRead;
-console.log('Thread CPU test: real jog, native 65-second completion, paired timing, one report and display bounds pass');
+console.log('Host-output jog and legacy thread test: native 65-second completion, paired timing, one report and display bounds pass');
