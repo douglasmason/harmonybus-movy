@@ -99,7 +99,7 @@ function saveWorkerReport(error = ''): void {
     const report = {
         format: previewTest.thread ? 'movy-idle-test-v1' : 'movy-worker-test-v1', capturedAt: new Date().toISOString(),
         engineBuild: seqState.workerBuild || 'unknown', setup: workerSetup,
-        complete: !error && previewTest.captures.length === (previewTest.thread ? 1 : 3) && (!previewTest.thread || previewTest.captures[0].idle?.header[1] === 0), error,
+        complete: !error && previewTest.captures.length === (previewTest.thread ? 1 : 3) && (!previewTest.thread || previewTest.captures[0].idle?.header[1] === 0 && previewTest.captures[0].idle.phases.length === 3 && previewTest.captures[0].idle.phases.every(phase => phase[0] > 0)), error,
         conditions: previewTest.thread ? ['NORMAL 0-20s','CALLBACK BYPASS 20-40s','NORMAL 40-60s','RESTORE 60-65s'] : WORKER_LABELS, workerFields: previewTest.thread ? undefined : WORKER_FIELDS,
         captures: previewTest.captures,
         limitations: [...(previewTest.thread ? ['Thread CPU excludes other threads, including render helpers; elapsed minus CPU does not identify the reason for waiting',
@@ -202,7 +202,7 @@ export function tickPreviewTest(now = Date.now()): void {
         if (now - enteredAt >= SETTLE_MS && audio[0] === 0 && requests[0] === '0') command(previewTest.thread ? 'icapture' : previewTest.workers ? (previewTest.pass === 1 ? 'wserial' : 'wparallel') : previewTest.quick ? 'acapture' : 'aprof_on', 'arming', now);
         else if (now - enteredAt > TIMEOUT_MS) fail('METER RESET TIMED OUT', now);
     } else if (previewTest.stage === 'arming') {
-        if (fresh && audio.length >= (previewTest.quick ? 36 : 29) && requests.length >= 9 && audio[0] === 1 && requests[0] === '1' && (!previewTest.thread || (seqState.cpuThread.startsWith('1;') && seqState.cpuThread.split(';').length === 10)) && (!previewTest.workers || (seqState.workerBuild !== '' && seqState.cpuWorker.split(',')[0] === '1'))) {
+        if (fresh && audio.length >= (previewTest.quick ? 36 : 29) && requests.length >= 9 && audio[0] === 1 && requests[0] === '1' && (!previewTest.thread || (seqState.cpuThread.startsWith('1;') && seqState.cpuThread.split(';').length === 10 && seqState.cpuIdle.startsWith('1,0;'))) && (!previewTest.workers || (seqState.workerBuild !== '' && seqState.cpuWorker.split(',')[0] === '1'))) {
             // Arm first, then change the workload. Never discard the transition.
             appliedPass = previewTest.isolation || previewTest.workers || previewTest.thread ? 0 : previewTest.pass;
             setLaunchpadPreviewFrozen(appliedPass > 0);

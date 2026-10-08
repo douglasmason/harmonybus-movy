@@ -549,6 +549,7 @@ clickPreviewTest(1100000);
 assert.equal(previewTest.stage,'starting');
 engine.status.play=0;seqState.playing=false;quickPoll(1100010,0,0);
 quickPoll(1101011,0,0);assert.equal(previewTest.stage,'arming');
+engine.status.idleprobe='1,0;1,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0';
 engine.status.threadprof='1;'+Array(9).fill('1,1,100,40,900,100,1,400,450,800,preview').join(';');
 quickPoll(1101010,1,10,'1,0,0,0,0');assert.equal(previewTest.stage,'run');
 quickPoll(1136010,1,35010);assert.equal(previewTest.stage,'run','must run longer than old 35-second deadline');
