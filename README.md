@@ -1,3 +1,5 @@
+Latest diagnostic (.193): [short host-output recording check](docs/host-output-check.md). Step 12 CPU jog now captures and analyzes the host mix; download one `output-test-*.json`.
+
 **Movy hbclean.192 — hands-off audio isolation:** Step 12 CPU jog starts a 65-second normal → tone-only callback → normal comparison. Playback stops automatically and stays stopped. Keep hands off; download one `idle-test-*.json`. Per-phase callback timing and the twelve largest gaps help separate callback work from time spent outside it. This does not measure host/DAC output or claim to fix crackles. [Instructions](docs/idle-audio-check.md).
 
 **Movy hbclean.191 — pressure isolation capture:** Step 12 CPU jog starts an 85-second pressure on/off/on test followed by recovery. Play rapid repeats for the first 60 seconds, then release all pads for 25 seconds. One `pressure-test-*.json` contains per-phase counters, callback gaps and a bounded event trace. Pressure forwarding automatically restores on cancellation/deadline. Saved curves and note edges are preserved. [Instructions and limits](docs/pressure-capture.md).

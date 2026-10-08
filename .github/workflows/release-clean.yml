@@ -20,8 +20,8 @@ env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
   HB_REF: 2c386a48b921d419a97bb2ccc34c28f0e06b5589
-  HB_MOVY_VERSION: 0.34.1-hbclean.192
-  HB_MOVY_TAG: v0.34.1-hbclean.192
+  HB_MOVY_VERSION: 0.34.1-hbclean.193
+  HB_MOVY_TAG: v0.34.1-hbclean.193
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -121,6 +121,8 @@ jobs:
               'engine/crates/movy-dsp/src/chain_cost.rs',
               'src/seq/cpu-page.ts',
               'src/seq/preview-test.ts',
+              'src/seq/output-capture.ts',
+              'src/seq/output-wave.ts',
               'src/renderer/preview-test-view.ts',
               'browser-test/screenshots/baseline/cpu-movy-tracks.png',
               'browser-test/screenshots/baseline/cpu-schwung-tracks.png',
@@ -407,6 +409,10 @@ jobs:
         working-directory: movy
         run: node browser-test/device-scripts.mjs
 
+      - name: Test host capture controller and waveform analysis
+        if: steps.plan.outputs.mode != 'reused'
+        run: node tests/output_capture.mjs movy
+
       - name: Typecheck and build UI
         if: steps.plan.outputs.mode != 'reused'
         working-directory: movy
@@ -427,6 +433,7 @@ jobs:
           cargo test -p movy-dsp thread_profile --lib
           cargo test -p movy-dsp pressure_trace --lib
           cargo test -p movy-dsp idle_probe --lib
+          cargo test -p movy-dsp output_capture --lib
           cargo test -p movy-dsp render_pool --lib
           cargo test -p movy-dsp chain_cost --lib
           HB_TIMING_TRACE=/tmp/hb-timing.trace cargo test -p movy-dsp hb_loop --lib

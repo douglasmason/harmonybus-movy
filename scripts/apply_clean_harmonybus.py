@@ -593,6 +593,8 @@ def main() -> int:
     patch_pressure_trace(root)
     from patch_idle_probe import patch_idle_probe
     patch_idle_probe(root)
+    from patch_output_capture import patch_output_capture
+    patch_output_capture(root)
     print("HarmonyBus clean integration applied")
     return 0
 
