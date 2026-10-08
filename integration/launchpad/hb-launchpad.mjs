@@ -541,7 +541,7 @@ console.log('Worker comparison: real jog, three acknowledged phases, one report,
 
 // Default jog chooses the single-run thread/CPU test; no data is written mid-capture.
 engine.status.play=1;seqState.playing=true;openCpuPage();clickJog();
-assert(previewTest.thread);assert(previewTestLines()[0].includes('65 SECONDS'));
+assert(previewTest.thread);assert(previewTestLines()[0].includes('85 SECONDS'));
 savedReports.clear();
 globalThis.host_write_file=(path,content)=>{savedReports.set(path,content);return true;};
 globalThis.host_read_file=path=>savedReports.get(path)??null;
@@ -552,12 +552,16 @@ quickPoll(1101010,1,10,'1,0,0,0,0');assert.equal(previewTest.stage,'run');
 quickPoll(1136010,1,35010);assert.equal(previewTest.stage,'run','must run longer than old 35-second deadline');
 assert.equal(savedReports.size,0);
 engine.status.threadprof='0;'+Array(9).fill('22000,22000,100,40,900,100,1,400,450,800,preview').join(';');
-quickPoll(1166020,0,65005);
+engine.status.pressuretrace='0,0,12,0,0;3000,2,2,2,2,10,10,2,2;3100,2,2,2,2,10,0,2,2;3200,2,2,2,2,10,10,2,2;2900,0,0,0,0,0,0,0,0;1,0,0,68,100';
+quickPoll(1186020,0,85005);
 assert.equal(previewTest.stage,'results');assert.equal(savedReports.size,1);
 const threadReport=JSON.parse(savedReports.get(previewTest.reportPath));
-assert.equal(threadReport.format,'movy-thread-test-v1');assert.equal(threadReport.complete,true);
+assert.equal(threadReport.format,'movy-pressure-test-v1');assert.equal(threadReport.complete,true);
 assert.equal(threadReport.captures[0].thread.parameterRead.cpuAtWallPeakUs,100);
 assert.equal(threadReport.captures[0].thread.parameterRead.cpuPeakUs,400);
+assert.equal(threadReport.captures[0].pressure.phases[1][6],0);
+assert.equal(threadReport.captures[0].pressure.header[2],12);
+assert.deepEqual(threadReport.captures[0].pressure.events[0],[1,0,0,68,100]);
 renderCpuView(buildCpuPageVM());assert.equal(overflow,false);
 cancelPreviewTest();globalThis.host_write_file=previousWrite;globalThis.host_read_file=previousRead;
-console.log('Thread CPU test: real jog, native 65-second completion, paired timing, one report and display bounds pass');
+console.log('Thread CPU test: real jog, native 85-second completion, paired timing, one report and display bounds pass');

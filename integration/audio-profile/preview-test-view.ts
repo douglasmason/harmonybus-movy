@@ -1,4 +1,4 @@
-import { previewTest, previewTestLines, previewTestVisible, PREVIEW_TEST_PHOTOS, ISOLATION_LABELS, WORKER_LABELS } from '../seq/preview-test.js';
+import { pressurePhaseLabel, previewTest, previewTestLines, previewTestVisible, PREVIEW_TEST_PHOTOS, ISOLATION_LABELS, WORKER_LABELS } from '../seq/preview-test.js';
 import { fontPrint5x3, fontWidth5x3 } from '../font/index5x3.js';
 import { fontPrintBig, fontWidthBig } from '../font/big.js';
 
@@ -9,9 +9,9 @@ export function renderPreviewTest(): boolean {
         if (['intro','results','error'].includes(previewTest.stage)) {
             previewTestLines().forEach((line,index) => fontPrint5x3(0,index===7?59:index*8,line.slice(0,32),1));
         } else {
-            fontPrintBig(0,0,previewTest.thread ? 'CPU TIME' : previewTest.workers ? WORKER_LABELS[previewTest.pass] : previewTest.isolation ? ISOLATION_LABELS[previewTest.pass] : 'AUTO CHECK',1);
+            fontPrintBig(0,0,previewTest.thread ? pressurePhaseLabel() : previewTest.workers ? WORKER_LABELS[previewTest.pass] : previewTest.isolation ? ISOLATION_LABELS[previewTest.pass] : 'AUTO CHECK',1);
             fontPrintBig(0,18,previewTest.stage==='run'?previewTest.remaining+' SECONDS':'PREPARING',1);
-            fontPrint5x3(0,36,previewTest.thread ? 'CPU TIME + ELAPSED + PCM' : previewTest.workers ? 'PHASE ' + (previewTest.pass + 1) + '/3 - WORKER TIMING' : previewTest.isolation ? 'PHASE ' + (previewTest.pass + 1) + '/4 - PCM + TIMING' : 'PCM + CALLBACK TIMING',1);
+            fontPrint5x3(0,36,previewTest.thread ? (previewTest.remaining > 25 ? 'PLAY RAPID REPEATS' : 'RELEASE ALL PADS; WAIT') : previewTest.workers ? 'PHASE ' + (previewTest.pass + 1) + '/3 - WORKER TIMING' : previewTest.isolation ? 'PHASE ' + (previewTest.pass + 1) + '/4 - PCM + TIMING' : 'PCM + CALLBACK TIMING',1);
             fontPrint5x3(0,44,'NO LISTENING REPORT NEEDED',1);
             fontPrint5x3(0,52,previewTest.workers || previewTest.thread ? 'ONE DOWNLOAD WHEN FINISHED' : 'ONE PHOTO WHEN FINISHED',1);
             fontPrint5x3(0,59,'CLICK:STOP BACK:KEEP RUNNING',1);
