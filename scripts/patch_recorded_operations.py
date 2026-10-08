@@ -147,5 +147,5 @@ def patch_recorded_intervals(root: Path) -> None:
     path=root/'engine/crates/movy-dsp/src/chain_slots.rs'
     source=path.read_text().replace('if key.starts_with("midi_fx1:") { self.hb_config_dirty[slot] = true; }','if key.starts_with("midi_fx1:motion_") {self.hb_config_dirty.fill(true);} else if key.starts_with("midi_fx1:") { self.hb_config_dirty[slot] = true; }')
     path.write_text(source)
-    source=path.read_text().replace('if key.starts_with("midi_fx1:") && key!="midi_fx1:hb_movy_input_role" { self.hb_config_dirty[slot] = true; }','if key.starts_with("midi_fx1:motion_") {self.hb_config_dirty.fill(true);} else if key.starts_with("midi_fx1:") && !key.starts_with("midi_fx1:hb_movy_input") && !key.starts_with("midi_fx1:hb_movy_actions") {self.hb_config_dirty[slot]=true;}')
+    source=path.read_text().replace('if key.starts_with("midi_fx1:") && key!="midi_fx1:hb_movy_input_role" { self.hb_config_dirty[slot] = true; }','if key.starts_with("midi_fx1:motion_") {self.hb_config_dirty.fill(true);} else if key.starts_with("midi_fx1:") && !key.starts_with("midi_fx1:hb_movy_input") && !key.starts_with("midi_fx1:hb_movy_actions") && key!="midi_fx1:hb_pressure_full_velocity" {self.hb_config_dirty[slot]=true;}')
     path.write_text(source)
