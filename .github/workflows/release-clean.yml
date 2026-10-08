@@ -115,6 +115,7 @@ jobs:
               'engine/crates/movy-dsp/src/tone_check.rs',
               'engine/crates/movy-dsp/src/worker_profile.rs',
               'engine/crates/movy-dsp/src/thread_profile.rs',
+              'engine/crates/movy-dsp/src/pressure_trace.rs',
               'engine/crates/movy-dsp/src/render_pool.rs',
               'engine/crates/movy-dsp/src/chain_cost.rs',
               'src/seq/cpu-page.ts',
