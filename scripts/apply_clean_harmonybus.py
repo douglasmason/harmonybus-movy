@@ -589,6 +589,8 @@ def main() -> int:
     patch_worker_profile(root)
     from patch_thread_profile import patch_thread_profile
     patch_thread_profile(root)
+    from patch_pressure_trace import patch_pressure_trace
+    patch_pressure_trace(root)
     print("HarmonyBus clean integration applied")
     return 0
 
