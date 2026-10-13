@@ -72,8 +72,9 @@ for(let group=0;group<4;group++){
  for(let role=0;role<4;role++)assert.equal(joint.jointActorColor(role),trackColor(group*4+role));
 }
 appState.focusGroup=0;
-joint.restoreJoint([{bass:2,comp:3,lower:1,upper:2,overwrite:10}]);
+joint.restoreJoint([{bass:2,comp:3,lower:1,upper:2,steps:1,overwrite:10}]);
 assert.equal(joint.jointSnapshot()[0].overwrite,11,'root is always overwrite');
+assert.equal(joint.jointSnapshot()[0].steps,1,'step row mode restores from set');
 const saved=joint.jointSnapshot();joint.restoreJoint(saved);assert.deepEqual(joint.jointSnapshot(),saved);
 assert(!joint.jointEnabled(),'navigation does not persist');
 console.log('Joint Play: role geometry, operation scope, Session entry, recording masks, preview budget and persistence pass');

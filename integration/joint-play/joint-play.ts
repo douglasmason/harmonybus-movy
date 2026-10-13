@@ -13,15 +13,15 @@ import { seqState } from './state.js';
 import { markUiStateDirty } from './ui-dirty.js';
 import { recToggle } from '../undo/rec-pass.js';
 import { sendPadLedFrame, cachedSetAnimLED } from './led-cache.js';
-import { jointPage, jointPanelTouch, jointEditRole, setJointEditRole, resetJointPanels, releaseJointPanelTouches } from './joint-panels.js';
+import { jointPage, jointPanelTouch, resetJointPanels, releaseJointPanelTouches } from './joint-panels.js';
 import { schwungLibAvailable } from '../renderer/schwung-lib.js';
 import { drawHeader, drawBankBar } from '../renderer/header.js';
 import { trackColor } from './colors.js';
 import { currentSetUuid } from './set-session.js';
 
-export type JointGroup = { bass: number; comp: number; lower: number; upper: number; overwrite: number };
+export type JointGroup = { bass: number; comp: number; lower: number; upper: number; steps: number; overwrite: number };
 // Source 0 follows, 1 uses clips/motifs, 2 exposes pads. Layout: octaves/piano/approach.
-const fresh = (): JointGroup => ({bass:0, comp:0, lower:0, upper:2, overwrite:5});
+const fresh = (): JointGroup => ({bass:0, comp:0, lower:0, upper:2, steps:2, overwrite:5});
 let groups: JointGroup[] = Array.from({length:4}, fresh);
 let enabled = false;
 let belowHeld=false, belowLatch=false;
@@ -37,7 +37,9 @@ let cells: (SurfaceCell & {track:number})[] = [];
 let colors: number[] = new Array(32).fill(-1);
 
 export function jointActive(): boolean {return enabled && !seqState.sessionMode && jointAvailable();}
-export function jointApproachRowsActive():boolean {return jointEditRole()===3&&group().comp!==2&&group().upper===2;}
+export function jointApproachRowsActive():boolean {return group().comp!==2&&group().upper===2;}
+export function jointPadRoles(base = baseTrack()): number[] {return groups[base/4].bass===2?[0,1,3]:[0,3];}
+export function jointStepMode(): number {return group().steps;}
 export function jointEnabled(): boolean {return enabled;}
 export function setJointEnabled(value: boolean): void {
     enabled = value; geometry = ''; appState.dirty = true;
@@ -55,7 +57,7 @@ export function restoreJoint(value: unknown): void {
     groups = Array.from({length:4}, (_,index)=> {
         const entry = Array.isArray(value) ? value[index] : null;
         const settings = fresh();
-        for (const key of ['bass','comp','lower','upper','overwrite'] as const) {
+        for (const key of ['bass','comp','lower','upper','steps','overwrite'] as const) {
             const candidate = entry?.[key];
             if (Number.isInteger(candidate) && candidate >= 0 && candidate <= (key==='overwrite'?15:key==='comp'?3:2)) settings[key]=candidate;
         }
@@ -182,11 +184,10 @@ export function jointMidi(data:number[]): boolean {
 export function jointPanelGet(base:number,key:string):number {
     const settings=groups[base/4];
     if(key==='joint_unit')return appState.focusGroup;
-    if(key==='joint_actor')return jointEditRole();
     if(key==='joint_chromatic_below')return belowLatch?2:belowHeld?1:0;
     const recording=['root','bass','comp','melody'].indexOf(key.replace('joint_record_',''));
     if(recording>=0)return recording===0?0:Number(!!(settings.overwrite&(1<<recording)));
-    return settings[key.replace('joint_','') as 'bass'|'comp'|'lower'|'upper']??0;
+    return settings[key.replace('joint_','') as 'bass'|'comp'|'lower'|'upper'|'steps']??0;
 }
 export function jointPanelSet(base:number,key:string,value:string):void {
     const settings=groups[base/4],index=Number(value);
@@ -197,22 +198,21 @@ export function jointPanelSet(base:number,key:string,value:string):void {
     }else if(!Number.isInteger(index)||index<0)return;
     else if(key==='joint_unit'){
         if(index<=3&&[0,1,2,3].every(role=>trackKind(index*4+role)==='movy'))appState.focusGroup=index;
-    }else if(key==='joint_actor')setJointEditRole(index);
-    else if(key.startsWith('joint_record_')){
+    }else if(key.startsWith('joint_record_')){
         const role=['root','bass','comp','melody'].indexOf(key.slice(13));
         if(role>0&&index<=1)settings.overwrite=index?settings.overwrite|(1<<role):settings.overwrite&~(1<<role);
     }else{
-        const field=key.slice(6) as 'bass'|'comp'|'lower'|'upper';
-        if(['bass','comp','lower','upper'].includes(field)&&index<=(field==='comp'?3:2))settings[field]=index;
+        const field=key.slice(6) as 'bass'|'comp'|'lower'|'upper'|'steps';
+        if(['bass','comp','lower','upper','steps'].includes(field)&&index<=(field==='comp'?3:2))settings[field]=index;
     }
     geometry='';markUiStateDirty();appState.dirty=true;
 }
 
 export function renderJoint():void {
     const page=jointPage();
-    for(let slot=0;slot<8;slot++)if(!(page.knobLEDMask&(1<<slot))){const color=jointActorColor(jointEditRole());cachedSetAnimLED(slot,color,color,0);}
-    clear_screen();drawHeader(page.keyAt(0)==='joint_unit'?'Joint Setup':page.pageTitle,'G'+(appState.focusGroup+1)+' T'+(baseTrack()+jointEditRole()+1));drawBankBar(page.pageIndex,page.pageCount);
-    page.render('Joint G'+(appState.focusGroup+1)+' '+['Root','Bass','Comp','Melody'][jointEditRole()]);
+    for(let slot=0;slot<8;slot++)if(!(page.knobLEDMask&(1<<slot))){const color=page.keyAt(slot)==='joint_blank'?0:jointActorColor(3);cachedSetAnimLED(slot,color,color,0);}
+    clear_screen();drawHeader(page.keyAt(0)==='joint_unit'?'Joint Setup':page.pageTitle,'Tracks '+(baseTrack()+1)+'-'+(baseTrack()+4));drawBankBar(page.pageIndex,page.pageCount);
+    page.render('Joint G'+(appState.focusGroup+1));
 }
 
 export function jointAvailable(): boolean {

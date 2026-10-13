@@ -66,14 +66,20 @@ let sessionPlayPrev = 0;""")
     path = root / 'src/renderer/schwung-page.ts'
     path.write_text(path.read_text().replace('export { beginHbLaneTouch,', 'export { cycleHbStepMode, beginHbLaneTouch,'))
 
+    # Only row routing changes; touch knobs keep the existing Motif Play panels.
     path = root / 'src/renderer/hb-performance.ts'
-    source = path.read_text()
-    source = replace_once(source, '    if (releaseHbPerformanceStep(data)) return true;', '    if (releaseHbPerformanceStep(data)) return true;\n    if (jointActive()) return false;')
-    source = replace_once(source, '    if (paintMotif(owner)) return true;', '    if (jointActive()) return false;\n    if (paintMotif(owner)) return true;')
+    source = path.read_text().replace('import { jointActive }', 'import { jointActive, jointStepMode }')
+    source = replace_once(source, '    if (releaseHbPerformanceStep(data)) return true;', '    if (releaseHbPerformanceStep(data)) return true;\n    if (jointActive() && jointStepMode() === 0) return false;')
+    source = source.replace("if (jointActive() || flagValue('hbsteprow') === 2)", "if (jointActive() ? jointStepMode() === 2 : flagValue('hbsteprow') === 2)")
+    source = replace_once(source, '    if (paintMotif(owner)) return true;', '    if (jointActive() && jointStepMode() === 0) return false;\n    if (paintMotif(owner)) return true;')
+    source = source.replace("if(jointActive()||flagValue('hbsteprow')===2)", "if(jointActive()?jointStepMode()===2:flagValue('hbsteprow')===2)")
     path.write_text(source)
     path = root / 'src/seq/leds.ts'
-    source = path.read_text()
-    if "import { jointActive }" not in source:
-        source = "import { jointActive } from './joint-play.js';\n" + source
-    source = source.replace('if(motifEditing() || hbPerformancePage())return;', 'if(motifEditing() || (!jointActive() && hbPerformancePage()))return;')
+    source = "import { jointActive, jointStepMode } from './joint-play.js';\n" + path.read_text()
+    source = source.replace('if(motifEditing() || hbPerformancePage())return;', 'if(motifEditing() || (!(jointActive() && jointStepMode() === 0) && hbPerformancePage()))return;')
+    path.write_text(source)
+
+    path = root / 'src/renderer/hb-performance.ts'
+    source = path.read_text().replace("import { jointPage } from '../seq/joint-panels.js';", "import { jointPerformancePort } from '../seq/joint-panels.js';")
+    source = source.replace('const page=jointPage();syncApproachOwner(page);return page;', 'const page=jointPerformancePort();syncApproachOwner(page);return page;')
     path.write_text(source)
