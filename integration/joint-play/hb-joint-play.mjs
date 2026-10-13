@@ -78,3 +78,31 @@ assert.equal(joint.jointSnapshot()[0].steps,1,'step row mode restores from set')
 const saved=joint.jointSnapshot();joint.restoreJoint(saved);assert.deepEqual(joint.jointSnapshot(),saved);
 assert(!joint.jointEnabled(),'navigation does not persist');
 console.log('Joint Play: role geometry, operation scope, Session entry, recording masks, preview budget and persistence pass');
+
+// Pads Off frees space without changing the stored playback source.
+const bassMelody={...defaults,pads:10,bass:2};
+const duo=joint.jointGeometry(0,bassMelody,[48,24,48,60],0,false,false);
+assert(duo.slice(0,16).every(cell=>cell.track===1));
+assert(duo.slice(16).every(cell=>cell.track===3));
+assert.equal(duo[0].pitch,24);assert.equal(duo[8].pitch,36);
+for(let role=0;role<4;role++){
+ const settings={...defaults,pads:1<<role,bass:2,comp:2};
+ const full=joint.jointGeometry(0,settings,[48,24,48,60],0,false,false);
+ assert(full.every(cell=>cell.track===role));
+ assert(full.some((cell,index)=>index>=24&&(cell.pitch>=0||cell.target>=0)),'sole actor receives all rows');
+ if(role===2)assert(full.every(cell=>cell.pitch>=0&&cell.target<0),'comp never acquires approach holes');
+}
+const none=joint.jointGeometry(0,{...defaults,pads:0},[48,24,48,60],0,false,false);
+assert(none.every(cell=>cell.pitch<0&&cell.target<0));
+joint.restoreJoint([bassMelody]);joint.setJointEnabled(true);seqState.sessionMode=false;
+assert.deepEqual(joint.jointPadRoles(0),[1,3]);assert.equal(joint.jointRecordCommand(),'jrec 10 0');
+joint.jointPanelSet(0,'joint_pads_1','0');assert.equal(joint.jointSnapshot()[0].bass,2,'Pads Off does not change source');
+assert.deepEqual(joint.jointPadRoles(0),[3]);
+const outputs=[{role:0,notes:[60]},{role:1,notes:[48,60]},{role:2,notes:[60]},{role:3,notes:[72]}];
+assert.deepEqual(joint.jointOverlayRoles(0,60,outputs,1),[0,1]);
+assert.deepEqual(joint.jointOverlayRoles(3,60,outputs,1),[2]);
+assert.deepEqual(joint.jointOverlayRoles(0,60,outputs,2),[0,1,2]);
+assert.deepEqual(joint.jointOverlayRoles(0,84,outputs,2),[],'out-of-range outputs are not octave folded');
+assert.deepEqual(joint.jointOverlayRoles(0,-1,outputs,2),[]);
+assert.deepEqual(joint.jointOverlayRoles(0,60,outputs,0),[]);
+console.log('Joint participation: freed rows, sole actor, empty surface, recording mask and exact-pitch overlays pass');

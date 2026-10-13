@@ -98,3 +98,21 @@ for(const expected of [1,2,3,0,1,2,3,0]){
 }
 const beforeStray=sessionPlayMode();sessionUp();assert.equal(sessionPlayMode(),beforeStray);
 console.log('Session: four modes, hold/clip-gesture restore, stray release and native Copy pass');
+
+// Fixed actor settings are native track aliases, never a mutable target cursor.
+appState.focusGroup=0;seqState.sessionMode=false;joint.setJointEnabled(true);page=panels.jointPage();
+const bassPage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_actor_1_travel_map'));
+assert(bassPage>=0);page.goToPage(bassPage);flush(page);
+assert.equal(page.keyAt(0),'joint_pads_1');assert.equal(page.keyAt(1),'joint_bass');
+const beforeNative=writes.length;page.knobTurn(2,4);flush(page);
+assert(writes.slice(beforeNative).some(([track,key])=>track===1&&key==='midi_fx1:travel_map'));
+assert(!writes.slice(beforeNative).some(([track,key])=>track!==1&&key==='midi_fx1:travel_map'));
+page.knobTurn(3,4);flush(page);page.knobTurn(5,4);flush(page);
+assert(writes.slice(beforeNative).some(([track,key])=>track===1&&key==='midi_fx1:chord_mode'));
+assert(writes.slice(beforeNative).some(([track,key])=>track===1&&key==='midi_fx1:arp_playback'));
+portFor(1).setParam('midi_fx1:travel_map','Closest Split');flush(page);
+assert.equal(page.ctl.getValue?.('joint_actor_1_travel_map')??page.performanceGet('joint_actor_1_travel_map'),'Closest Split');
+const rootPage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_pads_0')&&item.keys?.includes('joint_actor_0_travel_map'));
+page.goToPage(rootPage);flush(page);page.knobTurn(0,-4);flush(page);
+assert(!(joint.jointSnapshot()[0].pads&1));assert(!joint.jointPadRoles(0).includes(0));
+console.log('Joint actor panels: fixed native track writes, external readback and Pads Off pass');
