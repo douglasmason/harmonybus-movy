@@ -12,12 +12,10 @@ import { trackKind } from '../track/ref.js';
 import { seqState } from './state.js';
 import { markUiStateDirty } from './ui-dirty.js';
 import { recToggle } from '../undo/rec-pass.js';
-import { fontPrint } from '../font/index.js';
-import { drawHeader } from '../renderer/header.js';
 import { sendPadLedFrame, cachedSetAnimLED } from './led-cache.js';
-import { beginControlTouch, setControlLatch } from '../surfaces/controls.js';
-import type { Release } from '../surfaces/controls.js';
-import type { PerformancePort } from '../renderer/hb-performance.js';
+import { jointPage, jointPanelTouch, jointEditRole, setJointEditRole, resetJointPanels, releaseJointPanelTouches } from './joint-panels.js';
+import { schwungLibAvailable } from '../renderer/schwung-lib.js';
+import { drawHeader, drawBankBar } from '../renderer/header.js';
 import { trackColor } from './colors.js';
 import { currentSetUuid } from './set-session.js';
 
@@ -26,33 +24,7 @@ export type JointGroup = { bass: number; comp: number; lower: number; upper: num
 const fresh = (): JointGroup => ({bass:0, comp:0, lower:0, upper:2, overwrite:5});
 let groups: JointGroup[] = Array.from({length:4}, fresh);
 let enabled = false;
-let showControls = false, touchedKnob = -1;
-let approachHeld = false, belowHeld = false, approachLatch = false, belowLatch = false;
-let parallelHeldTrack = -1;
-const operationKeys=['joint_approach_lt','joint_chromatic_below','parallel_mode'];
-const operationReleases=new Map<number,Release>();
-const operationOwners=new Map<number,PerformancePort>();
-const ports=new Map<number,PerformancePort>();
-function operationPort(track:number):PerformancePort {
-    let owner=ports.get(track);
-    if(!owner){owner={performanceTrack:track,
-        performanceGet:(key:string):string=>key==='joint_approach_lt'?(approachLatch?'Latch':approachHeld?'Hold':'Off'):
-            key==='joint_chromatic_below'?(belowLatch?'Latch':belowHeld?'Hold':'Off'):portFor(track).getParam('midi_fx1:'+key)??'',
-        performanceSet:(key:string,value:string):void=>{
-            if(key==='joint_approach_lt'||key==='joint_chromatic_below'){
-                const down=value==='Down', latch=value==='LatchOn', latchChange=value==='LatchOn'||value==='LatchOff'||value==='Cancel';
-                if(key==='joint_approach_lt'){approachHeld=down;if(latchChange)approachLatch=latch;}
-                else {belowHeld=down;if(latchChange)belowLatch=latch;}
-            }else portFor(track).setParam('midi_fx1:'+key,value);
-            geometry='';appState.dirty=true;
-        }};ports.set(track,owner);}
-    return owner;
-}
-function nativeOperationPort(track:number):PerformancePort {
-    return {performanceTrack:track,
-        performanceGet:(key:string):string=>portFor(track).getParam('midi_fx1:'+key)??'',
-        performanceSet:(key:string,value:string):void=>{portFor(track).setParam('midi_fx1:'+key,value);}};
-}
+let belowHeld=false, belowLatch=false;
 /** Actor identity is exactly the existing track palette, including native colors. */
 export function jointActorColor(role:number):number {return trackColor(baseTrack()+role);}
 let pushed = '', linked = '', geometry = '', previewAt = -Infinity, previewActor = 0;
@@ -65,22 +37,17 @@ let cells: (SurfaceCell & {track:number})[] = [];
 let colors: number[] = new Array(32).fill(-1);
 
 export function jointActive(): boolean {return enabled && !seqState.sessionMode && jointAvailable();}
+export function jointApproachRowsActive():boolean {return jointEditRole()===3&&group().comp!==2&&group().upper===2;}
 export function jointEnabled(): boolean {return enabled;}
 export function setJointEnabled(value: boolean): void {
     enabled = value; geometry = ''; appState.dirty = true;
-    if (!value) { pendingRelease = true; held.clear(); clearJointModifiers(); }
+    if (!value) { pendingRelease = true; held.clear(); releaseJointPanelTouches(); belowHeld=belowLatch=false; }
 }
 function group(): JointGroup {return groups[appState.focusGroup] ?? groups[0];}
 function baseTrack(): number {return appState.focusGroup * 4;}
-function clearJointModifiers(): void {
-    for(const release of operationReleases.values())release(true);
-    operationReleases.clear();operationOwners.clear();
-    approachHeld = belowHeld = approachLatch = belowLatch = false;
-    parallelHeldTrack = -1;
-}
 export function resetJointInput(): void {
     setJointEnabled(false); pushed = linked = ''; actors = []; cells = []; colors.fill(-1);
-    showControls=false;touchedKnob=-1;
+    resetJointPanels();
 }
 export function jointSnapshot(): JointGroup[] {return groups.map(value=>({...value}));}
 export function restoreJoint(value: unknown): void {
@@ -128,11 +95,11 @@ export function jointGeometry(base: number, settings: JointGroup, bases: number[
 function updateGeometry(): void {
     const base=baseTrack(), settings=group();
     const signature=JSON.stringify([base,settings,keyboardState.scale,keyboardState.rootPc,
-        keyboardState.octave.slice(base,base+4),approachHeld||approachLatch,belowHeld||belowLatch]);
+        keyboardState.octave.slice(base,base+4),false,belowHeld||belowLatch]);
     if(signature===geometry)return;
     geometry=signature;
     cells=jointGeometry(base,settings,[0,1,2,3].map(role=>baseNoteFor(base+role)),keyboardState.scale,
-        approachHeld||approachLatch,belowHeld||belowLatch);
+        false,belowHeld||belowLatch);
     actors=[...new Set(cells.map(cell=>cell.track))].map(track=>({track,view:null,payload:'',
         cells:cells.map(cell=>cell.track===track?cell:{pitch:-1,target:-1,row:0})}));
     colors.fill(-1); previewAt=-Infinity; previewActor=0;
@@ -148,6 +115,7 @@ export function syncJoint(send:(key:string,value:string)=>void, now=Date.now()):
         keyboardState.octave[index*4+2]-keyboardState.octave[index*4+3],settings.comp===3?1:0].join(',')).join(';');
     if(linked!==linkValue){send('joint_links',linkValue);linked=linkValue;}
     if(!jointActive()) {if(pushed!=='off'){send('joint_map','off');pushed='off';}return;}
+    if(schwungLibAvailable())jointPage().tick();
     updateGeometry();
     const map=cells.map(cell=> {
         const pitch=cell.target>=0?pianoApproachIdentity(cell.target,cell.row):cell.pitch;
@@ -156,7 +124,7 @@ export function syncJoint(send:(key:string,value:string)=>void, now=Date.now()):
     if(pushed!==map){send('joint_map',map);pushed=map;}
     if(now-previewAt<50||!actors.length)return;
     previewAt=now;const actor=actors[previewActor++%actors.length];
-    const payload=previewPayload(actor.cells,true);
+    const payload=previewPayload(actor.cells,actor.cells.some(cell=>cell.target>=0));
     const port=portFor(actor.track);
     if(actor.payload!==payload){if(port.setParam('midi_fx1:pad_preview_inputs',payload)===false)return;actor.payload=payload;}
     const view=parseHarmonySnapshot(port.getParam('midi_fx1:pad_view'));
@@ -194,80 +162,57 @@ export function jointMidi(data:number[]): boolean {
     if((status===0x80||(status===0x90&&!value))&&key>=68&&key<=99&&held.has(key-68)){
         held.delete(key-68);return true;
     }
-    if((status===0x80||(status===0x90&&!value))&&key<3&&operationReleases.has(key)){
-        operationReleases.get(key)?.();operationReleases.delete(key);operationOwners.delete(key);
-        if(key===2)parallelHeldTrack=-1;touchedKnob=-1;return true;
-    }
+    if((status===0x80||(status===0x90&&!value))&&key<8&&jointPanelTouch(key,false))return true;
     if(!jointActive())return false;
     if((status===0x90||status===0x80||status===0xa0)&&key>=68&&key<=99){
         if(status===0x90&&value)held.add(key-68);
         // DSP already dispatched and recorded this physical gesture.
         return true;
     }
-    if(status===0xb0&&key===51&&value){setJointEnabled(false);return true;}
-    if(status===0xb0&&key===14){
-        const delta=value<64?value:value-128;
-        if(delta){const next=Math.max(0,Math.min(3,appState.focusGroup+Math.sign(delta)));if([0,1,2,3].every(role=>trackKind(next*4+role)==='movy'))appState.focusGroup=next;geometry='';appState.dirty=true;}
-        return true;
-    }
-    if(status===0xb0&&key===MoveMainButton){if(value){showControls=!showControls;appState.dirty=true;}return true;}
+    if(status===0xb0&&key===51&&value){if(jointPage().back()?.action==='exit')setJointEnabled(false);return true;}
+    if(status===0xb0&&key===14){const delta=value<64?value:value-128;if(delta)jointPage().changePage(delta);appState.dirty=true;return true;}
+    if(status===0xb0&&key===MoveMainButton){if(value)jointPage().click(appState.shiftHeld);appState.dirty=true;return true;}
     if(status===0xb0&&key===86){if(value)recToggle(baseTrack());return true;}
-    if((status===0x90||status===0x80)&&key<8){
-        const down=status===0x90&&value>0;
-        touchedKnob=down?key:-1;
-        if(key<3){
-            if(down&&!operationReleases.has(key)){
-                const owner=operationPort(baseTrack());operationOwners.set(key,owner);
-                const localRelease=beginControlTouch(owner,operationKeys[key]);
-                // Use the exact native touch owner/key, so an external surface
-                // holding the same operation cannot lose its hold to this pad view.
-                const nativeRelease=key===0?beginControlTouch(nativeOperationPort(baseTrack()+3),'approach_touch_5'):null;
-                operationReleases.set(key,(cancel=false)=>{localRelease(cancel);nativeRelease?.(cancel);});
-                if(key===2)parallelHeldTrack=baseTrack();
-            }else if(!down){operationReleases.get(key)?.();operationReleases.delete(key);operationOwners.delete(key);if(key===2)parallelHeldTrack=-1;}
-        }
-        geometry='';appState.dirty=true;return true;
-    }
-    if(status===0xb0&&key>=71&&key<=78){
-        const knob=key-71, delta=value<64?value:value-128;
-        if(!delta)return true;
-        const settings=group(), direction=Math.sign(delta);
-        if(knob<3){const owner=operationOwners.get(knob)??operationPort(baseTrack());setControlLatch(owner,operationKeys[knob],operationKeys[knob],direction>0);}
-        const field=({3:'bass',4:'comp',5:'lower',6:'upper'} as const)[knob as 3|4|5|6];
-        if(field)settings[field]=Math.max(0,Math.min(field==='comp'?3:2,settings[field]+direction));
-        if(knob===7){const role=appState.activeTrack.index%4;if(role)settings.overwrite=direction>0?settings.overwrite|(1<<role):settings.overwrite&~(1<<role);}
-        geometry='';markUiStateDirty();appState.dirty=true;return true;
-    }
+    if((status===0x90||status===0x80)&&key<8){jointPanelTouch(key,status===0x90&&value>0);appState.dirty=true;return true;}
+    if(status===0xb0&&key>=71&&key<=78){const delta=value<64?value:value-128;if(delta)jointPage().knobTurn(key-71,delta);appState.dirty=true;return true;}
     return false;
 }
 
-export function renderJoint(): void {
-    clear_screen();drawHeader('Joint Play','G'+(appState.focusGroup+1),true);
-    const settings=group();
-    // No actor palette: the same per-track/native colors used everywhere else.
-    [3,0,0,1,2,0,3,appState.activeTrack.index%4].forEach((role,index)=>{
-        const color=jointActorColor(role);cachedSetAnimLED(index,color,color,0);
-    });
-    const labels=['Approach LT','Chrom Below','Parallel','Bass source','Comp source','Lower layout','Upper layout','Record mode'];
-    const layouts=['2 Octaves','Piano','Approach'];
-    const values=[approachLatch?'Latch':approachHeld?'Hold':'Off',belowLatch?'Latch':belowHeld?'Hold':'Off',
-        parallelHeldTrack>=0?'Hold':'Touch', ['Follow','Clip','Pads'][settings.bass],
-        ['Follow','Clip','Pads','Clip+Guide'][settings.comp], ['2 Octaves','Piano','Chrom row'][settings.lower],layouts[settings.upper],
-        settings.overwrite&(1<<(appState.activeTrack.index%4))?'Replace':'Overdub'];
-    if(showControls){
-        const short=['LT','Below','Parallel','Bass','Comp','Lower','Upper','Record'];
-        short.forEach((name,index)=>fontPrint(2+(index%2)*64,15+Math.floor(index/2)*10,`${index+1} ${name}`,1));
-        const index=touchedKnob>=0?touchedKnob:7;
-        fontPrint(2,55,labels[index]+': '+values[index],1);return;
+/** Values live with the quartet; the shared page controller edits their metadata. */
+export function jointPanelGet(base:number,key:string):number {
+    const settings=groups[base/4];
+    if(key==='joint_unit')return appState.focusGroup;
+    if(key==='joint_actor')return jointEditRole();
+    if(key==='joint_chromatic_below')return belowLatch?2:belowHeld?1:0;
+    const recording=['root','bass','comp','melody'].indexOf(key.replace('joint_record_',''));
+    if(recording>=0)return recording===0?0:Number(!!(settings.overwrite&(1<<recording)));
+    return settings[key.replace('joint_','') as 'bass'|'comp'|'lower'|'upper']??0;
+}
+export function jointPanelSet(base:number,key:string,value:string):void {
+    const settings=groups[base/4],index=Number(value);
+    if(key==='joint_chromatic_below'){
+        belowHeld=value==='Down';
+        if(value==='LatchOn')belowLatch=true;
+        if(value==='LatchOff'||value==='Cancel')belowLatch=false;
+    }else if(!Number.isInteger(index)||index<0)return;
+    else if(key==='joint_unit'){
+        if(index<=3&&[0,1,2,3].every(role=>trackKind(index*4+role)==='movy'))appState.focusGroup=index;
+    }else if(key==='joint_actor')setJointEditRole(index);
+    else if(key.startsWith('joint_record_')){
+        const role=['root','bass','comp','melody'].indexOf(key.slice(13));
+        if(role>0&&index<=1)settings.overwrite=index?settings.overwrite|(1<<role):settings.overwrite&~(1<<role);
+    }else{
+        const field=key.slice(6) as 'bass'|'comp'|'lower'|'upper';
+        if(['bass','comp','lower','upper'].includes(field)&&index<=(field==='comp'?3:2))settings[field]=index;
     }
-    ['Root','Bass','Comp','Melody'].forEach((name,role)=>{
-        const track=baseTrack()+role, state=seqState.session[track];
-        const source=role===1?settings.bass:role===2?settings.comp:2;
-        const mode=source===0?'Follow':source===1?'Clip':source===3?'Clip+Lead':settings.overwrite&(1<<role)?'Replace':'Overdub';
-        const slot=state.playing>=0?state.playing:state.selected;
-        fontPrint(2,15+role*9,`${track+1} ${name} ${slot+1} ${mode}`,1);
-    });
-    fontPrint(2,54,touchedKnob>=0?labels[touchedKnob]+': '+values[touchedKnob]:'Session:clips Jog:controls',1);
+    geometry='';markUiStateDirty();appState.dirty=true;
+}
+
+export function renderJoint():void {
+    const page=jointPage();
+    for(let slot=0;slot<8;slot++)if(!(page.knobLEDMask&(1<<slot))){const color=jointActorColor(jointEditRole());cachedSetAnimLED(slot,color,color,0);}
+    clear_screen();drawHeader(page.keyAt(0)==='joint_unit'?'Joint Setup':page.pageTitle,'G'+(appState.focusGroup+1)+' T'+(baseTrack()+jointEditRole()+1));drawBankBar(page.pageIndex,page.pageCount);
+    page.render('Joint G'+(appState.focusGroup+1)+' '+['Root','Bass','Comp','Melody'][jointEditRole()]);
 }
 
 export function jointAvailable(): boolean {

@@ -1,10 +1,10 @@
-# Joint Play — development implementation
+# Joint Play
 
 Joint Play makes the Move pad grid an instrument for one selected four-track unit. The track owns its HarmonyBus settings, instrument, harmonic pad feedback and native track color. No separate actor palette or duplicate instrument settings are introduced.
 
 ## Entry and navigation
 
-Tap Session to select clips. Tap it again to enter Joint Play. Hold Session to peek at clips and release to return. Back exits Joint Play. Turn the jog to select units 1–4; click it to show the eight controls. Track selection in Session determines which actor K8 edits.
+Tap Session to select clips. Tap it again to enter Joint Play. Hold Session to peek at clips and release to return. Back exits Joint Play. Turn the jog to navigate the same HB settings panels used by Copy-tap Harmony Play. Jog click uses the existing picker/peek behavior. On Joint Setup, knob 1 selects the four-track unit and knob 2 selects the actor whose HB settings and operations you edit. This actor selection does not change the pad allocation.
 
 | Role | Track within unit | Default source | Recording | New-set travel | MIDI render channel |
 | --- | --- | --- | --- | --- | --- |
@@ -28,20 +28,28 @@ These defaults apply to new sets. Saved chains and MIDI settings are preserved. 
 
 Linking frees both rows for their shared function. Clip-driven actors also leave those rows available. Each half has its own layout selector. Upper choices are two octaves, piano and approach. Lower choices are two octaves, piano and a chromatic-below row: those lower chromatic keys are ordinary inputs which commit harmony, never resolving approach aliases.
 
-## Controls
+## Controls and panels
 
-| Knob | Function |
+Joint Play uses `createSchwungPage`, the existing Harmony Play hierarchy and its controller. Panel navigation, parameter editing, Shift-turn assignment, touch ownership, latch behavior, peeks and knob feedback use the same implementation. Only Joint-specific parameters and their backing state are added.
+
+| Joint Setup knob | Function |
 | --- | --- |
-| 1 | Melody approach touch, using the existing fifth operation slot (LT by default) |
-| 2 | Chromatic below for bass/root inputs only |
-| 3 | Existing shared Parallel Scale operation |
-| 4 | Bass source: Follow, Clip, Pads |
-| 5 | Comp source: Follow, Clip, Pads, Clip + Guide |
-| 6 | Lower layout |
-| 7 | Upper layout |
-| 8 | Selected actor's record mode; root always replaces |
+| 1 | Four-track unit: 1–4, 5–8, 9–12, 13–16 |
+| 2 | Actor to edit: Root, Bass, Comp, Melody |
+| 3 | Bass source: Follow, Clip, Pads |
+| 4 | Comp source: Follow, Clip, Pads, Clip + Guide |
+| 5 | Lower layout |
+| 6 | Upper layout |
+| 7 | Chromatic-below touch for root/bass; turn to latch/unlatch |
+| 8 | Unassigned |
 
-Operation touches use the shared surface touch controller. LT also uses the native `approach_touch_5` owner and key, so releasing Joint Play cannot cancel the same operation held on another surface. Existing slot customization remains in force. Clockwise operation turns latch; counterclockwise turns unlatch. LT touching also exposes approach identities on melody target pads while held; the native approach row keeps its selected operation. Chromatic below changes the lower input, not the upper melody or comp input. The resulting conductor harmony still propagates to all followers, including independent bass. Parallel Scale retains its shared HarmonyBus scope.
+Joint Recording exposes Root, Bass, Comp and Melody record modes directly on knobs 1–4. Root is fixed to Replace. The others select Overdub or Replace, independent of the actor selected for editing.
+
+Jog onward to the actor's existing HarmonyBus settings and Harm Play panels. Harm Play 1/2 expose the existing sixteen operation/motif slots. LT is slot 5 by default; Shift-turn changes assignments using the ordinary HB implementation. Touch, release and latch/row-selection behavior follow the actor's current layout. Dedicated melody approach rows select the operation played by those rows; a one-row or two-octave melody layout uses ordinary performance operation behavior. Settings such as Parallel Scale, Key Center, voicing, rhythm and motifs remain the actor's real HB settings, not copied Joint Play values.
+
+The step row also uses the selected actor's existing Harm Play operation bank while Joint Play is active. Leaving Joint Play restores the ordinary Copy-mode interpretation without changing its saved mode.
+
+Chromatic below changes lower inputs only, never a melody or comp input. Its resulting conductor harmony still propagates to followers, including independent bass. Shared HB operations retain their established scope.
 
 Actor identity LEDs use the existing track-color function, including copied native colors across units. Musical pad colors use each actor's canonical HarmonyBus preview. One actor preview is read per 50 ms total; pad input does not wait for those reads.
 
@@ -61,4 +69,4 @@ A held pad retains its original track and pitch across view, unit, layout and so
 
 The patch is applied to the pinned upstream Movy checkout and checked with TypeScript, the existing logic suite, the real shared touch-controller tests, focused Joint Play browser tests and both Rust library suites. The new-set presets are extracted from the actual built TypeScript and loaded through the real HarmonyBus C implementation; the check covers all sixteen roles, channels, travel settings, comp voicing and edited-state round trips.
 
-Hardware acceptance is still required for rapid multi-actor playing, touch-to-pad timing, pressure, clip changes while recording, stock MIDI destinations, audio latency and LED pacing. This development branch does not change release tags, publish an installer or install anything on Move.
+Hardware acceptance is still required for rapid multi-actor playing, touch-to-pad timing, pressure, clip changes while recording, stock MIDI destinations, audio latency and LED pacing. The release pipeline verifies and publishes the installable Movy package; device installation and hardware checks remain separate.

@@ -20,8 +20,8 @@ env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
   HB_REF: 2c386a48b921d419a97bb2ccc34c28f0e06b5589
-  HB_MOVY_VERSION: 0.34.1-hbclean.194
-  HB_MOVY_TAG: v0.34.1-hbclean.194
+  HB_MOVY_VERSION: 0.34.1-hbclean.195
+  HB_MOVY_TAG: v0.34.1-hbclean.195
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -97,6 +97,8 @@ jobs:
           ).splitlines()
           expected = {
               'src/seq/joint-play.ts',
+              'src/seq/joint-panels.ts',
+              'browser-test/hb-joint-panels.mjs',
               'src/undo/rec-pass.ts',
               'engine/crates/movy-dsp/src/joint_route.rs',
               'engine/crates/movy-dsp/src/joint_links.rs',
@@ -478,6 +480,7 @@ jobs:
           node browser-test/hb-audio-profile.mjs
           node browser-test/hb-pad-trails.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-touch.mjs
+          HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-joint-panels.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-startup-host.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-analysis.mjs
 
@@ -532,7 +535,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Joint Play: tap Session twice to perform a selected four-track unit. Lower pads control root/bass; upper pads control melody/comp. Reuses track colors and shared touch controls. Includes linked and clip-driven accompaniment, per-actor recording, and new-set role defaults. Existing saved chains are preserved. Requires HarmonyBus 0.2.266 or newer. Hardware playing feel and audio performance still need device verification."
+              --notes "Joint Play now reuses the existing Harmony Play settings controller. Jog navigates HB panels; Joint Setup knob 1 selects the four-track unit and knob 2 selects the actor to edit. Existing operation banks, Shift-turn assignment, touch handling, peeks and settings panels are shared. Joint Recording exposes each actor recording mode explicitly. Requires HarmonyBus 0.2.266 or newer."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
