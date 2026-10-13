@@ -25,14 +25,14 @@ for(let track=0;track<16;track++){
   if(bare==='ui_hierarchy')return JSON.stringify(module.capabilities.ui_hierarchy);
   return values.get(bare)??'';
  };
- port.setParam=(key,value)=>{writes.push([track,key,value]);values.set(key.split(':').at(-1),value);return true;};
+ port.setParam=(key,value)=>{if(key.startsWith('midi_fx1:joint_pad_')){const [mask,...parts]=value.split('|');assert(Number(mask)&(1<<track));assert(!(Number(mask)&(4<<(track&~3))));value=parts.join('|');}writes.push([track,key,value]);values.set(key.split(':').at(-1),value);return true;};
 }
 setFlag('chtracks',1);appState.focusGroup=0;seqState.sessionMode=false;joint.restoreJoint(null);joint.setJointEnabled(true);
 let page=panels.jointPage();assert(page.ready);
-assert.equal(page.keyAt(0),'joint_unit');assert.equal(page.keyAt(1),'joint_actor');
+assert.equal(page.keyAt(0),'joint_unit');assert.equal(page.keyAt(1),'joint_blank');
 const savedMode=flagValue('hbsteprow');
-assert.equal(hbPerformancePage().performanceTrack,3);
-assert(writes.some(([track,key,value])=>track===3&&key==='midi_fx1:approach_mode_active'&&value==='1'));
+assert.equal(hbPerformancePage().performanceTrack,undefined);
+assert(writes.some(([track,key,value])=>track===3&&key==='midi_fx1:joint_pad_approach_mode_active'&&value==='1'));
 const initial=page.pageIndex;
 joint.jointMidi([0xb0,14,1]);assert.notEqual(page.pageIndex,initial);assert.equal(appState.focusGroup,0,'jog moves panels, not units');
 page.goToPage(initial);
@@ -42,13 +42,59 @@ const recording=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_record
 page.knobTurn(1,4);flush(page);assert(joint.jointSnapshot()[1].overwrite&2);
 const performance=page.ctl.pages.findIndex(item=>item.keys?.includes('approach_bank_5'));assert(performance>=0);page.goToPage(performance);
 const slot=Array.from({length:8},(_,index)=>page.keyAt(index)).indexOf('approach_bank_5');
-joint.jointMidi([0x90,slot,127]);assert(writes.some(([track,key,value])=>track===7&&key==='midi_fx1:approach_touch_5'&&value==='Down'));
-seqState.sessionMode=true;joint.jointMidi([0x80,slot,0]);assert(writes.some(([track,key,value])=>track===7&&key==='midi_fx1:approach_touch_5'&&value.startsWith('Up,')));
+joint.jointMidi([0x90,slot,127]);assert(writes.some(([track,key,value])=>track===7&&key==='midi_fx1:joint_pad_approach_touch_5'&&value==='Down'));
+seqState.sessionMode=true;joint.jointMidi([0x80,slot,0]);assert(writes.some(([track,key,value])=>track===7&&key==='midi_fx1:joint_pad_approach_touch_5'&&value.startsWith('Up,')));
 seqState.sessionMode=false;appState.shiftHeld=true;page.knobTurn(slot,1);flush(page);appState.shiftHeld=false;
-assert(writes.some(([track,key])=>track===7&&key==='midi_fx1:approach_bank_5'),'shared Shift-turn assignment edits actor HB bank');
-assert.equal(hbPerformancePage().performanceTrack,7);
+assert(writes.some(([track,key])=>track===7&&key==='midi_fx1:approach_bank_5'),'shared Shift-turn assignment edits global HB bank');
+assert.equal(hbPerformancePage().performanceTrack,undefined);
 assert(hbPerformanceStep([0x90,16,127]));assert(hbPerformanceStep([0x80,16,0]));
-assert(writes.some(([track,key,value])=>track===7&&key==='midi_fx1:approach_step_touch_1'&&value==='Down'));
+assert(writes.some(([track,key,value])=>track===7&&key==='midi_fx1:joint_pad_approach_step_touch_1'&&value==='Down'),'Joint arms its pad zones');
+assert(writes.some(([track,key,value])=>track===4&&key==='midi_fx1:joint_pad_approach_step_touch_1'&&value==='Down'),'root zone is also armed');
+assert(!writes.some(([track,key])=>(track===5||track===6)&&key.startsWith('midi_fx1:joint_pad_')),'comp and following bass are not modified twice');
+joint.jointPanelSet(4,'joint_bass','2');
+const beforeBass=writes.length;assert(hbPerformanceStep([0x90,18,127]));
+joint.jointPanelSet(4,'joint_bass','0');assert(hbPerformanceStep([0x80,18,0]));
+assert(writes.slice(beforeBass).some(([track,key,value])=>track===5&&key==='midi_fx1:joint_pad_approach_step_touch_3'&&value==='Down'));
+assert(writes.slice(beforeBass).some(([track,key,value])=>track===5&&key==='midi_fx1:joint_pad_approach_step_touch_3'&&value.startsWith('Up,')),'release keeps the original pad-zone ownership');
+// Knob 8 changes only the step row and retains the actor's existing assignments.
+page.goToPage(0);assert.equal(page.keyAt(7),'joint_steps');
+assert.equal(joint.jointStepMode(),2);
+page.knobTurn(7,-8);flush(page);assert.equal(joint.jointStepMode(),0);
+const beforeSteps=writes.length;
+assert.equal(hbPerformanceStep([0x90,17,127]),false);assert.equal(hbPerformanceStep([0x80,17,0]),false);
+assert(!writes.slice(beforeSteps).some(([,key])=>/approach_step_touch_|motion_hold_|motion_gesture_/.test(key)));
+page.knobTurn(7,4);flush(page);assert.equal(joint.jointStepMode(),1);
+const beforeOperators=writes.length;
+assert(hbPerformanceStep([0x90,17,127]));assert(hbPerformanceStep([0x80,17,0]));
+assert(writes.slice(beforeOperators).some(([track,key])=>track===7&&/motion_(hold|gesture)_2$/.test(key)),'operator row arms melody pads');
+page.knobTurn(7,4);flush(page);assert.equal(joint.jointStepMode(),2);
+assert.equal(joint.jointSnapshot()[1].steps,2,'row choice saved per unit');
+assert.equal(panels.jointPage(),page,'row choice reuses the same panel controller');
 assert.equal(flagValue('hbsteprow'),savedMode,'Joint does not rewrite the saved Copy mode');
-assert(page.ctl.pages.some(item=>item.keys?.includes('target_scale_source')),'existing Harm Play Settings retained');
+assert(page.ctl.pages.some(item=>item.keys?.includes('target_scale_source')),'existing Motif Play Settings retained');
 console.log('Joint shared panels: metadata, jog, unit knob, actor recording, native operation touch/release and Shift assignment pass');
+
+// Session owns navigation; Copy retains its native duplicate gesture.
+const {seqHandleButtonCc,sessionPlayMode}=await import('../dist/esm/seq/router-buttons.js');
+const {CC_NOTE_SESSION}=await import('../dist/esm/seq/constants.js');
+const {momentaryGesture}=await import('../dist/esm/seq/momentary.js');
+const {VIEW_KNOBS}=await import('../dist/esm/app/state.js');
+const {selectTrack}=await import('../dist/esm/track/focus.js');
+selectTrack(0);appState.currentView=VIEW_KNOBS;appState.shiftHeld=false;appState.focusGroup=0;
+joint.setJointEnabled(false);setFlag('hbsteprow',0);seqState.sessionMode=true;
+const sessionDown=()=>seqHandleButtonCc(CC_NOTE_SESSION,127,false);
+const sessionUp=()=>seqHandleButtonCc(CC_NOTE_SESSION,0,false);
+const sessionTap=()=>{sessionDown();now+=60;sessionUp();};
+for(const expected of [1,2,3,0,1,2,3,0]){
+ sessionTap();assert.equal(sessionPlayMode(),expected,'four-mode Session cycle');
+ if(expected){
+  sessionDown();assert(seqState.sessionMode,'hold immediately peeks clips');now+=600;sessionUp();
+  assert.equal(sessionPlayMode(),expected,'hold restores original play mode');
+  sessionDown();momentaryGesture();now+=40;sessionUp();
+  assert.equal(sessionPlayMode(),expected,'clip gesture restores original play mode');
+ }
+ seqHandleButtonCc(60,127,false);now+=60;seqHandleButtonCc(60,0,false);
+ assert.equal(sessionPlayMode(),expected,'Copy never changes mode');
+}
+const beforeStray=sessionPlayMode();sessionUp();assert.equal(sessionPlayMode(),beforeStray);
+console.log('Session: four modes, hold/clip-gesture restore, stray release and native Copy pass');

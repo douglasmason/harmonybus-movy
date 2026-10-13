@@ -41,11 +41,8 @@ for(const layout of [0,1,2]){
  const grid=joint.jointGeometry(12,{...defaults,lower:layout,upper:layout},[120,24,48,120],0,false,false);
  assert(grid.every(cell=>cell.pitch>=-1&&cell.pitch<=127&&cell.target>=-1&&cell.target<=127));
 }
-// The existing Session hold/release machinery retains clip peeking.
-resetMomentary();seqHandleButtonCc(50,127,false);seqHandleButtonCc(50,0,false);
-assert(seqState.sessionMode);assert(!joint.jointActive());
-seqHandleButtonCc(50,127,false);seqHandleButtonCc(50,0,false);
-assert(joint.jointActive(),'second Session tap enters Joint Play');
+// Session transitions are covered with the real controller in hb-joint-panels.
+joint.setJointEnabled(true);seqState.sessionMode=false;
 assert.equal(joint.jointRecordCommand(),'jrec 9 1');
 joint.restoreJoint([split]);joint.setJointEnabled(true);seqState.sessionMode=false;
 assert.equal(joint.jointRecordCommand(),'jrec 15 5');
@@ -75,8 +72,9 @@ for(let group=0;group<4;group++){
  for(let role=0;role<4;role++)assert.equal(joint.jointActorColor(role),trackColor(group*4+role));
 }
 appState.focusGroup=0;
-joint.restoreJoint([{bass:2,comp:3,lower:1,upper:2,overwrite:10}]);
+joint.restoreJoint([{bass:2,comp:3,lower:1,upper:2,steps:1,overwrite:10}]);
 assert.equal(joint.jointSnapshot()[0].overwrite,11,'root is always overwrite');
+assert.equal(joint.jointSnapshot()[0].steps,1,'step row mode restores from set');
 const saved=joint.jointSnapshot();joint.restoreJoint(saved);assert.deepEqual(joint.jointSnapshot(),saved);
 assert(!joint.jointEnabled(),'navigation does not persist');
 console.log('Joint Play: role geometry, operation scope, Session entry, recording masks, preview budget and persistence pass');
