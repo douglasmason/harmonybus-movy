@@ -12,6 +12,7 @@ import { motifEditing } from '../renderer/hb-motif.js';
 import { flagValue } from './flags.js';
 import { seqToast } from './render.js';
 import { schwungActiveFor } from '../renderer/schwung-grid.js';
+import { schwungLibAvailable } from '../renderer/schwung-lib.js';
 
 // Derive navigation from existing owners; no second persisted mode state.
 export function sessionPlayMode(): number {
@@ -20,7 +21,7 @@ export function sessionPlayMode(): number {
 function advanceSessionMode(previous: number): void {
     let next = (previous + 1) % 4;
     if (next === 2 && schwungActiveFor(appState.activeTrack.index, 'midi_fx1')?.moduleId !== 'harmonybus') next = 3;
-    if (next === 3 && !jointAvailable()) next = 0;
+    if (next === 3 && (!jointAvailable() || !schwungLibAvailable())) next = 0;
     setJointEnabled(next === 3);
     setHbPerformanceMode(next === 2 ? 2 : 0);
     seqState.sessionMode = next === 0;
