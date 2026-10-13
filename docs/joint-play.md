@@ -43,7 +43,7 @@ Joint Play uses `createSchwungPage`, the existing Motif Play hierarchy and its c
 | 7 | Chromatic-below touch for root/bass; turn to latch/unlatch |
 | 8 | Step row: Steps, Operators, Motifs (default) |
 
-Joint Recording exposes Root, Bass, Comp and Melody record modes directly on knobs 1–4. Root is fixed to Replace. The others select Overdub or Replace, independent of the actor selected for editing.
+Joint Recording exposes Root, Bass, Comp and Melody record modes directly on knobs 1–4. Root is fixed to Replace. The others select Overdub or Replace.
 
 Jog onward to the shared Motif Play panels. Motif Play 1/2 expose the existing sixteen operation/motif slots. LT is slot 5 by default; Shift-turn changes assignments using the ordinary HB implementation. Touch, release and latch/row-selection reuse the existing controller. Dedicated melody approach rows select the operation played by those rows; a one-row or two-octave melody layout uses ordinary performance operation behavior. Parallel Scale and Key Center retain their shared harmony scope. Per-track sound and voicing settings remain on the normal track panels.
 
