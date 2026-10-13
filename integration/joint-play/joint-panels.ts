@@ -24,12 +24,30 @@ const recording=[
     enumeration('joint_record_comp','Comp Record',['Overdub','Replace']),
     enumeration('joint_record_melody','Melody Record',['Overdub','Replace']),
 ];
-export const jointParameters=[...setup,...recording];
+const participation=[0,1,2,3].map(role=>enumeration('joint_pads_'+role,['Root Pads','Bass Pads','Comp Pads','Melody Pads'][role],['Off','On']));
+const display=[enumeration('joint_overlay','Playback Overlay',['Zone','Linked Pair','All Four']),enumeration('joint_secondary','Secondary Play',['Red','Orange','Yellow','Green','Cyan','Blue','Purple','Pink'])];
+export const jointParameters=[...setup,...recording,...participation,...display];
+const actorNames=['Root','Bass','Comp','Melody'];
+const actorFields=['travel_map','chord_mode','chord_inversion','arp_playback','arp_rate','play_range','content_map'];
+const actorKey=(role:number,key:string)=>'joint_actor_'+role+'_'+key;
+function actorAlias(key:string):{role:number;key:string}|null{
+    const match=/joint_actor_([0-3])_([^:]+)(.*)$/.exec(key);
+    return match?{role:Number(match[1]),key:key.slice(0,match.index)+match[2]+match[3]}:null;
+}
+function actorParameters(parameters:any[]):any[]{return actorNames.flatMap((name,role)=>actorFields.flatMap(key=>{
+    const meta=parameters.find(parameter=>parameter.key===key);
+    return meta?[{...meta,key:actorKey(role,key),name:meta.name,short_name:meta.short_name??meta.name}]:[];
+}));}
 export function jointHierarchy(hierarchy:any):any {
     const root=hierarchy.levels.root;
     const links=(root.params??[]).filter((parameter:any)=>/^approach_bank_|^harm_play_/.test(parameter.level??''));
     root.name='Joint Setup';root.knobs=setup.map(parameter=>parameter.key);
-    root.params=[...setup,{level:'joint_record'},...links];
+    root.params=[...setup,{level:'joint_pads'},...actorNames.map((_,role)=>({level:'joint_actor_'+role})),{level:'joint_record'},...links];
+    hierarchy.levels.joint_pads={name:'Joint Pads / Display',knobs:[...participation,...display].map(p=>p.key),params:[...participation,...display]};
+    actorNames.forEach((name,role)=>{
+        const keys=['joint_pads_'+role,role===1?'joint_bass':role===2?'joint_comp':actorKey(role,'content_map'),...actorFields.slice(0,6).map(key=>actorKey(role,key))];
+        hierarchy.levels['joint_actor_'+role]={name:name+' Track',knobs:keys,params:keys.map(key=>({key}))};
+    });
     hierarchy.levels.joint_record={name:'Joint Recording',knobs:recording.map(parameter=>parameter.key),params:recording};
     return hierarchy;
 }
@@ -39,14 +57,16 @@ function panelPort(track:number):TrackPort {
     const native=portFor(track),base=track&~3;
     const recipients=new Map<string,number[]>();
     const getParam=(key:string):string|null=>{
+        const alias=actorAlias(key);if(alias)return portFor(base+alias.role).getParam(alias.key);
         const bare=key.replace(/:(base|modulated)$/,'').split(':').pop()??'';
         const meta=jointParameters.find(parameter=>parameter.key===bare);
         if(meta)return key.endsWith(':modulated')?'0':meta.options[jointPanelGet(base,bare)]??meta.options[0];
         const value=native.getParam(key);
-        if(key.endsWith(':chain_params')&&value){try{return JSON.stringify([...JSON.parse(value),...jointParameters]);}catch(_){}}
+        if(key.endsWith(':chain_params')&&value){try{return JSON.stringify([...JSON.parse(value),...jointParameters,...actorParameters(JSON.parse(value))]);}catch(_){}}
         return value;
     };
     const setParam=(key:string,value:string):boolean=>{
+        const alias=actorAlias(key);if(alias)return portFor(base+alias.role).setParam(alias.key,value);
         const bare=key.split(':').pop()??'';
         const meta=jointParameters.find(parameter=>parameter.key===bare);
         if(meta){jointPanelSet(base,bare,bare==='joint_chromatic_below'?value:String(meta.options.indexOf(value)));return true;}

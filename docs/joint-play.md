@@ -17,6 +17,18 @@ The same arrangement repeats on tracks 5–8, 9–12 and 13–16. Stock Move tra
 
 These defaults apply to new sets. Saved chains and MIDI settings are preserved. Older sets without Joint Play settings start with independent clip sources for bass and comp, so merely loading a set cannot suppress existing clips. Joint Play requires Movy-hosted tracks in the selected unit.
 
+## Pad participation and playback display
+
+Jog to **Joint Pads / Display**. Knobs 1–4 switch Root, Bass, Comp and Melody pads Off/On. This never mutes a track, stops a clip or changes a follow source. Bass and comp additionally need their source set to Pads to claim rows. Disabled actors are excluded from Joint recording and live modifier recipients; held notes keep their original release ownership.
+
+The remaining actor in a half receives both rows. If one half has no playable actors, the other uses all four rows; one actor can therefore own the whole surface. Comp never receives approach semantics. For conductor clips plus independent bass and melody, turn Root Pads Off, Bass Source to Pads, and leave Melody Pads On: bass gets the lower two rows and melody the upper two.
+
+Knob 5 chooses **Zone / Linked Pair / All Four** playback feedback (Linked Pair by default). Knob 6 chooses the secondary color (cyan by default); primary playback retains the existing global Play Color (green by default). All Four uses each actor’s track color. Coincident actors alternate at 180 ms intervals. A held root command retains a track-colored marker even when conductor MIDI output is off.
+
+The playable actor owns the pad map, harmonic background and travel preview. Secondary overlays match actual output pitches, after that secondary actor’s own travel/chord/arp processing, against the owner’s resolved pad target pitches. Duplicate targets can light together; out-of-range pitches are not folded into unrelated pads. Display feedback never becomes musical input. All Four overlays four outputs on one surface; it does not make one pad trigger four actors.
+
+Requires HarmonyBus **0.2.272** for final-output feedback. Pad and display choices are saved per four-track unit. Track rendering settings remain in the corresponding HarmonyBus track state.
+
 ## Pad allocation
 
 | Physical row, top to bottom | Linked default | Bass and comp both on pads |
@@ -45,7 +57,7 @@ Joint Play uses `createSchwungPage`, the existing Motif Play hierarchy and its c
 
 Joint Recording exposes Root, Bass, Comp and Melody record modes directly on knobs 1–4. Root is fixed to Replace. The others select Overdub or Replace.
 
-Jog onward to the shared Motif Play panels. Motif Play 1/2 expose the existing sixteen operation/motif slots. LT is slot 5 by default; Shift-turn changes assignments using the ordinary HB implementation. Touch, release and latch/row-selection reuse the existing controller. Dedicated melody approach rows select the operation played by those rows; a one-row or two-octave melody layout uses ordinary performance operation behavior. Parallel Scale and Key Center retain their shared harmony scope. Per-track sound and voicing settings remain on the normal track panels.
+Jog onward to the shared Motif Play panels. Motif Play 1/2 expose the existing sixteen operation/motif slots. LT is slot 5 by default; Shift-turn changes assignments using the ordinary HB implementation. Touch, release and latch/row-selection reuse the existing controller. Dedicated melody approach rows select the operation played by those rows; a one-row or two-octave melody layout uses ordinary performance operation behavior. Parallel Scale and Key Center retain their shared harmony scope. Fixed Root, Bass, Comp and Melody panels expose the corresponding track’s travel, chord mode, inversion, arp playback/rate and range through direct native parameter aliases. Editing these updates the normal track panels, and external edits read back in Joint Play. Bass and Comp Source reuse the existing routing settings, independently of pad participation.
 
 Normal Play uses the step row for sequencer editing; Clips uses it for track selection; Motif Play uses it for motif triggers. Joint Setup knob 8 selects Steps, Operators or Motifs for the step row, saved per four-track unit (default Motifs). Operators and Motifs use the global assignments edited in Motif Play. There is no separate Joint bank to configure. This selector changes the step row only. Modifier buttons arm root and melody pads plus independently played bass pads; comp ignores direct pitch modifiers, and following bass receives the resulting harmony without a second application. The pads determine the role. Touch knobs use the same pad-scoped control path.
 
