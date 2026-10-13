@@ -103,7 +103,7 @@ selectTrack(0);schwungGridReload();appState.currentView = VIEW_KNOBS;seqState.se
 appState.shiftHeld = false;seqState.recording = false;seqState.countingIn = false;seqState.trackSelectHold = false;
 appState.trackChainIndex[0] = 0;setFlag('hbsteprow', 0);keyboardState.layout = 0;
 let page = schwungPageFor(0, 'midi_fx1');assert(page.ready);
-const copyTap = () => { seqHandleButtonCc(60, 127);seqHandleButtonCc(60, 0); };
+const {cycleHbStepMode: copyTap}=await import('../dist/esm/renderer/schwung-page.js'); // retained legacy assignment coverage
 copyTap();page = schwungPageFor(0, 'midi_fx1');assert.equal(page.keyAt(0), 'motion_control_1');
 setFlag('hblaunchpad', 1);tickLaunchpad(200);tickLaunchpad(210);tickLaunchpad(220);
 const controlStart = writes.length;

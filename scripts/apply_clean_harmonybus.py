@@ -597,6 +597,8 @@ def main() -> int:
     patch_output_capture(root)
     from patch_joint_play import patch_joint_play
     patch_joint_play(root)
+    from patch_session_modes import patch_session_modes
+    patch_session_modes(root)
     print("HarmonyBus clean integration applied")
     return 0
 

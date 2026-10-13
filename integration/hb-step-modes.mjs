@@ -70,14 +70,16 @@ assert(order('render_channel')<order('chord_mode'));
 let now=10000;const clock=Date.now;Date.now=()=>now;
 const down=()=>seqHandleButtonCc(60,127,appState.shiftHeld);
 const up=()=>seqHandleButtonCc(60,0,appState.shiftHeld);
-const tap=()=>{down();now+=60;up();};
+// Exercise retained internal legacy panels; physical Copy is tested separately.
+const {cycleHbStepMode}=await import('../dist/esm/renderer/schwung-page.js');
+const tap=()=>{now+=60;cycleHbStepMode();};
 try {
     beforeCopy=contractReads;
     tap();assert.equal(contractReads,beforeCopy,'Copy layout reuses contract without DSP reads');assert.equal(flagValue('hbsteprow'),1);assert(page.ctl.page.keys.includes('motion_control_1'));
     assert(!has(page,'motif_slot'));assert(has(page,'motion_lane'));
     assert(has(page,'content_map')&&has(page,'travel_map'),'Perform exposes regular follower mapping');
-    assert(!has(page,'motion_control_17'),'Approach Harmony belongs to Harm Play');
-    assert(!has(page,'motion_control_35'),'Secondary belongs to Harm Play');
+    assert(!has(page,'motion_control_17'),'Approach Harmony belongs to Motif Play');
+    assert(!has(page,'motion_control_35'),'Secondary belongs to Motif Play');
     checkCadences();
     const firstOps=order('motion_control_1');
     assert(firstOps>=0);
@@ -96,9 +98,9 @@ try {
     assert(has(page,'approach_bank_1'));assert(has(page,'approach_bank_12'));assert(has(page,'approach_motif_latch'));assert(has(page,'approach_bank_7'));assert(has(page,'approach_bank_15')); assert(has(page,'motion_control_32'));
     assert(!has(page,'motion_control_1'),'Approach bank is independent of Perform');
     assert(has(page,'motion_control_17'));assert(has(page,'motion_control_35'));
-    assert(has(page,'content_map')&&has(page,'travel_map'),'Harm Play exposes regular follower mapping');
-    assert.equal(order('monitor_status'),-1,'Harm Play excludes diagnostics');
-    assert(!has(page,'motion_lane'),'Harm Play excludes operation editing');
+    assert(has(page,'content_map')&&has(page,'travel_map'),'Motif Play exposes regular follower mapping');
+    assert.equal(order('monitor_status'),-1,'Motif Play excludes diagnostics');
+    assert(!has(page,'motion_lane'),'Motif Play excludes operation editing');
     assert.equal(page.ctl.page.keys.length,8);
     assert(page.ctl.pages.some(p=>p.keys?.includes('approach_motif_latch')&&!p.keys.some(k=>/^approach_bank_/.test(k??''))),'Shared settings have their own panel');
     for(let bank=0;bank<2;bank++){
@@ -110,7 +112,7 @@ try {
     const beforeSettings=writes.length;
     page.goToPage(settingsIndex);
     assert.deepEqual(page.ctl.page.keys,['key_center','parallel_mode','approach_motif_latch','motion_control_32','dominant_color','harm_play_release_control','harm_play_advance']);
-    assert.equal(page.pageTitle,'Harm Play Controls');
+    assert.equal(page.pageTitle,'Motif Play Controls');
     const settingsOwner=hbPerformancePage();assert(settingsOwner);
     page.knobTouch(6,true);assert.deepEqual(writes.at(-1).slice(1),['midi_fx1:harm_play_advance','Next']);page.knobTouch(6,false);
     for(let step=0;step<16;step++){

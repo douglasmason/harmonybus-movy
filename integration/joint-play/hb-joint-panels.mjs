@@ -47,8 +47,33 @@ seqState.sessionMode=true;joint.jointMidi([0x80,slot,0]);assert(writes.some(([tr
 seqState.sessionMode=false;appState.shiftHeld=true;page.knobTurn(slot,1);flush(page);appState.shiftHeld=false;
 assert(writes.some(([track,key])=>track===7&&key==='midi_fx1:approach_bank_5'),'shared Shift-turn assignment edits actor HB bank');
 assert.equal(hbPerformancePage().performanceTrack,7);
-assert(hbPerformanceStep([0x90,16,127]));assert(hbPerformanceStep([0x80,16,0]));
-assert(writes.some(([track,key,value])=>track===7&&key==='midi_fx1:approach_step_touch_1'&&value==='Down'));
+assert.equal(hbPerformanceStep([0x90,16,127]),false);assert.equal(hbPerformanceStep([0x80,16,0]),false);
+assert(!writes.some(([track,key,value])=>track===7&&key==='midi_fx1:approach_step_touch_1'&&value==='Down'),'Joint leaves sequencer steps available');
 assert.equal(flagValue('hbsteprow'),savedMode,'Joint does not rewrite the saved Copy mode');
-assert(page.ctl.pages.some(item=>item.keys?.includes('target_scale_source')),'existing Harm Play Settings retained');
+assert(page.ctl.pages.some(item=>item.keys?.includes('target_scale_source')),'existing Motif Play Settings retained');
 console.log('Joint shared panels: metadata, jog, unit knob, actor recording, native operation touch/release and Shift assignment pass');
+
+// Session owns navigation; Copy retains its native duplicate gesture.
+const {seqHandleButtonCc,sessionPlayMode}=await import('../dist/esm/seq/router-buttons.js');
+const {CC_NOTE_SESSION}=await import('../dist/esm/seq/constants.js');
+const {momentaryGesture}=await import('../dist/esm/seq/momentary.js');
+const {VIEW_KNOBS}=await import('../dist/esm/app/state.js');
+const {selectTrack}=await import('../dist/esm/track/focus.js');
+selectTrack(0);appState.currentView=VIEW_KNOBS;appState.shiftHeld=false;appState.focusGroup=0;
+joint.setJointEnabled(false);setFlag('hbsteprow',0);seqState.sessionMode=true;
+const sessionDown=()=>seqHandleButtonCc(CC_NOTE_SESSION,127,false);
+const sessionUp=()=>seqHandleButtonCc(CC_NOTE_SESSION,0,false);
+const sessionTap=()=>{sessionDown();now+=60;sessionUp();};
+for(const expected of [1,2,3,0,1,2,3,0]){
+ sessionTap();assert.equal(sessionPlayMode(),expected,'four-mode Session cycle');
+ if(expected){
+  sessionDown();assert(seqState.sessionMode,'hold immediately peeks clips');now+=600;sessionUp();
+  assert.equal(sessionPlayMode(),expected,'hold restores original play mode');
+  sessionDown();momentaryGesture();now+=40;sessionUp();
+  assert.equal(sessionPlayMode(),expected,'clip gesture restores original play mode');
+ }
+ seqHandleButtonCc(60,127,false);now+=60;seqHandleButtonCc(60,0,false);
+ assert.equal(sessionPlayMode(),expected,'Copy never changes mode');
+}
+const beforeStray=sessionPlayMode();sessionUp();assert.equal(sessionPlayMode(),beforeStray);
+console.log('Session: four modes, hold/clip-gesture restore, stray release and native Copy pass');

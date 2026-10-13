@@ -4,7 +4,7 @@ Joint Play makes the Move pad grid an instrument for one selected four-track uni
 
 ## Entry and navigation
 
-Tap Session to select clips. Tap it again to enter Joint Play. Hold Session to peek at clips and release to return. Back exits Joint Play. Turn the jog to navigate the same HB settings panels used by Copy-tap Harmony Play. Jog click uses the existing picker/peek behavior. On Joint Setup, knob 1 selects the four-track unit and knob 2 selects the actor whose HB settings and operations you edit. This actor selection does not change the pad allocation.
+Tap Session to cycle Clips → Normal Play → Motif Play → Joint Play → Clips. Hold Session from a play mode to peek at clips and release to return. Back exits Joint Play to Normal Play. Copy is reserved for copying. Operator Play is hidden, with its implementation and assignments retained. Turn the jog to navigate the existing HB settings panels. Jog click uses the existing picker/peek behavior. On Joint Setup, knob 1 selects the four-track unit and knob 2 selects the actor whose HB settings and operations you edit. This actor selection does not change the pad allocation.
 
 | Role | Track within unit | Default source | Recording | New-set travel | MIDI render channel |
 | --- | --- | --- | --- | --- | --- |
@@ -45,9 +45,9 @@ Joint Play uses `createSchwungPage`, the existing Harmony Play hierarchy and its
 
 Joint Recording exposes Root, Bass, Comp and Melody record modes directly on knobs 1–4. Root is fixed to Replace. The others select Overdub or Replace, independent of the actor selected for editing.
 
-Jog onward to the actor's existing HarmonyBus settings and Harm Play panels. Harm Play 1/2 expose the existing sixteen operation/motif slots. LT is slot 5 by default; Shift-turn changes assignments using the ordinary HB implementation. Touch, release and latch/row-selection behavior follow the actor's current layout. Dedicated melody approach rows select the operation played by those rows; a one-row or two-octave melody layout uses ordinary performance operation behavior. Settings such as Parallel Scale, Key Center, voicing, rhythm and motifs remain the actor's real HB settings, not copied Joint Play values.
+Jog onward to the actor's existing HarmonyBus settings and Motif Play panels. Motif Play 1/2 expose the existing sixteen operation/motif slots. LT is slot 5 by default; Shift-turn changes assignments using the ordinary HB implementation. Touch, release and latch/row-selection behavior follow the actor's current layout. Dedicated melody approach rows select the operation played by those rows; a one-row or two-octave melody layout uses ordinary performance operation behavior. Settings such as Parallel Scale, Key Center, voicing, rhythm and motifs remain the actor's real HB settings, not copied Joint Play values.
 
-The step row also uses the selected actor's existing Harm Play operation bank while Joint Play is active. Leaving Joint Play restores the ordinary Copy-mode interpretation without changing its saved mode.
+The step row retains normal sequencer editing in Normal Play and Joint Play. Clips uses it for track selection; Motif Play uses it for motif triggers. Joint Play's operation banks remain playable from the touch knobs.
 
 Chromatic below changes lower inputs only, never a melody or comp input. Its resulting conductor harmony still propagates to followers, including independent bass. Shared HB operations retain their established scope.
 

@@ -325,15 +325,13 @@ console.log('HB step controls: sixteen assignable holds/triggers, duplicate edge
 const { setHbPerformanceMode, syncHbPerformanceMode } = await import('../dist/esm/renderer/schwung-page.js');
 const { flagValue, resetFlags, loadPerSetFlags, perSetFlagsSnapshot } = await import('../dist/esm/seq/flags.js');
 const { visibleFlags } = await import('../dist/esm/seq/flags-visible.js');
-const { flagsPageState, flagsPageKnob } = await import('../dist/esm/seq/flags-page.js');
+const { flagsPageState, flagsPageKnob, flagsRowCount } = await import('../dist/esm/seq/flags-page.js');
 const { installMockFs, uninstallMockFs } = await import('./mock-fs.mjs');
 installMockFs();
 try {
     resetFlags();resetHbPerformance();
     assert.equal(flagValue('hbsteprow'),0,'Fresh installs retain normal step editing');
-    const setting=visibleFlags(false).find(def=>def.key==='hbsteprow');
-    assert(setting?.uiOnly&&!setting.perSet,'Step Row is a release-visible global UI preference');
-    assert.deepEqual(setting.labels,['STEPS','PERFORM 1','PERFORM 2']);
+    assert(!visibleFlags(false).some(def=>def.key==='hbsteprow'),'Session is the only visible mode selector');
     setHbPerformanceMode(1);
     assert(syncHbPerformanceMode());
     assert(!Object.hasOwn(perSetFlagsSnapshot(),'hbsteprow'),'The choice is not stored in a set');
@@ -343,9 +341,8 @@ try {
     hbPerformanceStep([0x90,20,127],page);
     hbPerformanceStep([0x90,22,127],page);releaseHbPerformanceStep([0x80,22,0]);
     const before=writes.length;
-    // Change it through the actual Settings encoder, not only the helper API.
-    flagsPageState.selected=visibleFlags().findIndex(def=>def.key==='hbsteprow');
-    for(let turn=0;turn<64;turn++)flagsPageKnob(0,-1);
+    assert.equal(flagsRowCount(),visibleFlags().length+1,'Settings hides the legacy mode flag and adds Backups');
+    setHbPerformanceMode(0);
     assert.equal(flagValue('hbsteprow'),0);
     assert(writes.slice(before).some(([key,value])=>key==='midi_fx1:motion_hold_5'&&value==='Off'));
     assert(!writes.slice(before).some(([key])=>key==='midi_fx1:performance_reset'),'Navigation preserves armed and latched musical state');
@@ -354,7 +351,7 @@ try {
     assert.equal(writes.length,cleared,'Mode change and button release cannot send duplicate Off');
     assert(!syncHbPerformanceMode());
 } finally { resetHbPerformance();uninstallMockFs();resetFlags(); }
-console.log('HB Step Row mode: global preference, release Settings control, persistence across sets and mode-change cleanup pass');
+console.log('HB Step Row mode: transient mode, hidden legacy Settings control, reset across sets and mode-change cleanup pass');
 
 // Exercise discovery through the real registry, with no injected button owner.
 const { appState, VIEW_KEYS, VIEW_KNOBS } = await import('../dist/esm/app/state.js');
@@ -1013,10 +1010,10 @@ console.log('Perform captions and cyan Chord + Arp LED: Off/Armed/Hold/Latch, ro
 }
 console.log('Key Center and Parallel Scale: global settings, physical slots, captured release, latch and Shift scale selection pass');
 
-assert(focusKey('harm_play_advance')>=0,'Harm Play settings is reachable');
+assert(focusKey('harm_play_advance')>=0,'Motif Play settings is reachable');
 assert(focusKey('harm_play_release')===6,'Release Length follows the six shared configuration knobs');
 assert(page.knobLEDMask & 64,'Release Length owns its setting LED');
-console.log('Empty Harm Play knob: both LED addresses off and legacy painter excluded');
+console.log('Empty Motif Play knob: both LED addresses off and legacy painter excluded');
 {
     const {approachPanels}=await import('../dist/esm/renderer/hb-approach.js');
     const hierarchy={levels:{root:{params:[]}}};approachPanels(hierarchy,2);
@@ -1037,7 +1034,7 @@ console.log('Empty Harm Play knob: both LED addresses off and legacy painter exc
     setInitialMode('hbsteprow',2);page.reload();
     const index=page.ctl.pages.findIndex(candidate=>candidate.keys?.[0]==='key_center_scale'&&candidate.keys?.[4]==='target_scale_source');
     assert(index>=0);page.goToPage(index);for(let tick=0;tick<64;tick++)page.tick();
-    assert.equal(page.pageTitle,'Harm Play Settings');
+    assert.equal(page.pageTitle,'Motif Play Settings');
     assert.deepEqual(page.ctl.page.keys,['key_center_scale','conductor_key_travel','follower_key_travel','parallel_scale','target_scale_source','dominant_color_family','harm_play_release','motif_placement']);
     for(let slot=0;slot<8;slot++){
         const before=writes.length;page.knobTouch(slot,true);
@@ -1059,7 +1056,7 @@ console.log('Empty Harm Play knob: both LED addresses off and legacy painter exc
     assert(writes.slice(shifted).some(([key,value])=>key==='midi_fx1:key_center_scale'&&choices.includes(value)));
     assert(!writes.slice(shifted).some(([key])=>key==='midi_fx1:key_center'),'Shift edits never arm Key Center');
 }
-console.log('Harm Play: separate activation/settings, harmless touches, shared follower key travel and Key Center scale peek pass');
+console.log('Motif Play: separate activation/settings, harmless touches, shared follower key travel and Key Center scale peek pass');
 
 // Explicit entry stages choices, and only an Apply touch changes the live key.
 {
