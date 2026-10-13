@@ -61,11 +61,11 @@ assert.equal(sent.filter(([key])=>key==='joint_map').length,1,'unchanged geometr
 assert.equal(writes.filter(([,key])=>key==='midi_fx1:pad_preview_inputs').length,1,'one preview per 50 ms total');
 joint.syncJoint(send,50);joint.syncJoint(send,100);joint.syncJoint(send,150);
 assert.deepEqual([...new Set(writes.map(([track])=>track))].sort(),[0,1,2,3]);
-joint.jointMidi([0x90,1,127]);joint.syncJoint(send,200);
+joint.jointPanelSet(0,'joint_chromatic_below','Down');joint.syncJoint(send,200);
 const latest=sent.filter(([key])=>key==='joint_map').at(-1)[1].split(';').map(cell=>cell.split(',').map(Number));
 assert.equal(latest[0][1],keyboardState.octave[1]*12-1);
 assert.equal(latest[16][1],keyboardState.octave[2]*12);
-joint.jointMidi([0x80,1,0]);joint.jointMidi([0x90,68,100]);
+joint.jointPanelSet(0,'joint_chromatic_below','Up,400');joint.jointMidi([0x90,68,100]);
 seqState.sessionMode=true;
 assert(joint.jointMidi([0x80,68,0]),'held release survives Session peek');
 seqState.sessionMode=false;
@@ -75,16 +75,6 @@ for(let group=0;group<4;group++){
  for(let role=0;role<4;role++)assert.equal(joint.jointActorColor(role),trackColor(group*4+role));
 }
 appState.focusGroup=0;
-const nativeWrites=[];
-const externalRelease=beginControlTouch({performanceTrack:3,performanceGet:()=>'',performanceSet:(key,value)=>nativeWrites.push([key,value])},'approach_touch_5');
-joint.jointMidi([0x90,0,127]);joint.jointMidi([0x80,0,0]);
-assert.equal(nativeWrites.length,1,'Joint release cannot steal external LT touch');
-externalRelease();assert.equal(nativeWrites.length,2);assert(nativeWrites[1][1].startsWith('Up,'));
-joint.jointMidi([0x90,1,127]);joint.jointMidi([0xb0,72,1]);joint.jointMidi([0x80,1,0]);
-joint.syncJoint(send,250);
-assert.equal(sent.filter(([key])=>key==='joint_map').at(-1)[1].split(';')[0].split(',')[1],String(keyboardState.octave[1]*12-1),'turn-to-latch survives touch release');
-joint.jointMidi([0xb0,72,127]);joint.syncJoint(send,300);
-assert.equal(sent.filter(([key])=>key==='joint_map').at(-1)[1].split(';')[0].split(',')[1],String(keyboardState.octave[1]*12),'unlatch restores lower pitches');
 joint.restoreJoint([{bass:2,comp:3,lower:1,upper:2,overwrite:10}]);
 assert.equal(joint.jointSnapshot()[0].overwrite,11,'root is always overwrite');
 const saved=joint.jointSnapshot();joint.restoreJoint(saved);assert.deepEqual(joint.jointSnapshot(),saved);

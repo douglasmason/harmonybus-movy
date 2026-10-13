@@ -8,6 +8,8 @@ def patch_joint_play(root: Path) -> None:
     assets: Path = Path(__file__).resolve().parent.parent / "integration/joint-play"
     for filename, destination in {
         "joint-play.ts": "src/seq/joint-play.ts",
+        "joint-panels.ts": "src/seq/joint-panels.ts",
+        "hb-joint-panels.mjs": "browser-test/hb-joint-panels.mjs",
         "hb-joint-play.mjs": "browser-test/hb-joint-play.mjs",
         "hb-joint-defaults.mjs": "browser-test/hb-joint-defaults.mjs",
         "joint_route.rs": "engine/crates/movy-dsp/src/joint_route.rs",
@@ -176,7 +178,7 @@ function freshHarmonyBusChains() {''')
     path.write_text(source)
 
     path = root / "build/browser.mjs"
-    source = replace_once(path.read_text(), '    entryPoints: [', "    entryPoints: [\n        resolve(root, 'src/seq/joint-play.ts'),")
+    source = replace_once(path.read_text(), '    entryPoints: [', "    entryPoints: [\n        resolve(root, 'src/seq/joint-play.ts'),\n        resolve(root, 'src/seq/joint-panels.ts'),")
     path.write_text(source)
 
     path = root / "browser-test/logic/tracks-chain.mjs"
@@ -199,4 +201,31 @@ function laneFor(page: SchwungPage, key: string): number {""")
     source = replace_once(source, """    const actions = touches.get(page.performanceTrack ?? page), action = actions?.get(touchKey);
     if (action) { action.done = true; actions!.delete(touchKey); }
     page.performanceSet(latchKey, on ? 'LatchOn' : 'LatchOff'); approachTouched(page);""", "    setControlLatch(page, touchKey, latchKey, on);")
+    path.write_text(source)
+
+    path = root / "src/renderer/schwung-page.ts"
+    source = path.read_text()
+    source = replace_once(source, "export function createSchwungPage(port: TrackPort, componentKey = 'synth'): SchwungPage {", "export function createSchwungPage(port: TrackPort, componentKey = 'synth', options: {harmonyMode?: number; hierarchy?: (value:any)=>any} = {}): SchwungPage {\n    const harmonyMode=():number=>options.harmonyMode ?? flagValue('hbsteprow');")
+    source = source.replace("plannedStepMode = flagValue('hbsteprow')", "plannedStepMode = harmonyMode()")
+    source = source.replace("plannedStepMode !== flagValue('hbsteprow')", "plannedStepMode !== harmonyMode()")
+    source = source.replace("hbStepHierarchy(hierarchy, flagValue('hbsteprow'), motifEditorFor(port.track.index))", "(options.hierarchy ?? ((value:any)=>value))(hbStepHierarchy(hierarchy, harmonyMode(), motifEditorFor(port.track.index)))")
+    source = source.replace("keyContext==='key_center'||keyContext==='parallel_mode'||keyContext==='dominant_color'", "keyContext==='key_center'||keyContext==='parallel_mode'||keyContext==='dominant_color'||keyContext==='joint_chromatic_below'")
+    source = source.replace("key==='key_center'||key==='parallel_mode'||key==='dominant_color'", "key==='key_center'||key==='parallel_mode'||key==='dominant_color'||key==='joint_chromatic_below'")
+    source = source.replace("if(appState.shiftHeld){editKeyContextSetting(key,slot,0);return;}", "if(appState.shiftHeld){if(key!=='joint_chromatic_below')editKeyContextSetting(key,slot,0);return;}")
+    source = source.replace("                    editKeyContextSetting(keyContext,slot,delta);", "                    if(keyContext!=='joint_chromatic_below')editKeyContextSetting(keyContext,slot,delta);")
+    path.write_text(source)
+
+    path = root / "src/renderer/hb-performance.ts"
+    source = "import { jointActive } from '../seq/joint-play.js';\nimport { jointPage } from '../seq/joint-panels.js';\n" + path.read_text()
+    source = replace_once(source, "    const mode = flagValue('hbsteprow');", "    const mode = jointActive()?2:flagValue('hbsteprow');")
+    source = replace_once(source, "export function hbPerformancePage(): PerformancePort | null {", "export function hbPerformancePage(): PerformancePort | null {\n    if(jointActive()){syncHbPerformanceMode();const page=jointPage();syncApproachOwner(page);return page;}")
+    source = source.replace("if (flagValue('hbsteprow') === 2) return approachStep(data,owner);", "if (jointActive() || flagValue('hbsteprow') === 2) return approachStep(data,owner);")
+    path.write_text(source)
+    source = source.replace("if(flagValue('hbsteprow')===2)return paintApproach(owner);", "if(jointActive()||flagValue('hbsteprow')===2)return paintApproach(owner);")
+    source = source.replace("const active = hbPerformancePage() !== null;", "const performancePage=hbPerformancePage(),active=performancePage!==null;\n    const footerTrack=jointActive()?performancePage?.performanceTrack??appState.activeTrack.index:appState.activeTrack.index;")
+    source = source.replace("harmonyFooterText(active?flagValue('hbsteprow'):0,appState.activeTrack.index,harmonyFooterSnapshot(appState.activeTrack.index))", "harmonyFooterText(active?(jointActive()?2:flagValue('hbsteprow')):0,footerTrack,harmonyFooterSnapshot(footerTrack))")
+    path.write_text(source)
+    path = root / "src/renderer/hb-approach.ts"
+    source = "import { jointActive, jointApproachRowsActive } from '../seq/joint-play.js';\n" + path.read_text()
+    source = replace_once(source, "return keyboardState.layout===2||keyboardState.layout===3;", "return jointActive()?jointApproachRowsActive():keyboardState.layout===2||keyboardState.layout===3;")
     path.write_text(source)
