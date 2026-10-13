@@ -595,6 +595,8 @@ def main() -> int:
     patch_idle_probe(root)
     from patch_output_capture import patch_output_capture
     patch_output_capture(root)
+    from patch_joint_play import patch_joint_play
+    patch_joint_play(root)
     print("HarmonyBus clean integration applied")
     return 0
 

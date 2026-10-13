@@ -20,8 +20,8 @@ env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
   HB_REF: 2c386a48b921d419a97bb2ccc34c28f0e06b5589
-  HB_MOVY_VERSION: 0.34.1-hbclean.193
-  HB_MOVY_TAG: v0.34.1-hbclean.193
+  HB_MOVY_VERSION: 0.34.1-hbclean.194
+  HB_MOVY_TAG: v0.34.1-hbclean.194
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -96,6 +96,13 @@ jobs:
               ['git', '-C', str(root), 'ls-files', '--others', '--exclude-standard'], text=True
           ).splitlines()
           expected = {
+              'src/seq/joint-play.ts',
+              'src/undo/rec-pass.ts',
+              'engine/crates/movy-dsp/src/joint_route.rs',
+              'engine/crates/movy-dsp/src/joint_links.rs',
+              'engine/crates/seq-core/src/joint_record.rs',
+              'browser-test/hb-joint-play.mjs',
+              'browser-test/hb-joint-defaults.mjs',
               'engine/crates/movy-dsp/src/surface_route.rs',
               'engine/crates/seq-core/src/motif_load.rs',
               'src/renderer/hb-motif-loader.ts',
@@ -343,6 +350,14 @@ jobs:
         working-directory: movy
         run: node build/browser.mjs
 
+      - name: Verify Joint Play and actual new-set defaults
+        if: steps.plan.outputs.mode != 'reused'
+        run: |
+          cd movy
+          node browser-test/hb-joint-play.mjs
+          cd ..
+          python3 scripts/verify_joint_defaults.py movy harmonybus
+
       - name: Upstream test — logic
         if: steps.plan.outputs.mode == 'full'
         working-directory: movy
@@ -427,6 +442,7 @@ jobs:
           cargo test -p seq-core --lib
           cargo test -p movy-dsp piano_gap_tests --lib
           cargo test -p movy-dsp surface_route --lib
+          cargo test -p movy-dsp joint_ --lib
           cargo test -p movy-dsp audio_profile --lib
           cargo test -p movy-dsp tone_check --lib
           cargo test -p movy-dsp worker_profile --lib
@@ -516,7 +532,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Adds a 35-second automatic capture with a 30-second known tone, PCM handoff checks, late-callback clusters and coincident request attribution. One results screen; no listening comparison required. Shift+Step 12, click twice. Back keeps the short check running while you use performance controls; reopen diagnostics for the result. The tone temporarily replaces Movy local audio while normal processing continues. Keep HarmonyBus 0.2.264 and current host. PCM OK covers the tested software handoff, not hardware output; timing events are not underrun counts. Legacy ABC remains available via Shift-click. This is diagnostic tooling, not a confirmed crackle fix."
+              --notes "Joint Play: tap Session twice to perform a selected four-track unit. Lower pads control root/bass; upper pads control melody/comp. Reuses track colors and shared touch controls. Includes linked and clip-driven accompaniment, per-actor recording, and new-set role defaults. Existing saved chains are preserved. Requires HarmonyBus 0.2.266 or newer. Hardware playing feel and audio performance still need device verification."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
