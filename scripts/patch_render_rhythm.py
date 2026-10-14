@@ -36,7 +36,9 @@ def patch_render_rhythm(root: Path) -> None:
     # Settings are global as well as per-track; refresh all cached effective values.
     s=replace_once(s,'if key.starts_with("midi_fx1:motion_")','if key.starts_with("midi_fx1:motion_") || key.starts_with("midi_fx1:motif_") || key.starts_with("midi_fx1:render_rhythm_") || key == "midi_fx1:state"')
     s=replace_once(s,'if component == "midi_fx1" { self.hb_config_dirty[slot] = true; }','if component == "midi_fx1" { self.hb_config_dirty.fill(true); }')
-    s=replace_once(s,'        Some(message.unwrap_or_default())','''        let rhythm=instance.get_param("midi_fx1:render_rhythm_config");
+    s=replace_once(s,'        Some(message.unwrap_or_default())','''        let rhythm=instance.get_param("midi_fx1:render_rhythm_config2")
+            .filter(|value|value.starts_with("rr2,"))
+            .or_else(||instance.get_param("midi_fx1:render_rhythm_config"));
         if rhythm.is_some() { instance.set_param("midi_fx1:render_rhythm_host","movy-rhythm-v1"); }
         Some(format!("{}|{}",message.unwrap_or_default(),rhythm.unwrap_or_default()))''')
     path.write_text(s)
