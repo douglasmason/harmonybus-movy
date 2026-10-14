@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: 3ddca0001fd62ce07bb2ab09c91f64dfb1726436
-  HB_MOVY_VERSION: 0.34.1-hbclean.197
-  HB_MOVY_TAG: v0.34.1-hbclean.197
+  HB_REF: 286878c026cfd2040c07d3f06a821a62007732c8
+  HB_MOVY_VERSION: 0.34.1-hbclean.198
+  HB_MOVY_TAG: v0.34.1-hbclean.198
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -536,7 +536,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Joint Play adds independent actor Pads Off/On without muting playback, freed-row allocation up to a full surface, and fixed Root/Bass/Comp/Melody panels backed by native track travel, chord and arp settings. Linked Pair overlays use primary/secondary playback colors; All Four uses track colors and exact final output pitches. Source routing and global performance banks retain their existing behavior. Requires HarmonyBus 0.2.272 or newer."
+              --notes "Consolidate rhythm timing with HarmonyBus 0.2.273. Movy now consumes HB-provided timing weights; the old protocol remains supported for earlier HB versions. Motif clip export and padded playback honor the same track rhythm override as ordinary playback. Existing pattern choices, clip gates, pressure ownership and saved notes remain unchanged."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

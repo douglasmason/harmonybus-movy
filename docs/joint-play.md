@@ -82,3 +82,11 @@ A held pad retains its original track and pitch across view, unit, layout and so
 The patch is applied to the pinned upstream Movy checkout and checked with TypeScript, the existing logic suite, the real shared touch-controller tests, focused Joint Play browser tests and both Rust library suites. The new-set presets are extracted from the actual built TypeScript and loaded through the real HarmonyBus C implementation; the check covers all sixteen roles, channels, travel settings, comp voicing and edited-state round trips.
 
 Hardware acceptance is still required for rapid multi-actor playing, touch-to-pad timing, pressure, clip changes while recording, stock MIDI destinations, audio latency and LED pacing. The release pipeline verifies and publishes the installable Movy package; device installation and hardware checks remain separate.
+
+## Shared rhythm timing
+
+HarmonyBus 0.2.273 and Movy hbclean.198 use HB-owned rhythm weights for ordinary live output, recorded clip timing, motif playback and motif clip construction. The existing six patterns remain As Entered, Even, Long–Short, Short–Long, Accelerate and Decelerate. Tracks retain Inherit / Off / Override; motif export and padded motif playback now resolve that setting consistently.
+
+Each consumer retains its timing contract: clip playback warps beat/bar windows without rewriting notes; motif playback preserves its target anchor and applies existing Trim/Fit/Defer behavior; motif-to-clip rendering preserves ties, placement and padding. No separate named full-clip or target-only auto-fill engine was added by this consolidation, and it does not generate additional rhythmic attacks or rests.
+
+The host receives a cached versioned timing recipe on configuration changes. Older HB versions remain supported through the legacy protocol. No extra audio-block polling is introduced.
