@@ -29,6 +29,11 @@ test('WebSocket commands match production native state and MIDI; disconnect rele
     assert.ok(expected.some(packet=>(packet[1]&240)===144),'real note output');assert.ok(followed,'held C follows D minor to D');
     assert.ok(final.params['ch0:midi_fx1:harmony_snapshot'].includes('Dm'),'real chord changed');
     const rejected=await request(socket,{type:'set_param',key:'state',value:'movy1'});assert.equal(rejected.type,'error');
+    assert.equal((await request(socket,{type:'dev_watch',keys:['ch1:midi_fx1:state']})).type,'error');
+    assert.equal((await request(socket,{type:'dev_watch',keys:Array(65).fill('ch1:midi_fx1:role')})).type,'error');
+    const watched=await request(socket,{type:'dev_watch',keys:['ch1:midi_fx1:render_channel']});
+    assert.equal(watched.params['ch1:midi_fx1:render_channel'],'2');
+    await request(socket,{type:'dev_watch',keys:[]});
     const held=await request(socket,surface(12,1,144,44,60,100));
     assert.ok(held.events.length>0);
     socket.close();await once(socket,'close');

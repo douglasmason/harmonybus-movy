@@ -8,6 +8,13 @@ const root=dirname(fileURLToPath(import.meta.url));
 const writeKeys=new Set(['travel_map','master_transpose','retrigger_held','chord_mode','chord_timing','quant_timing','pad_preview_inputs','pad_display','pad_pulse_rate']);
 /** Limited development API; no autosave reads or arbitrary filesystem/loader commands. */
 export async function startServer({port=7701,host='127.0.0.1',realtime=true}={}) {
+  const metadata=JSON.parse(await readFile(resolve(root,'build/modules/midi_fx/harmonybus/module.json'),'utf8'));
+  const params=metadata.capabilities.chain_params;
+  const readable=new Set(params.filter(p=>!p.writeOnly&&p.key!=='state').map(p=>p.key));
+  const enabledWrites=new Set([...writeKeys,...params.filter(p=>!p.readOnly&&p.access!=='read'&&!p.writeOnly&&['enum','int','float'].includes(p.type)).map(p=>p.key)]);
+  metadata.dev={readable:[...readable],writable:[...enabledWrites]};
+  for(const param of params)if(!enabledWrites.has(param.key)){param.readOnly=true;param.access='read';}
+  const watches=new Map();
   const processor=new Processor(resolve(root,'build'));
   await processor.request('snapshot');
   const clients=new Set();let busy=false;let stopped=false;let recent=[];let eventSequence=0;let frameRemainder=0;
@@ -41,20 +48,29 @@ export async function startServer({port=7701,host='127.0.0.1',realtime=true}={})
         await processor.request('set',key,fields.join(','));
       } else {
         const match=/^ch([0-3]):midi_fx1:(\w+)$/.exec(key);
-        if(!match||!writeKeys.has(match[2]))throw new Error('Parameter is not enabled in this proof');
+        if(!match||!enabledWrites.has(match[2]))throw new Error('Parameter is not enabled in this proof');
         await processor.request('set',key,value);
       }
+    } else if(message.type==='dev_watch') {
+      if(!Array.isArray(message.keys)||message.keys.length>64||message.keys.some(key=>{
+        const match=typeof key==='string'&&/^ch([0-3]):midi_fx1:(\w+)$/.exec(key);
+        return !match||!readable.has(match[2]);
+      }))throw new Error('Invalid parameter watch');
+      watches.set(socket,[...new Set(message.keys)]);
     } else if(message.type==='dev_step') {
       const blocks=Number(message.blocks);if(!Number.isInteger(blocks)||blocks<0||blocks>4096)throw new Error('Invalid block count');
       await processor.request('step',blocks);
     } else if(message.type==='dev_release')await release(socket);
     else if(!['subscribe_tool','refetch_tool','subscribe','get_hierarchy'].includes(message.type))throw new Error('Unsupported message');
     const result=await processor.request('snapshot');
+    Object.assign(result.value,(await processor.request('read_many',(watches.get(socket)??[]).join(','))).value);
     return {type:'param_update',slot:0,params:result.value,beat:result.beat,events:recent,requestId:message.id};
   }
-  const files={'/':['index.html','text/html'],'/panel.js':['build/panel.js','text/javascript'],'/static/schwung-remote-api.js':['build/schwung-remote-api.js','text/javascript']};
+  const files={'/movy':['build/movy.html','text/html'],'/movy.js':['build/movy.js','text/javascript'],'/':['index.html','text/html'],'/panel.js':['build/panel.js','text/javascript'],'/static/schwung-remote-api.js':['build/schwung-remote-api.js','text/javascript']};
   const server=http.createServer(async(request,response)=>{
-    const entry=files[new URL(request.url,'http://local').pathname];
+    const pathname=new URL(request.url,'http://local').pathname;
+    if(pathname==='/api/dev/module'){response.writeHead(200,{'Content-Type':'application/json'});response.end(JSON.stringify(metadata));return}
+    const entry=files[pathname];
     if(!entry){response.writeHead(404);response.end();return}
     try{response.writeHead(200,{'Content-Type':entry[1],'Cache-Control':'no-store'});response.end(await readFile(resolve(root,entry[0])))}catch{response.writeHead(500);response.end('Build the local host first')}
   });
@@ -66,7 +82,7 @@ export async function startServer({port=7701,host='127.0.0.1',realtime=true}={})
   websockets.on('connection',socket=>{
     clients.add(socket);
     socket.on('message',raw=>enqueue(async()=>{try{const result=await command(JSON.parse(String(raw)),socket);if(socket.readyState===1)socket.send(JSON.stringify(result))}catch(error){if(socket.readyState===1)socket.send(JSON.stringify({type:'error',message:error.message}))}}).catch(()=>socket.close(1013,'Command queue full')));
-    socket.on('close',()=>{clients.delete(socket);enqueue(()=>release(socket)).catch(error=>console.error(error.message))});
+    socket.on('close',()=>{clients.delete(socket);watches.delete(socket);enqueue(()=>release(socket)).catch(error=>console.error(error.message))});
   });
   const timer=setInterval(()=>{
     if(!realtime||busy||stopped||!clients.size)return;
@@ -75,6 +91,8 @@ export async function startServer({port=7701,host='127.0.0.1',realtime=true}={})
       frameRemainder+=44100*0.02;const blocks=Math.floor(frameRemainder/128);frameRemainder-=blocks*128;
       await processor.request('step',blocks);
       const result=await processor.request('snapshot');
+      const keys=[...new Set([...watches.values()].flat())];
+      for(let offset=0;offset<keys.length;offset+=64)Object.assign(result.value,(await processor.request('read_many',keys.slice(offset,offset+64).join(','))).value);
       const message=JSON.stringify({type:'param_update',slot:0,params:result.value,beat:result.beat,events:recent});
       for(const socket of clients)if(socket.readyState===1&&socket.bufferedAmount<65536)socket.send(message);
     }).catch(error=>console.error(error.message)).finally(()=>busy=false);

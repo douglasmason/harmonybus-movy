@@ -99,3 +99,29 @@ real Schwung client, chord buttons, held pad, parameter edit, and 390px layout.
 The source baseline for this proof is integration `13b771f`, HB `3ddca00`,
 Movy upstream `5c01a4fe` with the integration applied, and Schwung `e877ed64`.
 This is a development branch; no release pointer or Move install was changed.
+
+## Existing Movy browser interface
+
+Open `http://127.0.0.1:7701/movy` for the upstream Movy browser-test OLED,
+eight draggable knobs, bank navigation, and view-model inspector. Select any
+of the first four HB tracks. Touch dragging and keyboard up/down are supported.
+`build-movy.mjs` adapts the existing harness and HTML at build time, importing
+the production Movy model and renderers. It fails if expected upstream hooks
+change. It does not fork those components or duplicate HB musical logic.
+
+`movy-bridge.mjs` supplies the model's TrackPort using cached native values and
+WebSocket writes. Visible reads subscribe in batches of at most 64 keys per
+client; metadata comes from the built HB module. Missing values stay pending
+until the processor replies. Read-only and write-only action controls are not
+editable here; ordinary declared numeric/enum controls are enabled. Native
+reads run in the same serialized owner as rendering and writes. State/save
+getters and arbitrary loading are excluded.
+
+This reuses the generic Movy parameter harness, not the full device controller:
+HB-specific touch-operation panels, pad/button emulation in this view, browser
+audio, and full Manager integration remain future work. Use the linked pad/MIDI
+panel for the existing musical checks. One browser connection owns writes at a
+time; close that tab before controlling from a different tab.
+
+The browser test additionally checks native version display, a real knob drag
+changing native transpose, per-track channel reads, and the phone-width layout.

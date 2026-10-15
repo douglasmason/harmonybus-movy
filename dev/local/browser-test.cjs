@@ -21,6 +21,23 @@ const {chromium} = require('playwright');
     await page.setViewportSize({width:390,height:844});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'phone layout fits');
     if(process.env.HB_SCREENSHOT)await page.screenshot({path:process.env.HB_SCREENSHOT,fullPage:true});
+    await page.goto(`http://127.0.0.1:${service.port}/movy`);
+    await page.waitForFunction(()=>globalThis.__movy_model?.getViewModel().rows[0][0]?.displayValue==='0.2.272');
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Movy phone layout fits');
+    await page.locator('#btn-next').click();
+    await page.waitForFunction(()=>globalThis.__movy_model.getViewModel().bankIndex===1);
+    await page.waitForTimeout(300); // Native subscription fills the newly visible bank.
+    const key='ch1:midi_fx1:master_transpose';
+    const before=(await service.processor.request('get',key)).value;
+    const knob=page.locator('#knob-0');const box=await knob.boundingBox();
+    await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+    await page.mouse.down();await page.mouse.move(box.x+box.width/2,box.y+box.height/2-35,{steps:8});await page.mouse.up();
+    await page.waitForTimeout(250);
+    assert.notEqual((await service.processor.request('get',key)).value,before,'existing virtual knob writes native HB');
+    await page.locator('#preset-select').selectOption('0');
+    await page.waitForFunction(()=>globalThis.__movy_model.getViewModel().rows[0][2]?.displayValue==='1');
+    await page.locator('#preset-select').selectOption('2');
+    await page.waitForFunction(()=>globalThis.__movy_model.getViewModel().rows[0][2]?.displayValue==='3');
     assert.deepEqual(errors,[]);console.log('Browser: real chord change, held-note travel, release, parameter edit, phone layout passed');
   }finally{await browser.close();await service.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});

@@ -85,9 +85,12 @@ int main(int count,char **arguments) {
         if(!strcmp(line,"set") && argument) {
             char *setting=strchr(argument,'\t');if(setting){*setting++=0;set(argument,setting);}else valid=0;
         } else if(!strcmp(line,"step") && argument) {int blocks=atoi(argument);if(blocks<0||blocks>4096)valid=0;else advance(blocks);}
-        else if(strcmp(line,"snapshot") && strcmp(line,"get"))valid=0;
+        else if(strcmp(line,"snapshot") && strcmp(line,"get") && strcmp(line,"read_many"))valid=0;
         printf("{\"ok\":%s,\"beat\":%.12f,\"value\":",valid?"true":"false",position);
-        if(!strcmp(line,"get")&&argument)param(argument);else if(!strcmp(line,"snapshot"))snapshot();else printf("null");
+        if(!strcmp(line,"read_many")) {
+            putchar('{');int first=1;char *key=argument?strtok(argument,","):NULL;
+            while(key){if(!first)putchar(',');first=0;quote(key);putchar(':');param(key);key=strtok(NULL,",");}putchar('}');
+        } else if(!strcmp(line,"get")&&argument)param(argument);else if(!strcmp(line,"snapshot"))snapshot();else printf("null");
         printf(",\"events\":[");
         for(int index=0;index<event_count;index++){if(index)putchar(',');printf("[%u,%u,%u,%u]",events[index][0],events[index][1],events[index][2],events[index][3]);}
         printf("],\"overflow\":%d}\n",overflow);fflush(stdout);event_count=overflow=0;
