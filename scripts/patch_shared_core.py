@@ -47,7 +47,7 @@ def patch_shared_core(root: Path) -> None:
     source = source[:position] + """
     { key: 'hbfm1channel', name: 'FM1 MIDI channel', min: 0, max: 16, def: 0,
       labels: ['OFF', ...Array.from({length:16}, (_, index) => String(index+1))],
-      release: true, uiOnly: true, hint: 'Stock FM1 notes; use a dedicated USB MIDI channel. Launchpad owns channel 1.' },
+      release: true, uiOnly: true, hint: 'USB notes; Launchpad uses ch 1.' },
 """ + source[position:]
     path.write_text(source)
     path = root / 'build/browser.mjs'
