@@ -599,6 +599,8 @@ def main() -> int:
     patch_joint_play(root)
     from patch_session_modes import patch_session_modes
     patch_session_modes(root)
+    from patch_grid import patch_grid
+    patch_grid(root)
     print("HarmonyBus clean integration applied")
     return 0
 

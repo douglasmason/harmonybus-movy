@@ -1,3 +1,5 @@
+> hbclean.199 adds Grid Sequencer: pitch/sample and operation rows, eight-column time pages, independent Launchpad viewport, and existing Schwung settings panels. Requires HarmonyBus 0.2.276. See [controls](docs/grid-sequencer.md).
+
 Latest diagnostic (.193): [short host-output recording check](docs/host-output-check.md). Step 12 CPU jog now captures and analyzes the host mix; download one `output-test-*.json`.
 
 **Movy hbclean.192 — hands-off audio isolation:** Step 12 CPU jog starts a 65-second normal → tone-only callback → normal comparison. Playback stops automatically and stays stopped. Keep hands off; download one `idle-test-*.json`. Per-phase callback timing and the twelve largest gaps help separate callback work from time spent outside it. This does not measure host/DAC output or claim to fix crackles. [Instructions](docs/idle-audio-check.md).

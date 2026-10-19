@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: 286878c026cfd2040c07d3f06a821a62007732c8
-  HB_MOVY_VERSION: 0.34.1-hbclean.198
-  HB_MOVY_TAG: v0.34.1-hbclean.198
+  HB_REF: adc46650f4639408522d0dd043ab555fab19677a
+  HB_MOVY_VERSION: 0.34.1-hbclean.199
+  HB_MOVY_TAG: v0.34.1-hbclean.199
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -300,6 +300,8 @@ jobs:
               'browser-test/abi-parity.mjs',
               'browser-test/track-colors.mjs',
           }
+          expected.update({'src/seq/grid.ts','engine/crates/seq-core/src/grid.rs','browser-test/hb-grid.mjs'})
+          expected.update({'src/seq/router-pads.ts'})
           assert set(changed) == expected, (changed, expected)
 
           state = (root / 'src/seq/ui-state.ts').read_text()
@@ -482,6 +484,7 @@ jobs:
           node browser-test/hb-pad-trails.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-touch.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-joint-panels.mjs
+          HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-grid.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-startup-host.mjs
           HB_MODULE="$GITHUB_WORKSPACE/harmonybus/modules/harmonybus/module.json" node browser-test/hb-analysis.mjs
 
@@ -536,7 +539,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Consolidate rhythm timing with HarmonyBus 0.2.273. Movy now consumes HB-provided timing weights; the old protocol remains supported for earlier HB versions. Motif clip export and padded playback honor the same track rhythm override as ordinary playback. Existing pattern choices, clip gates, pressure ownership and saved notes remain unchanged."
+              --notes "Grid Sequencer adds pitch/sample and operation rows, eight-column time pages, independent Launchpad scrolling, and existing Schwung settings/step panels. Requires HarmonyBus 0.2.276. See docs/grid-sequencer.md for controls and the separate browser piano-roll handoff."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
