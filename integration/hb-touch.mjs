@@ -18,9 +18,11 @@ const touchOperationLabels = new Map([[5,'Next Harmony'],[6,'Next Harmony']]);
 const writes = [];
 const editorReads = [];
 const operationMetadata = () => module.capabilities.chain_params.map(parameter => {
+            // The compact manifest supplies one placeholder; the DSP expands the editable lane list.
+            if(parameter.key==='motion_lane')return {...parameter,options:Array.from({length:16},(_,index)=>'Step Seq '+(index+1)+': Off')};
             if(parameter.key.startsWith('defaults_control_')){
                 const editor=String(values.get('defaults_editor'));
-                const fields=editor.endsWith('Scales')?['gap_scale','scale_context','dominant_scale','dominant_minor_scale','borrowed_scale','local_palette','scope']:['chord_quality','chord_inversion','chord_voicing','strum_spread','chromatic_quality','scope','scope'];
+                const fields=editor.endsWith('Scales')?['gap_scale','scale_context','dominant_scale','dominant_minor_scale','borrowed_scale','local_palette','local_dominant']:['chord_quality','chord_inversion','chord_voicing','strum_spread','chromatic_quality','scope','scope'];
                 const field=fields[Number(parameter.key.split('_').at(-1))-1];
                 const key=field==='scope'?'defaults_scope':(editor.startsWith('Follower')?'follower':'conductor')+'_default_'+field;
                 return {...module.capabilities.chain_params.find(candidate=>candidate.key===key),key:parameter.key};
@@ -141,6 +143,7 @@ assert(module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_cl
 assert(!module.capabilities.ui_hierarchy.levels.follower_play_tools.knobs.includes('arp_clear'));
 assert(module.capabilities.ui_hierarchy.levels.chord_player.knobs.includes('strum_spread'));
 assert.equal(module.capabilities.ui_hierarchy.levels.chord_player.knobs.length,7);
+assert(module.capabilities.ui_hierarchy.levels.chord_player.knobs.includes('chord_extensions'));
 
 const { releasePerformanceTouch, performanceTouchActive } = await import('../dist/esm/renderer/schwung-page.js');
 const performanceSlot = focusKey('play_bypass');

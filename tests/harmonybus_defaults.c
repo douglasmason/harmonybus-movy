@@ -49,6 +49,7 @@ int main(int argument_count, char **arguments) {
         assert(hb_policy_value(instances[track],HB_P_DOMINANT)==6);
         assert(hb_policy_value(instances[track],HB_P_DOMINANT_MINOR)==6);
         assert(g_pad_chord_form==HB_CP_FOLLOW_DETECTED);
+        assert(hb_policy_value(instances[track],HB_P_LOCAL_DOMINANT)==0);
         assert(g_bus.boundary_buffer_ms == -3);
         assert(instances[track]->quant_timing == 0);
         assert(instances[track]->content_map == (expected_role == 1 ? 1 : 0));
@@ -87,7 +88,8 @@ int main(int argument_count, char **arguments) {
         assert(g_key_follower_travel==0);
         assert(instances[track]->key_tonic==0&&instances[track]->key_scale==0);
         assert(!g_key_context.active&&!g_key_armed&&!g_parallel_on);
-        if(strcmp(serialized_state,expected_state)){int at=0;while(serialized_state[at]==expected_state[at])at++;fprintf(stderr,"State mismatch at %d\nactual %.140s\nexpect %.140s\n",at,serialized_state+at,expected_state+at);}assert(strcmp(serialized_state, expected_state) == 0);
+        if(strcmp(serialized_state,expected_state))fprintf(stderr,"actual: %s\nexpected: %s\n",serialized_state,expected_state);
+        assert(strcmp(serialized_state, expected_state) == 0);
         const char *keys[]={"humanize_timing","humanize_velocity","humanize_gate"};
         for(int key=0;key<3;key++){
             api->get_param(instances[track],keys[key],amount,sizeof(amount));

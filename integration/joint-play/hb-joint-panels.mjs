@@ -85,8 +85,8 @@ joint.setJointEnabled(false);setFlag('hbsteprow',0);seqState.sessionMode=true;
 const sessionDown=()=>seqHandleButtonCc(CC_NOTE_SESSION,127,false);
 const sessionUp=()=>seqHandleButtonCc(CC_NOTE_SESSION,0,false);
 const sessionTap=()=>{sessionDown();now+=60;sessionUp();};
-for(const expected of [1,2,3,0,1,2,3,0]){
- sessionTap();assert.equal(sessionPlayMode(),expected,'four-mode Session cycle');
+for(const expected of [1,2,3,4,0,1,2,3,4,0]){
+ sessionTap();assert.equal(sessionPlayMode(),expected,'five-mode Session cycle');
  if(expected){
   sessionDown();assert(seqState.sessionMode,'hold immediately peeks clips');now+=600;sessionUp();
   assert.equal(sessionPlayMode(),expected,'hold restores original play mode');
