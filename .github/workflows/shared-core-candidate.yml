@@ -7,7 +7,7 @@ permissions:
 env:
   HB_REF: 0460fedad114e044944d9d1b305e6eb495ba3c9a
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
+  SCHWUNG_REF: a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung

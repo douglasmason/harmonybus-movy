@@ -8,7 +8,10 @@ import os
 def patch_shared_core(root: Path) -> None:
     """Install canonical transport sources and the stock FM1 adapter after other patches."""
     integration: Path = Path(__file__).resolve().parents[1]
-    core_root: Path = Path(os.environ.get('HARMONYBUS_ROOT', str(integration.parent / 'harmonybus')))
+    default_root: Path = integration / 'harmonybus'
+    if not default_root.is_dir():
+        default_root = integration.parent / 'harmonybus'
+    core_root: Path = Path(os.environ.get('HARMONYBUS_ROOT', str(default_root)))
     core_source: Path = core_root / 'core/surfaces/input.ts'
     if not core_source.is_file():
         raise RuntimeError('HARMONYBUS_ROOT must point at the pinned shared-core checkout')
