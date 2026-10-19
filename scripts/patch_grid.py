@@ -143,4 +143,4 @@ def patch_grid(root: Path) -> None:
 
     for relative in ['src/seq/constants.ts','engine/crates/movy-dsp/src/lib.rs','browser-test/mock-engine.mjs']:
         path = root / relative
-        path.write_text(path.read_text().replace('0.71.0-hb51','0.71.0-hb199'))
+        path.write_text(path.read_text().replace('0.71.0-hb51','0.71.0-hb200'))

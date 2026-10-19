@@ -6,7 +6,7 @@ The FM1 adapter has not been verified against a physical stock-firmware capture.
 Local checks completed:
 - 80 HarmonyBus native suites on the extracted main baseline, then the existing
   Grid Sequencer gate suite restored from its active feature branch. CI runs the
-  resulting 81-suite manifest before publishing candidate build artifacts.
+  resulting 82-suite manifest (including upstream rhythm generation) before publishing candidate build artifacts.
 - Differential core parity: all 4,095 nonempty pitch-class sets and 1,572,480
   note-mapping combinations match the pre-extraction implementation exactly.
 - 282 Movy DSP tests and 369 sequencer tests; TypeScript typecheck; complete UI
@@ -45,3 +45,6 @@ The current stage extracts stable portable algorithms and the surface command
 contract. Stateful key/operation/motif runtime extraction remains incremental;
 there is still one production HarmonyBus owner. Remote UI's existing native
 processor stays the intended integration point; no new network endpoint is added.
+
+Candidate incorporates concurrent upstream rhythm work at HarmonyBus 346f019
+and Movy integration 9966a81, preserving the existing Grid Sequencer gates.

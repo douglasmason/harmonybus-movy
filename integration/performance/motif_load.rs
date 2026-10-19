@@ -81,15 +81,15 @@ impl Engine {
 
 #[cfg(test)] mod tests{
     use super::*;
-    fn data()->String{let mut words=vec!["0";52];words[0]="80000001000003e8";words[51]="8000000000000010";format!("0,384,60.100,64.77:{}|384,384,62.90:{}",vec!["0";52].join(","),words.join(","))}
+    fn data()->String{let mut words=vec!["0";52];words[0]="80000001000003e8";words[51]="8000000000000090";format!("0,384,60.100,64.77:{}|384,384,62.90:{}",vec!["0";52].join(","),words.join(","))}
     fn command(e:&Engine,mode:u8)->String{let info=e.motif_clip_info(0);let v:Vec<_>=info.split(',').collect();format!("mload 0 {} {} {mode} 768 0 1 {}",v[0],v[1],data())}
     #[test] fn writes_input_actions_and_undo_roundtrips(){
         let mut e=Engine::new(48000,12000);let before=e.undo_snapshot();let cmd=command(&e,0);let mut out=vec![];
         crate::command::apply_batch(&mut e,&format!("usnap 41;{cmd};ucommit 41"),&mut out);
         let c=e.tracks[0].active();assert_eq!(c.notes.len(),3);assert_eq!(c.length_steps,32);
-        assert_eq!(c.notes[2].actions.unwrap()[51],(1<<63)|16);assert!(!c.notes[0].rendered);assert!(c.notes[0].input_key.is_some());
+        assert_eq!(c.notes[2].actions.unwrap()[51],(1<<63)|16|128);assert!(!c.notes[0].rendered);assert!(c.notes[0].input_key.is_some());
         let saved=crate::persist::serialize(&e);let mut restored=Engine::new(48000,12000);assert!(crate::persist::load(&mut restored,&saved));
-        assert_eq!(restored.tracks[0].active().notes[2].actions.unwrap()[51],(1<<63)|16);
+        assert_eq!(restored.tracks[0].active().notes[2].actions.unwrap()[51],(1<<63)|16|128);
         crate::command::apply_batch(&mut e,"uswap 41 42",&mut out);assert_eq!(e.undo_snapshot(),before);
     }
     #[test] fn append_overdub_and_rejections_are_atomic(){

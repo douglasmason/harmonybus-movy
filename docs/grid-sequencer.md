@@ -1,4 +1,4 @@
-# Grid Sequencer — hbclean.199 / HarmonyBus 0.2.276
+# Grid Sequencer — hbclean.200 / HarmonyBus 0.2.278
 
 Tap Session to cycle Clips → Normal Play → Motif Play → Joint Play → Grid Sequencer.
 Track buttons retain their normal track-selection meaning. Each track saves 32 row

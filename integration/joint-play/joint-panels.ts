@@ -28,7 +28,7 @@ const participation=[0,1,2,3].map(role=>enumeration('joint_pads_'+role,['Root Pa
 const display=[enumeration('joint_overlay','Playback Overlay',['Zone','Linked Pair','All Four']),enumeration('joint_secondary','Secondary Play',['Red','Orange','Yellow','Green','Cyan','Blue','Purple','Pink'])];
 export const jointParameters=[...setup,...recording,...participation,...display];
 const actorNames=['Root','Bass','Comp','Melody'];
-const actorFields=['travel_map','chord_mode','chord_inversion','arp_playback','arp_rate','play_range','content_map'];
+const actorFields=['travel_map','chord_mode','chord_inversion','arp_playback','arp_rate','play_range','content_map','rhythm_gen_pattern','rhythm_gen_mode','rhythm_gen_span','rhythm_gen_source'];
 const actorKey=(role:number,key:string)=>'joint_actor_'+role+'_'+key;
 function actorAlias(key:string):{role:number;key:string}|null{
     const match=/joint_actor_([0-3])_([^:]+)(.*)$/.exec(key);
@@ -42,11 +42,14 @@ export function jointHierarchy(hierarchy:any):any {
     const root=hierarchy.levels.root;
     const links=(root.params??[]).filter((parameter:any)=>/^approach_bank_|^harm_play_/.test(parameter.level??''));
     root.name='Joint Setup';root.knobs=setup.map(parameter=>parameter.key);
-    root.params=[...setup,{level:'joint_pads'},...actorNames.map((_,role)=>({level:'joint_actor_'+role})),{level:'joint_record'},...links];
+    root.params=[...setup,{level:'joint_pads'},...actorNames.map((_,role)=>({level:'joint_actor_'+role})),{level:'joint_record'},{level:'rhythm_edit'},...links];
     hierarchy.levels.joint_pads={name:'Joint Pads / Display',knobs:[...participation,...display].map(p=>p.key),params:[...participation,...display]};
     actorNames.forEach((name,role)=>{
         const keys=['joint_pads_'+role,role===1?'joint_bass':role===2?'joint_comp':actorKey(role,'content_map'),...actorFields.slice(0,6).map(key=>actorKey(role,key))];
         hierarchy.levels['joint_actor_'+role]={name:name+' Track',knobs:keys,params:keys.map(key=>({key}))};
+        root.params.push({level:'joint_rhythm_'+role});
+        const rhythmKeys=['rhythm_gen_pattern','rhythm_gen_mode','rhythm_gen_span','rhythm_gen_source'].map(key=>actorKey(role,key));
+        hierarchy.levels['joint_rhythm_'+role]={name:name+' Rhythm',knobs:rhythmKeys,params:rhythmKeys.map(key=>({key}))};
     });
     hierarchy.levels.joint_record={name:'Joint Recording',knobs:recording.map(parameter=>parameter.key),params:recording};
     return hierarchy;

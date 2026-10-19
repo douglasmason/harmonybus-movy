@@ -50,6 +50,7 @@ int main(int argument_count, char **arguments) {
         assert(hb_policy_value(instances[track],HB_P_DOMINANT)==6);
         assert(hb_policy_value(instances[track],HB_P_DOMINANT_MINOR)==6);
         assert(g_pad_chord_form==HB_CP_FOLLOW_DETECTED);
+        assert(hb_policy_value(instances[track],HB_P_LOCAL_DOMINANT)==0);
         assert(g_bus.boundary_buffer_ms == -3);
         assert(instances[track]->quant_timing == 0);
         assert(instances[track]->content_map == (expected_role == 1 ? 1 : 0));
@@ -69,6 +70,8 @@ int main(int argument_count, char **arguments) {
         strcat(expected_state,";kc1,1,3,2;kt2,3,0,0;kt3,3,0;ke1,0,0;ml1,1,60,0,12,0,0;mf2,0,2,0,2,0,0,0:00");
         for(int slot=0;slot<16;slot++)strcat(expected_state,"00000000000");
         strcat(expected_state,";mp1,0,0,1,0;mg1,0,0;mt1,0;rr1,0,0,0,0");
+        strcat(expected_state,";rg1,0,0,0,0");
+        for(int pattern=0;pattern<4;pattern++){strcat(expected_state,",8");for(int step=0;step<16;step++)strcat(expected_state,",1,100,50");}
         strcat(expected_state,";ar1,13,14,15,16,17,18,19,20,-5,-4,-1,-2,-30,-10,-8,-31,2,3,5,36,37,14,10,15,1,1;ar2,0;ar3,2,1,0;ar4,0;ar5,1");
         assert(instances[track]->player.config.start==5);
         const hb_ar_state *approach=&instances[track]->approach_rows;
