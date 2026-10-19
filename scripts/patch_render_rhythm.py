@@ -34,7 +34,7 @@ def patch_render_rhythm(root: Path) -> None:
     path.write_text(replace_once(path.read_text(),'    engine.hb_auto.fill([None;16]);','    engine.hb_auto.fill([None;16]);\n    engine.hb_rhythm.fill(Default::default());\n    engine.hb_rhythm_active.fill(Default::default());\n    engine.hb_rhythm_cycle.fill(None);'))
     path=root/'engine/crates/movy-dsp/src/chain_slots.rs';s=path.read_text()
     # Settings are global as well as per-track; refresh all cached effective values.
-    s=replace_once(s,'if key.starts_with("midi_fx1:motion_")','if key.starts_with("midi_fx1:motion_") || key.starts_with("midi_fx1:motif_") || key.starts_with("midi_fx1:render_rhythm_") || key == "midi_fx1:state"')
+    s=replace_once(s,'if key.starts_with("midi_fx1:motion_")','if key.starts_with("midi_fx1:motion_") || key.starts_with("midi_fx1:motif_") || key.starts_with("midi_fx1:render_rhythm_") || key.starts_with("midi_fx1:rhythm_gen_") || key == "midi_fx1:state"')
     s=replace_once(s,'if component == "midi_fx1" { self.hb_config_dirty[slot] = true; }','if component == "midi_fx1" { self.hb_config_dirty.fill(true); }')
     s=replace_once(s,'        Some(message.unwrap_or_default())','''        let rhythm=instance.get_param("midi_fx1:render_rhythm_config2")
             .filter(|value|value.starts_with("rr2,"))
