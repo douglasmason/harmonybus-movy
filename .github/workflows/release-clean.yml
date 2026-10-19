@@ -19,7 +19,7 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
-  HB_REF: 5c5230d5a0478a2f1ba98ff07ac01cb7ed2a37fa
+  HB_REF: f98bd342b3ba2b45bddce1e5a512d5830fada3cb
   HB_MOVY_VERSION: 0.34.1-hbclean.199
   HB_MOVY_TAG: v0.34.1-hbclean.199
   ASSET_NAME: harmonybus-movy-module.tar.gz
@@ -539,7 +539,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Grid Sequencer adds pitch/sample and operation rows, eight-column time pages, independent Launchpad scrolling, and existing Schwung settings/step panels. Requires HarmonyBus 0.2.276. See docs/grid-sequencer.md for controls and the separate browser piano-roll handoff."
+              --notes "Grid Sequencer adds pitch/sample and operation rows, eight-column time pages, independent Launchpad scrolling, and existing Schwung settings/step panels. Requires HarmonyBus 0.2.277. See docs/grid-sequencer.md for controls and the separate browser piano-roll handoff."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false

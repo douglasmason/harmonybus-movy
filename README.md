@@ -1,4 +1,4 @@
-> hbclean.199 adds Grid Sequencer: pitch/sample and operation rows, eight-column time pages, independent Launchpad viewport, and existing Schwung settings panels. Requires HarmonyBus 0.2.276. See [controls](docs/grid-sequencer.md).
+> hbclean.199 adds Grid Sequencer: pitch/sample and operation rows, eight-column time pages, independent Launchpad viewport, and existing Schwung settings panels. Requires HarmonyBus 0.2.277. See [controls](docs/grid-sequencer.md).
 
 Latest diagnostic (.193): [short host-output recording check](docs/host-output-check.md). Step 12 CPU jog now captures and analyzes the host mix; download one `output-test-*.json`.
 

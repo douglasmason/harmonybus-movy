@@ -49,6 +49,7 @@ int main(int argument_count, char **arguments) {
         assert(hb_policy_value(instances[track],HB_P_DOMINANT)==6);
         assert(hb_policy_value(instances[track],HB_P_DOMINANT_MINOR)==6);
         assert(g_pad_chord_form==HB_CP_FOLLOW_DETECTED);
+        assert(hb_policy_value(instances[track],HB_P_LOCAL_DOMINANT)==0);
         assert(g_bus.boundary_buffer_ms == -3);
         assert(instances[track]->quant_timing == 0);
         assert(instances[track]->content_map == (expected_role == 1 ? 1 : 0));
@@ -62,7 +63,7 @@ int main(int argument_count, char **arguments) {
         char expected_state[8192],round_trip[8192],amount[16];
         char seed[1024];snprintf(seed,sizeof(seed),"%s",arguments[preset]);
         char *pad_marker=strstr(seed,";pd1,");assert(pad_marker);*pad_marker=0;
-        snprintf(expected_state,sizeof(expected_state),"%s;pd1,6,3,3,2,0;ce1,0;dc1,3;ts1,0,0,2,0;pas1,0;pf1,17;pnf1,17;pb1,2;pc2,2;pp1,3;hu1,0,0,0;ss1,6,0;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,3,0,2,0,0,0,6,0,6,17,0,8,0,0,3,0,2,0,0,0,6,0,6;named1",seed);
+        snprintf(expected_state,sizeof(expected_state),"%s;pd1,6,3,3,2,0;ce1,0;dc1,3;ts1,0,0,2,0;pas1,0;pf1,17;pnf1,17;pb1,2;pc2,2;pp1,3;hu1,0,0,0;ss1,6,0;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,3,0,2,0,0,0,6,0,6,0,17,0,8,0,0,3,0,2,0,0,0,6,0,6,0;named1",seed);
         /* New versioned fields have explicit neutral defaults; preserve the
            legacy prefix exactly, then verify the complete state round-trip. */
         strcat(expected_state,";kc1,1,3,2;kt2,3,0,0;kt3,3,0;ke1,0,0;ml1,1,60,0,12,0,0;mf2,0,2,0,2,0,0,0:00");
