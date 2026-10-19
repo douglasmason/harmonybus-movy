@@ -1,0 +1,77 @@
+name: FM1 shared-core candidate (no deployment)
+on:
+  push:
+    branches: [work/shared-core-fm1]
+permissions:
+  contents: read
+env:
+  HB_REF: 0460fedad114e044944d9d1b305e6eb495ba3c9a
+  UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
+  SCHWUNG_REF: 911136d75fb9e4bacfdd5cdeecb9377c2e2553fb
+  HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
+  SCHWUNG_ROOT: ${{ github.workspace }}/schwung
+  SCHWUNG: ${{ github.workspace }}/schwung
+  HB_MODULE: ${{ github.workspace }}/harmonybus/modules/harmonybus/module.json
+jobs:
+  verify-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Pinned source checkouts
+        run: |
+          git clone https://github.com/douglasmason/harmonybus.git harmonybus
+          git -C harmonybus checkout "$HB_REF"
+          git clone https://github.com/DimaDake/schwung-movy.git movy
+          git -C movy checkout "$UPSTREAM_REF"
+          git clone https://github.com/charlesvestal/schwung.git schwung
+          git -C schwung checkout "$SCHWUNG_REF"
+      - name: Toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          sudo ln -s /usr/bin/aarch64-linux-gnu-gcc /usr/local/bin/aarch64-unknown-linux-gnu-gcc
+          sudo ln -s /usr/bin/aarch64-linux-gnu-nm /usr/local/bin/aarch64-unknown-linux-gnu-nm
+          sudo ln -s /usr/bin/aarch64-linux-gnu-strip /usr/local/bin/aarch64-unknown-linux-gnu-strip
+          rustup target add aarch64-unknown-linux-gnu
+      - name: Prepare and verify integration
+        run: |
+          python3 scripts/apply_clean_harmonybus.py movy
+          python3 scripts/verify_harmonybus_defaults.py movy harmonybus
+          cd movy
+          npm ci
+          npm run typecheck
+          npm run build:browser
+          node browser-test/hb-fm1.mjs
+          node browser-test/hb-launchpad.mjs
+          node browser-test/hb-grid.mjs
+          node browser-test/hb-joint-play.mjs
+          node browser-test/hb-joint-panels.mjs
+          node browser-test/logic.mjs
+      - name: Native recording and routing regressions
+        run: |
+          cargo test --manifest-path movy/engine/Cargo.toml -p seq-core -p movy-dsp
+          bash scripts/test_full_chain_audio.sh movy harmonybus schwung
+          rustc --edition 2021 -O tests/surface_bench.rs -o /tmp/surface-bench
+          /tmp/surface-bench | tee surface-benchmark.txt
+      - name: Build and package ARM candidate
+        run: |
+          python3 -c 'import json; p="movy/module.json"; d=json.load(open(p)); d["version"]="0.34.1-hbclean.199-core.1"; open(p,"w").write(json.dumps(d,indent=2)+"\n")'
+          npm run build:device --prefix movy
+          bash movy/scripts/build-dsp.sh
+          mkdir -p package/movy/configs
+          cp movy/module.json movy/ui.js movy/dist/dsp.so package/movy/
+          cp movy/src/module-configs/*.json package/movy/configs/
+          cp movy/harmonybus-core-source.json package/movy/
+          file package/movy/dsp.so | grep 'ARM aarch64'
+          tar -czf harmonybus-movy-fm1-candidate.tar.gz -C package movy
+          sha256sum harmonybus-movy-fm1-candidate.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: harmonybus-movy-fm1-candidate
+          path: |
+            harmonybus-movy-fm1-candidate.tar.gz
+            SHA256SUMS
+            surface-benchmark.txt

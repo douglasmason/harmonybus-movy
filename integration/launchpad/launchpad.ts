@@ -1,3 +1,5 @@
+import { claimSurface, claimChannel } from './claims.js';
+import { surfaceInput } from './input.js';
 /** A dedicated external input surface follows Movy's selected track and layout. */
 import { appState } from '../app/state.js';
 import { keyboardState, baseNoteFor } from '../keyboard/state.js';
@@ -29,36 +31,11 @@ const controls = new Map<number, Release | null>();
 let modifier = false;
 let controlLights: ControlLight[] = [];
 const visited = new Set<number>();
-let eventSerial = Date.now() * 128;
-type InputEvent = { serial: number; track: number; status: number; note: number; pitch: number; value: number; shift: number; row: number; full: number };
-const eventQueue: InputEvent[] = [];
-let releaseFence = 0, attemptedThrough = 0;
-
-/** One ordered round trip per burst, before any display reads. */
-export function flushLaunchpadInput(): boolean {
-    if (releaseFence) {
-        if (!host_module_set_param_blocking('surface_release', String(releaseFence), 8)) return false;
-        releaseFence = 0;
-    }
-    if (!eventQueue.length) return true;
-    const batch = eventQueue.slice(0, 32);
-    const payload = batch.map(event => [event.serial,event.track,event.status,event.note,event.pitch,event.value,event.shift,event.row,event.full].join(',')).join(';');
-    attemptedThrough = batch[batch.length - 1].serial;
-    if (!host_module_set_param_blocking('surface_events', payload, 8)) return false;
-    eventQueue.splice(0, batch.length);
-    return eventQueue.length === 0;
-}
-
+/** Shared queue retains source-local cancellation and engine-owned note identity. */
+export function flushLaunchpadInput(): boolean { return surfaceInput.flush(); }
 function queueInput(status: number, note: number, value: number, owner: Owner, shift = 0, row = -1): void {
-    const previous = eventQueue[eventQueue.length - 1];
-    // Consecutive pressure reports supersede one another; note edges never do.
-    if (status === 160 && previous?.status === 160 && previous.note === note && previous.serial > attemptedThrough) { previous.value = value; return; }
-    if (eventQueue.length >= 32) flushLaunchpadInput();
-    // Fail closed if the engine stops acknowledging for an entire input ring.
-    // A fenced all-off also cancels any older request that arrives late.
-    if (eventQueue.length >= 256) { eventQueue.length = 0; releaseFence = ++eventSerial; held.clear(); return; }
-    eventQueue.push({ serial: ++eventSerial, track: owner.track, status, note, pitch: owner.pitch,
-        value, shift, row, full: Number(seqState.fullVelocity) });
+    if (!surfaceInput.enqueue(0, { track: owner.track, status, note, pitch: owner.pitch,
+        value, shift, row, full: Number(seqState.fullVelocity) })) held.clear();
 }
 let frameReady = false, sampleBank = 0;
 const pendingViews: (HarmonySnapshot | null)[] = [null, null];
@@ -117,10 +94,8 @@ function release(index: number): void {
 }
 
 export function releaseLaunchpad(): void {
-    eventQueue.length = 0;
-    if (typeof host_module_set_param_blocking === 'function') {
-        releaseFence = ++eventSerial; flushLaunchpadInput();
-    }
+    surfaceInput.release(0);
+    flushLaunchpadInput();
     for (const index of [...held.keys()]) release(index);
     for (const releaseControl of controls.values()) releaseControl?.(true);
     controls.clear(); modifier = false;
@@ -134,8 +109,8 @@ export function unloadLaunchpad(): void {
     for (const ownerTrack of visited) portFor(ownerTrack).setParam('midi_fx1:surface_enabled', '0');
     visited.clear();
     if (configured) {
-        host_ext_midi_remap_set(0, -1);
-        host_external_surface(0);
+        claimChannel(0, 0, -1);
+        claimSurface(0, false);
         if (model === 2 && (!isolation || isolation === 'led')) send(sysexPackets([...prefix, 14, 0, 247]));
         else if (model === 1) send([11, 176, 0, 0]);
     }
@@ -151,9 +126,9 @@ function configure(next: LaunchpadModel): boolean {
         typeof host_external_surface !== 'function' || typeof move_midi_external_send !== 'function') return false;
     // 254 is the host's BLOCK sentinel: UI receives the original note, firmware gets no note-on.
     const routing = !isolation || isolation === 'route';
-    if (routing && !host_ext_midi_remap_set(0, 254)) return false;
-    if (routing && (!host_ext_midi_remap_enable(true) || !host_external_surface(1))) {
-        host_ext_midi_remap_set(0, -1); host_external_surface(0); return false;
+    if (routing && !claimChannel(0, 0, 254)) return false;
+    if (routing && (!host_ext_midi_remap_enable(true) || !claimSurface(0, true))) {
+        claimChannel(0, 0, -1); claimSurface(0, false); return false;
     }
     model = next; configured = true; ledCache.fill(-1); scan = 0;
     initialization = next === 1 ? [[11, 176, 0, 0], [11, 176, 0, 1]] : [

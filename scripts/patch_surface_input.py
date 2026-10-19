@@ -44,6 +44,13 @@ def patch_surface_input(root: Path) -> None:
     source = replace_once(source, '            "padmap" => {', '''            "surface_events" => {
                 for event in self.surface.batch(val).into_iter().flatten() { self.surface_event(event); }
             }
+            "surface_release_source" => {
+                if let Some((source, fence)) = val.split_once(',') {
+                    if let (Ok(source), Ok(fence)) = (source.parse::<usize>(), fence.parse::<u64>()) {
+                        for event in self.surface.release_source(source, fence).into_iter().flatten() { self.surface_event(event); }
+                    }
+                }
+            }
             "surface_release" => {
                 if let Ok(fence) = val.parse::<u64>() {
                     for event in self.surface.release_all(fence).into_iter().flatten() { self.surface_event(event); }

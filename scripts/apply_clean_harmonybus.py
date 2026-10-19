@@ -601,6 +601,8 @@ def main() -> int:
     patch_session_modes(root)
     from patch_grid import patch_grid
     patch_grid(root)
+    from patch_shared_core import patch_shared_core
+    patch_shared_core(root)
     print("HarmonyBus clean integration applied")
     return 0
 
