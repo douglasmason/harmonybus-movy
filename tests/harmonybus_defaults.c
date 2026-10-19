@@ -62,12 +62,14 @@ int main(int argument_count, char **arguments) {
         char expected_state[8192],round_trip[8192],amount[16];
         char seed[1024];snprintf(seed,sizeof(seed),"%s",arguments[preset]);
         char *pad_marker=strstr(seed,";pd1,");assert(pad_marker);*pad_marker=0;
-        snprintf(expected_state,sizeof(expected_state),"%s;pd1,6,3,3,2,0;dc1,3;ts1,0,0,2,0;pas1,0;pf1,17;pnf1,17;pb1,2;pc2,2;pp1,3;hu1,0,0,0;ss1,6,0;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,3,0,2,0,0,0,6,0,6,17,0,8,0,0,3,0,2,0,0,0,6,0,6;named1",seed);
+        snprintf(expected_state,sizeof(expected_state),"%s;pd1,6,3,3,2,0;ce1,0;dc1,3;ts1,0,0,2,0;pas1,0;pf1,17;pnf1,17;pb1,2;pc2,2;pp1,3;hu1,0,0,0;ss1,6,0;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,3,0,2,0,0,0,6,0,6,0,17,0,8,0,0,3,0,2,0,0,0,6,0,6,0;named1",seed);
         /* New versioned fields have explicit neutral defaults; preserve the
            legacy prefix exactly, then verify the complete state round-trip. */
         strcat(expected_state,";kc1,1,3,2;kt2,3,0,0;kt3,3,0;ke1,0,0;ml1,1,60,0,12,0,0;mf2,0,2,0,2,0,0,0:00");
         for(int slot=0;slot<16;slot++)strcat(expected_state,"00000000000");
         strcat(expected_state,";mp1,0,0,1,0;mg1,0,0;mt1,0;rr1,0,0,0,0");
+        strcat(expected_state,";rg1,0,0,0,0");
+        for(int pattern=0;pattern<4;pattern++){strcat(expected_state,",8");for(int step=0;step<16;step++)strcat(expected_state,",1,100,50");}
         strcat(expected_state,";ar1,13,14,15,16,17,18,19,20,-5,-4,-1,-2,-30,-10,-8,-31,2,3,5,36,37,14,10,15,1,1;ar2,0;ar3,2,1,0;ar4,0;ar5,1");
         assert(instances[track]->player.config.start==5);
         const hb_ar_state *approach=&instances[track]->approach_rows;
@@ -85,7 +87,7 @@ int main(int argument_count, char **arguments) {
         assert(g_key_follower_travel==0);
         assert(instances[track]->key_tonic==0&&instances[track]->key_scale==0);
         assert(!g_key_context.active&&!g_key_armed&&!g_parallel_on);
-        assert(strcmp(serialized_state, expected_state) == 0);
+        if(strcmp(serialized_state,expected_state)){int at=0;while(serialized_state[at]==expected_state[at])at++;fprintf(stderr,"State mismatch at %d\nactual %.140s\nexpect %.140s\n",at,serialized_state+at,expected_state+at);}assert(strcmp(serialized_state, expected_state) == 0);
         const char *keys[]={"humanize_timing","humanize_velocity","humanize_gate"};
         for(int key=0;key<3;key++){
             api->get_param(instances[track],keys[key],amount,sizeof(amount));

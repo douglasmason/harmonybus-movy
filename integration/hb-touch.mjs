@@ -8,6 +8,9 @@ const { createSchwungPage } = await import('../dist/esm/renderer/schwung-page.js
 const module = JSON.parse(readFileSync(process.env.HB_MODULE, 'utf8'));
 assert(module.capabilities.chain_params.find(parameter => parameter.key === 'motion_operation').options.includes('Auto Chord Repeat'));
 // Generated metadata is verified against the real DSP in the native suite.
+// HB publishes a compact static placeholder; its DSP expands the lane list at runtime.
+const laneMetadata=module.capabilities.chain_params.find(p=>p.key==='motion_lane');
+if(laneMetadata.options.length===1)laneMetadata.options=Array.from({length:16},(_,i)=>'Step Seq '+(i+1)+': Off');
 const runtimeChainParams = JSON.stringify(module.capabilities.chain_params);
 const values = new Map(module.capabilities.chain_params.map(param => [param.key, param.default ?? param.options?.[0] ?? '0']));
 const { uiStateDirty, clearUiDirty } = await import('../dist/esm/seq/set-save.js');

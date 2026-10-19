@@ -22,7 +22,7 @@ def patch_motif_loader(root: Path) -> None:
     source = replace_once(source, '    &[0,2,4,6,8,10], &[0,3,4,7,8,11],', '    &[0,2,4,6,8,10], &[0,3,4,7,8,11],\n    &[0,2,3,5,7,9,10], &[0,2,4,5,7,8,11],')
     path.write_text(source)
     path = core / 'recorded_actions.rs'
-    source = path.read_text().replace('8063| (4095u64<<43)', '8063| (1u64<<63) | (4095u64<<43)')
+    source = path.read_text().replace('8063| (4095u64<<43)', '8191| (1u64<<63) | (4095u64<<43)').replace('[12,15,124,127,128]', '[12,15,124,127]')
     source = source.replace('((actions[LANES]>>5)&8))>13', '((actions[LANES]>>5)&8)|((actions[LANES]>>59)&16))>17')
     source = source.replace('((approach&63)>58 && (approach&63)!=60)', '(approach&63)>63')
     source = source.replace('(approach&63)==60', '(approach&63)>=59').replace('scale<=17', 'scale<=19')

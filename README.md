@@ -1,4 +1,4 @@
-> Movy hbclean.199 / HarmonyBus 0.2.276 adds four fixed actor rhythm panels in Joint Play and a shared Rhythm Pattern Edit panel. Each actor writes its own native track settings. Install both modules for the shared attack/rest/tie rhythm generator.
+> Movy hbclean.199 / HarmonyBus 0.2.277 adds four fixed actor rhythm panels in Joint Play and a shared Rhythm Pattern Edit panel. Each actor writes its own native track settings. Install both modules for the shared attack/rest/tie rhythm generator.
 
 Latest diagnostic (.193): [short host-output recording check](docs/host-output-check.md). Step 12 CPU jog now captures and analyzes the host mix; download one `output-test-*.json`.
 
