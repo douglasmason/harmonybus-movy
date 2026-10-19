@@ -1,5 +1,6 @@
 """Bind the pinned HarmonyBus core without maintaining a second source copy."""
 from pathlib import Path
+import base64
 import hashlib
 import json
 import os
@@ -59,3 +60,9 @@ def patch_shared_core(root: Path) -> None:
     (root / 'browser-test/hb-fm1.mjs').write_text((integration / 'integration/shared/hb-fm1.mjs').read_text())
     path = root / 'browser-test/hb-launchpad.mjs'
     path.write_text(path.read_text().replace("nativeWrites.at(-1)[0],'surface_release'", "nativeWrites.at(-1)[0],'surface_release_source'"))
+
+    # The opt-in FM1 row changes only the two existing settings-page captures.
+    for image_name in ('flags-release', 'flags-scrolled'):
+        image_path: Path = integration / 'integration/shared' / (image_name + '.png.b64')
+        (root / 'browser-test/screenshots/baseline' / (image_name + '.png')).write_bytes(
+            base64.b64decode(image_path.read_text()))
