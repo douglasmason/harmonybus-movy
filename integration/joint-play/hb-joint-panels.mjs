@@ -116,3 +116,12 @@ const rootPage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_pads_0'
 page.goToPage(rootPage);flush(page);page.knobTurn(0,-4);flush(page);
 assert(!(joint.jointSnapshot()[0].pads&1));assert(!joint.jointPadRoles(0).includes(0));
 console.log('Joint actor panels: fixed native track writes, external readback and Pads Off pass');
+for(let role=0;role<4;role++){
+ const rhythmPage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_actor_'+role+'_rhythm_gen_pattern'));
+ assert(rhythmPage>=0,'each actor has its own rhythm page');page.goToPage(rhythmPage);flush(page);
+ const before=writes.length;page.knobTurn(0,4);flush(page);
+ assert(writes.slice(before).some(([track,key])=>track===role&&key==='midi_fx1:rhythm_gen_pattern'));
+ assert(!writes.slice(before).some(([track,key])=>track!==role&&key==='midi_fx1:rhythm_gen_pattern'));
+}
+assert(page.ctl.pages.some(item=>item.keys?.includes('rhythm_gen_edit')),'shared pattern editor is available');
+console.log('Joint rhythm: four fixed track selectors and shared pattern editor pass');

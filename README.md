@@ -1,4 +1,6 @@
-> hbclean.199 adds Grid Sequencer: pitch/sample and operation rows, eight-column time pages, independent Launchpad viewport, and existing Schwung settings panels. Requires HarmonyBus 0.2.277. See [controls](docs/grid-sequencer.md).
+> hbclean.200 adds Grid Sequencer: pitch/sample and operation rows, eight-column time pages, independent Launchpad viewport, and existing Schwung settings panels. Requires HarmonyBus 0.2.278. See [controls](docs/grid-sequencer.md).
+
+> Movy hbclean.199 / HarmonyBus 0.2.277 adds four fixed actor rhythm panels in Joint Play and a shared Rhythm Pattern Edit panel. Each actor writes its own native track settings. Install both modules for the shared attack/rest/tie rhythm generator.
 
 Latest diagnostic (.193): [short host-output recording check](docs/host-output-check.md). Step 12 CPU jog now captures and analyzes the host mix; download one `output-test-*.json`.
 
