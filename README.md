@@ -1,3 +1,5 @@
+> Movy hbclean.201 pairs with HarmonyBus 0.2.279 for independent motif pitch material and generated rhythm. Existing bass clips provide looping motifs; Clip + Guide keeps comp rhythm while melody guides the next attack. Held generated notes finish their current gate, and rhythm-filled clips use existing arp ordering on written attacks. Includes Grid Sequencer from hbclean.200.
+
 > hbclean.200 adds Grid Sequencer: pitch/sample and operation rows, eight-column time pages, independent Launchpad viewport, and existing Schwung settings panels. Requires HarmonyBus 0.2.278. See [controls](docs/grid-sequencer.md).
 
 > Movy hbclean.199 / HarmonyBus 0.2.277 adds four fixed actor rhythm panels in Joint Play and a shared Rhythm Pattern Edit panel. Each actor writes its own native track settings. Install both modules for the shared attack/rest/tie rhythm generator.
