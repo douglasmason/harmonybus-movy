@@ -15,12 +15,12 @@ pub struct Event {
 struct Owner { track: usize, pitch: u8, full_velocity: bool }
 
 pub struct SurfaceRoute {
-    last_serial: u64,
-    held: [Option<Owner>; 128],
+    last_serial: [u64; 3],
+    held: [Option<Owner>; 384],
 }
 
 impl SurfaceRoute {
-    pub fn new() -> Self { Self { last_serial: 0, held: [None; 128] } }
+    pub fn new() -> Self { Self { last_serial: [0; 3], held: [None; 384] } }
 
     fn release(&mut self, index: usize) -> Option<Event> {
         let owner = self.held[index].take()?;
@@ -29,7 +29,7 @@ impl SurfaceRoute {
             approach: None, full_velocity: owner.full_velocity })
     }
 
-    fn route(&mut self, address: u8, mut event: Event) -> [Option<Event>; 2] {
+    fn route(&mut self, address: u16, mut event: Event) -> [Option<Event>; 2] {
         let index = address as usize;
         if event.status == 0x80 { return [self.release(index), None]; }
         if event.status == 0xa0 {
@@ -61,19 +61,20 @@ impl SurfaceRoute {
             }
             let [track,status,address,pitch,value,shift,row,full_velocity] = values;
             if fields.next().is_some() || serial <= previous_serial || !(0..16).contains(&track) ||
-                !matches!(status, 128 | 144 | 160) || !(0..128).contains(&address) ||
+                !matches!(status, 128 | 144 | 160) || !(0..384).contains(&address) ||
                 !(0..128).contains(&pitch) || !(0..128).contains(&value) ||
                 !(-127..=127).contains(&shift) || !(-1..=3).contains(&row) || !(0..=1).contains(&full_velocity) ||
                 (row >= 0 && !(0..128).contains(&(pitch + shift))) { return [None; 64]; }
             previous_serial = serial;
-            messages[index] = Some((serial, address as u8, Event { track: track as usize,
+            messages[index] = Some((serial, address as u16, Event { track: track as usize,
                 pitch: pitch as u8, status: if status == 144 && value == 0 { 128 } else { status as u8 },
                 value: value as u8, approach: (row >= 0).then_some((shift, row as u8)), full_velocity: full_velocity != 0 }));
         }
         let mut events = [None; 64];
         for (index, (serial, address, event)) in messages.into_iter().flatten().enumerate() {
-            if serial <= self.last_serial { continue; }
-            self.last_serial = serial;
+            let source = address as usize / 128;
+            if serial <= self.last_serial[source] { continue; }
+            self.last_serial[source] = serial;
             let routed = self.route(address, event);
             events[index * 2] = routed[0]; events[index * 2 + 1] = routed[1];
         }
@@ -82,15 +83,20 @@ impl SurfaceRoute {
 
     /// The serial fence prevents an older timed-out batch from reviving a note.
     pub fn release_all(&mut self, fence: u64) -> [Option<Event>; 128] {
-        self.last_serial = self.last_serial.max(fence);
-        std::array::from_fn(|index| self.release(index))
+        self.release_source(0, fence)
+    }
+
+    pub fn release_source(&mut self, source: usize, fence: u64) -> [Option<Event>; 128] {
+        if source >= 3 || fence <= self.last_serial[source] { return [None; 128]; }
+        self.last_serial[source] = self.last_serial[source].max(fence);
+        std::array::from_fn(|index| self.release(source * 128 + index))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn message(serial: u64, track: usize, status: u8, address: u8, pitch: u8, value: u8) -> String {
+    fn message(serial: u64, track: usize, status: u8, address: u16, pitch: u8, value: u8) -> String {
         format!("{serial},{track},{status},{address},{pitch},{value},0,-1,0")
     }
     fn collect(route: &mut SurfaceRoute, payload: &str) -> Vec<Event> { route.batch(payload).into_iter().flatten().collect() }
@@ -129,5 +135,39 @@ mod tests {
         assert!(collect(&mut route,&oversized).is_empty());
         assert_eq!(collect(&mut route,&message(1,0,144,11,60,90)).len(),1);
         assert!(collect(&mut route,"2,3,144,13,80,30,80,0,1").is_empty());
+    }
+}
+
+#[cfg(test)]
+mod multisurface_tests {
+    use super::*;
+    #[test]
+    fn cross_surface_aliases_release_only_the_last_owner() {
+        let mut route = SurfaceRoute::new();
+        assert_eq!(route.batch("1,2,144,60,60,90,0,-1,0").iter().flatten().count(),1);
+        assert_eq!(route.batch("2,2,144,188,60,90,0,-1,0").iter().flatten().count(),0);
+        assert_eq!(route.release_source(0,3).iter().flatten().count(),0);
+        let events = route.batch("4,7,128,188,72,0,0,-1,0");
+        let event = events.iter().flatten().next().unwrap();
+        assert_eq!((event.track,event.pitch,event.status),(2,60,128));
+    }
+    #[test]
+    fn fences_are_source_local_and_stale_resets_cannot_kill_new_notes() {
+        let mut route = SurfaceRoute::new();
+        route.release_source(1,10);
+        assert_eq!(route.batch("9,2,144,60,60,90,0,-1,0").iter().flatten().count(),1);
+        assert_eq!(route.batch("9,2,144,188,64,90,0,-1,0").iter().flatten().count(),0);
+        assert_eq!(route.batch("11,2,144,188,64,90,0,-1,0").iter().flatten().count(),1);
+        assert_eq!(route.release_source(1,10).iter().flatten().count(),0);
+        assert_eq!(route.release_source(1,12).iter().flatten().count(),1);
+        assert_eq!(route.release_source(0,13).iter().flatten().count(),1);
+    }
+    #[test]
+    fn remote_namespace_and_bounds() {
+        let mut route = SurfaceRoute::new();
+        assert_eq!(route.batch("1,0,144,383,127,90,0,-1,0").iter().flatten().count(),1);
+        assert_eq!(route.batch("2,0,144,384,127,90,0,-1,0").iter().flatten().count(),0);
+        assert_eq!(route.release_source(3,3).iter().flatten().count(),0);
+        assert_eq!(route.release_source(2,4).iter().flatten().count(),1);
     }
 }

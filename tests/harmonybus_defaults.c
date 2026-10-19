@@ -46,6 +46,7 @@ int main(int argument_count, char **arguments) {
         assert(hb_shared_follower_scale()==1);
         assert(instances[track]->source_channel == -1);
         assert(hb_policy_value(instances[track],HB_P_FORM)==(expected_role==0?2:HB_CP_FOLLOW_DETECTED));
+        assert(hb_policy_value(instances[track],HB_P_LOCAL_DOMINANT)==0);
         assert(hb_policy_value(instances[track],HB_P_DOMINANT)==6);
         assert(hb_policy_value(instances[track],HB_P_DOMINANT_MINOR)==6);
         assert(g_pad_chord_form==HB_CP_FOLLOW_DETECTED);
