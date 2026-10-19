@@ -19,9 +19,9 @@ concurrency:
 env:
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
-  HB_REF: 90613248ac21736c027338f2e411c6d86182689c
-  HB_MOVY_VERSION: 0.34.1-hbclean.200
-  HB_MOVY_TAG: v0.34.1-hbclean.200
+  HB_REF: 36860c976dba19a06e6f946bca0940f0b7017cb8
+  HB_MOVY_VERSION: 0.34.1-hbclean.202
+  HB_MOVY_TAG: v0.34.1-hbclean.202
   ASSET_NAME: harmonybus-movy-module.tar.gz
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
 
@@ -505,6 +505,7 @@ jobs:
           mkdir -p package/movy/configs
           cp movy/module.json movy/ui.js movy/dist/dsp.so package/movy/
           cp movy/src/module-configs/*.json package/movy/configs/
+          cp movy/harmonybus-core-source.json package/movy/
           tar -czf "$ASSET_NAME" -C package movy
           tar -tzf "$ASSET_NAME" | head -100
 
@@ -544,7 +545,7 @@ jobs:
             gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
               --target "$GITHUB_SHA" \
               --title "HarmonyBus Movy $HB_MOVY_VERSION" \
-              --notes "Grid Sequencer adds pitch/sample and operation rows, eight-column time pages, independent Launchpad scrolling, and existing Schwung settings/step panels. Requires HarmonyBus 0.2.278. See docs/grid-sequencer.md for controls and the separate browser piano-roll handoff."
+              --notes "Movy hbclean.202 adds opt-in stock FM-1 USB MIDI input through the shared HarmonyBus surface transport. Preserves rhythm, Grid, Joint Play and Launchpad behavior. Pair with HarmonyBus 0.2.281. FM-1 channel defaults OFF; no firmware update required."
           fi
           if [ "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = true ]; then
             gh release edit "$HB_MOVY_TAG" --draft=false --target "$GITHUB_SHA" || test "$(gh release view "$HB_MOVY_TAG" --json isDraft --jq .isDraft)" = false
