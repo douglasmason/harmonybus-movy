@@ -306,6 +306,7 @@ jobs:
           }
           expected.update({'src/seq/grid.ts','engine/crates/seq-core/src/grid.rs','browser-test/hb-grid.mjs'})
           expected.update({'src/seq/router-pads.ts'})
+          expected.update({'browser-test/hb-fm1.mjs', 'harmonybus-core-source.json', 'src/surfaces/claims.ts', 'src/surfaces/core-input.ts', 'src/surfaces/fm1.ts', 'src/surfaces/input.ts'})
           assert set(changed) == expected, (changed, expected)
 
           state = (root / 'src/seq/ui-state.ts').read_text()

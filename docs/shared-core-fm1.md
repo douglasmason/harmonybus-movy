@@ -28,5 +28,25 @@ benchmark is not evidence of hardware latency, USB enumeration or crackle remova
 The entire test and approval plan is docs/shared-core-hardware-test-plan.md in the
 matching HarmonyBus commit. Do not install or flash until that plan is approved.
 
-CI produces downloadable ARM candidate archives; it does not publish a release,
-change release.json, install to Move, modify Schwung, or flash FM1.
+The initial candidate CI produces downloadable ARM archives. The release workflow
+for hbclean.202 verifies and publishes the module, then updates the standard
+Schwung Manager installer pointer. Neither workflow installs to Move, modifies
+Schwung, or flashes FM1.
+
+## Install preparation: hbclean.202 + HarmonyBus 0.2.281
+
+The matched releases include the published hbclean.201 / HarmonyBus 0.2.280
+rhythm, Grid and effective-scale work. Use the normal Schwung Manager repository
+URLs once both releases are published:
+
+- https://github.com/douglasmason/harmonybus
+- https://github.com/douglasmason/harmonybus-movy
+
+For an approved device test: back up the current set and keep the previous module
+archives; install HarmonyBus first, then Movy; restart the modules/host session so
+existing instances load the new libraries. Confirm versions 0.2.281 and
+0.34.1-hbclean.202. Start with FM1 MIDI channel OFF and check existing Move and
+Launchpad behavior. Enable only the FM1 channel verified by stock USB capture.
+The hardware test plan covers combined-source releases, disconnect recovery,
+recording, callback timing and rollback. This release does not update host or
+FM1 firmware, and does not claim a fix for existing audio crackles.
