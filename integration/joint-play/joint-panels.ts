@@ -28,7 +28,7 @@ const participation=[0,1,2,3].map(role=>enumeration('joint_pads_'+role,['Root Pa
 const display=[enumeration('joint_overlay','Playback Overlay',['Zone','Linked Pair','All Four']),enumeration('joint_secondary','Secondary Play',['Red','Orange','Yellow','Green','Cyan','Blue','Purple','Pink'])];
 export const jointParameters=[...setup,...recording,...participation,...display];
 const actorNames=['Root','Bass','Comp','Melody'];
-const actorFields=['travel_map','chord_mode','chord_inversion','arp_playback','arp_rate','play_range','content_map','rhythm_gen_pattern','rhythm_gen_mode','rhythm_gen_span','rhythm_gen_source'];
+const actorFields=['travel_map','chord_mode','chord_inversion','arp_playback','arp_rate','play_range','content_map','rhythm_gen_pattern','rhythm_gen_mode','rhythm_gen_span','rhythm_gen_source','motion_lane','motion_operation','motion_amount','motion_enabled','motion_cycle','motion_every','motion_from','motion_through'];
 const actorKey=(role:number,key:string)=>'joint_actor_'+role+'_'+key;
 function actorAlias(key:string):{role:number;key:string}|null{
     const match=/joint_actor_([0-3])_([^:]+)(.*)$/.exec(key);
@@ -51,6 +51,13 @@ export function jointHierarchy(hierarchy:any):any {
         const rhythmKeys=['rhythm_gen_pattern','rhythm_gen_mode','rhythm_gen_span','rhythm_gen_source'].map(key=>actorKey(role,key));
         hierarchy.levels['joint_rhythm_'+role]={name:name+' Rhythm',knobs:rhythmKeys,params:rhythmKeys.map(key=>({key}))};
     });
+    // A direct view of the comp track's existing editor; no reserved lane,
+    // mirrored assignments, or implicit replacement of a user's operation.
+    const weaveKeys=['motion_lane','motion_operation','motion_amount','motion_enabled','motion_cycle','motion_every','motion_from','motion_through'].map(key=>actorKey(2,key));
+    hierarchy.levels.joint_comp_weave={name:'Comp Weave / Operations',knobs:weaveKeys,params:weaveKeys.map(key=>({key}))};
+    hierarchy.levels.joint_actor_2.params.push({level:'joint_comp_weave'});
+    hierarchy.levels.joint_rhythm_2.params.push({level:'joint_comp_weave'});
+    root.params.push({level:'joint_comp_weave'});
     hierarchy.levels.joint_record={name:'Joint Recording',knobs:recording.map(parameter=>parameter.key),params:recording};
     return hierarchy;
 }

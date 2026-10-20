@@ -125,3 +125,20 @@ for(let role=0;role<4;role++){
 }
 assert(page.ctl.pages.some(item=>item.keys?.includes('rhythm_gen_edit')),'shared pattern editor is available');
 console.log('Joint rhythm: four fixed track selectors and shared pattern editor pass');
+
+// Comp weave edits the existing comp lane, including its Conditions, directly.
+for (const group of [0,2]) {
+ appState.focusGroup=group;page=panels.jointPage();
+ const weavePage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_actor_2_motion_operation'));
+ assert(weavePage>=0);page.goToPage(weavePage);flush(page);
+ const expected=['motion_lane','motion_operation','motion_amount','motion_enabled','motion_cycle','motion_every','motion_from','motion_through'];
+ for(let knob=0;knob<8;knob++) {
+  assert.equal(page.keyAt(knob),'joint_actor_2_'+expected[knob]);
+  const before=writes.length;page.knobTurn(knob,4);flush(page);
+  assert(writes.slice(before).some(([track,key])=>track===group*4+2&&key==='midi_fx1:'+expected[knob]),expected[knob]);
+  assert(!writes.slice(before).some(([track,key])=>track!==group*4+2&&key==='midi_fx1:'+expected[knob]));
+ }
+ portFor(group*4+2).setParam('midi_fx1:motion_operation','Clip Weave');flush(page);
+ assert.equal(page.performanceGet('joint_actor_2_motion_operation'),'Clip Weave');
+}
+console.log('Joint comp weave: existing lane and Conditions routed to comp in each quartet; external edits read back');

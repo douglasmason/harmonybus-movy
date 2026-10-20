@@ -47,7 +47,8 @@ mod hb_weave_tests {
             if tick==24 || tick==792 {assert_eq!(attacks(&output),vec![67]);}
             if tick==384 {assert_eq!(attacks(&output),vec![60,64]);}
             if tick==408 {assert!(attacks(&output).is_empty());}
-            if tick==458 {assert_eq!(attacks(&output),vec![67]);} // auto resumes with fresh snapshot at 410
+            if tick==432 {assert_eq!(attacks(&output),vec![67]);} // auto keeps the phrase that began at 384
+            if tick==410 || tick==458 {assert!(attacks(&output).is_empty());}
         }
     }
     #[test]
@@ -76,4 +77,68 @@ mod hb_weave_tests {
         output.clear();engine.tracks[0].pos_tick=24;engine.tracks[0].clips[0].notes.iter_mut().for_each(|note|note.fired=false);
         engine.step_tick(0,&mut output);assert_eq!(attacks(&output),vec![67]);
     }
+    #[test]
+    fn donor_quantization_and_scaled_swing_match_normal_playback() {
+        for (numerator,denominator) in [(1,1),(2,1),(1,2)] {
+            for quant in [0,50,100] {
+                let mut engine=fixture(); engine.swing_pct=80;
+                let donor=&mut engine.tracks[1].clips[0];
+                donor.quant=quant;donor.scale_num=numerator;donor.scale_den=denominator;
+                donor.notes.last_mut().unwrap().tick=31;donor.notes.last_mut().unwrap().step=1;
+                engine.hb_perform(0,0,true,65,2,0);
+                let mut output=Vec::new(); let mut borrowed=Vec::new();let mut normal=Vec::new();
+                for tick in 0..96 {
+                    output.clear();engine.step_tick(0,&mut output);engine.step_tick(1,&mut output);
+                    if attacks(&output).contains(&67) {borrowed.push(tick);}
+                    if output.iter().any(|event|matches!(event,OutEvent::NoteOn{track:1,pitch:38,..})) {normal.push(tick);}
+                }
+                assert_eq!(borrowed,normal,"quant {quant}, scale {numerator}/{denominator}");
+                assert_eq!(normal.len(),1);
+            }
+        }
+    }
+    #[test]
+    fn edits_refresh_only_at_borrowed_loop_boundaries_and_unchanged_loops_reuse_cache() {
+        let mut engine=fixture(); engine.hb_perform(0,0,true,65,2,0);
+        let mut output=Vec::new();
+        for tick in 0..384 {
+            if tick==10 {
+                let note=engine.tracks[1].clips[0].notes.last_mut().unwrap();note.tick=72;note.step=3;
+            }
+            output.clear();engine.step_tick(0,&mut output);
+            if tick==48 || tick==168 {assert_eq!(attacks(&output),vec![67]);}
+            if tick==72 || tick==144 {assert!(attacks(&output).is_empty());}
+            assert_eq!(engine.hb_weave[0].snapshots,if tick<96 {1} else {2});
+        }
+    }
+    #[test]
+    fn edited_loop_length_takes_effect_at_old_boundary_without_midcycle_restart() {
+        let mut engine=fixture();engine.hb_perform(0,0,true,65,2,0);
+        let mut output=Vec::new();
+        for tick in 0..289 {
+            if tick==10 {engine.tracks[1].clips[0].set_loop(0,8);}
+            output.clear();engine.step_tick(0,&mut output);
+            if [0,96,288].contains(&tick) {assert_eq!(attacks(&output),vec![60,64]);}
+            if [48,144].contains(&tick) {assert_eq!(attacks(&output),vec![67]);}
+            if [192,240].contains(&tick) {assert!(attacks(&output).is_empty());}
+        }
+        assert_eq!(engine.hb_weave[0].snapshots,2);
+    }
+    #[test]
+    fn manual_override_crossing_loop_keeps_auto_phase_and_stop_restarts_cleanly() {
+        let mut engine=fixture();engine.hb_auto_config(0,"mca1;0,65,2,0,3,1,1,1,100,0");
+        let mut output=Vec::new();
+        for tick in 0..145 {
+            engine.master_tick=tick+1;
+            if tick==20 {engine.hb_perform(0,1,true,13,1,0);}
+            if tick==110 {engine.hb_perform(0,1,false,0,0,0);}
+            output.clear();engine.step_tick(0,&mut output);
+            if tick==110 {assert!(attacks(&output).is_empty());}
+            if tick==144 {assert_eq!(attacks(&output),vec![67]);}
+        }
+        engine.stop(&mut output);assert!(engine.gates.is_empty());
+        engine.playing=true;engine.tracks[0].playing_slot=Some(0);engine.tracks[0].pos_tick=0;engine.master_tick=1;
+        output.clear();engine.step_tick(0,&mut output);assert_eq!(attacks(&output),vec![60,64]);
+    }
+
 }

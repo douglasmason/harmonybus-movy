@@ -20,7 +20,16 @@ def patch_clip_weave(root: Path) -> None:
     }''')
     source = replace_once(source, '        let newest = self.slots.iter().flatten().max_by_key(|gesture| gesture.order).copied()\n            .or_else(||self.automatic.iter().flatten().max_by_key(|gesture|gesture.order).copied());', '        let newest = self.winner(clip).map(|(_,gesture)|gesture);')
     path.write_text(source)
+    path = core / 'clip_tools.rs'
+    timing_source: str = path.read_text()
+    engine_source: str = (core / 'engine.rs').read_text()
+    swing_start: int = engine_source.index('    pub(crate) fn swing_delay(')
+    swing_end: int = engine_source.index('\n    }', swing_start) + len('\n    }')
+    swing_method: str = engine_source[swing_start:swing_end]
+    swing_function: str = swing_method.replace('    pub(crate) fn swing_delay(&self,', 'pub fn swing_delay(swing_pct: u32,').replace('self.swing_pct', 'swing_pct')
+    path.write_text(timing_source + '\n/// Shared scaled-sixteenth swing used by playback and rhythm borrowing.\n' + swing_function + '\n')
     path = core / 'engine.rs'
+    path.write_text(replace_once(engine_source, swing_method, '    pub(crate) fn swing_delay(&self, step: u16, scale_num: u8, scale_den: u8) -> u32 {\n        crate::clip_tools::swing_delay(self.swing_pct, step, scale_num, scale_den)\n    }'))
     source = replace_once(path.read_text(), 'pub struct Engine {', 'pub struct Engine {\n    hb_weave: Vec<crate::hb_weave::Weave>,')
     source = replace_once(source, '            hb_performance:', '            hb_weave: vec![Default::default(); NUM_TRACKS],\n            hb_performance:')
     source = replace_once(source, '        if !self.playing { return; }', '        if !self.playing || (operation==65 && self.recording && self.records_track(track)) { return; }')
@@ -32,7 +41,7 @@ def patch_clip_weave(root: Path) -> None:
             let donor=request.and_then(|(_,gesture)|usize::try_from(gesture.amount-1).ok())
                 .and_then(|track|self.tracks.get(track))
                 .and_then(|track|track.playing_slot.map(|slot|(slot,&track.clips[slot])));
-            let weave=self.hb_weave[ti].read(request,clip,donor);
+            let weave=self.hb_weave[ti].read(request,clip,donor,self.swing_pct);
             let hb_window = self.hb_performance[ti].advance''')
     anchor = '            if !muted {\n                    let len = self.tracks[ti].clips[slot].notes.len();'
     source = replace_once(source, anchor, '''            let hb_window=if request.is_some() {weave.map(|(window,_)|window)} else {hb_window};
