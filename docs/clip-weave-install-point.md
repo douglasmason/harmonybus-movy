@@ -1,7 +1,7 @@
 # Clip Weave install point
 
 Candidate pair: HB **0.2.282-dev.2** and Movy **0.34.1-hbclean.203-dev.2**.
-The candidate workflow pins HB `c2dd5c973d13e7bd23b359be06e981ba81724618`.
+The candidate workflow pins HB `d8a8ee1a0192e299dcdb7005e7f9393220c9fa4d`.
 The existing conductor inversion and surface fixes are included.
 
 On the destination's operation lane choose **Clip Weave** and set **Rhythm Track**

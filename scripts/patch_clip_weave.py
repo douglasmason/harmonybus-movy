@@ -20,7 +20,7 @@ def patch_clip_weave(root: Path) -> None:
     }''')
     source = replace_once(source, '        let newest = self.slots.iter().flatten().max_by_key(|gesture| gesture.order).copied()\n            .or_else(||self.automatic.iter().flatten().max_by_key(|gesture|gesture.order).copied());', '        let newest = self.winner(clip).map(|(_,gesture)|gesture);')
     path.write_text(source)
-    path = core / 'engine.rs' 
+    path = core / 'engine.rs'
     source = replace_once(path.read_text(), 'pub struct Engine {', 'pub struct Engine {\n    hb_weave: Vec<crate::hb_weave::Weave>,')
     source = replace_once(source, '            hb_performance:', '            hb_weave: vec![Default::default(); NUM_TRACKS],\n            hb_performance:')
     source = replace_once(source, '        if !self.playing { return; }', '        if !self.playing || (operation==65 && self.recording && self.records_track(track)) { return; }')
