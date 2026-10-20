@@ -100,6 +100,7 @@ mod hb_weave_tests {
     #[test]
     fn edits_refresh_only_at_borrowed_loop_boundaries_and_unchanged_loops_reuse_cache() {
         let mut engine=fixture(); engine.hb_perform(0,0,true,65,2,0);
+        engine.tracks[1].clips[0].set_clip_length(4);
         let mut output=Vec::new();
         for tick in 0..384 {
             if tick==10 {
@@ -114,9 +115,10 @@ mod hb_weave_tests {
     #[test]
     fn edited_loop_length_takes_effect_at_old_boundary_without_midcycle_restart() {
         let mut engine=fixture();engine.hb_perform(0,0,true,65,2,0);
+        engine.tracks[1].clips[0].set_clip_length(4);
         let mut output=Vec::new();
         for tick in 0..289 {
-            if tick==10 {engine.tracks[1].clips[0].set_loop(0,8);}
+            if tick==10 {engine.tracks[1].clips[0].set_clip_length(8);}
             output.clear();engine.step_tick(0,&mut output);
             if [0,96,288].contains(&tick) {assert_eq!(attacks(&output),vec![60,64]);}
             if [48,144].contains(&tick) {assert_eq!(attacks(&output),vec![67]);}
@@ -127,6 +129,7 @@ mod hb_weave_tests {
     #[test]
     fn manual_override_crossing_loop_keeps_auto_phase_and_stop_restarts_cleanly() {
         let mut engine=fixture();engine.hb_auto_config(0,"mca1;0,65,2,0,3,1,1,1,100,0");
+        engine.tracks[1].clips[0].set_clip_length(4);
         let mut output=Vec::new();
         for tick in 0..145 {
             engine.master_tick=tick+1;
