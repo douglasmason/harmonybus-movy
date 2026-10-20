@@ -1,0 +1,1 @@
+Movy hbclean.46 restores Schwung’s option-list peek for HB Lane and Operation knobs. Turn to see the choices with the current value highlighted; release to dismiss. Shared lane updates remain immediate. Requires HB 0.2.130, unchanged.

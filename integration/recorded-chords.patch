@@ -1,0 +1,408 @@
+diff --git a/engine/crates/movy-dsp/src/chain_slots.rs b/engine/crates/movy-dsp/src/chain_slots.rs
+--- a/engine/crates/movy-dsp/src/chain_slots.rs
++++ b/engine/crates/movy-dsp/src/chain_slots.rs
+@@ -816,6 +816,26 @@
+         for instance in self.slots.iter_mut().flatten() { instance.hb_set_param(key,message); }
+     }
+ 
++    pub fn hb_playback(&mut self,slot:usize,rendered:bool){
++        if let Some(Some(instance))=self.slots.get_mut(slot){
++            let playback=std::ffi::CStr::from_bytes_with_nul(b"midi_fx1:hb_movy_playback\0").unwrap();
++            let passthrough=std::ffi::CStr::from_bytes_with_nul(b"midi_fx1:hb_movy_passthrough\0").unwrap();
++            let on=std::ffi::CStr::from_bytes_with_nul(b"1\0").unwrap();
++            let off=std::ffi::CStr::from_bytes_with_nul(b"0\0").unwrap();
++            instance.hb_set_param(playback,on);
++            instance.hb_set_param(passthrough,if rendered{on}else{off});
++        }
++    }
++    pub fn hb_playback_done(&mut self,slot:usize){
++        if let Some(Some(instance))=self.slots.get_mut(slot){
++            let playback=std::ffi::CStr::from_bytes_with_nul(b"midi_fx1:hb_movy_playback\0").unwrap();
++            let passthrough=std::ffi::CStr::from_bytes_with_nul(b"midi_fx1:hb_movy_passthrough\0").unwrap();
++            let off=std::ffi::CStr::from_bytes_with_nul(b"0\0").unwrap();
++            instance.hb_set_param(playback,off);
++            instance.hb_set_param(passthrough,off);
++        }
++    }
++
+     pub fn get_param(&mut self, slot: usize, key: &str) -> Option<String> {
+         self.slots.get_mut(slot)?.as_mut()?.get_param(key)
+     }
+diff --git a/engine/crates/movy-dsp/src/lib.rs b/engine/crates/movy-dsp/src/lib.rs
+--- a/engine/crates/movy-dsp/src/lib.rs
++++ b/engine/crates/movy-dsp/src/lib.rs
+@@ -5,6 +5,7 @@
+ 
+ mod click;
+ mod hb_loop;
++mod hb_record;
+ mod ffi;
+ mod host;
+ mod chain_copy;
+@@ -176,7 +177,29 @@
+     fn set_param(&mut self, key: &str, val: &str) {
+         match key {
+             "cmd" => {
+-                apply_batch(&mut self.engine, val, &mut self.out);
++                // The UI's non/nof capture is raw input. When a conductor has
++                // a chord player, only the emitted chord MIDI belongs in its
++                // recording. Commands for all other tracks remain untouched.
++                let mut filtered=String::new();
++                for command in val.split(';') {
++                    let mut fields=command.split_whitespace();
++                    let operation=fields.next().unwrap_or("");
++                    let mut skip=false;
++                    if matches!(operation,"non"|"nof") {
++                        if let Some(track)=fields.next().and_then(|field|field.parse::<usize>().ok()) {
++                            if track<self.engine.tracks.len()&&chain_for(track as u8,self.movy_tracks).is_some(){
++                                let role=self.chains.get_param(track,"midi_fx1:track_role");
++                                let mode=self.chains.get_param(track,"midi_fx1:chord_mode");
++                                let playback=self.chains.get_param(track,"midi_fx1:arp_playback");
++                                skip=role.as_deref()==Some("Conductor")&&
++                                    (mode.as_deref().is_some_and(|value|value!="Off")||
++                                     playback.as_deref().is_some_and(|value|value!="Together"));
++                            }
++                        }
++                    }
++                    if !skip {if !filtered.is_empty(){filtered.push(';');}filtered.push_str(command);}
++                }
++                apply_batch(&mut self.engine, &filtered, &mut self.out);
+             }
+             // schwung sends these automatically at tool launch
+             "project_bpm" => {
+@@ -506,31 +529,35 @@
+                 /* The one place that knows where a track's notes go. A host
+                  * track is addressed by MIDI channel; a movy track is a chain
+                  * movy owns, so its note never leaves this process. */
+-                OutEvent::NoteOn { track, pitch, vel } => {
++                OutEvent::NoteOn { track, pitch, vel } | OutEvent::RenderedOn { track,pitch,vel } => {
+                     match chain_for(track, self.movy_tracks) {
+                         None => {
+                             host::midi_send_internal(0x90 | track, pitch, vel);
+                         }
+                         Some(c) => {
++                            self.chains.hb_playback(c,matches!(self.out[i],OutEvent::RenderedOn{..}));
+                             self.chains.on_midi(
+                                 c,
+                                 &[0x90, pitch, vel],
+                                 MOVE_MIDI_SOURCE_INTERNAL,
+                             );
++                            self.chains.hb_playback_done(c);
+                         }
+                     }
+                 }
+-                OutEvent::NoteOff { track, pitch } => {
++                OutEvent::NoteOff { track, pitch } | OutEvent::RenderedOff { track,pitch } => {
+                     match chain_for(track, self.movy_tracks) {
+                         None => {
+                             host::midi_send_internal(0x80 | track, pitch, 0);
+                         }
+                         Some(c) => {
++                            self.chains.hb_playback(c,matches!(self.out[i],OutEvent::RenderedOff{..}));
+                             self.chains.on_midi(
+                                 c,
+                                 &[0x80, pitch, 0],
+                                 MOVE_MIDI_SOURCE_INTERNAL,
+                             );
++                            self.chains.hb_playback_done(c);
+                         }
+                     }
+                 }
+@@ -608,6 +635,13 @@
+          * chain restore stacking into a single block (see load_queue). */
+         self.chains.service_loads();
+         self.chains.render(out_audio);
++        hb_record::QUEUE.drain(|track,status,pitch,velocity|{
++            if status==0x90&&velocity>0 {
++                self.engine.live_rendered_note_on(track,pitch,velocity);
++            }else if status==0x80||status==0x90 {
++                self.engine.live_note_off(track,pitch);
++            }
++        });
+     }
+ }
+ 
+diff --git a/engine/crates/movy-dsp/src/hb_record.rs b/engine/crates/movy-dsp/src/hb_record.rs
+new file mode 100644
+--- /dev/null
++++ b/engine/crates/movy-dsp/src/hb_record.rs
+@@ -0,0 +1,53 @@
++//! Per-track generated MIDI, produced by one chain lane and drained after join.
++use std::cell::UnsafeCell;
++use std::sync::atomic::{AtomicUsize,Ordering};
++
++const TRACKS:usize=16;
++const CAPACITY:usize=128;
++pub struct RecordQueue {
++    messages:[UnsafeCell<[(u8,u8,u8);CAPACITY]>;TRACKS],
++    lengths:[AtomicUsize;TRACKS],
++}
++// Each chain's MIDI FX has exactly one producer per block. The consumer runs
++// only after all chain lanes join, so no reader races the producer.
++unsafe impl Sync for RecordQueue {}
++impl RecordQueue {
++    const fn new()->Self {Self{
++        messages:[const {UnsafeCell::new([(0,0,0);CAPACITY])};TRACKS],
++        lengths:[const {AtomicUsize::new(0)};TRACKS],
++    }}
++    pub fn push(&self,track:usize,status:u8,pitch:u8,velocity:u8)->bool{
++        if track>=TRACKS{return false;}
++        let index=self.lengths[track].load(Ordering::Relaxed);
++        if index>=CAPACITY{return false;}
++        unsafe {(*self.messages[track].get())[index]=(status,pitch,velocity);}
++        self.lengths[track].store(index+1,Ordering::Release);
++        true
++    }
++    pub fn drain(&self,mut receive:impl FnMut(usize,u8,u8,u8)){
++        for track in 0..TRACKS {
++            let count=self.lengths[track].swap(0,Ordering::AcqRel);
++            for index in 0..count {
++                let (status,pitch,velocity)=unsafe{(*self.messages[track].get())[index]};
++                receive(track,status,pitch,velocity);
++            }
++        }
++    }
++}
++pub static QUEUE:RecordQueue=RecordQueue::new();
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn preserves_timed_on_off_and_track_order(){
++        let queue=RecordQueue::new();
++        assert!(queue.push(3,0x90,62,105));
++        assert!(queue.push(3,0x80,62,0));
++        assert!(queue.push(1,0x90,60,90));
++        let mut notes=Vec::new();
++        queue.drain(|track,status,pitch,velocity|notes.push((track,status,pitch,velocity)));
++        assert_eq!(notes,vec![(1,0x90,60,90),(3,0x90,62,105),(3,0x80,62,0)]);
++        queue.drain(|_,_,_,_|panic!("already consumed"));
++    }
++}
+diff --git a/engine/crates/seq-core/src/clip.rs b/engine/crates/seq-core/src/clip.rs
+--- a/engine/crates/seq-core/src/clip.rs
++++ b/engine/crates/seq-core/src/clip.rs
+@@ -21,6 +21,8 @@
+     pub vel: u8,
+     /// Step anchor — authoritative for step ops, LEDs, and step editing.
+     pub step: u16,
++    /// Saved output from a conductor chord player; bypass generation on replay.
++    pub rendered: bool,
+     /// Just-recorded note: the scheduler skips it until the clip next wraps,
+     /// so the take you just played doesn't double-trigger on the same pass
+     /// (davebox suppress_until_wrap).
+@@ -324,6 +326,7 @@
+                 pitch: n.pitch,
+                 vel: n.vel,
+                 step: n.step + len,
++                rendered: n.rendered,
+                 suppress: false,
+                 fired: false,
+             })
+@@ -383,6 +386,7 @@
+             step,
+             suppress: false,
+             fired: false,
++            rendered: false,
+         });
+     }
+ 
+@@ -405,6 +409,7 @@
+         self.extend_to_step(step.min((MAX_STEPS as u32 - bar) as u16));
+         self.notes.push(Note {
+             tick, gate: gate.max(1), pitch, vel, step, suppress, fired: false,
++            rendered: false,
+         });
+     }
+ 
+@@ -642,7 +647,7 @@
+             return;
+         }
+         self.extend_to_step(step);
+-        self.notes.push(Note { tick, gate, pitch, vel, step, suppress: false, fired: false });
++        self.notes.push(Note { tick, gate, pitch, vel, step, suppress: false, fired: false, rendered: false });
+     }
+ 
+     /// Add `pitch` to every step in [s0, s1] that doesn't already have it
+diff --git a/engine/crates/seq-core/src/clip_tools.rs b/engine/crates/seq-core/src/clip_tools.rs
+--- a/engine/crates/seq-core/src/clip_tools.rs
++++ b/engine/crates/seq-core/src/clip_tools.rs
+@@ -57,7 +57,7 @@
+ mod tests {
+     use super::*;
+     fn note(tick: u32, pitch: u8) -> Note {
+-        Note { tick, gate: 3, pitch, vel: 100, step: ((tick+12)/24) as u16, suppress: false, fired: false }
++        Note { tick, gate: 3, pitch, vel: 100, step: ((tick+12)/24) as u16, suppress: false, fired: false, rendered: false }
+     }
+     #[test]
+     fn quantize_then_fill_chords_and_preserve_outside_loop() {
+diff --git a/engine/crates/seq-core/src/engine.rs b/engine/crates/seq-core/src/engine.rs
+--- a/engine/crates/seq-core/src/engine.rs
++++ b/engine/crates/seq-core/src/engine.rs
+@@ -15,6 +15,8 @@
+ pub enum OutEvent {
+     NoteOn { track: u8, pitch: u8, vel: u8 },
+     NoteOff { track: u8, pitch: u8 },
++    RenderedOn { track: u8, pitch: u8, vel: u8 },
++    RenderedOff { track: u8, pitch: u8 },
+     /// Metronome click; `accent` marks the downbeat (bar start).
+     Click { accent: bool },
+     /// Parameter automation: chain abs-CC 102+lane, value 0..=127.
+@@ -38,6 +40,7 @@
+ struct RecPending {
+     pitch: u8,
+     vel: u8,
++    rendered: bool,
+     /// Signed: negative means the note began inside the count-in, that many
+     /// ticks before the recording start (see `Engine::preroll_offset`).
+     start_tick: i32,
+@@ -55,6 +58,7 @@
+ struct Gate {
+     track: u8,
+     pitch: u8,
++    rendered: bool,
+     ticks_left: u32,
+ }
+ 
+@@ -978,10 +982,8 @@
+     /// Release every note still sounding (all open gates → NoteOff).
+     fn flush_gates(&mut self, out: &mut Vec<OutEvent>) {
+         for g in self.gates.drain(..) {
+-            out.push(OutEvent::NoteOff {
+-                track: g.track,
+-                pitch: g.pitch,
+-            });
++            out.push(if g.rendered {OutEvent::RenderedOff {track:g.track,pitch:g.pitch}}
++                else {OutEvent::NoteOff {track:g.track,pitch:g.pitch}});
+         }
+     }
+ 
+@@ -993,10 +995,8 @@
+         while gi < self.gates.len() {
+             if self.gates[gi].track as usize == track {
+                 let g = self.gates.swap_remove(gi);
+-                out.push(OutEvent::NoteOff {
+-                    track: g.track,
+-                    pitch: g.pitch,
+-                });
++                out.push(if g.rendered {OutEvent::RenderedOff {track:g.track,pitch:g.pitch}}
++                    else {OutEvent::NoteOff {track:g.track,pitch:g.pitch}});
+                 continue; // re-examine the element swapped into this slot
+             }
+             gi += 1;
+@@ -1656,8 +1656,12 @@
+         // `release_pass_flags` has run, so suppressing it would mute it until
+         // the NEXT wrap: recorded correctly, silent for a whole loop.
+         let same_pass = cycle == p.start_cycle;
+-        self.tracks[p.track].clips[p.slot]
+-            .record_note(step, tick, gate, stored, p.vel, same_pass);
++        let clip=&mut self.tracks[p.track].clips[p.slot];
++        let count=clip.notes.len();
++        clip.record_note(step, tick, gate, stored, p.vel, same_pass);
++        if p.rendered&&clip.notes.len()>count {
++            clip.notes.last_mut().unwrap().rendered=true;
++        }
+     }
+ 
+     /// The longest gate a captured note may be given.
+@@ -1742,11 +1746,20 @@
+         self.rec_pending.push(RecPending {
+             pitch,
+             vel,
++            rendered: false,
+             start_tick,
+             track,
+             slot: self.tracks[track].active_clip,
+             start_cycle: self.tracks[track].cycle,
+         });
++    }
++
++    /// Capture only the post-HB event stream for a generated conductor note.
++    pub fn live_rendered_note_on(&mut self, track: usize, pitch: u8, vel: u8) {
++        self.live_note_on(track,pitch,vel);
++        if let Some(note)=self.rec_pending.iter_mut().rfind(|note|note.track==track&&note.pitch==pitch){
++            note.rendered=true;
++        }
+     }
+ 
+     /// Finalize a recorded note (start → now) into the clip on note-off,
+@@ -2027,7 +2040,8 @@
+                 gi += 1;
+             } else {
+                 let g = self.gates.swap_remove(gi);
+-                out.push(OutEvent::NoteOff { track: g.track, pitch: g.pitch });
++                out.push(if g.rendered {OutEvent::RenderedOff {track:g.track,pitch:g.pitch}}
++                    else {OutEvent::NoteOff {track:g.track,pitch:g.pitch}});
+             }
+         }
+         self.master_tick += 1;
+@@ -2085,7 +2099,8 @@
+                 self.gates[gi].ticks_left -= 1;
+                 if self.gates[gi].ticks_left == 0 {
+                     let g = self.gates.swap_remove(gi);
+-                    out.push(OutEvent::NoteOff { track: g.track, pitch: g.pitch });
++                    out.push(if g.rendered {OutEvent::RenderedOff {track:g.track,pitch:g.pitch}}
++                        else {OutEvent::NoteOff {track:g.track,pitch:g.pitch}});
+                     continue; // re-examine the element swapped into this slot
+                 }
+             }
+@@ -2149,10 +2164,12 @@
+                         // and live pads stay at concert pitch.
+                         let emit_pitch =
+                             (n.pitch as i32 + self.clip_transpose(ti, slot)).clamp(0, 127) as u8;
+-                        out.push(OutEvent::NoteOn { track: ti as u8, pitch: emit_pitch, vel: n.vel });
++                        out.push(if n.rendered {OutEvent::RenderedOn {track:ti as u8,pitch:emit_pitch,vel:n.vel}}
++                            else {OutEvent::NoteOn {track:ti as u8,pitch:emit_pitch,vel:n.vel}});
+                         self.gates.push(Gate {
+                             track: ti as u8,
+                             pitch: emit_pitch,
++                            rendered: n.rendered,
+                             ticks_left: n.gate.max(1),
+                         });
+                     }
+diff --git a/engine/crates/seq-core/src/persist.rs b/engine/crates/seq-core/src/persist.rs
+--- a/engine/crates/seq-core/src/persist.rs
++++ b/engine/crates/seq-core/src/persist.rs
+@@ -57,7 +57,8 @@
+                         s.push(';');
+                     }
+                     s.push_str(&format!(
+-                        "{}:{}:{}:{}:{}", n.tick, n.gate, n.pitch, n.vel, n.step));
++                        "{}:{}:{}:{}:{}{}", n.tick, n.gate, n.pitch, n.vel, n.step,
++                        if n.rendered { ":1" } else { "" }));
+                 }
+                 s.push('\n');
+                 // Clip params on their own line (after `cl`, since load_clip
+@@ -309,6 +310,9 @@
+                         .unwrap_or(((tick + crate::TICKS_PER_STEP / 2)
+                             / crate::TICKS_PER_STEP) as u16);
+                     clip.add_note_raw(step, tick, gate.max(1), pitch.min(127), vel.clamp(1, 127));
++                    if parts.get(5) == Some(&"1") {
++                        if let Some(note) = clip.notes.last_mut() { note.rendered = true; }
++                    }
+                 }
+             }
+         }
+@@ -403,6 +407,21 @@
+     }
+ 
+     #[test]
++    fn rendered_conductor_voices_survive_save_and_legacy_notes_remain_raw() {
++        let mut source = Engine::new(44100, 12000);
++        source.tracks[0].active_mut().toggle_step(0, &[(60, 100), (64, 90)]);
++        source.tracks[0].active_mut().notes[0].rendered = true;
++        let saved = serialize(&source);
++        assert!(saved.contains(":60:100:0:1"));
++        let mut restored = Engine::new(44100, 12000);
++        assert!(load(&mut restored, &saved));
++        let notes = &restored.tracks[0].active().notes;
++        assert_eq!(notes.len(), 2);
++        assert!(notes.iter().find(|note| note.pitch == 60).unwrap().rendered);
++        assert!(!notes.iter().find(|note| note.pitch == 64).unwrap().rendered);
++    }
++
++    #[test]
+     fn clip_length_preserved_with_note_beyond_it() {
+         // A custom length shorter than a note's step (user shrank a longer clip)
+         // must survive a round-trip — loading the note must not re-extend it.

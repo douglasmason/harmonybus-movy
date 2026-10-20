@@ -1,0 +1,1 @@
+HarmonyBus Movy hbclean.44 adds a global Steps / Perform switch in Settings. Hold steps 1–4 for four operation lanes, 5–6 for chromatic-below / scale-above, or press 7–8 for either three-onset enclosure order. Performance controls follow the active track. Requires HarmonyBus 0.2.130. Source clips remain unchanged. Physical gestures on Move have not yet been verified.

@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import { installMockEngine, uninstallMockEngine, resetUndoState, resetUndoGroups,
+    resetUndoRecord, resetSeqEngine, seqEngineTick, undoDepth, peekUndo } from './logic/harness.mjs';
+import { clipPageState, clipPageKnob, clipPageClick, clipPageJog, resetClipPage } from '../dist/esm/seq/clip-page.js';
+import { buildClipPageVM } from '../dist/esm/seq/clip-page-vm.js';
+import { seqState, resetSeqState } from '../dist/esm/seq/state.js';
+const engine=installMockEngine();
+resetUndoState();resetUndoGroups();resetUndoRecord();resetSeqEngine();resetSeqState();resetClipPage();
+seqEngineTick();
+assert.equal(buildClipPageVM().rows[1][0].displayValue,'1/8');
+clipPageKnob(4,8,0);
+assert.equal(clipPageState.editGrid,2);
+assert.equal(engine.ops.some(op=>op.startsWith('cfill')),false,'selecting options must not edit the clip');
+clipPageClick(0);seqEngineTick();
+assert(engine.ops.includes('cfill 0 96'));
+assert.equal(undoDepth(),1,'one click is one undo entry');
+clipPageJog(-1);clipPageClick(0);seqEngineTick();
+assert(engine.ops.includes('cfill 0 0'));
+const count=engine.ops.filter(op=>op.startsWith('cfill')).length;
+seqState.recording=true;clipPageClick(0);seqEngineTick();
+assert.equal(engine.ops.filter(op=>op.startsWith('cfill')).length,count);
+uninstallMockEngine();
+console.log('Clip action UI: grid choice, explicit apply, one Undo and recording guard pass');

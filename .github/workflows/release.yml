@@ -1,0 +1,157 @@
+name: Build HarmonyBus Movy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: harmonybus-movy-release
+  cancel-in-progress: true
+
+env:
+  HB_MOVY_VERSION: 0.34.1-hb.16
+  HB_MOVY_TAG: v0.34.1-hb.16
+  ASSET_NAME: harmonybus-movy-module.tar.gz
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout integration repo
+        uses: actions/checkout@v4
+
+      - name: Install aarch64 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          sudo ln -sf "$(command -v aarch64-linux-gnu-gcc)" /usr/local/bin/aarch64-unknown-linux-gnu-gcc
+          sudo ln -sf "$(command -v aarch64-linux-gnu-nm)" /usr/local/bin/aarch64-unknown-linux-gnu-nm
+          sudo ln -sf "$(command -v aarch64-linux-gnu-strip)" /usr/local/bin/aarch64-unknown-linux-gnu-strip
+          rustup target add aarch64-unknown-linux-gnu
+
+      - name: Clone upstream Movy
+        run: git clone --depth 1 https://github.com/DimaDake/schwung-movy.git movy
+
+      - name: Apply HarmonyBus integration
+        run: |
+          python3 scripts/apply_movy_harmonybus.py movy
+          python3 scripts/apply_movy_harmonybus.py movy
+          python3 scripts/patch_movy_hb_leader_defaults.py movy
+          python3 scripts/patch_movy_hb_leader_defaults.py movy
+          python3 scripts/patch_movy_stock_schwung_pages.py movy
+          python3 scripts/patch_movy_stock_schwung_pages.py movy
+          python3 scripts/patch_movy_editor_noop.py movy
+          python3 scripts/patch_hb14_defaults_and_overlay.py movy
+          python3 scripts/patch_hb16_runtime_sync.py movy
+
+      - name: Verify HarmonyBus source-bank patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          state = Path('movy/src/seq/ui-state.ts').read_text()
+          mutes = Path('movy/src/mixer/track-mutes.ts').read_text()
+          grid = Path('movy/src/renderer/schwung-grid.ts').read_text()
+          page = Path('movy/src/renderer/schwung-page.ts').read_text()
+          router = Path('movy/src/midi/router.ts').read_text()
+          editor = Path('movy/src/renderer/schwung-editor.ts').read_text()
+          dsp = Path('movy/engine/crates/movy-dsp/src/lib.rs').read_text()
+          engine = Path('movy/engine/crates/seq-core/src/engine.rs').read_text()
+          persist = Path('movy/engine/crates/seq-core/src/persist.rs').read_text()
+
+          turn_start = page.index('const started = Date.now();')
+          touch_start = page.index('knobTouch:', turn_start)
+          turn_block = page[turn_start:touch_start]
+          render_start = editor.index('export function renderSchwungEditor(): void {')
+          render_block = editor[render_start:]
+
+          required = {
+              'quartet conductor defaults to channel 3/source ch1': "const HB_CONDUCTOR_STATE = 'hb15,0,0,0,25,2,0,0,0,0,0,0,2,0" in state,
+              'followers source ch1': "'hb15,1,0,0,25,2,0,0,0,0,0,0,1,0" in state,
+              'existing Auto source becomes ch1': 'normalizeMovyHbSourceChannel(existingHb.s)' in state,
+              'leaders are Movy 1/5/9/13': 'const pos = track % 4;' in state and 'for (let t = 0; t < 16; t++)' in state,
+              'saved HB state preserved': "const existingHb = comps.find" in state,
+              'all 16 Movy tracks are HB source tracks': 'const HB_SOURCE_FIRST = 0;' in mutes and 'const HB_SOURCE_LAST = 15;' in mutes,
+              'fresh Movy tracks default audio-muted': "mix: '1,0,1,0,0,0'" in state,
+              'native tracks are not auto-muted': "seqCmd('mute ' + t + ' 1')" not in state,
+              'native Track 1 is not given HB state': "shadow_set_param(0, 'midi_fx1:state', HB_CONDUCTOR_STATE)" not in state,
+              'fast pad route feeds seq-core': 'i.engine.live_note_on(chain, pitch, vel);' in dsp and 'i.engine.live_note_off(chain, pitch);' in dsp,
+              'transport linked by default': 'link_enabled: true,' in engine,
+              'transport linked after restore': 'engine.link_enabled = true;' in persist and 'stale saved' in persist,
+              'PAGE mode forced': "let override: SchwungGridMode | null = 'page';" in grid,
+              'accumulated detents replayed with timestamps': 'ctl.onKnobTurn(slot, dir, started + i)' in page,
+              'stock Schwung peek remains active': 'dismissPeek' not in turn_block,
+              'Movy model touch skipped on Schwung pages': "if (sp2) sp2.knobTouch(d1, true);\n                else m2?.handleKnobTouch(d1);" in router,
+              'Movy model release skipped on Schwung pages': "if (sp2) sp2.knobTouch(d1, false);\n                else if (m2?.handleKnobRelease(d1))" in router,
+              'router blocks PAGE editor': "schwungGridMode() !== 'page'" in router,
+              'Movy editor cannot become active': 'schwungEditorActive(): boolean { return false; }' in editor,
+              'Movy editor renderer is true no-op': 'state = null;' in render_block and 'drawEnumList' not in render_block,
+          }
+          missing = [name for name, ok in required.items() if not ok]
+          if missing:
+              raise SystemExit('Missing expected hb.16 behavior: ' + ', '.join(missing))
+          print('hb.16 conductor source / capture / transport / UI integration verified')
+          PY
+
+      - name: Stamp module metadata
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('movy/module.json')
+          data = json.loads(path.read_text())
+          data['version'] = '${{ env.HB_MOVY_VERSION }}'
+          data['name'] = 'Movy (HarmonyBus)'
+          data['description'] = 'Four synchronized HarmonyBus source quartets with conductor sensing, audio-thread capture/record routing, native transport follow, muted local sources, and Schwung-only parameter peek ownership'
+          path.write_text(json.dumps(data, indent=4) + '\n')
+          PY
+
+      - name: Install Movy dependencies
+        working-directory: movy
+        run: npm install
+
+      - name: Typecheck and build UI
+        working-directory: movy
+        run: |
+          npm run typecheck
+          npm run build:device
+
+      - name: Build Movy DSP
+        working-directory: movy
+        run: ./scripts/build-dsp.sh
+
+      - name: Package Schwung module
+        run: |
+          rm -rf package
+          mkdir -p package/movy/configs
+          cp movy/module.json movy/ui.js movy/dist/dsp.so package/movy/
+          cp movy/src/module-configs/*.json package/movy/configs/
+          tar -czf "$ASSET_NAME" -C package movy
+          echo 'Package contents:'
+          tar -tzf "$ASSET_NAME" | head -100
+
+      - name: Verify release metadata
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          release = json.loads(Path('release.json').read_text())
+          assert release['version'] == '${{ env.HB_MOVY_VERSION }}', release
+          expected = 'https://github.com/douglasmason/harmonybus-movy/releases/download/${{ env.HB_MOVY_TAG }}/${{ env.ASSET_NAME }}'
+          assert release['download_url'] == expected, (release['download_url'], expected)
+          print('release.json verified')
+          PY
+
+      - name: Publish or replace experimental release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$HB_MOVY_TAG" >/dev/null 2>&1; then
+            gh release upload "$HB_MOVY_TAG" "$ASSET_NAME" --clobber
+          else
+            gh release create "$HB_MOVY_TAG" "$ASSET_NAME" \
+              --title "HarmonyBus Movy $HB_MOVY_VERSION" \
+              --notes "Fixes Movy conductor sensing by matching hosted-chain channel 1, feeds the fast pad path into Record/Capture from the same resolved events heard by the chain, and keeps the dedicated HarmonyBus source banks linked to native Move transport. Retains four quartets, local-audio mute defaults, and Schwung-only parameter peek ownership."
+          fi
