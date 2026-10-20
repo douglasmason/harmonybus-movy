@@ -605,6 +605,8 @@ def main() -> int:
     patch_shared_core(root)
     from patch_clip_weave import patch_clip_weave
     patch_clip_weave(root)
+    from patch_field_play import patch_field_play
+    patch_field_play(root)
     print("HarmonyBus clean integration applied")
     return 0
 
