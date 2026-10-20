@@ -36,7 +36,7 @@ function fieldPage():SchwungPage{
 }
 /** Last-pressed wins; releasing it restores another held gesture or baseline. */
 export function fieldPad(source:string,index:number,down:boolean,width=8,height=4):boolean{
-    if(!fieldActive()||!engineReady()||!Number.isInteger(index)||index<0||index>=width*height||width!==8||![4,8].includes(height))return false;
+    if(!['move','launchpad','remote'].includes(source)||!fieldActive()||!engineReady()||!Number.isInteger(index)||index<0||index>=width*height||width!==8||![4,8].includes(height))return false;
     const key=source+':'+index;
     if(down){held.delete(key);held.set(key,{rate:rates[index%8],zoom:Math.round(25*Math.pow(16,Math.floor(index/8)/(height-1)))});}
     else held.delete(key);

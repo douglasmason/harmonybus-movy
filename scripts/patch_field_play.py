@@ -109,3 +109,29 @@ def patch_field_play(root: Path) -> None:
 
     path = root / 'browser-test/hb-joint-panels.mjs'
     path.write_text(path.read_text().replace('[1,2,3,4,0,1,2,3,4,0]', '[1,2,3,4,5,0,1,2,3,4,5,0]').replace('five-mode Session cycle','six-mode Session cycle'))
+    path = root / 'engine/crates/seq-core/src/hb_clip_performance.rs'
+    source = path.read_text() + '''
+#[cfg(test)]
+mod field_tests {
+    use super::*;
+    #[test]
+    fn field_probability_is_sampled_once_per_window_without_resetting_phase() {
+        let configs=AutoConfig::parse("mca1;0,65,2,6,3,1,1,1,100,0").unwrap();
+        let mut performance=Performance::default();
+        performance.field_values[0]=Some((1,0));
+        performance.update_auto(&configs,0,0,0,0,true);
+        assert!(performance.automatic[0].is_none());
+        performance.field_values[0]=Some((1,100));
+        performance.update_auto(&configs,1,1,0,0,true);
+        assert!(performance.automatic[0].is_none());
+        performance.update_auto(&configs,384,384,0,0,true);
+        let origin=performance.automatic[0].unwrap().origin;
+        performance.field_values[0]=Some((1,0));
+        performance.update_auto(&configs,385,385,0,0,true);
+        assert_eq!(performance.automatic[0].unwrap().origin,origin);
+        performance.update_auto(&configs,768,768,0,0,true);
+        assert!(performance.automatic[0].is_none());
+    }
+}
+'''
+    path.write_text(source)
