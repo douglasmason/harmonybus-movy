@@ -59,3 +59,11 @@ Before relying on it live: verify ordinary modes, hold/release on all surfaces,
 mode switching during holds, disconnect recovery, save/reload, Clip Weave phase,
 and audio/LED latency with animation enabled versus disabled. ARM packaging and
 software tests do not substitute for this hardware check. No device was deployed.
+
+## Validation notes
+
+The native suite and focused three-surface/Session regressions are required.
+The wider browser sweep also covered 164 unchanged screen baselines. The legacy
+upstream app-loop suite still has 11 existing failures and terminates in a missing
+MIDI-send mock; the same failures reproduce in the pre-Field checkout. Its result
+is not represented as a passing test. Device acceptance remains outstanding.
