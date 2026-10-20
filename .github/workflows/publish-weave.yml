@@ -1,0 +1,23 @@
+name: Publish tested weave install point
+on:
+  push:
+    branches: [work/publish-weave-continuity]
+    paths: [.github/workflows/publish-weave.yml, scripts/publish_weave.py]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_COMMIT: 87e0fa70613a737d7934e470cd51edb6e2947483
+      TESTED_RUN: '39474415613'
+      INSTALL_VERSION: 0.34.1-hbclean.204-dev.1
+      PREVIOUS_VERSION: 0.34.1-hbclean.203-dev.2
+      ARTIFACT_NAME: harmonybus-movy-fm1-candidate
+      ASSET_NAME: harmonybus-movy-module.tar.gz
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify tested bytes, publish release, and update installer
+        run: python3 scripts/publish_weave.py
