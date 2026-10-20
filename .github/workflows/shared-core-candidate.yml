@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 env:
-  HB_REF: 8b8292dd5b0c41d7be5711548e7f1a89bc955590
+  HB_REF: c090a5b7c8ed099451f5c0cd13786028be0920aa
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
@@ -60,7 +60,7 @@ jobs:
           /tmp/surface-bench | tee surface-benchmark.txt
       - name: Build and package ARM candidate
         run: |
-          python3 -c 'import json; p="movy/module.json"; d=json.load(open(p)); d["version"]="0.34.1-hbclean.205-dev.1"; open(p,"w").write(json.dumps(d,indent=2)+"\n")'
+          python3 -c 'import json; p="movy/module.json"; d=json.load(open(p)); d["version"]="0.34.1-hbclean.206-dev.1"; open(p,"w").write(json.dumps(d,indent=2)+"\n")'
           npm run build:device --prefix movy
           bash movy/scripts/build-dsp.sh
           mkdir -p package/movy/configs

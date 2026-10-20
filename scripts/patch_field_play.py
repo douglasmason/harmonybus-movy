@@ -8,6 +8,7 @@ def patch_field_play(root: Path) -> None:
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/field'
     (root / 'browser-test/hb-field.mjs').write_text((assets / 'hb-field.mjs').read_text())
     (root / 'src/seq/field-play.ts').write_text((assets / 'field-play.ts').read_text())
+    (root / 'src/seq/field-outputs.ts').write_text((assets / 'field-outputs.ts').read_text())
     path: Path = root / 'src/seq/router-buttons.ts'
     source: str = "import { fieldEnabled, setFieldEnabled } from './field-play.js';\n" + path.read_text()
     source = replace_once(source, 'seqState.sessionMode ? 0 : gridEnabled()', 'seqState.sessionMode ? 0 : fieldEnabled() ? 5 : gridEnabled()')
@@ -30,19 +31,19 @@ def patch_field_play(root: Path) -> None:
     path = root / 'src/app/input-reset.ts'
     path.write_text("import { releaseField } from '../seq/field-play.js';\n" + path.read_text().replace('    resetJointInput();','    releaseField();\n    resetJointInput();'))
     path = root / 'src/app/globals.ts'
-    source = "import { fieldPad, fieldSnapshot, releaseFieldSource } from '../seq/field-play.js';\n" + path.read_text()
-    source += "\nObject.assign(globalThis, { fieldPad, fieldSnapshot, releaseFieldSource });\n"
+    source = "import { fieldPad, fieldPressure, fieldSnapshot, releaseFieldSource } from '../seq/field-play.js';\n" + path.read_text()
+    source += "\nObject.assign(globalThis, { fieldPad, fieldPressure, fieldSnapshot, releaseFieldSource });\n"
     path.write_text(source)
     path = root / 'src/surfaces/launchpad.ts'
-    source = "import { fieldActive, fieldPad, fieldColors, releaseFieldSource } from '../seq/field-play.js';\n" + path.read_text()
+    source = "import { fieldActive, fieldPad, fieldPressure, fieldColors, releaseFieldSource } from '../seq/field-play.js';\n" + path.read_text()
     source = source.replace('export function releaseLaunchpad(): void {', "export function releaseLaunchpad(): void {\n    releaseFieldSource('launchpad');")
     source = source.replace('if(gridActive()){frameReady=true;}else sample(now);','if(fieldActive()||gridActive()){frameReady=true;}else sample(now);')
     source = source.replace('const desired = gridActive()?', "const desired = fieldActive()?fieldColors('launchpad',8,8):gridActive()?")
-    source = replace_once(source,'    const top = type === 176 ?', '''    if(fieldActive()&&index>=0){if(type===128||type===144)fieldPad('launchpad',index,type===144&&value>0,8,8);return;}
+    source = replace_once(source,'    const top = type === 176 ?', '''    if(fieldActive()&&index>=0){if(type===160)fieldPressure('launchpad',index,value);else if(type===128||type===144)fieldPad('launchpad',index,type===144&&value>0,8,8);return;}
     const top = type === 176 ?''')
     path.write_text(source)
     path = root / 'build/browser.mjs'
-    path.write_text(path.read_text().replace('    entryPoints: [', "    entryPoints: [\n        resolve(root, 'src/seq/field-play.ts'),"))
+    path.write_text(path.read_text().replace('    entryPoints: [', "    entryPoints: [\n        resolve(root, 'src/seq/field-play.ts'),\n        resolve(root, 'src/seq/field-outputs.ts'),"))
 
     path = root / 'src/seq/engine.ts'
     path.write_text(path.read_text().replace('function engineSet(key: string, value: string): void {', 'export const fieldEngineSet = (key: string, value: string): void => engineSet(key, value);\nfunction engineSet(key: string, value: string): void {'))
@@ -138,4 +139,4 @@ mod field_tests {
     # A changed DSP contract must not be mistaken for an already running build.
     for relative in ('src/seq/constants.ts', 'engine/crates/movy-dsp/src/lib.rs'):
         path = root / relative
-        path.write_text(path.read_text().replace('0.71.0-hb200', '0.71.0-hb205-field1'))
+        path.write_text(path.read_text().replace('0.71.0-hb200', '0.71.0-hb206-field2'))

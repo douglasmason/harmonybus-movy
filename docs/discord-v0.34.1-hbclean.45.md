@@ -1,1 +1,0 @@
-Movy hbclean.45 fixes STEPS / NO HB appearing even with HarmonyBus 0.2.130 correctly installed in MIDI FX 1. Perform detection now uses the complete panel metadata. Update Movy only, reopen it, and choose Settings → Step Row → PERFORM.

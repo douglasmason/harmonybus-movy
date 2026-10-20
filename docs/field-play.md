@@ -67,3 +67,44 @@ The wider browser sweep also covered 164 unchanged screen baselines. The legacy
 upstream app-loop suite still has 11 existing failures and terminates in a missing
 MIDI-send mock; the same failures reproduce in the pre-Field checkout. Its result
 is not represented as a passing test. Device acceptance remains outstanding.
+
+## Output strips (HB 0.2.284 / Movy 206 candidate)
+
+In Field Display set View to 1 (Outputs). Orientation 0 is Horizontal on every
+surface; 1 is Vertical. Output Bank selects the starting group of four lanes.
+Move shows four horizontal strips (eight positions); Launchpad X shows eight.
+Vertical Move shows eight strips with four positions. Each lane keeps its sample
+coordinates and range mapping. Bank changes only which lanes are visible.
+
+Hold a pad to override its lane's normalized output; several lanes can be held.
+The first pressure message anchors fine adjustment without a contact jump;
+subsequent pressure offsets the base by up to half a pad interval. Knobs 1–8
+control the bank's first eight lanes, including the four additional Launchpad
+rows. Touch engages, turn fine-adjusts, release returns to the moving field.
+Shift-turn is ten times finer. A knob adjusts the base while pad pressure remains
+an offset. These are runtime gestures, not saved automation.
+
+Jog turn changes the output bank. Jog press opens settings; normal jog clicks
+navigate the existing hierarchy. Shift-jog press returns to Outputs. Pads keep
+performing while settings are open. Mode, track, set and layout changes release
+local holds; source disconnect releases that source. DSP leases expire after
+1.5 seconds without renewal. Release glides toward the *current* noise output.
+
+The green marker blends between adjacent positions. The dim neutral marker
+shows the underlying noise during an override. Launchpad X uses RGB brightness;
+Move approximates it with its fixed green palette. There is no temporal LED
+flicker/dithering. Gamma 2.2 is an initial approximation, not a hardware-calibrated
+response. Output precision is independent of LED quantization and 8 Hz snapshots.
+
+HarmonyBus now ships a custom Schwung Remote UI (`web_ui.html`). Open HarmonyBus
+under MIDI FX in Remote UI to use horizontal labeled sliders; orientation and
+bank are shared, and 4/8 visible outputs is a remote display preference. Pointer
+holds can operate several sliders; pointer cancel, blur and page hide release.
+Arrow keys fine-adjust while held; Shift is finer. The existing Default view in
+Schwung remains available for other HarmonyBus parameters. The Remote UI uses
+the existing parameter bridge, with a separate lease from physical controls so
+one surface's release cannot clear the other's held outputs.
+
+Outputs currently correspond to operation lanes 1–16. Unmapped lanes still
+show their field sample but have no audible destination. Shared named sample
+buses, distribution presets and arbitrary synth destinations remain future work.
