@@ -11,7 +11,7 @@ const operationGroups: [string, string[]][] = [
     ['Pitch', ['Transpose','Octave','Rotate']],
     ['Expression', ['Velocity','Pan']],
     ['Rhythm', ['Gate','Skip','Ratchet','MIDI Echo']],
-    ['Clip', ['Clip Repeat','Clip Reverse','Clip Time Shift','Clip Speed']],
+    ['Clip', ['Clip Repeat','Clip Reverse','Clip Time Shift','Clip Speed','Clip Weave']],
 ];
 const motifGroups: [string, string[]][] = [
     ['Basic Cadences', ['V-Target','ii-V-Target','ii halfdim-V-i']],
