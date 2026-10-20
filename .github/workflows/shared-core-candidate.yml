@@ -1,10 +1,12 @@
 name: FM1 shared-core candidate (no deployment)
 on:
+  push:
+    branches: [work/conductor-surface-hardening]
   workflow_dispatch:
 permissions:
   contents: read
 env:
-  HB_REF: 36860c976dba19a06e6f946bca0940f0b7017cb8
+  HB_REF: d8a8ee1a0192e299dcdb7005e7f9393220c9fa4d
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
@@ -57,7 +59,7 @@ jobs:
           /tmp/surface-bench | tee surface-benchmark.txt
       - name: Build and package ARM candidate
         run: |
-          python3 -c 'import json; p="movy/module.json"; d=json.load(open(p)); d["version"]="0.34.1-hbclean.202-core.1"; open(p,"w").write(json.dumps(d,indent=2)+"\n")'
+          python3 -c 'import json; p="movy/module.json"; d=json.load(open(p)); d["version"]="0.34.1-hbclean.203-dev.2"; open(p,"w").write(json.dumps(d,indent=2)+"\n")'
           npm run build:device --prefix movy
           bash movy/scripts/build-dsp.sh
           mkdir -p package/movy/configs

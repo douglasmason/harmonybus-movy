@@ -7,6 +7,15 @@ const writes=[];let accepted=true;
 const queue=new SurfaceInput((key,value)=>{writes.push([key,value]);return accepted;},100);
 assert.equal(fm1NoteEvent([145,60,0],1,2).status,128);
 for(const bytes of [[144,60,90],[145,128,90],[145,60,-1],[145,60,90,0],[145,60.5,90],[241,1,0]]) assert.equal(fm1NoteEvent(bytes,1,2),null);
+for(const track of [-1,16,1.5,NaN,undefined]) assert.equal(fm1NoteEvent([145,60,90],1,track),null);
+for(const field of Object.keys(event())) {
+    const malformed=event();delete malformed[field];
+    assert.equal(queue.enqueue(1,malformed),false,`missing ${field} must not poison a batch`);
+}
+assert.equal(queue.enqueue(1,null),false);
+assert.equal(queue.enqueue(3,event()),false);
+queue.release(3); // Invalid source cannot poison a valid source's fence.
+assert(queue.flush());assert.equal(writes.length,0,'invalid events never reach IPC');
 queue.enqueue(0,event());queue.enqueue(1,event());accepted=false;assert.equal(queue.flush(),false);
 const first=writes.at(-1);accepted=true;assert(queue.flush());assert.deepEqual(writes.at(-1),first,'retry keeps serials');
 assert(first[1].includes(',188,60,'),'FM1 gets independent source address');
