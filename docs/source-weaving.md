@@ -1,12 +1,13 @@
 # Source Weaving
 
-Each Joint Play actor can take pitches and rhythm from different playing clips.
+Each Joint Play actor can take pitches, rhythm and expression from different playing clips.
 Open the actor's **Sources** panel (also listed in Joint Setup):
 
 1. Choose Pitch Source and Pitch Clip.
 2. Choose Rhythm Source and Rhythm Clip.
 3. Choose Sequential or Timeline alignment.
-4. Turn Source Weaving On.
+4. Optionally choose Expression Source and Expression Clip (knobs 7 and 8).
+5. Turn Source Weaving On.
 
 Own means the actor's currently playing clip. Numbered sources identify a track
 and clip slot. Both source slots and the actor's destination clip must be playing;
@@ -26,8 +27,31 @@ The source clock services each gate even when the actor has another playback spe
 Pitch-source note keys and rendered-note identity are preserved. Expression and
 per-note operations default to the destination actor's own material at its current
 phase (velocity 100 and no per-note expression/operations when that material is
-empty). Instrument automation and actor operation timelines stay on their existing
-tracks. Separate selectors for those additional dimensions are future work.
+empty). Expression Source independently overrides velocity and recorded poly-pressure;
+per-note operations remain on the destination. Instrument automation and actor
+operation timelines stay on their existing tracks. Separate selectors for those
+additional dimensions are future work.
+
+Expression always samples the latest eligible raw note at its source's own phase,
+wrapping to the last note before the first onset. It is independent of the pitch
+Sequential/Timeline choice. For a chord, the last stored note at the selected
+onset supplies one expression pattern to all emitted voices. Empty expression
+material supplies velocity 100 and no pressure. Suppressed and zero-velocity
+notes are excluded. An explicitly selected stopped, muted or missing expression
+clip silences new attacks without consuming sequential pitches.
+
+The selected note's pressure offsets restart at each accepted rhythm attack and
+run in the rhythm source's tick domain until gate release; they are not streamed
+continuously from the expression track or stretched to fill the gate. Expression
+speed, loop length and relaunch change which note is sampled at the next attack.
+Edits and source changes affect future attacks only; held notes keep their
+captured expression and original rhythm-clock releases. Changing only expression
+does not reset the pitch cursor. Own retains the earlier behavior, including each
+note's own expression when the actor also supplies its pitches.
+
+Expression routes participate in the existing save/load and undo system. Old
+seven-field routes load as Own. Recording still uses the actor's own playback
+path and never records borrowed expression into donor or destination material.
 
 ## Three starting patches
 
@@ -56,7 +80,8 @@ Source Weaving consumes the rhythm attacks that the source scheduler accepts.
 
 Native `source_route_<zero-based actor>` returns the persisted route, and
 `source_diagnostics` returns JSON with resolved source identities, active state,
-loop positions, speed ratios and active gate counts. These reads are on demand.
+loop positions, speed ratios and active gate counts. The sources array is ordered
+pitch, rhythm, expression. These reads are on demand.
 The normal Joint settings metadata also exposes the controls to compatible remote
 surfaces.
 
