@@ -153,19 +153,26 @@ The 32 pads enter Movy's native MIDI callback, using the production Joint route.
 
 Supported: all four quartets, root/bass/comp/melody layouts, actor parameter
 pages, operation knob touches, Shift-turn assignment, displayed pad colors,
-and cleanup on blur or disconnect. The page selector exposes the controller's
+the 16 Operator/Motif step buttons, and cleanup on blur or disconnect. The page selector exposes the controller's
 existing pages. A held pad retains its original native note owner across layout
 changes. Disconnect cancels outstanding touches with their original actor masks,
 releases physical notes, and clears temporary Joint routing.
 
 This is a performance-control view. It does not yet provide the full Session
-mode cycle, transport/clip recording, the physical step-button row, pressure
+mode cycle, transport/clip recording, ordinary step sequencing, pressure
 input, persistence, or audible playback. Recording settings visible in the shared
 pages are editable, but this view has no Record button. The backend still uses
 the explicit musical test fixture described above, rather than saved Move Sets.
 
 `node dev/local/joint-browser-test.cjs` verifies native follow-bass output,
 actor knob edits, scoped operation touch/release, a layout change during a held
-note, quartet selection, phone layout, and disconnect release. The native API
+note, quartet selection, Operator/Motif step presses, original-quartet step
+releases, disabled sequencer mode, phone layout, and disconnect cancellation. The native API
 suite additionally tests abrupt disconnection, original touch masks, input
 validation, and exclusive control ownership. Both browser suites run in CI.
+
+The step row uses production `hbPerformanceStep` and `paintHbPerformance`.
+Set **Step Buttons** to **Operators** or **Motifs** on the Joint Setup pages.
+Pointer holds and Space/Enter presses use the same production release handling;
+the native backend cancels a still-held step if its browser disconnects.
+**Steps** mode is visibly unavailable until this host supports clip sequencing.
