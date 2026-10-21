@@ -6,9 +6,10 @@
 <div id="status" role="status">Connecting…</div><canvas id="display" width="128" height="64" aria-label="Movy display"></canvas>
 <div class="toolbar"><button id="previous">Previous page</button><select id="panel" aria-label="Parameter page"></select><button id="next">Next page</button><button id="back">Back</button><button id="enter">Enter</button><label><input type="checkbox" id="shift"> Shift</label><button id="release">Release held controls</button></div>
 <div class="toolbar"><button id="play">Play</button><button id="stop">Stop</button><button id="record">Record</button><span id="transport" role="status">Stopped</span></div>
+<details><summary>Audio monitor</summary><p><button id="audio" aria-pressed="false">Enable audio</button> <span id="audio-status">Simple monitor sounds · MIDI channels 1–4</span></p><div id="audio-mix" style="display:grid;gap:8px"></div></details>
 <div class="knobs" id="knobs"></div><div class="pads" id="pads"></div>
 <p id="step-mode"></p><div class="steps" id="steps"></div>
 <p>Use the Steps parameter to select Operator or Motif buttons. Ordinary step sequencing is not yet available. Hold buttons with a pointer, Space or Enter.</p>
-<p>Drag knobs vertically or use arrow keys. Hold a knob to use its touch operation. Pads show the current actor layout; releases retain their original owner through layout changes. Audio playback is not yet available.</p>
+<p>Drag knobs vertically or use arrow keys. Hold a knob to use its touch operation. Pads show the current actor layout; releases retain their original owner through layout changes. Enable the audio monitor to hear rendered HB notes. These sounds do not reproduce Move instruments.</p>
 <details><summary>Rendered MIDI</summary><pre id="events"></pre></details>
 <script type="module" src="/joint.js"></script></html>
