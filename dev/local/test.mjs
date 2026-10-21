@@ -110,3 +110,42 @@ test('physical Joint pads keep one controller and cancel original touch owners o
   assert(calls.some(args=>args[0]==='midi'&&args[1]==='128,68,0'),'disconnect emits physical release');
  } finally {socket.close();observer.close();await service.close();}
 });
+
+test('native Joint recording stores physical input and replays it; transport is exclusive',{timeout:15000},async()=>{
+  const service=await startServer({port:0,realtime:false});
+  const socket=await connect(service.port),observer=await connect(service.port);
+  try {
+    for(const action of ['play;stop','load'])assert.equal((await request(socket,{type:'dev_transport',action})).type,'error');
+    for(const [mask,overwrite] of [[0,0],[65536,0],[1,2],[1.5,0]])assert.equal((await request(socket,{type:'dev_transport',action:'record',mask,overwrite})).type,'error');
+    await request(socket,{type:'set_param',key:'joint_map',value:Array(32).fill('0,60,-1,0').join(';')});
+    let response=await request(socket,{type:'dev_transport',action:'record',mask:1,overwrite:1});
+    assert.notEqual(response.type,'error',response.message);
+    assert.match(response.params.status,/cin=1 /,'record from stopped uses native count-in');
+    assert.equal((await request(observer,{type:'dev_transport',action:'stop'})).type,'error');
+    response=await request(socket,{type:'dev_step',blocks:1200});
+    assert.match(response.params.status,/rec=1 /);
+    assert.match(response.params.status,/cin=0 /);
+    await request(socket,{type:'dev_midi',data:[144,68,100]});
+    await request(socket,{type:'dev_step',blocks:64});
+    await request(socket,{type:'dev_midi',data:[128,68,0]});
+    await request(socket,{type:'dev_transport',action:'stop'});
+    await request(socket,{type:'dev_step',blocks:16});
+    const state=(await service.processor.request('get','state')).value;
+    const clip=state.split('\n').find(line=>line.startsWith('cl 0 0 '));
+    assert.match(clip,/\d+:\d+:60:100:/,'recorded clip contains original pad input');
+    const events=[];const original=service.processor.onResult;
+    service.processor.onResult=result=>{events.push(...result.events);original(result);};
+    await request(socket,{type:'dev_transport',action:'play'});
+    response=await request(socket,{type:'dev_step',blocks:1500});
+    assert.match(response.params.status,/play=1 /);
+    assert(events.some(packet=>(packet[1]&240)===144&&packet[2]===60&&packet[3]>0),'native recorded clip replays through HB');
+    socket.terminate();await once(socket,'close');
+    for(let attempt=0;attempt<50;attempt++){
+      response=await request(observer,{type:'subscribe_tool'});
+      if(response.params.status.includes('play=0 '))break;
+      await new Promise(resolve=>setTimeout(resolve,20));
+    }
+    assert.match(response.params.status,/play=0 /,'controller disconnect stops transport');
+    assert.match(response.params.status,/rec=0 /);
+  } finally {socket.close();observer.close();await service.close();}
+});
