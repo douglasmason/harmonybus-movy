@@ -297,6 +297,20 @@ static void test_source_weaving(void){
     api->get_param(instance,"ch3:midi_fx1:render_velocity_percent",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==400);
     assert(energy>0&&sent_on==1&&sent_off==1);
     set("ch3:midi_fx1:render_velocity_percent","100");
+    /* Raw recorded operations use HB's ordinary onset and release owner. */
+    char operation_state[4096];
+    int used=snprintf(operation_state,sizeof(operation_state),"movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 2 0 0\ntk 3 0 0\ncl 0 0 16 0 0:48:90:20:0\ncl 2 0 16 0 0:48:36:100:0;96:48:36:100:4\ncl 3 0 16 0 0:48:60:100:0\nsr 3 1 -1 -1 2 0 0 -1 -1 -1 -1 -1 -1 0 0\nra 0 0 0 0");
+    for(int lane=0;lane<52;lane++){
+        unsigned long long word=lane==51?0:(1ULL<<63);
+        if(lane==0)word|=(16ULL<<32)|2000; /* Recorded Transpose +2 semitones. */
+        used+=snprintf(operation_state+used,sizeof(operation_state)-(size_t)used,",%llu",word);
+    }
+    snprintf(operation_state+used,sizeof(operation_state)-(size_t)used,"\n");
+    set("state",operation_state);render(16);sent_on=sent_off=0;rendered_mask=0;
+    set("cmd","play");energy=render(16);
+    fprintf(stderr,"borrowed note operations: mask=%u\n",rendered_mask);assert(sent_on==1&&rendered_mask==(1u<<2));
+    set("cmd","mute 0 1");energy+=render(240);set("cmd","stop");render(32);
+    assert(energy>0&&sent_on==2&&sent_off==2&&rendered_mask==((1u<<2)|1));
     /* Existing conductor-chord generation consumes the woven trigger directly.
        Root Only and Triad exercise bass and comp without another harmony state. */
     set("ch0:midi_fx1:role","Conductor");set("ch0:midi_fx1:chord_mode","Off");

@@ -28,7 +28,8 @@ Pitch-source note keys and rendered-note identity are preserved. Expression and
 per-note operations default to the destination actor's own material at its current
 phase (velocity 100 and no per-note expression/operations when that material is
 empty). Expression Source independently overrides velocity and recorded poly-pressure;
-per-note operations remain on the destination. Instrument parameter routing is
+per-note operations default to the destination unless Note Ops Source is selected.
+Instrument and operation routing are
 described below. Other HB parameter and operation timelines stay on their existing
 tracks; their source selectors remain future work.
 
@@ -81,7 +82,7 @@ Source Weaving consumes the rhythm attacks that the source scheduler accepts.
 Native `source_route_<zero-based actor>` returns the persisted route, and
 `source_diagnostics` returns JSON with resolved source identities, active state,
 loop positions, speed ratios and active gate counts. The sources array is ordered
-pitch, rhythm, expression, instrument, HB render. These reads are on demand.
+pitch, rhythm, expression, instrument, HB render, note operations. These reads are on demand.
 The normal Joint settings metadata also exposes the controls to compatible remote
 surfaces.
 
@@ -169,3 +170,72 @@ sequencer tests, 292 DSP tests, dedicated browser suites and the production
 Movy → Schwung → HarmonyBus fixture checking render velocity before the first
 note, mute fallback, base restoration and paired releases. The two scheduler
 benchmarks run explicitly in release mode. No physical device testing is implied.
+
+## Recorded note-operation sources (Movy 217)
+
+Open the actor's **Source Operations** panel and choose **Note Ops Source** and
+**Note Ops Clip**. Source Weaving must be On. This borrows the existing recorded
+operation outcome attached to a note—such as a recorded transpose or approach—
+independently of pitch, expression and parameter automation. Own preserves the
+previous per-note behavior. Already-rendered pitch material remains rendered;
+operations are not applied again to those notes.
+
+At each accepted rhythm attack, the reader samples the latest raw donor note at
+its own clock/loop phase, wrapping to the last note before the first onset. Tied
+chord notes use the last stored entry, matching the expression reader. All voices
+in the borrowed pitch group receive that same operation outcome, applied by the
+existing HB note path. Sequential/Timeline still controls pitch selection only.
+Unequal loops continue independently; this is not Fit to Window.
+
+A source change or relaunch affects the next accepted attack. Missing, stopped
+or muted donors fall back to the actor's normal operation behavior. An available
+empty donor, or a selected note without recorded operations, supplies no recorded
+override; existing live/held controls still apply. Source note probability and
+conditions are not rerun: this samples raw recorded outcomes, not donor playback.
+
+Held notes retain their existing release and pressure owners after route changes,
+source edits, mute or stop. Recording the actor uses its own playback path.
+Persistence and native/UI undo include the new selector. Old 7/9/11/13-field
+routes default to Own. Clip Variation receives the selected operation before its
+existing protection against omitting operation-bearing notes.
+
+This does **not** borrow Grid holds, timed clip-reader gestures, operation lane
+assignments or shared key/context timelines. Those have separate lifecycles and
+remain on the actor. No new operation engine, cache, harmonic state or persistent
+source pointers are introduced.
+
+## Conductor overview and Source Preview (Movy 216)
+
+In Joint Play, use the jog dial to open **Conductor Overview**. This read-only
+page shows the selected quartet's melody actor's effective harmony, authority,
+root and bass, sounding key, the conductor's next known chord, and override
+candidate/pending counts. The authority can be the existing conductor bus or a
+track's live/input override. `Conductor Next` describes the learned conductor
+progression; it does not predict the lifetime of a live override. No source
+priority, defaults, saved role or audible routing changes are made. Compact
+chord inversions use a colon (C:E means C over E) because the stock string
+renderer treats a slash as a file-path separator.
+
+Each actor's **Source Preview** page is available from Joint Setup, its Track
+page and its Sources page. Pitch, Rhythm, Expression, Instrument and HB Render show the
+resolved track/clip and its own loop percentage, or mark it inactive. These are
+configured source identities even when Source Weaving is off or recording uses
+own material. Playback/alignment and held-gate count appear alongside them.
+
+**Sequencer Notes** shows distinct pitches held by the actual sequencer gate
+owner (up to four names plus a remaining count). These are inputs to HarmonyBus,
+not final sounding pitches after HB harmony, chord, arp or other processing.
+A stopped source can leave earlier gates visible until their normal release.
+Instrument-source unavailability still uses the existing own-automation fallback.
+
+The new `source_preview_<zero-based actor>` native parameter supplies a bounded
+schema-1 JSON snapshot for future remote displays. Reads do not advance pitch
+cursors, re-run conditions, emit notes or change gate ownership. UI fields share
+one snapshot for up to 100 ms, requested only through the existing panel refresh;
+there is no independent timer or audio-block diagnostic callback. Missing or old
+engines show `Unavailable`. The existing `harmony_source_snapshot` API is reused.
+
+This increment provides on-device inspection. It does not yet add a graphical
+source/result timeline, progression editing, follow-track toggles or a new Remote
+UI page. A future timeline must use accepted scheduler events and distinguish
+pre-HB material from final sounding output.

@@ -155,7 +155,7 @@ const sourceRoutes=new Map();
 globalThis.host_module_get_param=key=>key.startsWith('source_route_')?(sourceRoutes.get(Number(key.slice(13)))??`${key.slice(13)} 0 -1 -1 -1 -1 0`):nativeGet(key);
 globalThis.host_module_set_param_blocking=(key,value,timeout)=>{
  if(key==='cmd')for(const command of value.split(';'))if(command.startsWith('source ')){
-  const fields=command.slice(7).split(' ').map(Number);assert.equal(fields.length,13);sourceRoutes.set(fields[0],fields.join(' '));
+  const fields=command.slice(7).split(' ').map(Number);assert.equal(fields.length,15);sourceRoutes.set(fields[0],fields.join(' '));
  }
  return nativeSet?.(key,value,timeout);
 };
@@ -189,12 +189,71 @@ for(const group of [0,3]){
  assert.equal(sourceRoutes.get(actor)?.split(' ')[11],'0','HB Render Source selects independently');
  page.knobTurn(3,4);flush(page);
  assert.equal(sourceRoutes.get(actor)?.split(' ')[12],'1','HB Render Clip selects slot 2');
+ const operationsPage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_source_3_note_ops_track'));
+ assert(operationsPage>=0);page.goToPage(operationsPage);flush(page);
+ page.knobTurn(0,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[13],'0','Note Ops donor selects independently');
+ page.knobTurn(1,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[14],'1','Note Ops slot selects independently');
  sourceRoutes.set(actor,`${actor} 0 -1 -1 -1 -1 0`);flush(page);
  assert.equal(page.performanceGet('joint_source_3_pitch_track'),'Own','external state edits read back');
 }
 globalThis.host_module_get_param=nativeGet;globalThis.host_module_set_param_blocking=nativeSet;
 console.log('Source Weaving panels: actor selection, independent tracks/slots, enable/alignment and native readback pass');
 
+// Read-only overviews use native snapshots, keep quartets separate, and never
+// start an independent polling loop or modify source/authority settings.
+let previewReads=0,harmonyReads=0,previewValue=null;
+const previousGet=globalThis.host_module_get_param;
+globalThis.host_module_get_param=key=>{
+ if(key.startsWith('source_preview_')){
+  previewReads++;
+  return previewValue??JSON.stringify({schema:1,actor:Number(key.slice(15)),enabled:true,playing:true,muted:false,recording:false,timeline:false,gates:2,notes:[60,64],sources:[{track:1,slot:2,active:true,phase_ticks:96,length_ticks:384},null,null,null,null,{track:4,slot:1,active:true,phase_ticks:48,length_ticks:192}]});
+ }
+ return previousGet(key);
+};
+for(const group of [0,3]){
+ const port=portFor(group*4+3),get=port.getParam;
+ port.getParam=key=>{
+  if(key==='midi_fx1:harmony_source_snapshot'){harmonyReads++;return JSON.stringify({schema:1,source:'override',track:group*4,scope:'live',root:0,bass:4,candidates:1,pending:0});}
+  if(key==='midi_fx1:final_harmony')return 'C/E';
+  if(key==='midi_fx1:next_harmony')return 'F';
+  return get(key);
+ };
+ appState.focusGroup=group;page=panels.jointPage();
+ const overview=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_overview_authority'));
+ assert(overview>=0);page.goToPage(overview);flush(page);
+ assert.equal(page.performanceGet('joint_overview_authority'),`T${group*4+1} live`);
+ assert.equal(page.performanceGet('joint_overview_harmony'),'C:E');
+ assert.equal(page.performanceGet('joint_overview_next'),'F');
+ assert.equal(page.performanceGet('joint_overview_bass'),'E');
+ const beforeHarmony=harmonyReads;
+ page.performanceGet('joint_overview_root');page.performanceGet('joint_overview_pending');
+ assert.equal(harmonyReads,beforeHarmony,'one source read shared within the refresh burst');
+ const preview=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_preview_3_notes'));
+ assert(preview>=0);page.goToPage(preview);flush(page);
+ assert.equal(page.performanceGet('joint_preview_3_state'),'Weave Seq');
+ assert.equal(page.performanceGet('joint_preview_3_pitch'),'T2C3 25%');
+ assert.equal(page.performanceGet('joint_preview_3_rhythm'),'No playing clip');
+ assert.equal(page.performanceGet('joint_preview_3_notes'),'C4 E4');
+ assert.equal(page.performanceGet('joint_preview_3_gates'),'2');
+ assert.equal(page.performanceGet('joint_preview_3_note_ops'),'T5C2 25%');
+ assert(page.ctl.pages.some(item=>item.keys?.includes('joint_preview_3_note_ops')&&item.keys?.includes('joint_source_3_note_ops_track')));
+ const beforeReads=previewReads;
+ for(let index=0;index<8;index++)page.performanceGet(page.keyAt(index));
+ assert.equal(previewReads,beforeReads,'eight fields do not serialize eight snapshots');
+ const beforeWrites=writes.length;
+ for(let index=0;index<8;index++){page.knobTurn(index,4);page.knobTouch(index,true);page.knobTouch(index,false);}
+ flush(page);
+ assert.equal(writes.length,beforeWrites,'read-only controls swallow turns/touches');
+ previewValue='bad JSON';now+=101;
+ assert.equal(page.performanceGet('joint_preview_3_notes'),'Unavailable','failure replaces old output');
+ previewValue=null;now+=101;
+ assert.equal(page.performanceGet('joint_preview_3_notes'),'C4 E4');
+ port.getParam=get;
+}
+globalThis.host_module_get_param=previousGet;
+console.log('Conductor/source overviews: native state, quartets, bounded reads, read-only controls and unavailable state pass');
 const variations=new Map();
 globalThis.host_module_get_param=key=>key.startsWith('variation_')?(variations.get(Number(key.slice(10)))??`${key.slice(10)} 0 50 30 0 1`):nativeGet(key);
 globalThis.host_module_set_param_blocking=(key,value,timeout)=>{

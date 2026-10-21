@@ -90,6 +90,7 @@ impl Engine {
         source += '\n' + tests.read_text()
     source += '\n' + (assets / 'source_instrument_tests.rs').read_text()
     source += '\n' + (assets / 'source_hb_tests.rs').read_text()
+    source += '\n' + (assets / 'source_operations_tests.rs').read_text()
     path.write_text(source)
     path = core / 'command.rs'
     source = path.read_text()
@@ -128,6 +129,8 @@ impl Engine {
     source = replace_once(source, 'self.joint_links.route(event,playback)', 'self.joint_links.route_source(event,playback,if playback {self.engine.source_routes.iter().enumerate().fold(0u16,|mask,(track,route)|mask|if route.enabled {1<<track}else{0})} else {0})')
     source = replace_once(source, 'self.joint_links.playback_pitch(track as usize,pitch,true)', 'self.joint_links.playback_source_pitch(track as usize,pitch,true,self.engine.source_routes[track as usize].enabled)')
     source = replace_once(source, '            "motif_load_result" => Some(self.engine.motif_load_result.clone()),', '''            "source_diagnostics" => Some(self.engine.source_diagnostics()),
+            key if key.starts_with("source_preview_") => key[15..].parse::<usize>().ok()
+                .and_then(|actor|self.engine.source_preview(actor)),
             key if key.starts_with("source_route_") => key[13..].parse::<usize>().ok()
                 .and_then(|actor|self.engine.source_routes.get(actor).map(|route|route.message(actor))),
             "motif_load_result" => Some(self.engine.motif_load_result.clone()),''')
@@ -136,13 +139,19 @@ impl Engine {
     path.write_text(replace_once(path.read_text(), "    'mute', 'bpm', 'swing',", "    'mute', 'bpm', 'swing', 'source',"))
     # Existing Joint Play panel framework handles the new per-actor controls.
     (root / 'src/seq/source-panels.ts').write_text((assets / 'source-panels.ts').read_text())
+    (root / 'src/seq/source-overview.ts').write_text((assets / 'source-overview.ts').read_text())
     path = root / 'src/seq/joint-panels.ts'
-    source = "import { sourceParameters, sourceKeys, sourcePanelGet, sourcePanelSet } from './source-panels.js';\n" + path.read_text()
+    source = "import { overviewParameters, overviewHierarchy, overviewGet, overviewKey, resetOverview } from './source-overview.js';\nimport { sourceParameters, sourceKeys, sourcePanelGet, sourcePanelSet } from './source-panels.js';\n" + path.read_text()
     source = replace_once(source, 'export const jointParameters=[...setup,...recording,...participation,...display];', 'export const jointParameters=[...setup,...recording,...participation,...display,...sourceParameters];')
     source = replace_once(source, "        root.params.push({level:'joint_rhythm_'+role});", '''        const sourceLevel='joint_sources_'+role;
         const allSourceKeys=sourceKeys(role);
         const routeKeys=allSourceKeys.slice(0,8);
-        const automationKeys=allSourceKeys.slice(8);
+        const automationKeys=allSourceKeys.slice(8,12);
+        const operationKeys=allSourceKeys.slice(12);
+        const operationLevel='joint_source_operations_'+role;
+        hierarchy.levels[operationLevel]={name:name+' Source Operations',knobs:operationKeys,params:operationKeys.map(key=>({key}))};
+        hierarchy.levels['joint_actor_'+role].params.push({level:operationLevel});
+        root.params.push({level:operationLevel});
         const automationLevel='joint_source_automation_'+role;
         hierarchy.levels[automationLevel]={name:name+' Source Automation',knobs:automationKeys,params:automationKeys.map(key=>({key}))};
         hierarchy.levels['joint_actor_'+role].params.push({level:automationLevel});
@@ -151,10 +160,14 @@ impl Engine {
         hierarchy.levels['joint_actor_'+role].params.push({level:sourceLevel});
         root.params.push({level:sourceLevel});
         root.params.push({level:'joint_rhythm_'+role});''')
-    source = source.replace('        const meta=jointParameters.find(parameter=>parameter.key===bare);', '''        const sourceValue=sourcePanelGet(base,bare);if(sourceValue!==null)return key.endsWith(':modulated')?'0':sourceValue;
+    source = source.replace('        const meta=jointParameters.find(parameter=>parameter.key===bare);', '''        const overviewValue=overviewGet(base,bare);if(overviewValue!==null)return key.endsWith(':modulated')?'0':overviewValue;
+        const sourceValue=sourcePanelGet(base,bare);if(sourceValue!==null)return key.endsWith(':modulated')?'0':sourceValue;
         const meta=jointParameters.find(parameter=>parameter.key===bare);''', 1)
     # The get/set metadata lookup appears twice; use the setter's unique anchor.
-    source = replace_once(source, "        const bare=key.split(':').pop()??'';", "        const bare=key.split(':').pop()??'';\n        if(sourcePanelSet(base,bare,value))return true;")
+    source = replace_once(source, "        const bare=key.split(':').pop()??'';", "        const bare=key.split(':').pop()??'';\n        if(overviewKey(bare))return true;\n        if(sourcePanelSet(base,bare,value))return true;")
+    source = source.replace('return hierarchy;', 'return overviewHierarchy(hierarchy);')
+    source = source.replace('...jointParameters,...actorParameters', '...jointParameters,...overviewParameters,...actorParameters')
+    source = source.replace('export function resetJointPanels():void {', 'export function resetJointPanels():void {resetOverview();')
     path.write_text(source)
 
     # Match the new native source-routing contract on both sides of the bridge.
