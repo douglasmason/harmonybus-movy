@@ -1,4 +1,12 @@
-# Browser-only feasibility slice
+# Browser-only development
+
+The [full production host](full/README.md) now runs Movy DSP, Schwung chain host
+and HB in one WebAssembly module and reuses the existing Joint Play page.
+Open `/joint?engine=wasm` on the static server after building. The small slice
+below remains a focused compiler test; its earlier architecture assessment is
+retained as the record of what that first experiment established.
+
+## Original feasibility slice
 
 Actual production HB C and patched Movy `seq-core` Rust execute as WebAssembly.
 This is a separate, deliberately small experiment; `/joint` remains the native
@@ -12,7 +20,7 @@ compile those same adapters and production sources for differential tests.
 ## Build and exercise
 
 Use the pinned source checkouts from `bash dev/local/setup.sh`, Rust with
-`rustup target add wasm32-unknown-unknown`, and Emscripten 4.0.10 (`emcc` on PATH).
+`rustup target add wasm32-unknown-unknown wasm32-unknown-emscripten`, and Emscripten 4.0.10 (`emcc` on PATH).
 Then:
 
 ```sh

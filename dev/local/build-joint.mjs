@@ -8,7 +8,7 @@ export async function buildJoint({root,source,schwung,esbuild}) {
   await writeFile(resolve(root,'build/joint-env.mjs'),
     'const SHADOW_UI_SLOTS=4; const serveModuleLayout=()=>null;\n'+environment.slice(start)+'\ninstallEnv();\n');
   await esbuild.build({entryPoints:[resolve(root,'joint.mjs')],bundle:true,format:'esm',platform:'browser',
-    outfile:resolve(root,'build/joint.js'),alias:{movy:resolve(source,'src')},
+    external:['/wasm/*'],outfile:resolve(root,'build/joint.js'),alias:{movy:resolve(source,'src')},
     plugins:[{name:'schwung-shared-pages',setup(build){
       build.onResolve({filter:/^\/data\/UserData\/schwung\/shared\//},args=>({path:resolve(schwung,'src/shared',args.path.split('/shared/')[1])}));
     }}]});

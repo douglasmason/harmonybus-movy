@@ -1,4 +1,5 @@
 import './build/joint-env.mjs';
+import {openJointConnection} from './joint-connection.mjs';
 import {AudioMonitor} from './audio-monitor.mjs';
 const monitor=new AudioMonitor();
 const audioButton=document.querySelector('#audio');
@@ -12,9 +13,9 @@ for(const [actor,name] of ['Root','Bass','Comp','Melody'].entries()){
  label.append(volume,mute,document.createTextNode(' Mute'));document.querySelector('#audio-mix').append(label);
 }
 const status=document.querySelector('#status');
-const metadata=await fetch('/api/dev/module').then(response=>response.json());
+const {metadata,socket,label}=await openJointConnection();
 const cache=new Map(),demand=new Map();let connected=false;
-const socket=new WebSocket(`ws://${location.host}/ws/remote-ui`);
+
 const send=message=>{if(socket.readyState===1)socket.send(JSON.stringify(message));};
 let routingCells=[];
 const write=(key,value)=>{if(key==='joint_map')routingCells=value==='off'?[]:value.split(';').map(cell=>cell.split(',').map(Number));send({type:'set_param',key,value:String(value)});return connected;};
@@ -28,8 +29,9 @@ await new Promise((resolve,reject)=>{
     if(message.requestId==='monitor-stop')monitor.silence();
     for(const [key,value] of Object.entries(message.params??{}))cache.set(key,value);
     if(message.events)document.querySelector('#events').textContent=message.events.slice(-30).map(event=>event.packet.join(' ')).join('\n');
-    if(!connected){connected=true;status.textContent='Native Joint Play connected';resolve();}
+    if(!connected){connected=true;status.textContent=label;resolve();}
   };
+  if(socket.readyState===1)socket.onopen();
 });
 import {setFlag} from 'movy/seq/flags.ts';setFlag('chtracks',1);
 import {appState} from 'movy/app/state.ts';

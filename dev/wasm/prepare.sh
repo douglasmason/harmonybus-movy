@@ -11,3 +11,5 @@ git -C "$SOURCES/movy" archive HEAD | tar -x -C "$PREPARED"
 git -C "$PREPARED" init -q
 HARMONYBUS_ROOT="$SOURCES/harmonybus" python3 "$ROOT/scripts/apply_clean_harmonybus.py" "$PREPARED"
 MOVY_SOURCE="$PREPARED" HB_SOURCE="$SOURCES/harmonybus" bash "$ROOT/dev/wasm/build.sh"
+
+MOVY_SOURCE="$PREPARED" HB_SOURCE="$SOURCES/harmonybus" SCHWUNG_SOURCE="$SOURCES/schwung" bash "$ROOT/dev/wasm/full/build.sh"

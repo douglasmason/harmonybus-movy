@@ -32,7 +32,7 @@ cp "$OUT/seq/target/wasm32-unknown-unknown/release/hb_browser_seq.wasm" "$OUT/se
 sed -n '/^struct host_api_v1 {$/,/^};$/p' "$HB_SOURCE/modules/harmonybus/dsp/harmonybus.c" > "$OUT/hb-host.h"
 test -s "$OUT/hb-host.h"
 COMMON=(-O1 -include sys/mman.h -include unistd.h -Dshm_open=browser_shm_open -Dftruncate=browser_ftruncate -Dmmap=browser_mmap -Dclose=browser_close
-  -I"$OUT" -I"$HB_SOURCE/modules/harmonybus/dsp" "$ROOT/dev/wasm/hb.c" "$HB_SOURCE/modules/harmonybus/dsp/harmonybus.c" "$HB_SOURCE/src/harmony_core.c" -lm)
+  -I"$OUT" -I"$HB_SOURCE/modules/harmonybus/dsp" "$ROOT/dev/wasm/hb.c" "$ROOT/dev/wasm/memory.c" "$HB_SOURCE/modules/harmonybus/dsp/harmonybus.c" "$HB_SOURCE/src/harmony_core.c" -lm)
 cc "${COMMON[@]}" -DNATIVE_ORACLE -o "$OUT/hb-oracle"
 emcc "${COMMON[@]}" -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=web,node -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=4194304 \
   -sEXPORTED_FUNCTIONS='["_hb_init","_hb_midi","_hb_tick","_hb_event","_hb_set","_hb_get"]' \

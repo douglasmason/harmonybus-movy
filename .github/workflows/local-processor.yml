@@ -32,7 +32,7 @@ jobs:
           node dev/local/joint-browser-test.cjs
       - name: Install WebAssembly toolchains
         run: |
-          rustup target add wasm32-unknown-unknown
+          rustup target add wasm32-unknown-unknown wasm32-unknown-emscripten
           git clone --depth 1 --branch 4.0.10 https://github.com/emscripten-core/emsdk.git /tmp/emsdk
           /tmp/emsdk/emsdk install 4.0.10
           /tmp/emsdk/emsdk activate 4.0.10
@@ -42,3 +42,5 @@ jobs:
           bash dev/wasm/prepare.sh
           node --test dev/wasm/test.mjs
           node dev/wasm/browser-test.mjs
+          node --test dev/wasm/full/test.mjs
+          node dev/wasm/full/browser-test.mjs

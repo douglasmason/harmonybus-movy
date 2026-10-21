@@ -219,3 +219,9 @@ been verified.
 Browser-only feasibility work is in [`../wasm/README.md`](../wasm/README.md).
 That separate static page runs actual HB and Movy sequencer WebAssembly, with
 native differential tests; it does not yet replace this full native Joint host.
+
+The same `/joint` page can now use the compiled browser engine. See
+[`../wasm/full/README.md`](../wasm/full/README.md): the static server serves
+`/joint?engine=wasm`; the native server's ordinary `/joint` stays unchanged.
+The browser path has no native connection and uses production Movy DSP/Schwung
+chain dispatch, with a fixed module registry and serial rendering.
