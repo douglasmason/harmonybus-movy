@@ -9,3 +9,6 @@ const esbuild=require('esbuild');
 await esbuild.build({entryPoints:[resolve(root,'panel.mjs')],bundle:true,format:'esm',platform:'browser',external:['/data/*'],outfile:resolve(root,'build/panel.js'),alias:{'movy':resolve(source,'src')}});
 const {buildMovy}=await import('./build-movy.mjs');
 await buildMovy({root,source,esbuild});
+
+const {buildJoint}=await import('./build-joint.mjs');
+await buildJoint({root,source,schwung:process.env.SCHWUNG_SOURCE,esbuild});
