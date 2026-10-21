@@ -34,6 +34,6 @@ printf '%s' '{"id":"probe","name":"PCM Probe","version":"1.0.0","api_version":2,
 # Existence/copy metadata only; registry resolves entry points, never these bytes.
 for path in chain/dsp.so midi_fx/harmonybus/dsp.so sound_generators/probe/dsp.so; do printf 'static registry\n' > "$MODULES/$path"; done
 emcc "$OUT"/objects/*.o "$OUT/engine/target/wasm32-unknown-emscripten/release/libmovy_dsp.a" -lm \
-  -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=web,node -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=8388608 \
+  -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=web,worker,node -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=8388608 \
   -sEXPORTED_FUNCTIONS='["_full_init","_full_set","_full_get","_full_step","_full_midi","_full_clear","_full_count","_full_event","_full_overflow"]' \
   -sEXPORTED_RUNTIME_METHODS='["cwrap"]' --embed-file "$MODULES@/modules" -o "$OUT/engine.mjs"

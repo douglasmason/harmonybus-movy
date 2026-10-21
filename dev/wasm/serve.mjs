@@ -2,18 +2,19 @@
 import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
-const files=new Map([['/','index.html'],['/engine.mjs','engine.mjs'],['/build/hb.mjs','build/hb.mjs'],['/build/hb.wasm','build/hb.wasm'],['/build/seq.wasm','build/seq.wasm']]);
+export const files=new Map([['/','index.html'],['/engine.mjs','engine.mjs'],['/build/hb.mjs','build/hb.mjs'],['/build/hb.wasm','build/hb.wasm'],['/build/seq.wasm','build/seq.wasm']]);
 for(const [route,file] of [
  ['/joint','../local/joint.html'],['/joint.js','../local/build/joint.js'],
  ['/local/protocol-policy.mjs','../local/protocol-policy.mjs'],
- ...['engine.mjs','joint-transport.mjs'].map(name=>['/wasm/full/'+name,'full/'+name]),
+ ...['engine.mjs','joint-transport.mjs','joint-service.mjs','joint-worker.mjs'].map(name=>['/wasm/full/'+name,'full/'+name]),
  ...['engine.mjs','engine.wasm','modules/midi_fx/harmonybus/module.json'].map(name=>['/wasm/build/full/'+name,'build/full/'+name])
 ])files.set(route,file);
-export function serve(port=7702) {
+export function serve(port=7702,siteRoot=null) {
  return createServer(async(request,response)=>{
-  const name=files.get(new URL(request.url,'http://localhost').pathname);
+  const route=new URL(request.url,'http://localhost').pathname.replace(/\/$/,'')||'/';
+  const name=files.get(route);
   if(!name){response.writeHead(404).end();return;}
-  try{const bytes=await readFile(new URL(name,import.meta.url));response.setHeader('Content-Type',name.endsWith('.wasm')?'application/wasm':name.endsWith('.mjs')||name.endsWith('.js')?'text/javascript':name.endsWith('.json')?'application/json':'text/html');response.end(bytes);}
+  try{const bytes=await readFile(siteRoot?new URL(route==='/'?'index.html':route==='/joint'?'joint/index.html':route.slice(1),siteRoot):new URL(name,import.meta.url));response.setHeader('Content-Type',name.endsWith('.wasm')?'application/wasm':name.endsWith('.mjs')||name.endsWith('.js')?'text/javascript':name.endsWith('.json')?'application/json':'text/html');response.end(bytes);}
   catch{response.writeHead(404).end('Build dev/wasm first');}
  }).listen(port,'127.0.0.1');
 }

@@ -11,7 +11,7 @@ The existing `dev/local/joint.html`, `joint.mjs`, production Movy Joint controll
 and Schwung parameter pages are shared. `joint-connection.mjs` selects:
 
 - Native server `/joint`: the existing WebSocket transport.
-- Static server `/joint?engine=wasm`: page-local compiled engine via an adapter
+- Static server `/joint?engine=wasm`: worker-owned compiled engine via an adapter
   using the same parameter/update messages. No WebSocket or native process.
 
 This reuses the Joint performance view; full Schwung Manager and the other
@@ -59,7 +59,8 @@ builds are unchanged.
   Audio FX/send-worker modules are not in the registry and are not supported.
 
 No musical behavior is replaced by JS. `full/engine.mjs` wraps set/get/MIDI/block
-calls. `joint-transport.mjs` adapts connection messages and tracks UI cleanup;
+calls. `joint-transport.mjs` forwards ordered messages to a dedicated module Worker.
+`joint-service.mjs` retains the protocol, clock and cleanup adapter in that worker;
 parameter policy/metadata are shared with the native server.
 
 ## Verified scope
@@ -77,17 +78,35 @@ gates. This is not exhaustive parity for every operation or instrument.
 
 ## Limits / next step
 
-The experimental browser scheduler runs on the **main page thread** using bounded
-wall-clock advancement. It stops on document hiding or a long callback gap rather
-than replaying a backlog. It is not an audio clock or an AudioWorklet. Move timing,
+One dedicated Web Worker owns the complete compiled host and its bounded wall-clock
+scheduler. The page owns UI and the optional MIDI monitor. Commands cross an ordered
+message boundary; periodic snapshots keep at most one outstanding delivery and one
+latest replacement, while explicit request replies are preserved. MIDI history stays
+bounded to 256 events; the existing monitor handles stream gaps. Development reads
+(`__wasmRead`) are now asynchronous.
+
+The browser test blocks the page thread for 900 ms and verifies that the worker
+continues advancing and producing recorded MIDI, then checks Stop and input cleanup.
+Visibility changes stop/release the engine and pause its clock; page exit terminates
+the worker. A long worker callback gap stops instead of replaying a backlog. This
+is still a timer, not an audio clock or AudioWorklet. Browser suspension, Move timing,
 load behavior and crackles cannot be validated here.
 
 The probe generates deterministic PCM internally, but this page discards that
 PCM. The optional shared UI audio monitor still uses its simple Web Audio
 oscillators fed by final MIDI. It is not a production synth instrument.
 
-Next: move this same compiled host behind a Worker boundary, broaden Joint
-operation/ownership regression coverage, then establish an AudioWorklet clock and
-one portable synth. Preserve a single owner of compiled engine state. Session
-save/open, full Manager integration, service-worker caching and physical iPad
-Safari verification remain pending.
+## Static package and next step
+
+After building, run `node dev/wasm/package.mjs`. The output in
+`dev/wasm/build/site` contains only static assets and opens Joint by default. Serve
+that directory at an HTTPS origin root (not a subdirectory), with JavaScript and
+`application/wasm` MIME types. No API, native processor, shared-memory headers or
+runtime downloads are required. CI tests the copied package and uploads it as
+`browser-joint-static`. Nothing is deployed automatically. This is ready for a
+hosting trial, not a claim of tested iPad compatibility or offline reload support.
+
+Next: establish an AudioWorklet clock and one portable synth, retaining one owner
+of compiled engine state. The page-thread oscillator monitor can still be delayed
+by UI stalls. Session save/open, full Manager integration, service-worker caching
+and physical iPad Safari verification remain pending.
