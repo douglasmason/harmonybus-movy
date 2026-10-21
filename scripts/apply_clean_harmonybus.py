@@ -611,6 +611,8 @@ def main() -> int:
     patch_actor_source(root)
     from patch_source_routing import patch_source_routing
     patch_source_routing(root)
+    from patch_variation import patch_variation
+    patch_variation(root)
     print("HarmonyBus clean integration applied")
     return 0
 
