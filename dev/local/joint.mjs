@@ -25,6 +25,7 @@ import * as joint from 'movy/seq/joint-play.ts';
 import {jointPage} from 'movy/seq/joint-panels.ts';
 import {schwungLibAvailable} from 'movy/renderer/schwung-lib.ts';
 import {ledFrameReset} from 'movy/seq/led-cache.ts';
+import {hbPerformanceStep,paintHbPerformance} from 'movy/renderer/hb-performance.ts';
 import {PAD_PALETTE} from 'movy/keyboard/pad-palette.ts';
 if(!schwungLibAvailable())throw new Error('Production Schwung controller unavailable');
 globalThis.host_read_file=path=>path.endsWith('/harmonybus/module.json')?JSON.stringify(metadata):null;
@@ -54,7 +55,7 @@ globalThis.setButtonLED=()=>{};
 globalThis.move_midi_cable_send=(_cable,data)=>{for(let offset=0;offset+3<data.length;offset+=4)if((data[offset+1]&240)===144)padColors.set(data[offset+2],data[offset+3]);return true;};
 globalThis.move_midi_internal_send=data=>globalThis.move_midi_cable_send(0,data);
 appState.focusGroup=0;seqState.sessionMode=false;joint.restoreJoint(null);joint.setJointEnabled(true);
-const heldPads=new Set(),heldKnobs=new Set();
+const heldPads=new Set(),heldKnobs=new Set(),heldSteps=new Set();
 const midi=(status,note,value)=>{joint.jointMidi([status,note,value]);if(note>=68)send({type:'dev_midi',data:[status,note,value]});};
 const knobs=Array.from({length:8},(_,slot)=>{
  const button=document.createElement('button');button.className='knob';button.dataset.slot=slot;
@@ -68,6 +69,17 @@ const knobs=Array.from({length:8},(_,slot)=>{
  button.onkeydown=event=>{if(['ArrowUp','ArrowDown'].includes(event.key)){event.preventDefault();down();jointPage().knobTurn(slot,event.key==='ArrowUp'?4:-4);}};
  button.onkeyup=event=>{if(event.key.startsWith('Arrow'))up();};button.onblur=up;return button;
 });
+// The production handler owns timing, modifier routing and release ownership.
+const steps=Array.from({length:16},(_,index)=>{
+ const button=document.createElement('button');button.className='step';button.textContent=String(index+1);
+ button.setAttribute('aria-label',`Step ${index+1}`);document.querySelector('#steps').append(button);
+ const down=()=>{if(!heldSteps.has(index)&&joint.jointStepMode()!==0){heldSteps.add(index);hbPerformanceStep([144,16+index,100]);button.dataset.held='true';}};
+ const up=()=>{if(heldSteps.delete(index)){hbPerformanceStep([128,16+index,0]);button.dataset.held='false';}};
+ button.onpointerdown=event=>{event.preventDefault();button.setPointerCapture(event.pointerId);down();};
+ button.onpointerup=button.onpointercancel=button.onlostpointercapture=up;
+ button.onkeydown=event=>{if([' ','Enter'].includes(event.key)){event.preventDefault();down();}};
+ button.onkeyup=event=>{if([' ','Enter'].includes(event.key)){event.preventDefault();up();}};button.onblur=up;return button;
+});
 const pads=Array.from({length:32},(_,index)=>{
  const button=document.createElement('button');button.className='pad';button.dataset.pad=index;
  button.style.gridRow=String(4-Math.floor(index/8));button.style.gridColumn=String(index%8+1);
@@ -80,6 +92,7 @@ const pads=Array.from({length:32},(_,index)=>{
  button.onkeyup=event=>{if([' ','Enter'].includes(event.key)){event.preventDefault();up();}};button.onblur=up;return button;
 });
 function release(){
+ for(const index of [...heldSteps]){heldSteps.delete(index);hbPerformanceStep([128,16+index,0]);steps[index].dataset.held='false';}
  for(const index of [...heldPads]){heldPads.delete(index);midi(128,68+index,0);pads[index].dataset.held='false';}
  for(const slot of [...heldKnobs]){heldKnobs.delete(slot);midi(128,slot,0);knobs[slot].dataset.held='false';}
 }
@@ -97,6 +110,9 @@ let signature='',watchSignature='';
 const timer=setInterval(()=>{
  if(!connected||document.hidden)return;
  ledFrameReset();joint.syncJoint(write);joint.paintJointPads();joint.renderJoint();
+ const stepMode=joint.jointStepMode();if(stepMode)paintHbPerformance();
+ document.querySelector('#step-mode').textContent=stepMode===0?'Step sequencing is not available in this host.':stepMode===1?'Operator buttons':'Motif buttons';
+ for(let index=0;index<16;index++){const button=steps[index];button.setAttribute('aria-disabled',String(stepMode===0));const rgb=PAD_PALETTE[stepMode?(padColors.get(16+index)??0):0]??[30,30,30];button.style.backgroundColor=`rgb(${rgb.join(',')})`;button.style.color=rgb.reduce((sum,value)=>sum+value,0)>400?'#111':'#fff';}
  const page=jointPage(),pages=page.ctl?.pages??[];
  const nextSignature=JSON.stringify(pages.map(item=>[item.name,item.keys]));
  if(signature!==nextSignature){signature=nextSignature;panel.replaceChildren(...pages.map((item,index)=>{const option=document.createElement('option');option.value=index;option.textContent=`${index+1} · ${item.title??item.name??item.keys?.join(' / ')??'Page'}`;return option;}));}
