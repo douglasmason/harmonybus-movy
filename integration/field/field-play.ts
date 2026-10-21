@@ -62,6 +62,7 @@ export function clearFieldOutput(lane=16):void{
 }
 function sendOutputs(now=Date.now()):void{
     if(owner<0)return;
+    outputSendAt=now;
     for(const lane of pendingClears){if(portFor(owner).setParam('midi_fx1:field_output_clear',String(lane))===false)return;pendingClears.delete(lane);}
     while(pendingFinishes.length){const finish=pendingFinishes[0];if(portFor(owner).setParam('midi_fx1:field_output_finish',`0,${finish.lane},${finish.value}`)===false)return;pendingFinishes.shift();}
     if(portFor(owner).setParam('midi_fx1:field_outputs',outputFrame())!==false){outputSendAt=now;outputSent();}
@@ -80,6 +81,7 @@ function sendGesture(now=Date.now()):void{
 export function tickField(now=Date.now()):void{
     const nextSet=currentSetUuid();
     if(setId!==nextSet){releaseField();if(owner>=0)clearFieldOutput();setId=nextSet;page=null;lastRead=-Infinity;}
+    if(pendingClears.size&&now-outputSendAt>=33)sendOutputs(now);
     if(!fieldActive()){if(held.size||outputHeld())releaseField();return;}
     if(owner!==appState.activeTrack.index){releaseField();owner=appState.activeTrack.index;page=null;}
     if(held.size&&now-lastSend>=400)sendGesture(now);
