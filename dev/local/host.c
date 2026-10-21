@@ -63,6 +63,8 @@ int main(int count,char **arguments) {
     char key[128],value[8192];
     snprintf(value,sizeof(value),"%s/chain|%s/movy",arguments[2],arguments[2]);
     set("chain_host",value);set("chtracks","1");
+    /* No physical Move transport: use the production engine internal clock. */
+    set("cmd","link 0");
     for(int track=0;track<16;track++) {
         snprintf(key,sizeof(key),"ch%d:midi_fx1:module",track);set(key,"harmonybus");
         snprintf(key,sizeof(key),"ch%d:synth:module",track);set(key,"probe");
