@@ -1,0 +1,23 @@
+name: Publish verified stock-host Field release
+on:
+  push:
+    branches: [work/publish-stock-field-install]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_COMMIT: f1537157ab1a2aa7fc3963a6ee22ea081d702ca5
+      TESTED_RUN: '39554328292'
+      INSTALL_VERSION: 0.34.1-hbclean.218
+      PREVIOUS_VERSION: 0.34.1-hbclean.217
+      ARTIFACT_NAME: harmonybus-movy-fm1-candidate
+      ARTIFACT_FILE: harmonybus-movy-fm1-candidate.tar.gz
+      ASSET_NAME: harmonybus-movy-module.tar.gz
+      RELEASE_NOTES: "Field 1–16 sources in the existing Movy track LFO controls, with two routes per Movy-hosted track, synth/audio FX destinations, depth/polarity and saved assignments. Bypass restores base values and the shared Field continues across bypassed tracks. Uses stock Schwung 1.7.3 without host edits. Preserves concurrent Source Weaving and Clip Variation updates. Install HarmonyBus 0.2.289 and Movy 0.34.1-hbclean.218. Host-owned and master LFOs retain stock sources. Software integration tests and ARM builds verified; no physical device deployed."
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/publish_stock_field.py
