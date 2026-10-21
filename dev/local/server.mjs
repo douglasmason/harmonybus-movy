@@ -34,6 +34,7 @@ export async function startServer({port=7701,host='127.0.0.1',realtime=true}={})
     for(const [key,cancel] of touches.get(socket)??[])await processor.request('set',key,cancel);
     touches.delete(socket);
     if(controller===socket) {
+      await processor.request('set','cmd','stop');
       await processor.request('set','joint_release','1');
       await processor.request('set','joint_map','off');
       await processor.request('set','joint_links',[0,4,8,12].map(base=>`${base},0,0,0,0,0`).join(';'));
@@ -73,6 +74,18 @@ export async function startServer({port=7701,host='127.0.0.1',realtime=true}={})
         }
         await processor.request('set',key,value);
       }
+    } else if(message.type==='dev_transport') {
+      const action=message.action;
+      let command;
+      if(action==='play'||action==='stop')command=action;
+      else if(action==='record') {
+        const {mask,overwrite}=message;
+        if(!Number.isInteger(mask)||mask<1||mask>65535||!Number.isInteger(overwrite)||overwrite<0||overwrite>65535||(overwrite&mask)!==overwrite)throw new Error('Invalid recording masks');
+        command=`jrec ${mask} ${overwrite}`;
+      } else throw new Error('Invalid transport action');
+      if(controller&&controller!==socket)throw new Error('Another browser owns the controls');
+      controller=socket;
+      await processor.request('set','cmd',command);
     } else if(message.type==='dev_midi') {
       const data=message.data;
       if(!Array.isArray(data)||data.length!==3||data.some(value=>!Number.isInteger(value))||![128,144,160].includes(data[0])||data[1]<68||data[1]>99||data[2]<0||data[2]>127)throw new Error('Invalid physical pad event');
