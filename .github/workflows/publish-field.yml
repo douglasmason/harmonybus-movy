@@ -1,0 +1,23 @@
+name: Publish verified Field Play installer
+on:
+  push:
+    branches: [work/publish-field-install]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify tested artifact and publish installer
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_COMMIT: daf308def64a0bf16050b3b858c74ddeb52c9abc
+          TESTED_RUN: '39518814038'
+          INSTALL_VERSION: 0.34.1-hbclean.206-dev.1
+          PREVIOUS_VERSION: 0.34.1-hbclean.205-dev.1
+          ARTIFACT_NAME: harmonybus-movy-fm1-candidate
+          ARTIFACT_FILE: harmonybus-movy-fm1-candidate.tar.gz
+          ASSET_NAME: harmonybus-movy-module.tar.gz
+        run: python3 scripts/publish_field.py
