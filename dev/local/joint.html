@@ -1,0 +1,11 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Joint Play · Native HB</title>
+<style>
+*{box-sizing:border-box}body{font:15px system-ui;background:#101516;color:#e9f0ed;margin:20px auto;padding:0 16px;max-width:900px}a{color:#98d5b4}button,select{font:inherit;color:inherit;background:#26332c;border:1px solid #4c6154;border-radius:8px;padding:10px}button:focus-visible{outline:2px solid #98d5b4}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}canvas{width:512px;max-width:100%;image-rendering:pixelated;background:#000}.knobs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.knob{touch-action:none;min-height:90px;overflow-wrap:anywhere}.knob[data-held=true]{outline:2px solid white}.knob small{display:block;color:#98d5b4;margin-top:8px}.pads{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;margin:20px 0}.pad{height:64px;padding:3px;touch-action:none;font-size:11px}.pad[data-held=true]{outline:2px solid white}pre{max-height:160px;overflow:auto;white-space:pre-wrap}#status{min-height:24px}h1{font-size:24px}#panel{max-width:100%}@media(max-width:500px){body{margin:12px auto;padding:0 10px}.pad{height:55px}.knob{font-size:12px}}
+</style>
+<h1>Joint Play</h1><p>Production controls and pad routing, running without Move. <a href="/">Pad / MIDI inspector</a> · <a href="/movy">Track parameters</a></p>
+<div id="status" role="status">Connecting…</div><canvas id="display" width="128" height="64" aria-label="Movy display"></canvas>
+<div class="toolbar"><button id="previous">Previous page</button><select id="panel" aria-label="Parameter page"></select><button id="next">Next page</button><button id="back">Back</button><button id="enter">Enter</button><label><input type="checkbox" id="shift"> Shift</label><button id="release">Release held controls</button></div>
+<div class="knobs" id="knobs"></div><div class="pads" id="pads"></div>
+<p>Drag knobs vertically or use arrow keys. Hold a knob to use its touch operation. Pads show the current actor layout; releases retain their original owner through layout changes. Audio playback is not yet available.</p>
+<details><summary>Rendered MIDI</summary><pre id="events"></pre></details>
+<script type="module" src="/joint.js"></script></html>
