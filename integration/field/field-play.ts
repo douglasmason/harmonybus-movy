@@ -1,5 +1,5 @@
 import { fontPrint } from '../font/index.js';
-import { outputs, latchMode, cancelOutputLane, type OutputFinish, outputView, vertical, outputBank, outputLane, outputSnapshot, outputPad, outputPressure, outputKnob, releaseOutputs, outputFrame, outputHeld, outputDirty, outputSent, outputColors } from './field-outputs.js';
+import { outputs, latchMode, cancelOutputLane, type OutputFinish, outputView, vertical, outputBank, outputLane, outputSnapshot, outputLabels, outputPad, outputPressure, outputKnob, releaseOutputs, outputFrame, outputHeld, outputDirty, outputSent, outputColors } from './field-outputs.js';
 /** Field Play owns gestures and display only; noise and timing belong to HB DSP. */
 import { appState } from '../app/state.js';
 import { seqState } from './state.js';
@@ -90,6 +90,8 @@ export function tickField(now=Date.now()):void{
     if(now-outputReadAt>=125){
         outputReadAt=now;
         const previous=outputView;
+        const labels=portFor(owner).getParam('midi_fx1:field_output_labels');
+        if(labels)outputLabels(labels);
         const snapshot=portFor(owner).getParam('midi_fx1:field_outputs_view2');
         if(snapshot&&outputSnapshot(snapshot)){if(previous!==outputView){settingsOpen=false;held.clear();sendGesture();}appState.dirty=true;}
     }
@@ -121,8 +123,8 @@ export function renderField():void{
         const count=vertical?8:4;
         for(let strip=0;strip<count;strip++){
             const lane=outputLane(strip),output=outputs[lane],column=strip>=4?64:0,row=strip%4;
-            fontPrint(column+2,14+row*10,`${lane+1}${output.latched?'L':output.target?'':'-'} ${Math.round(output.value*100)}%`,1);
-            fill_rect(column+36,17+row*10,Math.round(output.value*25),2,1);
+            fontPrint(column+2,14+row*10,`${lane+1}${output.latched?'L':''} ${output.label??Math.round(output.value*100)+'%'}`,1);
+            if(!output.label)fill_rect(column+36,17+row*10,Math.round(output.value*25),2,1);
         }
         fontPrint(2,56,'Shift pad/back: clear',1);return;
     }

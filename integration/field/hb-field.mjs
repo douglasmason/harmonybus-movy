@@ -60,3 +60,5 @@ assert(!writes.slice(releaseStart).some(([key])=>key==='midi_fx1:field_outputs')
 field.tickField(Date.now()+50);assert(writes.slice(releaseStart).some(([key,value])=>key==='midi_fx1:field_output_finish'&&value==='0,0,4286'));
 field.setFieldEnabled(false);
 console.log('Latch delivery: busy writes retry finish before clearing its source lease');
+
+assert(strips.outputLabels('fl1;Vel10%|Velocity amount 10%'+(';--|Unmapped').repeat(15)));assert.equal(strips.outputs[0].label,'Vel10%');assert.equal(strips.outputs[0].description,'Velocity amount 10%');assert.equal(strips.outputLabels('fl1;broken'),false);
