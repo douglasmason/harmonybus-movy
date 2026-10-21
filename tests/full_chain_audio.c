@@ -249,6 +249,22 @@ static void test_source_weaving(void){
     set("cmd","stop");render(32);
     api->get_param(instance,"ch3:synth:cutoff",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==19);
     assert(energy>0&&sent_on==1&&sent_off==1);
+    /* Independent HB rendering lane reaches the real HB note renderer. */
+    set("state","movy1\nbpm 12000\nlink 0\ntk 1 0 0\ntk 2 0 0\ntk 3 0 0\ncl 1 0 16 0 \ncl 2 0 16 0 0:48:36:100:0\ncl 3 0 16 0 0:48:60:100:0\nsr 3 1 -1 -1 2 0 0 -1 -1 -1 -1 1 0\n");
+    render(16);
+    set("ch1:knob_7_set","midi_fx1:render_velocity_percent");set("ch3:knob_3_set","midi_fx1:render_velocity_percent");
+    api->get_param(instance,"ch3:chain_params",parameter_view,sizeof(parameter_view));
+    set("cmd","alabel 1 6 midi_fx1:render_velocity_percent;abase 1 6 32;aset 1 6 0 127;alabel 3 2 midi_fx1:render_velocity_percent;abase 3 2 127;aset 3 2 0 0");render(16);
+    sent_on=sent_off=0;source_velocity_check=127;
+    set("cmd","play");energy=render(16);source_velocity_check=0;
+    api->get_param(instance,"ch3:midi_fx1:render_velocity_percent",parameter_view,sizeof(parameter_view));
+    fprintf(stderr,"HB borrowed render velocity=%s\n",parameter_view);assert(atoi(parameter_view)==400);
+    set("cmd","mute 1 1");render(16);
+    api->get_param(instance,"ch3:midi_fx1:render_velocity_percent",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==0);
+    set("cmd","stop");render(32);
+    api->get_param(instance,"ch3:midi_fx1:render_velocity_percent",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==400);
+    assert(energy>0&&sent_on==1&&sent_off==1);
+    set("ch3:midi_fx1:render_velocity_percent","100");
     /* Existing conductor-chord generation consumes the woven trigger directly.
        Root Only and Triad exercise bass and comp without another harmony state. */
     set("ch0:midi_fx1:role","Conductor");set("ch0:midi_fx1:chord_mode","Off");

@@ -61,7 +61,7 @@ mod source_instrument_tests {
                 4=>{engine.recording=true;engine.rec_track=3;},
                 _=>{engine.source_route_set("3 1 -1 -1 2 0 0 -1 -1 -1 -1");},
             }
-            engine.source_instrument_invalidate();
+            engine.source_automation_invalidate();
             let output=tick(&mut engine);
             assert!(output.contains(&control(44)),"change {change}: {output:?}");
             assert_eq!(engine.tracks[3].lane_base[1],19);
@@ -78,7 +78,7 @@ mod source_instrument_tests {
             if stop_all {engine.stop(&mut output);} else {engine.tracks[3].playing_slot=None;output=tick(&mut engine);}
             assert!(output.contains(&control(19)));
             assert!(output.contains(&OutEvent::NoteOff{track:3,pitch:60}));
-            assert_eq!(engine.source_instrument_mask[3],0);
+            assert_eq!(engine.source_automation_mask[3],0);
         }
     }
     #[test]
