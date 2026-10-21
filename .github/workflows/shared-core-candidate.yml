@@ -61,7 +61,7 @@ jobs:
           /tmp/surface-bench | tee surface-benchmark.txt
       - name: Build and package ARM candidate
         run: |
-          python3 -c 'import json; p="movy/module.json"; d=json.load(open(p)); d["version"]="0.34.1-hbclean.211"; open(p,"w").write(json.dumps(d,indent=2)+"\n")'
+          python3 -c 'import json; p="movy/module.json"; d=json.load(open(p)); d["version"]="0.34.1-hbclean.216"; open(p,"w").write(json.dumps(d,indent=2)+"\n")'
           npm run build:device --prefix movy
           bash movy/scripts/build-dsp.sh
           mkdir -p package/movy/configs
