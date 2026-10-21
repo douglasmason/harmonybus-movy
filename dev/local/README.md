@@ -215,3 +215,7 @@ not diagnosing Move crackles. Chromium tests verify a nonzero audio waveform,
 native root/bass voices, duplicate suppression, overlapping-note ownership,
 mute state, Stop cleanup and stream-gap cleanup. Safari/iOS listening has not
 been verified.
+
+Browser-only feasibility work is in [`../wasm/README.md`](../wasm/README.md).
+That separate static page runs actual HB and Movy sequencer WebAssembly, with
+native differential tests; it does not yet replace this full native Joint host.

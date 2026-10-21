@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'dev/local/**'
+      - 'dev/wasm/**'
       - 'scripts/**'
       - 'integration/**'
       - 'tests/full_chain_audio.c'
@@ -29,3 +30,15 @@ jobs:
         run: |
           node dev/local/browser-test.cjs
           node dev/local/joint-browser-test.cjs
+      - name: Install WebAssembly toolchains
+        run: |
+          rustup target add wasm32-unknown-unknown
+          git clone --depth 1 --branch 4.0.10 https://github.com/emscripten-core/emsdk.git /tmp/emsdk
+          /tmp/emsdk/emsdk install 4.0.10
+          /tmp/emsdk/emsdk activate 4.0.10
+      - name: Compare browser-only compiled engines with native builds
+        run: |
+          source /tmp/emsdk/emsdk_env.sh
+          bash dev/wasm/prepare.sh
+          node --test dev/wasm/test.mjs
+          node dev/wasm/browser-test.mjs
