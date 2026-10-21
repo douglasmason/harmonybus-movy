@@ -1,14 +1,14 @@
 name: FM1 shared-core candidate (no deployment)
 on:
   push:
-    branches: [work/conductor-surface-hardening, work/weave-continuity, work/field-play, work/field-mappings, work/field-choice]
+    branches: [work/conductor-surface-hardening, work/weave-continuity, work/field-play, work/field-mappings, work/field-choice, work/field-lfo]
   workflow_dispatch:
 permissions:
   contents: read
 env:
-  HB_REF: c31c4aa123a50b2a9b83d55b1487216f3a728b7f
+  HB_REF: e32b7a344f3077916f6d367ef305f7b6ca2ace06
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
-  SCHWUNG_REF: a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
+  SCHWUNG_REF: 586aebd4367952384e1b447e8e3a2fd627974ec8
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -29,6 +29,7 @@ jobs:
           git -C movy checkout "$UPSTREAM_REF"
           git clone https://github.com/charlesvestal/schwung.git schwung
           git -C schwung checkout "$SCHWUNG_REF"
+          git -C schwung apply ../harmonybus/integration/schwung/field-lfo.patch
       - name: Toolchains
         run: |
           sudo apt-get update
@@ -60,7 +61,7 @@ jobs:
           /tmp/surface-bench | tee surface-benchmark.txt
       - name: Build and package ARM candidate
         run: |
-          python3 -c 'import json; p="movy/module.json"; d=json.load(open(p)); d["version"]="0.34.1-hbclean.211"; open(p,"w").write(json.dumps(d,indent=2)+"\n")'
+          python3 -c 'import json; p="movy/module.json"; d=json.load(open(p)); d["version"]="0.34.1-hbclean.212"; open(p,"w").write(json.dumps(d,indent=2)+"\n")'
           npm run build:device --prefix movy
           bash movy/scripts/build-dsp.sh
           mkdir -p package/movy/configs
