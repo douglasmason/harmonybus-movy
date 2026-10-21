@@ -142,3 +142,41 @@ for (const group of [0,2]) {
  assert.equal(page.performanceGet('joint_actor_2_motion_operation'),'Clip Weave');
 }
 console.log('Joint comp weave: existing lane and Conditions routed to comp in each quartet; external edits read back');
+
+// Source controls use native state and the normal command queue/undo hook.
+const {installMockEngine}=await import('./mock-engine.mjs');
+const {seqEngineTick}=await import('../dist/esm/seq/engine.js');
+installMockEngine();seqEngineTick();
+const {installEditGuard,setUndoStrict}=await import('../dist/esm/undo/record.js');
+installEditGuard();setUndoStrict(true);
+const nativeGet=globalThis.host_module_get_param;
+const nativeSet=globalThis.host_module_set_param_blocking;
+const sourceRoutes=new Map();
+globalThis.host_module_get_param=key=>key.startsWith('source_route_')?(sourceRoutes.get(Number(key.slice(13)))??`${key.slice(13)} 0 -1 -1 -1 -1 0`):nativeGet(key);
+globalThis.host_module_set_param_blocking=(key,value,timeout)=>{
+ if(key==='cmd')for(const command of value.split(';'))if(command.startsWith('source ')){
+  const fields=command.slice(7).split(' ').map(Number);assert.equal(fields.length,7);sourceRoutes.set(fields[0],fields.join(' '));
+ }
+ return nativeSet?.(key,value,timeout);
+};
+for(const group of [0,3]){
+ appState.focusGroup=group;page=panels.jointPage();
+ const sourcePage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_source_3_enabled'));
+ assert(sourcePage>=0);page.goToPage(sourcePage);flush(page);
+ const actor=group*4+3;
+ assert.equal(page.keyAt(1),'joint_source_3_pitch_track');
+ page.knobTurn(1,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[2],'0','Pitch Source selects track 1');
+ page.knobTurn(2,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[3],'1','Pitch Clip selects slot 2');
+ page.knobTurn(3,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[4],'0','Rhythm Source selects independently');
+ page.knobTurn(0,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[1],'1');
+ page.knobTurn(5,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[6],'1','Timeline');
+ sourceRoutes.set(actor,`${actor} 0 -1 -1 -1 -1 0`);flush(page);
+ assert.equal(page.performanceGet('joint_source_3_pitch_track'),'Own','external state edits read back');
+}
+globalThis.host_module_get_param=nativeGet;globalThis.host_module_set_param_blocking=nativeSet;
+console.log('Source Weaving panels: actor selection, independent tracks/slots, enable/alignment and native readback pass');
