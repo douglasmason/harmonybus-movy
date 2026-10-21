@@ -169,3 +169,36 @@ sequencer tests, 292 DSP tests, dedicated browser suites and the production
 Movy → Schwung → HarmonyBus fixture checking render velocity before the first
 note, mute fallback, base restoration and paired releases. The two scheduler
 benchmarks run explicitly in release mode. No physical device testing is implied.
+## Conductor overview and Source Preview (Movy 215)
+
+In Joint Play, use the jog dial to open **Conductor Overview**. This read-only
+page shows the selected quartet's melody actor's effective harmony, authority,
+root and bass, sounding key, the conductor's next known chord, and override
+candidate/pending counts. The authority can be the existing conductor bus or a
+track's live/input override. `Conductor Next` describes the learned conductor
+progression; it does not predict the lifetime of a live override. No source
+priority, defaults, saved role or audible routing changes are made.
+
+Each actor's **Source Preview** page is available from Joint Setup, its Track
+page and its Sources page. Pitch, Rhythm, Expression, Instrument and HB Render show the
+resolved track/clip and its own loop percentage, or mark it inactive. These are
+configured source identities even when Source Weaving is off or recording uses
+own material. Playback/alignment and held-gate count appear alongside them.
+
+**Sequencer Notes** shows distinct pitches held by the actual sequencer gate
+owner (up to four names plus a remaining count). These are inputs to HarmonyBus,
+not final sounding pitches after HB harmony, chord, arp or other processing.
+A stopped source can leave earlier gates visible until their normal release.
+Instrument-source unavailability still uses the existing own-automation fallback.
+
+The new `source_preview_<zero-based actor>` native parameter supplies a bounded
+schema-1 JSON snapshot for future remote displays. Reads do not advance pitch
+cursors, re-run conditions, emit notes or change gate ownership. UI fields share
+one snapshot for up to 100 ms, requested only through the existing panel refresh;
+there is no independent timer or audio-block diagnostic callback. Missing or old
+engines show `Unavailable`. The existing `harmony_source_snapshot` API is reused.
+
+This increment provides on-device inspection. It does not yet add a graphical
+source/result timeline, progression editing, follow-track toggles or a new Remote
+UI page. A future timeline must use accepted scheduler events and distinguish
+pre-HB material from final sounding output.
