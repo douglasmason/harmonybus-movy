@@ -89,3 +89,24 @@ test('current Field Outputs controls reach native HB and preserve latch/release 
     monitor.close();
   } finally {socket.close();await service.close()}
 });
+
+test('physical Joint pads keep one controller and cancel original touch owners on disconnect',{timeout:10000},async()=>{
+ const service=await startServer({port:0,realtime:false});const socket=await connect(service.port),observer=await connect(service.port);
+ const calls=[];const native=service.processor.request.bind(service.processor);
+ service.processor.request=(...args)=>{calls.push(args);return native(...args);};
+ try {
+  const map=Array.from({length:32},()=> '12,48,-1,3').join(';');
+  assert.notEqual((await request(socket,{type:'set_param',key:'joint_map',value:map})).type,'error');
+  const watched=await request(socket,{type:'dev_watch',keys:['ch12:midi_fx1:pad_output']});assert.notEqual(watched.type,'error');
+  assert.equal((await request(socket,{type:'dev_midi',data:[144,200,100]})).type,'error');
+  assert.equal((await request(observer,{type:'dev_midi',data:[144,68,100]})).type,'error','second browser cannot take pad ownership');
+  await request(socket,{type:'dev_midi',data:[144,68,100]});
+  const sounding=await request(socket,{type:'dev_step',blocks:16});assert.equal(sounding.params['ch12:midi_fx1:pad_output'],'po1,48');
+  await request(socket,{type:'set_param',key:'ch15:midi_fx1:joint_pad_approach_touch_5',value:'36864|Down'});
+  socket.terminate();await once(socket,'close');
+  await request(observer,{type:'dev_watch',keys:['ch12:midi_fx1:pad_output']});
+  const released=await request(observer,{type:'dev_step',blocks:512});assert.equal(released.params['ch12:midi_fx1:pad_output'],'po1');
+  assert(calls.some(args=>args[0]==='set'&&args[1]==='ch15:midi_fx1:joint_pad_approach_touch_5'&&args[2]==='36864|Cancel'),'cancel preserves the original actor mask');
+  assert(calls.some(args=>args[0]==='midi'&&args[1]==='128,68,0'),'disconnect emits physical release');
+ } finally {socket.close();observer.close();await service.close();}
+});
