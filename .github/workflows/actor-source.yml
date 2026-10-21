@@ -4,8 +4,10 @@ on:
     branches: [feature/actor-clip-source-bridge-20261020, main]
     paths:
       - integration/actor-source/**
-      - integration/joint-play/hb-joint-panels.mjs
       - scripts/patch_source_routing.py
+      - scripts/patch_variation.py
+      - integration/variation/**
+      - integration/joint-play/hb-joint-panels.mjs
       - scripts/apply_clean_harmonybus.py
       - tests/full_chain_audio.c
       - tests/audio_probe.c
@@ -16,6 +18,9 @@ on:
     paths:
       - integration/actor-source/**
       - scripts/patch_source_routing.py
+      - scripts/patch_variation.py
+      - integration/variation/**
+      - integration/joint-play/hb-joint-panels.mjs
       - scripts/apply_clean_harmonybus.py
       - .github/workflows/actor-source.yml
   workflow_dispatch:
@@ -25,7 +30,7 @@ concurrency:
   group: source-weaving-${{ github.ref }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.215
+  SOURCE_VERSION: 0.34.1-hbclean.216
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -54,7 +59,7 @@ jobs:
           npm run typecheck
           npm run build:browser
           node browser-test/logic.mjs
-          for suite in hb-joint-play hb-joint-panels hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
+          for suite in hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
             node "browser-test/$suite.mjs"
           done
           # Legacy app-loop fails unchanged on the pre-routing hbclean.209 baseline.
@@ -95,7 +100,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: source-weaving-215
+          name: source-weaving-216
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -105,7 +110,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Source Weaving" --notes-file docs/source-weaving.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Conductor and Source Overview" --notes-file docs/source-weaving.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -118,7 +123,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.214':
+          if metadata['version'] != '0.34.1-hbclean.215':
               raise SystemExit('Installer moved concurrently; leave it unchanged for review')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')

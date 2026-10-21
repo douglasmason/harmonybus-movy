@@ -169,7 +169,7 @@ sequencer tests, 292 DSP tests, dedicated browser suites and the production
 Movy → Schwung → HarmonyBus fixture checking render velocity before the first
 note, mute fallback, base restoration and paired releases. The two scheduler
 benchmarks run explicitly in release mode. No physical device testing is implied.
-## Conductor overview and Source Preview (Movy 215)
+## Conductor overview and Source Preview (Movy 216)
 
 In Joint Play, use the jog dial to open **Conductor Overview**. This read-only
 page shows the selected quartet's melody actor's effective harmony, authority,

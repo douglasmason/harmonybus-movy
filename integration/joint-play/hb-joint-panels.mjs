@@ -246,3 +246,28 @@ for(const group of [0,3]){
 }
 globalThis.host_module_get_param=previousGet;
 console.log('Conductor/source overviews: native state, quartets, bounded reads, read-only controls and unavailable state pass');
+const variations=new Map();
+globalThis.host_module_get_param=key=>key.startsWith('variation_')?(variations.get(Number(key.slice(10)))??`${key.slice(10)} 0 50 30 0 1`):nativeGet(key);
+globalThis.host_module_set_param_blocking=(key,value,timeout)=>{
+ if(key==='cmd')for(const command of value.split(';'))if(command.startsWith('variation ')){
+  const fields=command.slice(10).split(' ').map(Number);assert.equal(fields.length,6);variations.set(fields[0],fields.join(' '));
+ }
+ return nativeSet?.(key,value,timeout);
+};
+for(const group of [0,3]){
+ appState.focusGroup=group;page=panels.jointPage();
+ assert(!page.ctl.pages.some(item=>item.keys?.includes('joint_variation_0_amount')));
+ for(const role of [1,2,3]){
+  const variationPage=page.ctl.pages.findIndex(item=>item.keys?.includes(`joint_variation_${role}_amount`));
+  assert(variationPage>=0);page.goToPage(variationPage);flush(page);
+  const actor=group*4+role;
+  page.knobTurn(0,4);flush(page);assert.equal(variations.get(actor)?.split(' ')[1],'1');
+  page.knobTurn(3,4);flush(page);assert.equal(variations.get(actor)?.split(' ')[4],'1');
+  page.knobTurn(4,4);flush(page);const firstSeed=Number(variations.get(actor)?.split(' ')[5]);assert(firstSeed>1);
+  page.knobTurn(4,4);flush(page);assert(Number(variations.get(actor)?.split(' ')[5])>firstSeed);
+  variations.set(actor,`${actor} 0 50 30 0 1`);flush(page);
+  assert.equal(page.performanceGet(`joint_variation_${role}_amount`),'0');
+ }
+}
+globalThis.host_module_get_param=nativeGet;globalThis.host_module_set_param_blocking=nativeSet;
+console.log('Clip Variation: shared-controller knobs, repeated rerolls, actor isolation and native readback pass');

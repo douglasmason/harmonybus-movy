@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {installEnv} from './env.mjs';
+installEnv();await import('../dist/esm/app/globals.js');
+const panel=await import('../dist/esm/seq/variation-panels.js');
+globalThis.host_module_get_param=key=>key==='variation_5'?'5 27 50 30 10 7':null;
+assert.equal(panel.variationPanelGet(4,'joint_variation_1_amount'),'27');
+assert.equal(panel.variationPanelGet(4,'joint_variation_1_reroll'),'7');
+assert.equal(panel.variationPanelGet(4,'joint_variation_0_amount'),null);
+assert.equal(panel.variationPanelGet(4,'joint_variation_2_amount'),'0');
+assert.equal(panel.variationParameters.length,15);
+assert.equal(panel.variationPanelSet(4,'unrelated','100'),false);
+console.log('Variation panel: actor mapping, defaults and reroll readout pass');
