@@ -25,7 +25,8 @@ pub struct WeaveTiming {
 }
 
 /// Bind an actual active source clip, never the separately selected editor clip.
-/// Nonperiodic or muted sources are rejected using the existing snapshot rules.
+/// Muted sources are unavailable. Conditional clips retain valid timing even
+/// though lookahead cannot promise a deterministic harmonic cycle.
 pub fn resolve_playing_clip(engine: &Engine, source: ClipSource) -> Option<SourceTiming> {
     let track = engine.tracks.get(usize::from(source.track))?;
     let slot = usize::from(source.slot);
@@ -36,21 +37,24 @@ pub fn resolve_playing_clip(engine: &Engine, source: ClipSource) -> Option<Sourc
 }
 
 impl SourceTiming {
-    /// The snapshot must correspond to the selected playing clip. The host is
-    /// responsible for checking its slot; Snapshot itself has no slot field.
+    /// Validate both parts of the authoritative lookahead snapshot identity.
     pub fn from_playing_snapshot(source: ClipSource, snapshot: Snapshot) -> Option<Self> {
-        if snapshot.track != source.track || snapshot.active != 1 || !snapshot.running || snapshot.period == 0 {
+        if snapshot.track != source.track || snapshot.slot != source.slot || snapshot.active == 0 || !snapshot.running || snapshot.period == 0 {
             return None;
         }
         Some(Self { source, period: snapshot.period, origin: snapshot.origin, revision: snapshot.revision })
     }
 
     pub fn phase(&self, completed_tick: u64) -> u64 {
-        (completed_tick % self.period + self.period - self.origin % self.period) % self.period
+        let tick = completed_tick % self.period;
+        let origin = self.origin % self.period;
+        if tick >= origin { tick - origin } else { self.period - (origin - tick) }
     }
 
-    pub fn revision_key(&self) -> (ClipSource, u64, u64, u64) {
-        (self.source, self.period, self.origin, self.revision)
+    /// Raw material has the lookahead identity/revision, not its launch phase.
+    /// Period-affecting edits already participate in the authoritative revision.
+    pub fn revision_key(&self) -> (ClipSource, u64) {
+        (self.source, self.revision)
     }
 }
 
@@ -93,11 +97,12 @@ mod tests {
     #[test]
     fn rejects_inactive_or_mismatched_snapshots() {
         let source = ClipSource { track: 2, slot: 3 };
-        let snapshot = Snapshot { track: 2, active: 1, running: true, period: 384, origin: 0, revision: 12, ..Snapshot::default() };
+        let snapshot = Snapshot { track: 2, slot: 3, active: 1, running: true, period: 384, origin: 0, revision: 12, ..Snapshot::default() };
         assert_eq!(SourceTiming::from_playing_snapshot(source, snapshot).unwrap().phase(385), 1);
         assert!(SourceTiming::from_playing_snapshot(source, Snapshot { active: 0, ..snapshot }).is_none());
         assert!(SourceTiming::from_playing_snapshot(source, Snapshot { running: false, ..snapshot }).is_none());
         assert!(SourceTiming::from_playing_snapshot(source, Snapshot { track: 3, ..snapshot }).is_none());
+        assert!(SourceTiming::from_playing_snapshot(source, Snapshot { slot: 2, ..snapshot }).is_none());
         assert!(SourceTiming::from_playing_snapshot(source, Snapshot { period: 0, ..snapshot }).is_none());
     }
 }

@@ -26,6 +26,7 @@ import subprocess
 import json
 import base64
 from patch_loop_bridge import patch_loop_bridge
+from patch_actor_source import patch_actor_source
 from patch_visual_beat import patch_visual_beat
 from patch_pressure_recording import patch_pressure_recording
 from patch_arp_pressure import patch_arp_pressure
@@ -607,6 +608,7 @@ def main() -> int:
     patch_clip_weave(root)
     from patch_field_play import patch_field_play
     patch_field_play(root)
+    patch_actor_source(root)
     print("HarmonyBus clean integration applied")
     return 0
 

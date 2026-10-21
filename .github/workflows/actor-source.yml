@@ -1,0 +1,29 @@
+name: Actor source integration regressions
+on:
+  push:
+    branches: [feature/actor-clip-source-bridge-20261020]
+  pull_request:
+    branches: [main]
+    paths:
+      - integration/actor-source/**
+      - integration/hb_loop.rs
+      - scripts/patch_actor_source.py
+      - scripts/apply_clean_harmonybus.py
+      - .github/workflows/actor-source.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sequencer-and-dsp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare pinned sources
+        run: |
+          git clone https://github.com/DimaDake/schwung-movy.git movy
+          git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
+          git clone https://github.com/douglasmason/harmonybus.git harmonybus
+          git -C harmonybus checkout 4f2c44b93118b6babfb9d792642602f451863814
+          python3 scripts/apply_clean_harmonybus.py movy
+      - name: Test actual integrated sequencer and DSP
+        run: cargo test --manifest-path movy/engine/Cargo.toml -p seq-core -p movy-dsp
