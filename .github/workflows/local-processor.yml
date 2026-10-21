@@ -42,7 +42,7 @@ jobs:
           bash dev/wasm/prepare.sh
           node --test dev/wasm/test.mjs
           node dev/wasm/browser-test.mjs
-          node --test dev/wasm/full/test.mjs dev/wasm/full/pcm-worklet-test.mjs
+          node --test dev/wasm/full/test.mjs dev/wasm/full/pcm-worklet-test.mjs dev/wasm/full/pcm-monitor-test.mjs
           node dev/wasm/full/browser-test.mjs
           node dev/wasm/package.mjs
           WASM_PACKAGED=1 node dev/wasm/full/browser-test.mjs

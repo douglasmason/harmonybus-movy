@@ -32,7 +32,7 @@ class PcmSink extends AudioWorkletProcessor {
    }else this.stats.underruns++;
   }
   this.pull();
-  if(++this.quanta%128===0)this.port.postMessage({type:'stats',...this.stats,queued:this.frames});
+  if(++this.quanta%128===0){this.port.postMessage({type:'stats',...this.stats,queued:this.frames});this.stats.peak=0;}
   return true;
  }
 }

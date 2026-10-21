@@ -105,7 +105,11 @@ requirement. The worklet contains only PCM output/buffering, no musical engine.
 
 Compiled engines require 44.1 kHz. AudioContext requests that rate and rejects
 an unexpected rate rather than silently changing pitch or tempo. Processing uses
-the callback's actual output frame count. Enable audio through the button; an
+the callback's actual output frame count. On supported browsers, enabling requests the music `playback` audio-session type
+and restores the previous type on disable. This addresses iOS ambient-audio mute
+behavior; physical iPad verification is still needed. The audio status reports
+startup, received samples, and recent signal activity to help diagnose silence.
+Enable audio through the button; an
 HTTPS origin (or localhost) is required. Audio enable/disable stops transport and
 releases input for a clean clock handoff. Stop flushes queued buffers with a new
 stream generation and invokes the synth's existing all-notes-off operation.

@@ -14,7 +14,7 @@ for(const [actor,name] of ['Root','Bass','Comp','Melody'].entries()){
 }
 const status=document.querySelector('#status');
 const {metadata,socket,label,audio}=await openJointConnection();
-if(audio){monitor=audio;audio.onDisable=()=>{audioButton.textContent='Enable audio';audioButton.setAttribute('aria-pressed','false');};document.querySelector('#audio-status').textContent='NuSaw · compiled Schwung synth audio';}
+if(audio){monitor=audio;audio.onStatus=text=>{document.querySelector('#audio-status').textContent=text;};audio.onDisable=()=>{audioButton.textContent='Enable audio';audioButton.setAttribute('aria-pressed','false');};document.querySelector('#audio-status').textContent='NuSaw · compiled Schwung synth audio';}
 audioButton.disabled=false;
 const cache=new Map(),demand=new Map();let connected=false;
 
