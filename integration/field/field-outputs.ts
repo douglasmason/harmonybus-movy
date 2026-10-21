@@ -1,26 +1,30 @@
 /** Normalized lane outputs. UI holds are transient; DSP owns glide and expiry. */
 import { PAD_PALETTE } from '../keyboard/pad-palette.js';
-export type Output = {raw:number;value:number;target:number};
+export type Output = {raw:number;value:number;target:number;latched:boolean};
 type Hold = {lane:number;base:number;offset:number;anchor:number|null;spacing:number};
 const holds=new Map<string,Hold>();
-export const outputs:Output[]=Array.from({length:16},()=>({raw:.5,value:.5,target:0}));
-export let outputView=false, vertical=false, outputBank=0;
+export const outputs:Output[]=Array.from({length:16},()=>({raw:.5,value:.5,target:0,latched:false}));
+export let outputView=false, vertical=false, outputBank=0, latchMode=false;
+export type OutputFinish={lane:number;value:number};
 let changed=false;
 const bound=(value:number)=>Math.max(0,Math.min(1,value));
 export function outputSnapshot(text:string):boolean{
-    if(!text.startsWith('fo1,'))return false;
+    if(!text.startsWith('fo1,')&&!text.startsWith('fo2,'))return false;
     const values=text.slice(4).split(',').map(Number);
-    if(values.length!==51||!values.every(Number.isFinite))return false;
+    if(![51,55].includes(values.length)||!values.every(Number.isFinite))return false;
     const nextView=values[0]===1,nextVertical=values[1]===1,nextBank=values[2];
     if(outputView!==nextView||vertical!==nextVertical||outputBank!==nextBank)releaseOutputs();
+    latchMode=values.length===55&&values[51]===1;
+    const latched=values[52]??0,blocked=values[53]??0;
+    for(let lane=0;lane<16;lane++)if(blocked&(1<<lane))cancelOutputLane(lane);
     outputView=nextView;vertical=nextVertical;outputBank=nextBank;
-    outputs.forEach((output,index)=>Object.assign(output,{raw:values[3+index*3]/10000,value:values[4+index*3]/10000,target:values[5+index*3]}));
+    outputs.forEach((output,index)=>Object.assign(output,{raw:values[3+index*3]/10000,value:values[4+index*3]/10000,target:values[5+index*3],latched:!!(latched&(1<<index))}));
     return true;
 }
 export function outputLane(strip:number):number{return (outputBank*4+strip)%16;}
-export function outputPad(source:string,index:number,down:boolean,height:number):void{
+export function outputPad(source:string,index:number,down:boolean,height:number):OutputFinish|undefined{
     const key=source+':'+index;
-    if(!down){holds.delete(key);changed=true;return;}
+    if(!down)return finishHold(key);
     const strip=vertical?index%8:Math.floor(index/8),position=vertical?Math.floor(index/8):index%8;
     const spacing=1/((vertical?height:8)-1);
     const lane=outputLane(strip),knob=holds.get('knob:'+strip);if(knob)knob.base=position*spacing;
@@ -33,9 +37,9 @@ export function outputPressure(source:string,index:number,pressure:number):void{
     // Anchor on first aftertouch, not note velocity; do not snap on contact.
     hold.offset=(bounded-hold.anchor)/127*hold.spacing*.5;changed=true;
 }
-export function outputKnob(index:number,down:boolean,delta=0):void{
+export function outputKnob(index:number,down:boolean,delta=0):OutputFinish|undefined{
     const key='knob:'+index,lane=outputLane(index);
-    if(!down){holds.delete(key);changed=true;return;}
+    if(!down)return finishHold(key);
     let hold=holds.get(key);
     if(!hold){
         let base=outputs[lane].value;for(const existing of holds.values())if(existing.lane===lane)base=existing.base;
@@ -57,6 +61,16 @@ function effectiveHeld(lane:number):number|undefined{
         let offset=0;for(const [key,hold] of holds)if(hold.lane===lane&&!key.startsWith('knob:'))offset=hold.offset;
         value=bound(knob.base+offset);
     }return value;
+}
+function finishHold(key:string):OutputFinish|undefined{
+    const hold=holds.get(key);if(!hold)return;
+    const value=effectiveHeld(hold.lane);holds.delete(key);changed=true;
+    if(value!==undefined&&effectiveHeld(hold.lane)===undefined)return {lane:hold.lane,value:Math.round(value*10000)};
+}
+/** Cancellation never commits a latch. */
+export function cancelOutputLane(lane:number):void{
+    for(const [key,hold] of holds)if(hold.lane===lane)holds.delete(key);
+    changed=true;
 }
 export function releaseOutputs(source?:string):void{
     for(const key of holds.keys())if(!source||key.startsWith(source+':'))holds.delete(key);

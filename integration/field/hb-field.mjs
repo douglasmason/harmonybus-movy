@@ -42,3 +42,21 @@ strips.outputSnapshot(snapshot(1));strips.outputPad('move',24,true,4);assert.equ
 strips.outputPad('move',0,true,4);assert.equal(frame()[0],0);strips.outputPad('move',0,false,4);assert.equal(frame()[0],10000,'release restores other held pad');
 strips.outputSnapshot(snapshot());assert(frame().every(value=>value===-1),'layout change releases holds');
 console.log('Output strips: independent holds, pressure anchor, knob offset, release restoration, orientation and brightness interpolation pass');
+
+strips.outputSnapshot('fo2,1,0,0,'+Array.from({length:16},()=>[5000,3500,1]).flat().join(',')+',1,3,0,0');
+assert(strips.latchMode&&strips.outputs[0].latched&&strips.outputs[1].latched);
+strips.outputPad('move',3,true,4);strips.outputPressure('move',3,40);strips.outputPressure('move',3,120);
+const requested=frame()[0];const finish=strips.outputPad('move',3,false,4);assert.deepEqual(finish,{lane:0,value:requested});
+strips.outputPad('move',3,true,4);strips.releaseOutputs();assert.equal(strips.outputPad('move',3,false,4),undefined,'cancel does not commit on stale note-off');
+strips.outputPad('move',3,true,4);strips.outputSnapshot('fo2,1,0,0,'+Array.from({length:16},()=>[5000,3500,1]).flat().join(',')+',1,2,1,0');
+assert.equal(frame()[0],-1);assert(strips.outputs[1].latched,'clearing one preserves another latch');
+console.log('Latch UI: requested pressure target, latch feedback, source cancellation and remote clear acknowledgment pass');
+
+field.setFieldEnabled(true);field.tickField(Date.now());
+strips.outputSnapshot('fo2,1,0,0,'+Array.from({length:16},()=>[5000,3500,1]).flat().join(',')+',1,0,0,0');
+let failFinish=true;portFor(appState.activeTrack.index).setParam=(key,value)=>{if(key==='midi_fx1:field_output_finish'&&failFinish){failFinish=false;return false;}writes.push([key,value]);return true;};
+field.fieldPad('move',3,true);const releaseStart=writes.length;field.fieldPad('move',3,false);
+assert(!writes.slice(releaseStart).some(([key])=>key==='midi_fx1:field_outputs'),'busy finish must not be overtaken by release frame');
+field.tickField(Date.now()+50);assert(writes.slice(releaseStart).some(([key,value])=>key==='midi_fx1:field_output_finish'&&value==='0,0,4286'));
+field.setFieldEnabled(false);
+console.log('Latch delivery: busy writes retry finish before clearing its source lease');

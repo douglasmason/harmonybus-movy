@@ -108,3 +108,35 @@ one surface's release cannot clear the other's held outputs.
 Outputs currently correspond to operation lanes 1–16. Unmapped lanes still
 show their field sample but have no audible destination. Shared named sample
 buses, distribution presets and arbitrary synth destinations remain future work.
+
+## Momentary and Latch (HB 0.2.285 / Movy 207)
+
+Field Display adds Override: 0 Hold (Momentary), 1 Latch. Momentary remains the
+default. The choice is saved; actual latched output values are temporary and
+never recorded or saved. Each knob still controls its output strip. Jog behavior
+is unchanged.
+
+A normal pad/knob release commits the requested value in Latch mode, including
+pressure fine adjustment. A glide finishes toward that requested value rather
+than freezing midway. Multiple held controls on the same output retain ownership
+until its last control releases. Touching/pressing again takes over the output.
+Green continues to show the effective value; `L` beside the lane on the Move
+screen and Remote UI identifies a latch. There is no blinking.
+
+- Move: Shift+pad releases that strip. Shift+Back releases all field outputs.
+- Launchpad X: hold the existing modifier (side button MIDI CC89) and press a pad
+  to release its strip; modifier + rightmost top button releases all.
+- Remote UI: each slider has Release, and the header has Release all plus the
+  Momentary/Latch selector. Escape releases the focused slider.
+
+Release one preserves other latches. Release all also cancels active holds;
+held messages cannot silently reapply an output until the source releases and
+presses again. Switching to Momentary clears existing latches. Clearing always
+uses the existing glide back toward the *current* underlying field.
+
+Latches survive Terrain/Outputs switches, layout/bank changes and leaving Field
+Play. Set changes and DSP teardown clear them. Canceled gestures, disconnections,
+page hiding, and expired input leases never create a latch. Previously committed
+latches remain intentional state until cleared. Native finish/clear requests
+retry under UI backpressure without allowing the release frame to overtake a
+latch commit. The DSP rejects commits after a hold's lease has expired.
