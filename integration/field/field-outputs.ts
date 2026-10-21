@@ -23,7 +23,8 @@ export function outputPad(source:string,index:number,down:boolean,height:number)
     if(!down){holds.delete(key);changed=true;return;}
     const strip=vertical?index%8:Math.floor(index/8),position=vertical?Math.floor(index/8):index%8;
     const spacing=1/((vertical?height:8)-1);
-    holds.delete(key);holds.set(key,{lane:outputLane(strip),base:position*spacing,offset:0,anchor:null,spacing});changed=true;
+    const lane=outputLane(strip),knob=holds.get('knob:'+strip);if(knob)knob.base=position*spacing;
+    holds.delete(key);holds.set(key,{lane,base:position*spacing,offset:0,anchor:null,spacing});changed=true;
 }
 export function outputPressure(source:string,index:number,pressure:number):void{
     const hold=holds.get(source+':'+index);if(!hold||!Number.isFinite(pressure))return;
@@ -36,7 +37,10 @@ export function outputKnob(index:number,down:boolean,delta=0):void{
     const key='knob:'+index,lane=outputLane(index);
     if(!down){holds.delete(key);changed=true;return;}
     let hold=holds.get(key);
-    if(!hold){hold={lane,base:effectiveHeld(lane)??outputs[lane].value,offset:0,anchor:null,spacing:1/7};holds.set(key,hold);}
+    if(!hold){
+        let base=outputs[lane].value;for(const existing of holds.values())if(existing.lane===lane)base=existing.base;
+        hold={lane,base,offset:0,anchor:null,spacing:1/7};holds.set(key,hold);
+    }
     if(delta){
         hold.base=bound(hold.base+delta/1000);
         // Pad pressure is an offset around the knob-adjusted base.

@@ -30,6 +30,7 @@ strips.outputPad('move',3,true,4);strips.outputPad('launchpad',15,true,8);
 assert.equal(frame()[0],4286);assert.equal(frame()[1],10000);
 strips.outputPressure('move',3,60);assert.equal(frame()[0],4286,'first pressure anchors without jumping');
 strips.outputPressure('move',3,127);assert(frame()[0]>4286&&frame()[0]<5001);
+const beforeTouch=frame()[0];strips.outputKnob(0,true);assert.equal(frame()[0],beforeTouch,"knob touch must not double pressure offset");
 strips.outputKnob(0,true,10);const tuned=frame()[0];assert(tuned>4286);
 strips.outputPressure('move',3,60);assert(frame()[0]<tuned,'pressure remains an offset with knob active');
 strips.releaseOutputs('launchpad');assert.equal(frame()[1],-1);assert(frame()[0]>=0);

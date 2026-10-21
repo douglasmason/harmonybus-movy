@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 env:
-  HB_REF: 17d791591b0cdefd8e8ba464f2d08e988e036000
+  HB_REF: 19321d0c96ff0245253bcd6f19e112148853b1f4
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
