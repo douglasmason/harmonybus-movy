@@ -61,7 +61,7 @@ buffer, and retrigger-held defaults. These are explicit test-fixture choices;
 installed Move settings are unaffected. Output channels 1–4 distinguish actors.
 
 The dummy instrument produces deterministic PCM for native chain testing. The
-browser shows routed MIDI; **audible browser playback is not implemented**.
+browser shows routed MIDI; the Joint view also offers an optional audio monitor.
 The production Field Outputs page is available at
 `http://127.0.0.1:7701/field?tool=1&component=ch1:midi_fx1`. Its eight strips,
 latch/momentary switch, orientation, banks and release controls use the unchanged
@@ -135,7 +135,7 @@ getters and arbitrary loading are excluded.
 
 This reuses the generic Movy parameter harness, not the full device controller:
 This generic view does not contain the Joint Play controls; those are available
-in `/joint`. Browser audio and full Manager integration remain future work. Use the linked pad/MIDI
+in `/joint`. Full Manager integration remains future work. Use the linked pad/MIDI
 panel for the existing musical checks. One browser connection owns writes at a
 time; close that tab before controlling from a different tab.
 
@@ -159,8 +159,7 @@ changes. Disconnect cancels outstanding touches with their original actor masks,
 releases physical notes, and clears temporary Joint routing.
 
 This is a performance-control view. It does not yet provide the full Session
-mode cycle, ordinary step sequencing, pressure input, persistence, or audible
-playback. Play, Stop and Joint Record use the native sequencer. The backend still uses
+mode cycle, ordinary step sequencing, pressure input or persistence. Play, Stop and Joint Record use the native sequencer. The backend still uses
 the explicit musical test fixture described above, rather than saved Move Sets.
 
 `node dev/local/joint-browser-test.cjs` verifies native follow-bass output,
@@ -184,7 +183,7 @@ actor mask and each actor's Replace/Overdub setting. From stopped, Movy supplies
 its own count-in; wait for **Recording** before playing. Press Record again to
 end the take while transport continues, or Stop to finish and stop. Play replays
 the stored source gestures through HB; the MIDI inspector shows the output.
-There is still no audible browser playback or clip editor.
+The optional audio monitor plays rendered MIDI using simple browser sounds. There is no clip editor.
 
 The local host disables Move transport linking and uses Movy's internal 120 BPM
 clock. Browser timing is approximate; manual block stepping remains deterministic.
@@ -193,3 +192,26 @@ Only the controlling browser may change transport. Disconnecting it stops the
 sequencer and releases held controls, without clearing recorded clips.
 The API accepts only Play, Stop, and validated Joint recording masks; arbitrary
 sequencer commands and file loading remain unavailable.
+
+### Audible monitor
+
+Open **Audio monitor** in the Joint view and press **Enable audio**. Native HB
+rendered MIDI channels 1–4 drive sine (Root), triangle (Bass), sawtooth (Comp),
+and square (Melody) voices. Each actor has a monitor-only volume and mute control;
+these do not change HB settings or recorded data. Quartets share these four
+render channels in the local fixture, so their corresponding actors share sounds.
+Changing HB render channels changes what this four-channel monitor hears.
+
+The monitor does not implement harmony, travel, motifs, or sequencing. It
+consumes final native MIDI, skips snapshot history and duplicate event delivery,
+and retains separate overlapping voices for identical pitches. Stop silences
+the monitor; blur, hiding the page, or disconnect disables audio until explicitly
+enabled again. A detected event-stream gap silences voices and skips the
+incomplete batch. A bounded voice count prevents unbounded oscillator growth.
+
+Browser/transport buffering adds latency and does not reproduce hardware audio
+deadlines or Move instruments. This is suitable for listening to HB behavior,
+not diagnosing Move crackles. Chromium tests verify a nonzero audio waveform,
+native root/bass voices, duplicate suppression, overlapping-note ownership,
+mute state, Stop cleanup and stream-gap cleanup. Safari/iOS listening has not
+been verified.
