@@ -1,4 +1,36 @@
 impl Engine {
+    /// Bounded, read-only snapshot of one actor. Gate pitches are sequencer
+    /// inputs to HB, not a prediction of final harmony/arp rendering.
+    pub fn source_preview(&self, actor: usize) -> Option<String> {
+        use std::fmt::Write;
+        let track=self.tracks.get(actor)?;
+        let route=self.source_routes[actor];
+        let recording=self.recording && self.records_track(actor);
+        let mut text=format!("{{\"schema\":1,\"actor\":{},\"enabled\":{},\"playing\":{},\"muted\":{},\"recording\":{},\"timeline\":{},\"sources\":[",actor,route.enabled,self.playing,track.muted,recording,route.timeline);
+        for (dimension,configured) in [route.pitch,route.rhythm,route.expression,route.instrument,route.hb_render].into_iter().enumerate() {
+            if dimension>0 {text.push(',');}
+            let resolved=configured.or_else(||track.playing_slot.map(|slot|crate::source_route::ClipRef{track:actor,slot}));
+            if let Some(reference)=resolved {
+                let donor=&self.tracks[reference.track];let clip=&donor.clips[reference.slot];
+                let active=self.playing && !donor.muted && donor.playing_slot==Some(reference.slot) && clip.exists();
+                write!(&mut text,"{{\"track\":{},\"slot\":{},\"active\":{},\"phase_ticks\":{},\"length_ticks\":{}}}",reference.track,reference.slot,active,donor.pos_tick.saturating_sub(clip.loop_start_ticks()),clip.length_ticks()).unwrap();
+            } else {text.push_str("null");}
+        }
+        text.push_str("],\"notes\":[");
+        let mut count=0;
+        let mut pitches=[false;128];let mut gates=0;
+        for gate in &self.gates {if gate.track as usize==actor {pitches[gate.pitch as usize]=true;gates+=1;}}
+        // Scan the existing gate owner; never retain another output history.
+        for pitch in 0..128u8 {
+            if pitches[pitch as usize] {
+                if count>0 {text.push(',');}
+                write!(&mut text,"{}",pitch).unwrap();count+=1;
+            }
+        }
+        write!(&mut text,"],\"gates\":{}}}",gates).unwrap();
+        Some(text)
+    }
+
     /// On-demand diagnostics only; never formatted by the audio render loop.
     pub fn source_diagnostics(&self) -> String {
         use std::fmt::Write;

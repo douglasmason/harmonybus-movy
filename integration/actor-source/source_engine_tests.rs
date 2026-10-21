@@ -306,6 +306,33 @@ mod source_routing_tests {
         assert_eq!(engine.source_routes[3].expression,None);
     }
     #[test]
+    fn source_preview_reads_real_gates_without_consuming_material() {
+        let mut engine=setup();
+        let cursor=engine.source_cursors[3].onset;
+        let before=engine.source_preview(3).unwrap();
+        assert!(before.contains("\"notes\":[]"));
+        assert!(before.contains("\"track\":1,\"slot\":0,\"active\":true"));
+        assert_eq!(engine.source_cursors[3].onset,cursor);
+        assert!(engine.source_preview(NUM_TRACKS).is_none());
+        assert!(engine.source_preview(usize::MAX).is_none());
+        let output=tick(&mut engine);
+        assert_eq!(ons(&output),vec![60,64]);
+        let cursor=engine.source_cursors[3].onset;
+        for _ in 0..10 {
+            let snapshot=engine.source_preview(3).unwrap();
+            assert!(snapshot.contains("\"notes\":[60,64]"),"{snapshot}");
+            assert_eq!(engine.source_cursors[3].onset,cursor);
+        }
+        engine.tracks[1].muted=true;
+        let snapshot=engine.source_preview(3).unwrap();
+        assert!(snapshot.contains("\"track\":1,\"slot\":0,\"active\":false"));
+        assert!(snapshot.contains("\"notes\":[60,64]"),"source mute does not invent early releases");
+        engine.stop(&mut Vec::new());
+        let snapshot=engine.source_preview(3).unwrap();
+        assert!(snapshot.contains("\"playing\":false"));
+        assert!(snapshot.contains("\"notes\":[]"));
+    }
+    #[test]
     #[ignore = "isolated release-mode timing measurement, not a hardware audio assertion"]
     fn source_routing_benchmark() {
         use std::time::Instant;
