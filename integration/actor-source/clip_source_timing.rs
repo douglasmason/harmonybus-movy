@@ -1,7 +1,8 @@
 //! Clip-source timing adapter for independent actor pitch/rhythm sources.
 //! Uses Movy's existing clip period/origin snapshot. No new transport clock,
 //! no allocation, no per-tick clip scan. The engine binds track/slot identities.
-use crate::hb_loop::Snapshot;
+use crate::hb_loop::{self, Snapshot};
+use seq_core::engine::Engine;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ClipSource {
@@ -21,6 +22,17 @@ pub struct SourceTiming {
 pub struct WeaveTiming {
     pub pitch: SourceTiming,
     pub rhythm: SourceTiming,
+}
+
+/// Bind an actual active source clip, never the separately selected editor clip.
+/// Nonperiodic or muted sources are rejected using the existing snapshot rules.
+pub fn resolve_playing_clip(engine: &Engine, source: ClipSource) -> Option<SourceTiming> {
+    let track = engine.tracks.get(usize::from(source.track))?;
+    let slot = usize::from(source.slot);
+    if slot >= track.clips.len() || track.playing_slot != Some(slot) || !track.clips[slot].exists() {
+        return None;
+    }
+    SourceTiming::from_playing_snapshot(source, hb_loop::snapshot(engine, usize::from(source.track)))
 }
 
 impl SourceTiming {
@@ -65,6 +77,19 @@ mod tests {
         assert_eq!(weave.phases(4992), (384, 0));
     }
 
+    #[test]
+    fn selected_editor_clip_cannot_replace_playing_source() {
+        let mut engine = Engine::new(48000,12000);
+        engine.playing = true;
+        engine.tracks[0].clips[0].set_loop(0,32);
+        engine.tracks[0].clips[0].add_note_raw(0,0,24,60,100);
+        engine.tracks[0].playing_slot=Some(0);
+        engine.tracks[0].active_clip=1;
+        assert!(resolve_playing_clip(&engine,ClipSource{track:0,slot:1}).is_none());
+        assert!(resolve_playing_clip(&engine,ClipSource{track:0,slot:0}).is_some());
+        engine.tracks[0].muted=true;
+        assert!(resolve_playing_clip(&engine,ClipSource{track:0,slot:0}).is_none());
+    }
     #[test]
     fn rejects_inactive_or_mismatched_snapshots() {
         let source = ClipSource { track: 2, slot: 3 };
