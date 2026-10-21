@@ -26,11 +26,13 @@ mod hb_clip_engine_tests {
         assert!(engine.hb_performance[0].slots.iter().all(Option::is_none));
     }
     #[test]
-    fn recording_bypasses_clip_gestures_and_restore_forgets_holds() {
+    fn recording_preserves_clip_gestures_and_restore_forgets_holds() {
         let mut engine=fixture();let saved=crate::persist::serialize(&engine);
         engine.recording=true;engine.rec_track=0;
         engine.hb_perform(0,0,true,13,1,0);
-        assert!(engine.hb_performance[0].slots[0].is_none());
+        assert!(engine.hb_performance[0].slots[0].is_some());
+        let mut output=Vec::new();engine.step_tick(0,&mut output);
+        assert_eq!(engine.tracks[0].clips[0].operation_intervals.len(),1);
         engine.recording=false;engine.hb_perform(0,0,true,13,1,0);
         assert!(engine.hb_performance[0].slots[0].is_some());
         assert!(crate::persist::load(&mut engine,&saved));

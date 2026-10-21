@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict';
+import { installEnv } from './env.mjs';
+import { installMockEngine } from './mock-engine.mjs';
+installEnv(); installMockEngine();
+const { appState, VIEW_CLIP_PARAMS, VIEW_KEYS } = await import('../dist/esm/app/state.js');
+const { seqState } = await import('../dist/esm/seq/state.js');
+const { keyboardState, padMapFor } = await import('../dist/esm/keyboard/state.js');
+const { refreshClipInputInfo, offLayoutNotes } = await import('../dist/esm/seq/clip-page-vm.js');
+const { buildClipPageVM } = await import('../dist/esm/seq/clip-page-vm.js');
+const { clipPageTouch, clipPageKnob, clipPageState } = await import('../dist/esm/seq/clip-page.js');
+appState.currentView=VIEW_CLIP_PARAMS;
+let reads=0, payload='ci1,0,mapped,0,1,0,2', now=1000;
+globalThis.host_module_get_param=key=>{assert.equal(key,'clip_input_info');reads++;return payload;};
+const originalNow=Date.now;Date.now=()=>now;
+try {
+    refreshClipInputInfo();
+    let vm=buildClipPageVM();
+    assert.equal(vm.rows[1][2].displayValue,'Mapped');
+    assert.equal(vm.rows[1][3],null,'No extra field when every note is visible');
+    clipPageTouch(6,true);vm=buildClipPageVM();
+    assert.equal(vm.toast.value,'C Maj > C Min');
+    clipPageKnob(6,8,0);
+    assert.equal(buildClipPageVM().rows[1][2].displayValue,'Mapped','Context knob never edits');
+    for(let tick=0;tick<30;tick++){now++;refreshClipInputInfo();}
+    assert.equal(reads,1,'Bounded metadata reads');
+    payload='ci1,0,fixed,-1,-1,-1,-1';now+=250;refreshClipInputInfo();
+    assert.equal(buildClipPageVM().rows[1][2].displayValue,'Fixed');
+    keyboardState.mode=1;keyboardState.layout=1;keyboardState.rootPc=0;keyboardState.scale=2;
+    const visible=padMapFor(0).filter(pitch=>pitch>=0);
+    const missing=Array.from({length:128},(_,pitch)=>pitch).find(pitch=>!visible.includes(pitch)&&pitch>=visible[0]&&pitch<visible.at(-1));
+    assert.notEqual(missing,undefined);
+    seqState.playing=true;seqState.activeNotes.fill(0);
+    seqState.activeNotes[visible[0]]=1;seqState.activeNotes[missing]=1;
+    assert.deepEqual(offLayoutNotes(),[missing]);
+    vm=buildClipPageVM();assert.equal(vm.rows[1][3].displayValue,'1');
+    clipPageTouch(7,true);assert.match(buildClipPageVM().toast.value,/[A-G]/);
+    seqState.playing=false;assert.equal(buildClipPageVM().rows[1][3],null);
+    payload='ci1,1,mapped,0,1,0,2';now+=250;refreshClipInputInfo();
+    assert.equal(buildClipPageVM().rows[1][2].shortName,'APPLY','Never show another track context');
+    appState.currentView=VIEW_KEYS;
+    const before=reads;now+=1000;refreshClipInputInfo();assert.equal(reads,before,'No reads outside clip panel');
+    assert.equal(clipPageState.scaleOverlay,false);
+} finally {Date.now=originalNow;}
+console.log('Clip context: mapped/fixed details, quiet off-layout field, read-only touch, bounded reads pass');

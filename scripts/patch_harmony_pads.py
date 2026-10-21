@@ -1,5 +1,6 @@
 """Install optional global harmony pad colors into pinned Movy."""
 from pathlib import Path
+import re
 from patch_responsive_persistence import replace_once
 
 
@@ -8,20 +9,164 @@ def patch_harmony_pads(root: Path) -> None:
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/pad-display'
     for name in ['harmony-pads.ts', 'pad-palette.ts']:
         (root / 'src/keyboard' / name).write_text((assets / name).read_text())
+    (root / 'src/scale-catalog.ts').write_text((assets.parent / 'scale-catalog.ts').read_text())
     path: Path = root / 'src/seq/pads.ts'
     source: str = path.read_text()
-    source = "import { harmonyPadColor } from '../keyboard/harmony-pads.js';\nexport { colorHarmonyPitch, harmonyPulse, parseHarmonySnapshot, refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + source
-    source = replace_once(source, '    if (pitch < 0) return C_BLACK;', '''    if (pitch < 0) return C_BLACK;
-    const harmonyColor = harmonyPadColor(pitch, track);
-    if (harmonyColor !== null) return harmonyColor;''')
+    source = "import { harmonyPlaybackColor, harmonyPadColor, distinguishHarmonyPad } from '../keyboard/harmony-pads.js';\nexport { harmonyPlaybackColor, hasHarmonyPlayback, harmonyPadPlaying, withHarmonyPadFrame, distinguishHarmonyPad, setFollowerInputScale, setFollowerInputRoot, harmonyPadColor, colorHarmonyPitch, harmonyPulse, parseHarmonySnapshot, refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + source
+    source = source.replace('export function padColor(', 'function restingPadColor(')
+    source = replace_once(source, '    if (isPlaying) return C_GREEN;', """    const harmonyColor = harmonyPadColor(pitch, track, holdNotes?.includes(pitch) ?? false);
+    if (harmonyColor !== null) return holdNotes !== null ? harmonyColor : distinguishHarmonyPad(idx, track, harmonyColor);""")
+    source += """
+export function padColor(padNote: number, padMin: number, track: number,
+    isPlaying: boolean, holdNotes: number[] | null = null): number {
+    const index = padNote - padMin;
+    const background = restingPadColor(padNote, padMin, track, false, holdNotes);
+    if ((padMapFor(track)[index] ?? -1) < 0) return harmonyApproachColor(index, track, isPlaying);
+    return harmonyPlaybackColor(background, track, index, isPlaying);
+}
+"""
+    source = replace_once(source, 'const white = holdNotes !== null ? holdNotes.includes(pitch) : noteHeld(track, pitch);', 'const white = holdNotes?.includes(pitch) ?? false;')
+    source = source.replace("import { noteHeld } from './held.js';\n", '')
+    path.write_text(source)
+    path = root / 'browser-test/logic/seq-leds.mjs'
+    source = path.read_text()
+    source = source.replace('    setHeldSet(0, [padPitch(0, 72, padMin)]);', '    const unselectedColor = padColor(72, padMin, 0, false);\n    setHeldSet(0, [padPitch(0, 72, padMin)]);')
+    source = replace_once(source, "eq('held-set = white',   padColor(72, padMin, 0, false), 120);", "eq('last played keeps background', padColor(72, padMin, 0, false), unselectedColor);")
     path.write_text(source)
     path = root / 'src/keyboard/handler.ts'
-    source = "import { harmonyPadColor } from './harmony-pads.js';\n" + path.read_text()
-    source = replace_once(source, 'setLED(padNote, C_GREEN, true); // immediate green feedback before the next poll',
-        'setLED(padNote, harmonyPadColor(midiNote, track) ?? C_GREEN, true); // preserve harmony backgrounds on the immediate path')
+    source = path.read_text()
+    source = replace_once(source, 'setLED(padNote, C_GREEN, true);',
+        'setLED(padNote, padColor(padNote, padMin, track, true), true);')
+    source = source.replace("import { C_GREEN } from '../seq/colors.js';\n", '').replace('immediate green feedback', 'immediate configured play feedback')
     path.write_text(source)
     path = root / 'src/app/tick.ts'
+
     source = "import { refreshHarmonyPads } from '../keyboard/harmony-pads.js';\n" + path.read_text()
-    source = replace_once(source, '        const map       = padMapFor(track);', '        refreshHarmonyPads(track);\n        const map       = padMapFor(track);')
+    source = replace_once(source, '    /* Chromatic instrument-pad init batch.', '''    // Warm HarmonyBus before the initial paint. Pad colors must never depend
+    // on opening its parameter panel or on a later unrelated repaint.
+    if (!seqState.sessionMode && !isDrum) refreshHarmonyPads(appState.activeTrack.index);
+
+    /* Chromatic instrument-pad init batch.''')
     path.write_text(source)
     (root / 'browser-test/hb-pad-colors.mjs').write_text((assets / 'hb-pad-colors.mjs').read_text())
+
+    path = root / 'src/seq/main-page.ts'
+    source = "import { setFollowerInputScale, setFollowerInputRoot, followerInputScaleCount } from '../keyboard/harmony-pads.js';\n" + path.read_text()
+    source = replace_once(source, 'if (k === K_KEY) keyboardState.scale = sel;',
+        'if (k === K_KEY) { keyboardState.scale = sel; setFollowerInputScale(appState.activeTrack.index, sel); }')
+    source = source.replace('        setRootPc(keyboardState.rootPc + n);', '        setRootPc(keyboardState.rootPc + n);\n        setFollowerInputRoot(appState.activeTrack.index, keyboardState.rootPc);')
+    path.write_text(source)
+    source = path.read_text()
+    source = source.replace("import { MODE_NAMES, layoutNames } from '../keyboard/layouts.js';", "export const PAD_LAYOUT_NAMES = ['Chromatic 4ths', 'Piano', 'In Key 4ths', 'Inline', 'Approach'];\nexport function padLayoutIndex(): number { return keyboardState.layout === 2 ? 4 : (keyboardState.mode === 1 ? 2 : 0) + Math.min(keyboardState.layout, 1); }")
+    source = source.replace('if (k === K_KEY) return SCALE_NAMES;', 'if (k === K_KEY) return SCALE_NAMES.slice(0, followerInputScaleCount(appState.activeTrack.index));')
+    source = source.replace('const OVERLAY_KNOBS = [K_KEY, K_MODE, K_LAYOUT];', 'const OVERLAY_KNOBS = [K_KEY, K_MODE];')
+    source = source.replace('    if (k === K_MODE) return MODE_NAMES;\n    return layoutNames(keyboardState.mode);', '    return k === K_MODE ? PAD_LAYOUT_NAMES : [];')
+    source = source.replace('    if (k === K_MODE) return keyboardState.mode;\n    return Math.min(keyboardState.layout, layoutNames(keyboardState.mode).length - 1);', '    return padLayoutIndex();')
+    source = replace_once(source, '''        keyboardState.mode = sel;
+        // Chromatic and In Key both offer two layouts, so the index carries
+        // over; the clamp is here so adding a third option later can't strand it.
+        keyboardState.layout = Math.min(keyboardState.layout, layoutNames(sel).length - 1);
+    } else keyboardState.layout = sel;''', '''        keyboardState.mode = sel >= 2 ? 1 : 0;
+        keyboardState.layout = sel === 4 ? 2 : sel % 2;
+    }''')
+    source = source.replace('    mainPageState.touchedKnob = down ? k : -1;', '    if (k === K_LAYOUT) return;\n    mainPageState.touchedKnob = down ? k : -1;')
+    source = source.replace('    mainPageState.touchedKnob = k;', '    if (k === K_LAYOUT) return;\n    mainPageState.touchedKnob = k;')
+    path.write_text(source)
+    source = path.read_text().replace('followerInputScaleCount }', 'followerInputScaleCount, followerScaleIndices }')
+    source = source.replace('SCALE_NAMES.slice(0, followerInputScaleCount(appState.activeTrack.index))',
+        'followerScaleIndices(appState.activeTrack.index).map(index => SCALE_NAMES[index])')
+    source = source.replace('if (k === K_KEY) return keyboardState.scale;',
+        'if (k === K_KEY) return Math.max(0, followerScaleIndices(appState.activeTrack.index).indexOf(keyboardState.scale));')
+    source = source.replace('keyboardState.scale = sel; setFollowerInputScale(appState.activeTrack.index, sel);',
+        'keyboardState.scale = followerScaleIndices(appState.activeTrack.index)[sel]; setFollowerInputScale(appState.activeTrack.index, keyboardState.scale);')
+    path.write_text(source)
+    for filename in ['keyboard.mjs', 'params-pages.mjs']:
+        test_path: Path = root / 'browser-test/logic' / filename
+        test_source: str = test_path.read_text()
+        test_source = test_source.replace("'thirteen scales', SCALES.length, 13", "'twenty-three scales', SCALES.length, 23")
+        test_source = test_source.replace("'key overlay carries 13 scales', vm.overlay && vm.overlay.options.length, 13", "'key overlay carries 23 scales', vm.overlay && vm.overlay.options.length, 23")
+        test_source = test_source.replace("'scale clamped', keyboardState.scale, 12", "'scale clamped', keyboardState.scale, 22")
+        test_path.write_text(test_source)
+    path = root / 'src/seq/scales.ts'
+    source = path.read_text()
+    source = re.sub(r'export const SCALES: Scale\[\] = \[.*?\n\];', "export { SCALES } from '../scale-catalog.js';\nimport { SCALES } from '../scale-catalog.js';", source, flags=re.S)
+    path.write_text(source)
+    path = root / 'src/seq/main-page-vm.ts'
+    source = path.read_text().replace('mainPageState, overlayOptions', 'mainPageState, overlayOptions, PAD_LAYOUT_NAMES, padLayoutIndex')
+    source = source.replace("import { MODE_NAMES, layoutNames } from '../keyboard/layouts.js';\n", '')
+    start = source.index('    const mode = cell({')
+    end = source.index('\n    // Knob-indexed', start)
+    source = source[:start] + '''    const li = padLayoutIndex();
+    const mode = cell({
+        shortName: 'LAYOUT', fullName: 'Pad Layout', type: 'enum',
+        options: PAD_LAYOUT_NAMES, isLongEnum: true,
+        enumIndex: li, displayValue: PAD_LAYOUT_NAMES[li], normalizedValue: li / 3,
+    });
+    const layout = null;
+''' + source[end:]
+    path.write_text(source)
+    path = root / 'browser-test/logic/params-pages.mjs'
+    source = path.read_text()
+    start = source.index('    // Knob 6 MODE:')
+    end = source.index("    eq('close returns origin view'", start)
+    source = source[:start] + '''    // One selector preserves the four existing mode/layout combinations.
+    const { PAD_LAYOUT_NAMES, padLayoutIndex } = await import('../../dist/esm/seq/main-page.js');
+    eq('combined layout names', JSON.stringify(PAD_LAYOUT_NAMES),
+        '["Chromatic 4ths","Piano","In Key 4ths","Inline","Approach"]');
+    for (let index = 0; index < 4; index++) {
+        keyboardState.mode = index >= 2 ? 1 : 0; keyboardState.layout = index % 2;
+        mainPageTouch(6, true);
+        eq('saved layout seeds selector ' + index, mainPageState.overlaySel, index);
+        mainPageRelease(6);
+        eq('saved layout round trip ' + index, padLayoutIndex(), index);
+    }
+    mainPageTouch(6, true); mainPageKnob(6, -16); mainPageRelease(6);
+    eq('Inline to Piano sets chromatic mode', keyboardState.mode, 0);
+    eq('Inline to Piano sets piano layout', keyboardState.layout, 1);
+    mainPageTouch(7, true); mainPageKnob(7, 8); mainPageRelease(7);
+    eq('unused knob does not change layout', padLayoutIndex(), 1);
+    eq('unused knob opens no overlay', mainPageState.overlayKnob, -1);
+
+''' + source[end:]
+    path.write_text(source)
+    source = path.read_text()
+    source = source.replace("eq('mode cell shows Chromatic', vm.rows[1][2].displayValue, 'Chromatic');", "eq('combined layout cell', vm.rows[1][2].displayValue, 'Chromatic 4ths');")
+    source = source.replace("eq('layout cell shows 4th', vm.rows[1][3].displayValue, '4th');", "eq('former layout cell is empty', vm.rows[1][3], null);")
+    source = source.replace("eq('in-key mode cell', vm.rows[1][2].displayValue, 'In Key');", "eq('in-key layout cell', vm.rows[1][2].displayValue, 'In Key 4ths');")
+    source = source.replace("JSON.stringify(vm.rows[1][3].options), '[\"4th\",\"Inline\"]'", "JSON.stringify(vm.rows[1][2].options), '[\"Chromatic 4ths\",\"Piano\",\"In Key 4ths\",\"Inline\",\"Approach\"]'")
+    source = source.replace("JSON.stringify(vm.overlay?.options), '[\"Chromatic\",\"In Key\"]'", "JSON.stringify(vm.overlay?.options), '[\"Chromatic 4ths\",\"Piano\",\"In Key 4ths\",\"Inline\",\"Approach\"]'")
+    source = source.replace("JSON.stringify(vm.overlay?.options), '[\"4th\",\"Piano\"]'", "JSON.stringify(vm.overlay?.options), '[]'")
+    path.write_text(source)
+    path = root / 'src/undo/ui-fields.ts'
+    source = "import { setFollowerInputScale, setFollowerInputRoot } from '../keyboard/harmony-pads.js';\nimport { appState } from '../app/state.js';\n" + path.read_text()
+    source = replace_once(source, '''    if (f === 'rootPc') keyboardState.rootPc = n;
+    else keyboardState.scale = n;''', '''    if (f === 'rootPc') {
+        keyboardState.rootPc = n;
+        setFollowerInputRoot(appState.activeTrack.index, n);
+    } else {
+        keyboardState.scale = n;
+        setFollowerInputScale(appState.activeTrack.index, n);
+    }''')
+    path.write_text(source)
+    path = root / 'browser-test/screenshot.mjs'
+    source = path.read_text().replace('mainPageState.overlayKnob = 7; mainPageState.overlaySel = 1;',
+        'mainPageState.overlayKnob = 6; mainPageState.overlaySel = 3;')
+    path.write_text(source)
+
+    path = root / 'src/keyboard/layouts.ts'
+    source = path.read_text()
+    source = replace_once(source, 'export const LAYOUT_INLINE = 1;', 'export const LAYOUT_INLINE = 1;\nexport const LAYOUT_APPROACH = 2;')
+    source = source.replace("['4th', 'Piano']", "['4th', 'Piano', 'Approach']").replace("['4th', 'Inline']", "['4th', 'Inline', 'Approach']")
+    source = replace_once(source, '        if (mode === MODE_IN_KEY) {', '        if (layout === LAYOUT_APPROACH) {\n            pitch = row & 1 ? -1 : degreeToPitch(base, degrees, (row >> 1) * degrees.length + col);\n        } else if (mode === MODE_IN_KEY) {')
+    path.write_text(source)
+    path = root / 'src/seq/main-page-vm.ts'
+    source = path.read_text().replace('normalizedValue: li / 3', 'normalizedValue: li / (PAD_LAYOUT_NAMES.length - 1)')
+    path.write_text(source)
+
+    path = root / 'browser-test/logic/keyboard.mjs'
+    source = path.read_text().replace("'[\"4th\",\"Piano\"]'", "'[\"4th\",\"Piano\",\"Approach\"]'").replace("'[\"4th\",\"Inline\"]'", "'[\"4th\",\"Inline\",\"Approach\"]'")
+    path.write_text(source)
+
+    path = root / 'browser-test/logic/params-pages.mjs'
+    source = path.read_text().replace("eq('layout clamped', keyboardState.layout, 1);", "eq('layout clamped', keyboardState.layout, 2);")
+    path.write_text(source)

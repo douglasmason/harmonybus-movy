@@ -8,11 +8,18 @@ The integration covers:
 4. Upstream transport LINK defaults on for new/legacy Sets; saved explicit values still win.
 5. Runtime clip metadata gives HarmonyBus actual conductor cycle lengths and phases.
 
-Recording, Capture, pad routing and saved chain persistence remain stock upstream.
+Pad routing and saved chain persistence retain upstream behavior. Capture preserves HarmonyBus rendered-note identity, matching Record.
 An explicit clip edit adds Quantize + Fill Gaps using shared playback timing.
 """
 from __future__ import annotations
 
+from patch_deleted_set import patch_deleted_set
+from patch_follower_snapshot import patch_follower_snapshot
+from patch_diagnostic_refresh import patch_diagnostic_refresh
+from patch_page_latency import patch_page_latency
+from patch_tap_hold import patch_tap_hold
+from patch_touch_release import patch_touch_release
+from patch_running_transport import patch_running_transport
 from patch_movy_record_bridge import patch_record_bridge
 import argparse
 import subprocess
@@ -24,11 +31,18 @@ from patch_pressure_recording import patch_pressure_recording
 from patch_arp_pressure import patch_arp_pressure
 from patch_performance_touch import patch_performance_touch
 from patch_motion_controls import patch_motion_controls
+from patch_native_track_colors import patch_native_track_colors
 from patch_performance_steps import patch_performance_steps
+from patch_motifs import patch_motifs
+from patch_render_rhythm import patch_render_rhythm
 from patch_performance_mode import patch_performance_mode
 from patch_clip_performance import patch_clip_performance
+from patch_follower_input import patch_follower_input
 from patch_harmony_pads import patch_harmony_pads
 from patch_responsive_persistence import patch_responsive_persistence
+from patch_recorded_operations import patch_recorded_operations
+from patch_render_velocity import patch_render_velocity
+from patch_durable_data import patch_durable_data
 from pathlib import Path
 
 
@@ -48,18 +62,18 @@ def patch_fresh_set(path: Path) -> None:
     marker: str = "/* Defaults match init(): C tonic, Major, Chromatic/4ths, C3 on every track. */"
     helper: str = r'''/* HarmonyBus clean-build defaults. These are used ONLY for a Set with no
  * Movy UI blob. Once saved, ordinary upstream chain persistence owns the state. */
-const HB_FRESH_CONDUCTOR = 'hb16,0,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,1,0,-3,60,0,0,0,0;cp1,1,0,0,0,0,0,0,2,1,0;ds1,0;cq1,0,0;ph1,1;np1,0';
+const HB_FRESH_CONDUCTOR = 'hb16,0,0,0,25,2,0,0,0,0,0,0,2,-1,0,0,0,0,1,0,-3,60,0,0,1,0;cp1,1,2,0,0,0,0,5,2,1,0;ds1,6;cq1,0,3;ph1,2;np1,0;pd1,6,3,3,2,0;pf1,17;pb1,2;pc2,2;pp1,3;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,3,0,2,0,0,0,6,0,6,17,0,8,0,0,3,0,2,0,0,0,6,0,6;named1';
 const HB_FRESH_FOLLOWERS = [
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,1,0,0,0,0,0,1,0,-3,60,0,0,0,0',
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,2,0,0,0,0,0,1,0,-3,60,0,0,0,0',
-    'hb16,1,0,0,25,2,0,0,0,0,0,0,3,0,0,0,0,0,1,0,-3,60,0,0,0,0',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,1,-1,0,0,0,0,1,0,-3,60,1,0,1,0;cp1,0,17,8,0,0,0,5,2,1,0;ds1,6;cq1,0,3;ph1,2;np1,0;pd1,6,3,3,2,0;pf1,17;pb1,2;pc2,2;pp1,3;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,3,0,2,0,0,0,6,0,6,17,0,8,0,0,3,0,2,0,0,0,6,0,6;named1',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,2,-1,0,0,0,0,1,0,-3,60,1,0,1,0;cp1,0,17,8,0,0,0,5,2,1,0;ds1,6;cq1,0,3;ph1,2;np1,0;pd1,6,3,3,2,0;pf1,17;pb1,2;pc2,2;pp1,3;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,3,0,2,0,0,0,6,0,6,17,0,8,0,0,3,0,2,0,0,0,6,0,6;named1',
+    'hb16,1,0,0,25,2,0,0,0,0,0,0,3,-1,0,0,0,0,1,0,-3,60,1,0,1,0;cp1,0,17,8,0,0,0,5,2,1,0;ds1,6;cq1,0,3;ph1,2;np1,0;pd1,6,3,3,2,0;pf1,17;pb1,2;pc2,2;pp1,3;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,3,0,2,0,0,0,6,0,6,17,0,8,0,0,3,0,2,0,0,0,6,0,6;named1',
 ];
 
 const HB_FRESH_RECEIVERS = [
-    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,0,0,0,0,0,1,0,-3,60,0,0,0,0',
-    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,1,0,0,0,0,1,0,-3,60,0,0,0,0',
-    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,2,0,0,0,0,1,0,-3,60,0,0,0,0',
-    'hb16,3,0,0,25,2,0,0,0,0,0,0,-1,3,0,0,0,0,1,0,-3,60,0,0,0,0',
+    'hb16,3,0,0,25,2,0,0,0,0,0,0,2,-1,0,0,0,0,1,0,-3,60,0,0,1,0;cp1,0,17,8,0,0,0,5,2,1,0;ds1,6;cq1,0,3;ph1,2;np1,0;pd1,6,3,3,2,0;pf1,17;pb1,2;pc2,2;pp1,3;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,3,0,2,0,0,0,6,0,6,17,0,8,0,0,3,0,2,0,0,0,6,0,6;named1',
+    'hb16,3,0,0,25,2,0,0,0,0,0,0,1,-1,0,0,0,0,1,0,-3,60,0,0,1,0;cp1,0,17,8,0,0,0,5,2,1,0;ds1,6;cq1,0,3;ph1,2;np1,0;pd1,6,3,3,2,0;pf1,17;pb1,2;pc2,2;pp1,3;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,3,0,2,0,0,0,6,0,6,17,0,8,0,0,3,0,2,0,0,0,6,0,6;named1',
+    'hb16,3,0,0,25,2,0,0,0,0,0,0,2,-1,0,0,0,0,1,0,-3,60,0,0,1,0;cp1,0,17,8,0,0,0,5,2,1,0;ds1,6;cq1,0,3;ph1,2;np1,0;pd1,6,3,3,2,0;pf1,17;pb1,2;pc2,2;pp1,3;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,3,0,2,0,0,0,6,0,6,17,0,8,0,0,3,0,2,0,0,0,6,0,6;named1',
+    'hb16,3,0,0,25,2,0,0,0,0,0,0,3,-1,0,0,0,0,1,0,-3,60,0,0,1,0;cp1,0,17,8,0,0,0,5,2,1,0;ds1,6;cq1,0,3;ph1,2;np1,0;pd1,6,3,3,2,0;pf1,17;pb1,2;pc2,2;pp1,3;ct1,1;ft1,1,2,3,4,13,14,15,16;ft2,1,2,3,4,13,14,15,16,5;rp2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,3,0,2,0,0,0,6,0,6,17,0,8,0,0,3,0,2,0,0,0,6,0,6;named1',
 ];
 
 function freshHarmonyBusChains() {
@@ -69,7 +83,7 @@ function freshHarmonyBusChains() {
             t,
             comp: [
                 { c: 'midi_fx1', m: 'harmonybus',
-                  s: t >= 12 ? HB_FRESH_RECEIVERS[pos] : pos === 0 ? HB_FRESH_CONDUCTOR : HB_FRESH_FOLLOWERS[pos - 1] },
+                  s: t === 0 ? HB_FRESH_CONDUCTOR + ';freshrole1' : t >= 12 ? HB_FRESH_RECEIVERS[pos] : pos === 0 ? HB_FRESH_CONDUCTOR : HB_FRESH_FOLLOWERS[pos - 1] },
                 ...(t < 12 ? [{ c: 'synth', m: 'plaits' }] : []),
             ],
             /* gain,pan,muted,send1,send2. Local audio is muted; MIDI is not. */
@@ -129,7 +143,7 @@ def patch_schwung_page_ownership(grid_path: Path, router_path: Path) -> None:
                 const m2 = knobModel();
                 const sp2 = m2 ? schwungActiveFor(appState.activeTrack.index,
                                 m2.getComponentKey ? m2.getComponentKey() : 'synth') : null;
-                if (sp2) sp2.knobTouch(d1, true);
+                if (sp2) { sp2.knobTouch(d1, true); appState.dirty = true; }
                 else m2?.handleKnobTouch(d1);
             }
 '''
@@ -147,7 +161,7 @@ def patch_schwung_page_ownership(grid_path: Path, router_path: Path) -> None:
                 const m2 = knobModel();
                 const sp2 = m2 ? schwungActiveFor(appState.activeTrack.index,
                                 m2.getComponentKey ? m2.getComponentKey() : 'synth') : null;
-                if (sp2) sp2.knobTouch(d1, false);
+                if (sp2) { sp2.knobTouch(d1, false); appState.dirty = true; }
                 else if (m2?.handleKnobRelease(d1)) seqToast('Wrong preset type');
             }
 '''
@@ -213,20 +227,24 @@ def patch_upstream_expectations(root: Path) -> None:
         "    for (let track = 0; track < 16; track++) {\n"
         "      const saved = pendingPayloadFor(track);\n"
         "      const role = track >= 12 ? 3 : track % 4 === 0 ? 0 : 1;\n"
-        "      const destination = track >= 12 ? -1 : track % 4 === 0 ? 2 : track % 4;\n"
+        "      const destination = track % 4 === 0 ? 2 : track % 4;\n"
         "      const values = saved?.comp[0]?.s?.split(';')[0].split(',');\n"
         "      eq('fresh HB state format ' + track, values?.[0], 'hb16');\n"
         "      eq('fresh HB state field count ' + track, values?.length, 26);\n"
         "      eq('fresh HB role ' + track, Number(values?.[1]), role);\n"
         "      eq('fresh HB render channel ' + track, Number(values?.[12]), destination);\n"
-        "      eq('fresh HB source channel ' + track, Number(values?.[13]), track >= 12 ? track - 12 : 0);\n"
+        "      eq('fresh HB source channel ' + track, Number(values?.[13]), -1);\n"
         "      eq('fresh local audio mute ' + track, saved?.mix?.split(',')[2], '1');\n"
         "    }\n"
         "    const savedSet = JSON.parse(serializeUiState());\n"
         "    eq('fresh Set saves all 16 source chains', savedSet.chains.length, 16);\n"
         "    savedSet.chains[0].comp[0].s = savedSet.chains[0].comp[0].s.replace(\n"
         "      /^hb16,0,/, 'hb16,1,');\n"
+        "    const customState = savedSet.chains[0].comp[0].s.split(';');\n"
+        "    const customHeader = customState[0].split(','); customHeader[12] = '9';\n"
+        "    customState[0] = customHeader.join(','); savedSet.chains[0].comp[0].s = customState.join(';');\n"
         "    applyUiState(JSON.stringify(savedSet));\n"
+        "    eq('custom render channel survives reload', Number(pendingPayloadFor(0)?.comp[0]?.s?.split(',')[12]), 9);\n"
         "    eq('saved HB role survives reload',\n"
         "      Number(pendingPayloadFor(0)?.comp[0]?.s?.split(',')[1]), 1);",
         "fresh-set chain test",
@@ -459,6 +477,7 @@ def main() -> int:
     if record_applied.returncode != 0:
         subprocess.run(['git', 'apply', str(record_patch)], cwd=root, check=True)
     (root / 'browser-test/hb-touch.mjs').write_text((integration_root / 'hb-touch.mjs').read_text())
+    (root / 'browser-test/hb-analysis.mjs').write_text((integration_root / 'hb-analysis.mjs').read_text())
     (root / 'browser-test/hb-clip-tools.mjs').write_text((integration_root / 'hb-clip-tools.mjs').read_text())
     map_path_to_base64: dict[str, str] = json.loads((integration_root / 'clip-baselines.json').read_text())
     for relative_path, encoded_png in map_path_to_base64.items():
@@ -466,10 +485,128 @@ def main() -> int:
     patch_pressure_recording(root)
     patch_performance_touch(root)
     patch_motion_controls(root)
+    patch_native_track_colors(root)
     patch_performance_steps(root)
     patch_performance_mode(root)
     patch_clip_performance(root)
+    patch_follower_input(root)
     patch_harmony_pads(root)
+    patch_running_transport(root)
+    patch_deleted_set(root)
+    patch_follower_snapshot(root)
+    patch_diagnostic_refresh(root)
+    patch_page_latency(root)
+    patch_tap_hold(root)
+    patch_touch_release(root)
+    patch_recorded_operations(root)
+    patch_render_velocity(root)
+    patch_durable_data(root)
+    from patch_controls import patch_controls
+    patch_controls(root)
+    from patch_step_move import patch_step_move
+    patch_step_move(root)
+    from patch_capture import patch_capture
+    patch_capture(root)
+    from patch_input_info import patch_input_info
+    patch_input_info(root)
+    from patch_humanize import patch_humanize
+    patch_humanize(root)
+    from patch_input_recording import patch_input_recording
+    patch_input_recording(root)
+    from patch_hb_tempo import patch_hb_tempo
+    patch_hb_tempo(root)
+    from patch_track_navigation import patch_track_navigation
+    patch_track_navigation(root)
+    (root / 'browser-test/hb-track-navigation.mjs').write_text((integration_root / 'hb-track-navigation.mjs').read_text())
+    from patch_track_pulse import patch_track_pulse
+    patch_track_pulse(root)
+    from patch_pad_control_touch import patch_pad_control_touch
+    patch_pad_control_touch(root)
+    from patch_piano_approach import patch_piano_approach
+    patch_piano_approach(root)
+    from patch_follow_touch import patch_follow_touch
+    patch_follow_touch(root)
+    from patch_touch_labels import patch_touch_labels
+    patch_touch_labels(root)
+    from patch_touch_frame import patch_touch_frame
+    patch_touch_frame(root)
+    from patch_double_tap import patch_double_tap
+    patch_double_tap(root)
+    from patch_named_controls import patch_named_controls
+    patch_named_controls(root)
+    from patch_perf_measurement import patch_perf_measurement
+    patch_perf_measurement(root)
+    patch_motifs(root)
+    patch_render_rhythm(root)
+    from patch_step_modes import patch_step_modes
+    patch_step_modes(root)
+    from patch_operation_feedback import patch_operation_feedback
+    patch_operation_feedback(root)
+    from patch_live_displays import patch_live_displays
+    patch_live_displays(root)
+    from patch_motif_lanes import patch_motif_lanes
+    patch_motif_lanes(root)
+    from patch_track_pulse_startup import patch_track_pulse_startup
+    patch_track_pulse_startup(root)
+    from patch_chord_state import patch_chord_state
+    patch_chord_state(root)
+    from patch_light_priority import patch_light_priority
+    patch_light_priority(root)
+    from patch_knob_latch import patch_knob_latch
+    patch_knob_latch(root)
+    from patch_approach_mode import patch_approach_mode
+    patch_approach_mode(root)
+    from patch_triple_approach import patch_triple_approach
+    patch_triple_approach(root)
+    from patch_startup_host import patch_startup_host
+    patch_startup_host(root)
+    (root / "browser-test/hb-startup-host.mjs").write_text((integration_root / "hb-startup-host.mjs").read_text())
+    from patch_shared_context import patch_shared_context
+    patch_shared_context(root)
+    from patch_panel_cleanup import patch_panel_cleanup
+    patch_panel_cleanup(root)
+    from patch_audio_profile import patch_audio_profile
+    patch_audio_profile(root)
+    from patch_request_profile import patch_request_profile
+    patch_request_profile(root)
+    from patch_mode_navigation import patch_mode_navigation
+    patch_mode_navigation(root)
+    from patch_pad_settings import patch_pad_settings
+    patch_pad_settings(root)
+    from patch_harmony_footer import patch_harmony_footer
+    patch_harmony_footer(root)
+    from patch_launchpad import patch_launchpad
+    patch_launchpad(root)
+    from patch_surface_input import patch_surface_input
+    patch_surface_input(root)
+    from patch_surface_frame import patch_surface_frame
+    patch_surface_frame(root)
+    from patch_travel_defaults import patch_travel_defaults
+    patch_travel_defaults(root)
+    from patch_motif_loader import patch_motif_loader
+    patch_motif_loader(root)
+    from patch_worker_profile import patch_worker_profile
+    patch_worker_profile(root)
+    from patch_thread_profile import patch_thread_profile
+    patch_thread_profile(root)
+    from patch_pressure_trace import patch_pressure_trace
+    patch_pressure_trace(root)
+    from patch_idle_probe import patch_idle_probe
+    patch_idle_probe(root)
+    from patch_output_capture import patch_output_capture
+    patch_output_capture(root)
+    from patch_joint_play import patch_joint_play
+    patch_joint_play(root)
+    from patch_session_modes import patch_session_modes
+    patch_session_modes(root)
+    from patch_grid import patch_grid
+    patch_grid(root)
+    from patch_shared_core import patch_shared_core
+    patch_shared_core(root)
+    from patch_clip_weave import patch_clip_weave
+    patch_clip_weave(root)
+    from patch_field_play import patch_field_play
+    patch_field_play(root)
     print("HarmonyBus clean integration applied")
     return 0
 

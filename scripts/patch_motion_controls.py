@@ -11,29 +11,40 @@ def patch_motion_controls(root: Path) -> None:
             const laneEdit = ctl.keyAt(slot) === 'motion_lane';
             const operationEdit = ctl.keyAt(slot) === 'motion_operation';
             const conditionEdit = ['motion_every','motion_from','motion_through'].includes(ctl.keyAt(slot));
-            if (laneEdit || operationEdit || conditionEdit) ctl.revalue();
             if (laneEdit || operationEdit || conditionEdit) {
+                // Flush pending writes to the OLD lane, warming from the local
+                // cache only. A synchronous page reread here delayed every detent.
+                for (const [name, value] of Object.entries(ctl.state.values))
+                    readCache.set(componentKey + ':' + name, String(value));
+                touchReadOnly = true;
+                try { ctl.revalue(); } finally { touchReadOnly = false; }
                 const key = ctl.keyAt(slot);
                 const options = ctl.metaAt(slot)?.options || [];
-                const current = options.indexOf(String(port.getParam(qualify(componentKey + ':' + key))));
+                const current = options.indexOf(String(ctl.state.values[key]));
                 if (current < 0) return;
                 const index = Math.max(0, Math.min(options.length - 1, current + delta));
                 ctl.commitEnum(key, index);
-                ctl.revalue();
                 const pageIndex = ctl.state.pageIndex;
-                reload();ctl.goToPage(pageIndex);ctl.revalue();
-                // commitEnum bypasses onKnobTurn, which normally opens the
-                // native peek. Reuse its overlay, timeout and dismissal state.
+                let snapshot: any = null;
+                try { snapshot = JSON.parse(port.getParam(qualify(componentKey + ':motion_editor')) || 'null'); } catch (_) {}
+                if (snapshot && Array.isArray(snapshot.params) && snapshot.values &&
+                    typeof snapshot.values[key] === 'string') {
+                    readCache.set(componentKey + ':chain_params', JSON.stringify(snapshot.params));
+                    for (const [name, value] of Object.entries(snapshot.values))
+                        readCache.set(componentKey + ':' + name, String(value));
+                    // Replan from the new contract and values without more IPC.
+                    touchReadOnly = true;
+                    try { ctl.load({ slot: port.track.index, component: componentKey }); ctl.goToPage(pageIndex); ctl.revalue(); }
+                    finally { touchReadOnly = false; }
+                } else {
+                    // Older HB retains a working editor without the bulk API.
+                    reload();ctl.goToPage(pageIndex);ctl.revalue();
+                }
                 const refreshedOptions = ctl.metaAt(slot)?.options || [];
-                const refreshedIndex = refreshedOptions.indexOf(String(port.getParam(qualify(componentKey + ':' + key))));
+                const refreshedIndex = refreshedOptions.indexOf(String(ctl.state.values[key]));
                 ctl.state.peek = { key, title: ctl.metaAt(slot)?.name || key,
                     options: refreshedOptions, index: Math.max(0, refreshedIndex), at: Date.now() };
                 return;
             }
             const dir = delta > 0 ? 1 : -1;""")
-    source = replace_once(source,
-        "            for (let i = 0; i < n; i++) ctl.onKnobTurn(slot, dir);",
-        """            for (let i = 0; i < n; i++) ctl.onKnobTurn(slot, dir);
-            // Commit the cursor and reload all dependent controls before another turn.
-            if (laneEdit || operationEdit || conditionEdit) ctl.revalue();""")
     path.write_text(source)

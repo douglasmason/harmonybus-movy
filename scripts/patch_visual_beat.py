@@ -59,6 +59,21 @@ export function visualEngineTick(now: number = Date.now()): number {
             eq('empty clip advances all beat LEDs without poll ' + step,
                 colors.get(STEP_NOTE_BASE + step), step >= 4 && step < 8 ? C_GREEN : C_BLACK);
         eq('display interpolation does not change audio mirror', seqState.engineTick, 95);
+        // Quarter-note boundaries across eight bars at several tempos.
+        for (const bpm of [6000, 12000, 18000]) {
+            for (let beat = 1; beat <= 32; beat++) {
+                now += 1100;
+                const sample = beat * 96 - 2;
+                parseStatusForTest(`play=1 tick=${sample} bpm=${bpm} len=0`);
+                now += 2 * 6000000 / (bpm * 96) + 1;
+                seqLedsTick();
+                for (let step = 0; step < 16; step++)
+                    eq(`quarter-note light bpm=${bpm / 100} beat=${beat} step=${step}`,
+                        colors.get(STEP_NOTE_BASE + step),
+                        Math.floor(step / 4) === beat % 4 ? C_GREEN : C_BLACK);
+                eq('beat display preserves engine position', seqState.engineTick, sample);
+            }
+        }
         parseStatusForTest('play=1 tick=383 bpm=24000 len=0');
         now += 3; seqLedsTick();
         eq('bar wrap follows updated tempo', colors.get(STEP_NOTE_BASE), C_GREEN);

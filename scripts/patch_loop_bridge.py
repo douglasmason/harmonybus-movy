@@ -33,6 +33,13 @@ def patch_loop_bridge(root: Path) -> None:
     }
 
 ''' + marker, 1)
+    source = source.replace('    pub fn hb_clip(&mut self,', """    pub fn hb_opening_preview(&mut self, slot: usize, message: &std::ffi::CStr) {
+        if let Some(Some(instance)) = self.slots.get_mut(slot) {
+            let key=std::ffi::CStr::from_bytes_with_nul(b"midi_fx1:hb_opening_preview\\0").unwrap();
+            instance.hb_set_param(key,message);
+        }
+    }
+    pub fn hb_clip(&mut self,""",1)
     if 'pub fn hb_conductor_block' not in source:
         source = source.replace(marker, '''    pub fn hb_conductor_block(&mut self, message: &std::ffi::CStr) {
         let key = std::ffi::CStr::from_bytes_with_nul(b"midi_fx1:hb_movy_block\\0").unwrap();
@@ -58,6 +65,10 @@ def patch_loop_bridge(root: Path) -> None:
                 if chain_for(track as u8,self.movy_tracks).is_some() {
                     let message = hb_loop::snapshot(&self.engine,track).message();
                     self.chains.hb_clip(track,message.as_c_str());
+                    if !self.engine.playing {
+                        let preview=hb_loop::opening_preview(&self.engine,track);
+                        self.chains.hb_opening_preview(track,preview.as_c_str());
+                    }
                 }
             }
         }

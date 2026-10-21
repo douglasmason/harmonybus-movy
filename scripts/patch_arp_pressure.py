@@ -37,6 +37,8 @@ export function clearPadPressure(pad: number): void { pressure.delete(pad); }
     path = root / 'engine/crates/movy-dsp/src/pad_route.rs'
     source = path.read_text()
     source = replace_once(source, '    pub fn active(&self) -> bool {', '''    /// Resolve pressure from the held owner, never the current pad layout.
+    pub fn full_velocity(&self) -> bool { self.full_vel }
+
     pub fn pressure(&self, pad: u8, value: u8) -> Option<(usize, u8, u8)> {
         let index = pad.checked_sub(PAD_MIN)? as usize;
         let (chain, pitch) = *self.held.get(index)?.as_ref()?;
