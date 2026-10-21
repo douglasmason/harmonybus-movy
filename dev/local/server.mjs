@@ -5,12 +5,15 @@ import {fileURLToPath} from 'node:url';
 import {WebSocketServer} from 'ws';
 import {Processor} from './processor.mjs';
 const root=dirname(fileURLToPath(import.meta.url));
-const writeKeys=new Set(['field_outputs_remote','field_output_finish','field_output_clear','travel_map','master_transpose','retrigger_held','chord_mode','chord_timing','quant_timing','pad_preview_inputs','pad_display','pad_pulse_rate']);
+const trackKey=/^ch([0-9]|1[0-5]):midi_fx1:(\w+)(?::(?:base|modulated))?$/;
+const jointAction=/^(?:joint_pad_)?(?:approach_(?:step_touch_\d+|touch_\d+|control_\w+|mode_active|motif_latch)|motion_(?:gesture_\d+|hold_\d+|release)|key_center|dominant_color|dominant_color_family|harm_play_release\w*|harm_play_advance|target_scale_\w+|motif_placement)$/;
+const routingKeys=new Set(['joint_map','joint_links','joint_release']);
+const writeKeys=new Set(['motion_host','field_outputs_remote','field_output_finish','field_output_clear','travel_map','master_transpose','retrigger_held','chord_mode','chord_timing','quant_timing','pad_preview_inputs','pad_display','pad_pulse_rate']);
 /** Limited development API; no autosave reads or arbitrary filesystem/loader commands. */
 export async function startServer({port=7701,host='127.0.0.1',realtime=true}={}) {
   const metadata=JSON.parse(await readFile(resolve(root,'build/modules/midi_fx/harmonybus/module.json'),'utf8'));
   const params=metadata.capabilities.chain_params;
-  const readable=new Set(params.filter(p=>!p.writeOnly&&p.key!=='state').map(p=>p.key));
+  const readable=new Set([...params.filter(p=>!p.writeOnly&&p.key!=='state').map(p=>p.key),'pad_view','pad_output']);
   const enabledWrites=new Set([...writeKeys,...params.filter(p=>!p.readOnly&&p.access!=='read'&&!p.writeOnly&&['enum','int','float'].includes(p.type)).map(p=>p.key)]);
   metadata.dev={readable:[...readable],writable:[...enabledWrites]};
   for(const param of params)if(!enabledWrites.has(param.key)){param.readOnly=true;param.access='read';}
@@ -21,12 +24,19 @@ export async function startServer({port=7701,host='127.0.0.1',realtime=true}={})
   processor.onResult=result=>{for(const packet of result.events)recent.push({sequence:++eventSequence,beat:result.beat,packet});recent=recent.slice(-256)};
   let serial=Promise.resolve();let queued=0;
   const enqueue=action=>{if(queued>=128)return Promise.reject(new Error('Command queue full'));queued++;const result=serial.then(action).finally(()=>queued--);serial=result.catch(()=>{});return result};
-  const held=new Map();let surfaceSerial=0;let controller=null;const clientSerial=new Map();
+  const held=new Map(),physical=new Map(),touches=new Map();let surfaceSerial=0;let controller=null;const clientSerial=new Map();
   async function release(socket) {
     for(const [address,owner] of held.get(socket)??[]) {
       await processor.request('set','surface_events',`${++surfaceSerial},${owner.track},128,${address},${owner.pitch},0,0,-1,0`);
     }
+    for(const note of physical.get(socket)??[])await processor.request('midi',`128,${note},0`);
+    physical.delete(socket);
+    for(const [key,cancel] of touches.get(socket)??[])await processor.request('set',key,cancel);
+    touches.delete(socket);
     if(controller===socket) {
+      await processor.request('set','joint_release','1');
+      await processor.request('set','joint_map','off');
+      await processor.request('set','joint_links',[0,4,8,12].map(base=>`${base},0,0,0,0,0`).join(';'));
       const released='fo1,'+Array(16).fill(-1).join(',');
       for(let track=0;track<4;track++)await processor.request('set',`ch${track}:midi_fx1:field_outputs_remote`,released);
       controller=null;
@@ -40,7 +50,9 @@ export async function startServer({port=7701,host='127.0.0.1',realtime=true}={})
       if(value.length>1024||/[\r\n\t]/.test(value))throw new Error('Invalid value');
       if(controller && controller!==socket)throw new Error('Another browser owns the controls');
       controller=socket;
-      if(key==='surface_events') {
+      if(routingKeys.has(key)) {
+        await processor.request('set',key,value);
+      } else if(key==='surface_events') {
         const fields=value.split(',').map(Number);
         if(fields.length!==9||fields.some(value=>!Number.isInteger(value)))throw new Error('Invalid surface event');
         const [serial,track,status,address,pitch,velocity,shift,row,full]=fields;
@@ -52,13 +64,26 @@ export async function startServer({port=7701,host='127.0.0.1',realtime=true}={})
         fields[0]=++surfaceSerial;
         await processor.request('set',key,fields.join(','));
       } else {
-        const match=/^ch([0-3]):midi_fx1:(\w+)$/.exec(key);
-        if(!match||!enabledWrites.has(match[2]))throw new Error('Parameter is not enabled in this proof');
+        const match=trackKey.exec(key);
+        if(!match||(!enabledWrites.has(match[2])&&!jointAction.test(match[2])))throw new Error('Parameter is not enabled in this host: '+key);
+        if(jointAction.test(match[2])) {
+          const active=touches.get(socket)??new Map();touches.set(socket,active);
+          if(/(?:^|\|)(?:Down|Touch|Knob)/.test(value))active.set(key,(value.includes('|')?value.split('|')[0]+'|':'')+'Cancel');
+          else if(/(?:Up|Cancel)/.test(value))active.delete(key);
+        }
         await processor.request('set',key,value);
       }
+    } else if(message.type==='dev_midi') {
+      const data=message.data;
+      if(!Array.isArray(data)||data.length!==3||data.some(value=>!Number.isInteger(value))||![128,144,160].includes(data[0])||data[1]<68||data[1]>99||data[2]<0||data[2]>127)throw new Error('Invalid physical pad event');
+      if(controller&&controller!==socket)throw new Error('Another browser owns the controls');
+      controller=socket;
+      const notes=physical.get(socket)??new Set();physical.set(socket,notes);
+      if(data[0]===144&&data[2])notes.add(data[1]);else if(data[0]===128||data[0]===144)notes.delete(data[1]);
+      await processor.request('midi',data.join(','));
     } else if(message.type==='dev_watch') {
       if(!Array.isArray(message.keys)||message.keys.length>64||message.keys.some(key=>{
-        const match=typeof key==='string'&&/^ch([0-3]):midi_fx1:(\w+)$/.exec(key);
+        const match=typeof key==='string'&&trackKey.exec(key);
         return !match||!readable.has(match[2]);
       }))throw new Error('Invalid parameter watch');
       watches.set(socket,[...new Set(message.keys)]);
@@ -71,7 +96,7 @@ export async function startServer({port=7701,host='127.0.0.1',realtime=true}={})
     Object.assign(result.value,(await processor.request('read_many',(watches.get(socket)??[]).join(','))).value);
     return {type:'param_update',slot:0,params:result.value,beat:result.beat,events:recent,requestId:message.id};
   }
-  const files={'/field':['build/field.html','text/html'],'/field-web.js':['build/field-web.js','text/javascript'],'/movy':['build/movy.html','text/html'],'/movy.js':['build/movy.js','text/javascript'],'/':['index.html','text/html'],'/panel.js':['build/panel.js','text/javascript'],'/static/schwung-remote-api.js':['build/schwung-remote-api.js','text/javascript']};
+  const files={'/joint':['joint.html','text/html'],'/joint.js':['build/joint.js','text/javascript'],'/field':['build/field.html','text/html'],'/field-web.js':['build/field-web.js','text/javascript'],'/movy':['build/movy.html','text/html'],'/movy.js':['build/movy.js','text/javascript'],'/':['index.html','text/html'],'/panel.js':['build/panel.js','text/javascript'],'/static/schwung-remote-api.js':['build/schwung-remote-api.js','text/javascript']};
   const server=http.createServer(async(request,response)=>{
     const pathname=new URL(request.url,'http://local').pathname;
     if(pathname==='/api/dev/module'){response.writeHead(200,{'Content-Type':'application/json'});response.end(JSON.stringify(metadata));return}
