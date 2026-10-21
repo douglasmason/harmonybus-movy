@@ -1,7 +1,7 @@
 # Full production host in WebAssembly
 
 This increment links **Movy DSP, Schwung chain host, HB, and the deterministic
-PCM probe fixture** into one browser module. Movy's production dispatch owns
+PCM probe fixture, plus NuSaw** into one browser module. Movy's production dispatch owns
 operations, recording, routing, note ownership and serialization. The earlier
 note-only bridge remains a small compiler test, not the architecture for Joint.
 
@@ -26,6 +26,7 @@ bash dev/wasm/prepare.sh
 node --test dev/wasm/test.mjs dev/wasm/full/test.mjs
 node dev/wasm/browser-test.mjs
 node dev/wasm/full/browser-test.mjs
+node dev/wasm/full/audio-browser-test.mjs
 node dev/wasm/serve.mjs
 ```
 
@@ -45,7 +46,7 @@ builds are unchanged.
 - Movy uses its **existing serial render path** without spawning its render
   pool. Its normal module load queue and dispatch still run.
 - `dlopen/dlsym/dlclose` resolve a fixed registry containing chain host, HB and
-  probe. Entry points are renamed at compilation to avoid symbol collisions.
+  probe and NuSaw. Entry points are renamed at compilation to avoid symbol collisions.
   Unknown modules/symbols fail. This is not arbitrary plugin loading.
 - C and Rust share one memory and function table. Startup compares host/API
   structure sizes and offsets before using callbacks. Schwung's hardware-only
@@ -76,25 +77,55 @@ count-in recording, recorded replay, actor knob edits, quartet switching, blur
 release and phone-width layout. Existing native/API and browser suites are still
 gates. This is not exhaustive parity for every operation or instrument.
 
-## Limits / next step
+## Audio ownership and limits
 
-One dedicated Web Worker owns the complete compiled host and its bounded wall-clock
-scheduler. The page owns UI and the optional MIDI monitor. Commands cross an ordered
-message boundary; periodic snapshots keep at most one outstanding delivery and one
-latest replacement, while explicit request replies are preserved. MIDI history stays
-bounded to 256 events; the existing monitor handles stream gaps. Development reads
-(`__wasmRead`) are now asynchronous.
+One dedicated Web Worker owns the complete compiled host. The same Joint UI uses
+an oscillator MIDI monitor for native connections and **actual NuSaw PCM** for
+browser-only connections. NuSaw is compiled from
+`charlesvestal/schwung-nusaw` at `e3787739dfc099afe2eb447bab498d875afd8136`.
+Its DSP is unchanged; the disposable build replaces its embedded legacy API
+struct declarations with the pinned Schwung header. Its MIT license is included
+in the static package. No sample library or instrument download is needed.
 
-The browser test blocks the page thread for 900 ms and verifies that the worker
-continues advancing and producing recorded MIDI, then checks Stop and input cleanup.
-Visibility changes stop/release the engine and pause its clock; page exit terminates
-the worker. A long worker callback gap stops instead of replaying a backlog. This
-is still a timer, not an audio clock or AudioWorklet. Browser suspension, Move timing,
-load behavior and crackles cannot be validated here.
+The browser fixture loads NuSaw on all 16 tracks. Chorus/delay are disabled for
+this first slice. Actor volume/mute controls use the existing chain mix controls
+for all four quartets. The differential fixture retains the deterministic probe
+so native/Wasm MIDI and saved-state comparisons stay comparable. NuSaw is not a
+Move instrument and does not reproduce Move sounds.
 
-The probe generates deterministic PCM internally, but this page discards that
-PCM. The optional shared UI audio monitor still uses its simple Web Audio
-oscillators fed by final MIDI. It is not a production synth instrument.
+When audio is disabled, the existing bounded wall-clock timer advances the host.
+When enabled, the timer only publishes snapshots and checks stream health;
+**AudioWorklet consumption alone requests further rendering**. A transferred
+MessagePort connects worker and worklet directly, bypassing the page thread.
+The worklet requests 1,024-frame stereo batches, holds at most 2,048 frames
+(about 46 ms at 44.1 kHz), and outputs silence on underrun. This buffer trades
+latency for tolerance to worker scheduling; it does not guarantee glitch-free
+performance under load. There is no SharedArrayBuffer or cross-origin isolation
+requirement. The worklet contains only PCM output/buffering, no musical engine.
+
+Compiled engines require 44.1 kHz. AudioContext requests that rate and rejects
+an unexpected rate rather than silently changing pitch or tempo. Processing uses
+the callback's actual output frame count. Enable audio through the button; an
+HTTPS origin (or localhost) is required. Audio enable/disable stops transport and
+releases input for a clean clock handoff. Stop flushes queued buffers with a new
+stream generation and invokes the synth's existing all-notes-off operation.
+Blur, hiding, suspension and disconnect disable listening and clean up. Streams
+without pulls time out. Re-enabling works offline after the initial page load:
+the worklet source is retained and loaded through a temporary Blob URL. A strict
+hosting CSP must permit that audio-worklet Blob module.
+
+Commands cross an ordered message boundary; periodic snapshots are coalesced,
+while explicit replies are preserved. MIDI history remains bounded to 256 events.
+Development reads (`__wasmRead`) are asynchronous. `__joint.monitor.stats` reports
+consumed PCM frames, underrun frames (including startup), peak and queued frames.
+
+Tests verify real nonzero NuSaw PCM, silence after panic, native musical parity,
+and a Chromium AudioWorklet playing offline through a 900 ms UI-thread stall.
+Engine advancement is compared with the audio clock to catch double stepping.
+They also verify Stop silence, context suspension, offline re-enable and blur
+cleanup. A fault-injection test verifies bounded buffering, underrun silence and
+rejection of stale PCM after Stop. This is not physical listening verification,
+exhaustive synth parity or validation of Move hardware deadlines/crackles.
 
 ## Static package and next step
 
@@ -106,7 +137,6 @@ runtime downloads are required. CI tests the copied package and uploads it as
 `browser-joint-static`. Nothing is deployed automatically. This is ready for a
 hosting trial, not a claim of tested iPad compatibility or offline reload support.
 
-Next: establish an AudioWorklet clock and one portable synth, retaining one owner
-of compiled engine state. The page-thread oscillator monitor can still be delayed
-by UI stalls. Session save/open, full Manager integration, service-worker caching
-and physical iPad Safari verification remain pending.
+Next: host the static package for a physical iPad Safari trial covering latency,
+sustained polyphony, interruptions, backgrounding and audio restart. Session
+save/open, full Manager integration and service-worker caching remain pending.

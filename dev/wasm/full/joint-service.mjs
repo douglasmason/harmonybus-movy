@@ -4,6 +4,11 @@ import {prepareMetadata,trackKey,jointAction,routingKeys} from '../../local/prot
 export async function createJointService(raw,emit){
  const {metadata,readable,enabledWrites}=prepareMetadata(raw);
  const engine=await createFullEngine();
+ // Browser fixture uses a production synth; the differential fixture retains probe.
+ for(let track=0;track<16;track++)engine.request('set',`ch${track}:synth:module`,'nusaw');
+ engine.request('step',64);
+ for(let track=0;track<16;track++)for(const [key,value] of [['chorus_mix','0'],['delay_mix','0'],['volume','.6']])engine.request('set',`ch${track}:synth:${key}`,value);
+ let audioPort=null,audioEpoch=0,audioLast=0;
  let hidden=false,blocksProcessed=0;
  let sequence=0,recent=[],watches=[],timer=null,last=performance.now(),remainder=0,beat=0;
  const touches=new Map(),physical=new Set();
@@ -23,10 +28,29 @@ export async function createJointService(raw,emit){
   for(const note of physical)request('midi',`128,${note},0`);physical.clear();
   for(const [key,cancel] of touches)request('set',key,cancel);touches.clear();
   request('set','cmd','stop');request('set','joint_release','1');
+  for(let track=0;track<16;track++)request('set',`ch${track}:synth:all_notes_off`,'1');
+  flushAudio();
+ }
+ function flushAudio(){if(audioPort)audioPort.postMessage({type:'reset',epoch:++audioEpoch});}
+ function detachAudio(){
+  audioPort?.close();audioPort=null;cleanup();last=performance.now();remainder=0;
+ }
+ function attachAudio(port){
+  detachAudio();audioPort=port;audioLast=performance.now();
+  port.onmessage=({data})=>{
+   if(port!==audioPort||hidden||data.type!=='pull'||data.epoch!==audioEpoch)return;
+   audioLast=performance.now();
+   const {pcm}=request('render',8);beat+=1024/44100*2;blocksProcessed+=8;
+   port.postMessage({type:'pcm',epoch:audioEpoch,pcm},[pcm.buffer]);
+  };port.start();flushAudio();start();
+ }
+ function mix(actor,level){
+  if(!Number.isInteger(actor)||actor<0||actor>3||!Number.isFinite(level)||level<0||level>1)throw new Error('Invalid mix');
+  for(let track=actor;track<16;track+=4)request('set',`ch${track}:mix`,`${level},0,0,0,0`);
  }
  function close(){
   if(socket.readyState!==1)return;
-  cleanup();clearInterval(timer);
+  detachAudio();clearInterval(timer);
   socket.readyState=3;socket.onclose?.();
  }
  function visibility(value){hidden=value;if(hidden){cleanup();snapshot();}last=performance.now();remainder=0;}
@@ -35,6 +59,10 @@ export async function createJointService(raw,emit){
   timer=setInterval(()=>{
    const now=performance.now(),elapsed=now-last;last=now;
    if(hidden)return;
+   if(audioPort){
+    if(now-audioLast>500){detachAudio();emit({type:'audio_error',message:'Audio stream stopped; enable audio to resume'});}
+    snapshot();return;
+   }
    // A suspended page stops rather than replaying a backlog of timed events.
    if(elapsed>250){cleanup();remainder=0;snapshot();return;}
    remainder+=elapsed*44.1;const blocks=Math.floor(remainder/128);remainder-=blocks*128;
@@ -67,7 +95,7 @@ export async function createJointService(raw,emit){
      if(action==='play'||action==='stop')command=action;
      else if(action==='record'&&Number.isInteger(mask)&&mask>0&&mask<=65535&&Number.isInteger(overwrite)&&overwrite>=0&&overwrite<=65535&&(overwrite&mask)===overwrite)command=`jrec ${mask} ${overwrite}`;
      else throw new Error('Invalid transport');
-     request('set','cmd',command);
+     if(action==='stop')cleanup();else request('set','cmd',command);
     }else if(message.type==='dev_watch'){
      if(!Array.isArray(message.keys)||message.keys.length>64||message.keys.some(key=>{const match=typeof key==='string'&&trackKey.exec(key);return !match||!readable.has(match[2]);}))throw new Error('Invalid watch');
      watches=[...new Set(message.keys)];
@@ -77,5 +105,5 @@ export async function createJointService(raw,emit){
    }catch(error){socket.onmessage?.({data:JSON.stringify({type:'error',message:error.message})});}
   });
  }
- return {metadata,socket,visibility,read:key=>engine.request('get',key).value,stats:()=>({blocksProcessed,sequence})};
+ return {metadata,socket,visibility,attachAudio,detachAudio,mix,read:key=>engine.request('get',key).value,stats:()=>({blocksProcessed,sequence,audioClock:!!audioPort})};
 }

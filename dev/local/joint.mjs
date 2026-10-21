@@ -1,10 +1,10 @@
 import './build/joint-env.mjs';
 import {openJointConnection} from './joint-connection.mjs';
 import {AudioMonitor} from './audio-monitor.mjs';
-const monitor=new AudioMonitor();
-const audioButton=document.querySelector('#audio');
+let monitor=new AudioMonitor();
+const audioButton=document.querySelector('#audio');audioButton.disabled=true;
 const disableAudio=()=>{monitor.disable();audioButton.textContent='Enable audio';audioButton.setAttribute('aria-pressed','false');};
-audioButton.onclick=async()=>{if(monitor.enabled){disableAudio();return;}try{if(await monitor.enable()){audioButton.textContent='Disable audio';audioButton.setAttribute('aria-pressed','true');}}catch(error){document.querySelector('#audio-status').textContent=error.message;}};
+audioButton.onclick=async()=>{if(monitor.enabled){disableAudio();return;}audioButton.disabled=true;try{if(await monitor.enable()){audioButton.textContent='Disable audio';audioButton.setAttribute('aria-pressed','true');}}catch(error){document.querySelector('#audio-status').textContent=error.message;}finally{audioButton.disabled=false;}};
 for(const [actor,name] of ['Root','Bass','Comp','Melody'].entries()){
  const label=document.createElement('label');label.textContent=name+' ';
  const volume=document.createElement('input');volume.type='range';volume.min='0';volume.max='1';volume.step='.01';volume.value='.6';volume.setAttribute('aria-label',name+' volume');
@@ -13,7 +13,9 @@ for(const [actor,name] of ['Root','Bass','Comp','Melody'].entries()){
  label.append(volume,mute,document.createTextNode(' Mute'));document.querySelector('#audio-mix').append(label);
 }
 const status=document.querySelector('#status');
-const {metadata,socket,label}=await openJointConnection();
+const {metadata,socket,label,audio}=await openJointConnection();
+if(audio){monitor=audio;audio.onDisable=()=>{audioButton.textContent='Enable audio';audioButton.setAttribute('aria-pressed','false');};document.querySelector('#audio-status').textContent='NuSaw · compiled Schwung synth audio';}
+audioButton.disabled=false;
 const cache=new Map(),demand=new Map();let connected=false;
 
 const send=message=>{if(socket.readyState===1)socket.send(JSON.stringify(message));};
@@ -24,6 +26,7 @@ await new Promise((resolve,reject)=>{
   socket.onerror=()=>reject(new Error('Native connection failed'));
   socket.onmessage=event=>{
     const message=JSON.parse(event.data);
+    if(message.type==='audio_error'){disableAudio();document.querySelector('#audio-status').textContent=message.message;return;}
     if(message.type==='error'){status.textContent=message.message;return;}
     if(message.events)monitor.consume(message.events);
     if(message.requestId==='monitor-stop')monitor.silence();

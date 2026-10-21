@@ -1,15 +1,17 @@
 /** Page transport only. A dedicated worker owns the engine and its clock. */
+import {PcmMonitor} from './pcm-monitor.mjs';
 export async function openBrowserConnection(){
  document.title='Joint Play · Browser HB';
  document.querySelector('a[href="/movy"]')?.remove();
  const worker=new Worker(new URL('./joint-worker.mjs',import.meta.url),{type:'module'});
+ const audio=new PcmMonitor(worker);
  let serial=0,closed=false;
  const pending=new Map();
  const socket={readyState:0,onmessage:null,onclose:null,onerror:null,onopen:null,
   send:data=>{if(socket.readyState===1)worker.postMessage({type:'send',data});},close};
  function close(){
   if(closed)return;closed=true;socket.readyState=3;
-  worker.terminate();document.removeEventListener('visibilitychange',visibility);
+  audio.disable();worker.terminate();document.removeEventListener('visibilitychange',visibility);
   window.removeEventListener('pagehide',close);
   for(const {reject} of pending.values())reject(new Error('Browser engine closed'));pending.clear();
   socket.onclose?.();
@@ -26,6 +28,7 @@ export async function openBrowserConnection(){
    else if(data.type==='fatal'){const error=new Error(data.message);reject(error);socket.onerror?.(error);close();}
    else if(data.type==='reply'){const item=pending.get(data.id);pending.delete(data.id);item?.resolve(data.value);}
    else if(data.type==='update'||data.type==='event'){
+    if(data.value.type==='audio_error')audio.disable();
     socket.onmessage?.({data:JSON.stringify(data.value)});
     if(data.type==='update')worker.postMessage({type:'ack'});
    }
@@ -34,8 +37,9 @@ export async function openBrowserConnection(){
  document.addEventListener('visibilitychange',visibility);window.addEventListener('pagehide',close);
  worker.postMessage({type:'init',hidden:document.hidden});
  const metadata=await ready;
+ try{await audio.prepare();}catch(error){close();throw error;}
  // Asynchronous, read-only development inspection across the worker boundary.
  globalThis.__wasmRead=key=>inspect('read',key);
  globalThis.__wasmStats=()=>inspect('stats');
- return {metadata,socket,label:'Browser Joint Play connected · WebAssembly Worker'};
+ return {metadata,socket,audio,label:'Browser Joint Play connected · WebAssembly Worker'};
 }

@@ -2,6 +2,7 @@
 
 The [full production host](full/README.md) now runs Movy DSP, Schwung chain host
 and HB in one WebAssembly module and reuses the existing Joint Play page.
+It now includes compiled NuSaw synthesis and a worker-to-AudioWorklet PCM path.
 Open `/joint?engine=wasm` on the static server after building. The small slice
 below remains a focused compiler test; its earlier architecture assessment is
 retained as the record of what that first experiment established.

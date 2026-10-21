@@ -37,3 +37,19 @@ test('full production Wasm dispatch matches native chain host: harmony, operatio
   await both('set','cmd','stop');await both('step',32);
  }finally{native.close();}
 });
+
+test('production NuSaw renders stereo PCM through Movy/Schwung and panic silences it',async()=>{
+ const engine=await createFullEngine();
+ engine.request('set','ch0:synth:module','nusaw');engine.request('step',64);
+ assert.equal(engine.request('get','ch0:synth:name').value,'NuSaw');
+ for(const key of ['chorus_mix','delay_mix'])engine.request('set',`ch0:synth:${key}`,'0');
+ const quiet=engine.request('render',8).pcm;assert(quiet.every(value=>value===0));
+ engine.request('set','joint_map',Array(32).fill('0,60,-1,0').join(';'));
+ engine.request('midi','144,68,100');
+ const output=engine.request('render',8);
+ assert.equal(output.pcm.length,2048);assert(output.pcm.some(value=>Math.abs(value)>100));
+ engine.request('midi','128,68,0');engine.request('set','cmd','stop');
+ engine.request('set','ch0:synth:all_notes_off','1');engine.request('step',16);
+ assert(engine.request('render',8).pcm.every(value=>Math.abs(value)<2));
+ assert.throws(()=>engine.request('render',9),/Invalid/);
+});

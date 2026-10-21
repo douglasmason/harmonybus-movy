@@ -25,10 +25,20 @@ int full_overflow(void){return overflow;}
 uint32_t full_event(int index){return index>=0&&index<count?events[index]:0;}
 void full_set(const char *key,const char *value){api->set_param(instance,key,value);}
 const char *full_get(const char *key){static char value[1048576];value[0]=0;int length=api->get_param(instance,key,value,sizeof(value));return length<0||length>=sizeof(value)?NULL:value;}
+/* Fixed 128-frame production blocks, interleaved stereo; bounded audio batch. */
+const int16_t *full_render(int blocks){
+    static int16_t output[8*256];
+    if(blocks<1||blocks>8)return NULL;
+    memset(output,0,blocks*256*sizeof(int16_t));
+    for(int block=0;block<blocks;block++){
+        api->render_block(instance,output+block*256,128);
+        position+=128.0/44100.0*2.0;
+    }
+    return output;
+}
 void full_step(int blocks){
     if(blocks<0||blocks>4096)return;
-    int16_t output[256];
-    for(int block=0;block<blocks;block++){memset(output,0,sizeof(output));api->render_block(instance,output,128);position+=128.0/44100.0*2.0;}
+    while(blocks){int batch=blocks>8?8:blocks;full_render(batch);blocks-=batch;}
 }
 int full_midi(int status,int note,int velocity){
     if((status!=128&&status!=144&&status!=160)||note<68||note>99||velocity<0||velocity>127)return -1;

@@ -2,7 +2,7 @@
 import {createJointService} from './joint-service.mjs';
 let service,inFlight=false,latest=null;
 function emit(value){
- if(value.requestId!==undefined||value.type==='error'){if(value.type==='param_update')latest=null;postMessage({type:'event',value});return;}
+ if(value.requestId!==undefined||value.type==='error'||value.type==='audio_error'){if(value.type==='param_update')latest=null;postMessage({type:'event',value});return;}
  if(inFlight){latest=value;return;}
  inFlight=true;postMessage({type:'update',value});
 }
@@ -17,6 +17,9 @@ self.onmessage=({data})=>{
    service=await createJointService(await response.json(),emit);
    service.visibility(data.hidden);postMessage({type:'ready',metadata:service.metadata});
   }else if(!service)throw new Error('Engine not initialized');
+  else if(data.type==='audio-start')service.attachAudio(data.port);
+  else if(data.type==='audio-stop')service.detachAudio();
+  else if(data.type==='audio-mix')service.mix(data.actor,data.level);
   else if(data.type==='send')service.socket.send(data.data);
   else if(data.type==='visibility')service.visibility(data.hidden);
   else if(data.type==='read'||data.type==='stats')postMessage({type:'reply',id:data.id,value:data.type==='read'?service.read(data.key):service.stats()});
