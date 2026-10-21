@@ -2,12 +2,14 @@
 import { seqCmdFlush, engineReady } from './engine.js';
 import { beginEdit, CLOSE } from '../undo/group.js';
 import { seqEdit } from '../undo/record.js';
-const fields=['enabled','pitch_track','pitch_slot','rhythm_track','rhythm_slot','alignment','expression_track','expression_slot'];
-const names=['Source Weaving','Pitch Source','Pitch Clip','Rhythm Source','Rhythm Clip','Alignment','Expression Source','Expression Clip'];
+const fields=['enabled','pitch_track','pitch_slot','rhythm_track','rhythm_slot','alignment','expression_track','expression_slot','instrument_track','instrument_slot'];
+const names=['Source Weaving','Pitch Source','Pitch Clip','Rhythm Source','Rhythm Clip','Alignment','Expression Source','Expression Clip','Instrument Source','Instrument Clip'];
 const choices=[['Off','On'],['Own',...Array.from({length:16},(_,index)=>String(index+1))],
     Array.from({length:8},(_,index)=>String(index+1)),
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
     Array.from({length:8},(_,index)=>String(index+1)),['Sequential','Timeline'],
+    ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
+    Array.from({length:8},(_,index)=>String(index+1)),
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
     Array.from({length:8},(_,index)=>String(index+1))];
 export const sourceKeys=(role:number):string[]=>fields.map(field=>'joint_source_'+role+'_'+field);
@@ -21,13 +23,14 @@ function read(actor:number):number[] {
     const value=typeof host_module_get_param==='function'?host_module_get_param('source_route_'+actor):null;
     const values=String(value??'').trim().split(/\s+/).map(Number);
     if(values.length===7)values.push(-1,-1);
-    return values.length===9&&values.every(Number.isFinite)?values:[actor,0,-1,-1,-1,-1,0,-1,-1];
+    if(values.length===9)values.push(-1,-1);
+    return values.length===11&&values.every(Number.isFinite)?values:[actor,0,-1,-1,-1,-1,0,-1,-1,-1,-1];
 }
 export function sourcePanelGet(base:number,key:string):string|null {
     const target=identity(base,key);if(!target)return null;
     const values=read(target.actor);const field=target.field;
     const raw=values[field+1];
-    const index=field===1||field===3||field===6?raw+1:field===2||field===4||field===7?Math.max(0,raw):raw;
+    const index=field===1||field===3||field===6||field===8?raw+1:field===2||field===4||field===7||field===9?Math.max(0,raw):raw;
     return choices[field][index]??choices[field][0];
 }
 export function sourcePanelSet(base:number,key:string,value:string):boolean {
@@ -35,8 +38,8 @@ export function sourcePanelSet(base:number,key:string,value:string):boolean {
     const selected=choices[target.field].indexOf(value);if(selected<0)return true;
     if(!engineReady())return true;
     const values=read(target.actor);const field=target.field;
-    if(field===1||field===3||field===6){values[field+1]=selected-1;values[field+2]=selected===0?-1:Math.max(0,values[field+2]);}
-    else if(field===2||field===4||field===7){if(values[field]===-1)return true;values[field+1]=selected;}
+    if(field===1||field===3||field===6||field===8){values[field+1]=selected-1;values[field+2]=selected===0?-1:Math.max(0,values[field+2]);}
+    else if(field===2||field===4||field===7||field===9){if(values[field]===-1)return true;values[field+1]=selected;}
     else values[field+1]=selected;
     beginEdit({key:'source-'+target.actor+'-'+field,verb:'Source Weaving',target:'Track '+(target.actor+1),close:CLOSE.IDLE,seq:true});
     seqEdit('source '+values.join(' '));seqCmdFlush();return true;

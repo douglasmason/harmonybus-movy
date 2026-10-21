@@ -130,3 +130,22 @@ intervals but does not constitute an expression-pressure revision. Expression
 reads therefore remain bounded direct reads at attacks. No old scaffold cache is
 activated, and no claim is made that the edit/record/load invalidation audit or
 hashing optimization is complete.
+
+
+## Instrument increment (Movy 213, based on 212 / HB 288)
+
+The audit found `Clip::effective_at`, the existing pure cyclic automation reader,
+and `Track::lane_label`, the persisted full target identity. Instrument borrowing
+matches exact `synth:` labels across existing lanes, reads raw donor locks with
+that reader, and emits through the existing destination `OutEvent::Cc` path.
+HB, mixer and effect labels are excluded. No second parameter mapping or harmonic
+state is introduced. The step watermark is scheduling state, not a material cache;
+commands, launches, transport and load invalidate it. Direct automation auditions
+also notify the existing `auto_cur` owner so a subsequent borrowed value cannot be
+incorrectly suppressed as already applied. Recording note edits refresh by the
+next step. The pre-track pass establishes automation-before-note order regardless
+of track indices or playback speeds, including when there is no rhythm attack.
+
+Remaining: independent HB-parameter selectors (with target/category semantics),
+per-note/held operation selectors and Fit to Window. Instrument routing does not
+solve those lifecycles or the harmonic revision/hash audit.

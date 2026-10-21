@@ -8,6 +8,8 @@ on:
       - scripts/patch_source_routing.py
       - scripts/apply_clean_harmonybus.py
       - tests/full_chain_audio.c
+      - tests/audio_probe.c
+      - scripts/test_full_chain_audio.sh
       - .github/workflows/actor-source.yml
   pull_request:
     branches: [main]
@@ -23,7 +25,7 @@ concurrency:
   group: source-weaving-${{ github.ref }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.212
+  SOURCE_VERSION: 0.34.1-hbclean.213
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -93,7 +95,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: source-weaving-212
+          name: source-weaving-213
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -116,7 +118,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.211':
+          if metadata['version'] != '0.34.1-hbclean.212':
               raise SystemExit('Installer moved concurrently; leave it unchanged for review')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')

@@ -28,9 +28,9 @@ Pitch-source note keys and rendered-note identity are preserved. Expression and
 per-note operations default to the destination actor's own material at its current
 phase (velocity 100 and no per-note expression/operations when that material is
 empty). Expression Source independently overrides velocity and recorded poly-pressure;
-per-note operations remain on the destination. Instrument automation and actor
-operation timelines stay on their existing tracks. Separate selectors for those
-additional dimensions are future work.
+per-note operations remain on the destination. Instrument parameter routing is
+described below. HB parameter and operation timelines stay on their existing
+tracks; their source selectors remain future work.
 
 Expression always samples the latest eligible raw note at its source's own phase,
 wrapping to the last note before the first onset. It is independent of the pitch
@@ -81,7 +81,7 @@ Source Weaving consumes the rhythm attacks that the source scheduler accepts.
 Native `source_route_<zero-based actor>` returns the persisted route, and
 `source_diagnostics` returns JSON with resolved source identities, active state,
 loop positions, speed ratios and active gate counts. The sources array is ordered
-pitch, rhythm, expression. These reads are on demand.
+pitch, rhythm, expression, instrument. These reads are on demand.
 The normal Joint settings metadata also exposes the controls to compatible remote
 surfaces.
 
@@ -97,3 +97,42 @@ held, compare half/double-speed sources, record/overdub, then stop and restart.
 Check that notes release, the three/four-bar phases continue independently, and
 Move/Launchpad input latency and audible crackling do not worsen. Desktop timing
 measurements cannot establish device audio performance.
+
+## Instrument automation sources (Movy 213)
+
+Open the actor's **Source Automation** panel and select Instrument Source and
+Instrument Clip. Source Weaving must be enabled. Own retains normal automation.
+This routes existing `synth:parameter` lanes only: HB (`midi_fx1:`), effect and
+mixer lanes continue their existing behavior.
+
+Assign the desired synth parameter to an automation lane on both tracks using
+the existing automation controls. Matching uses the full target name, such as
+`synth:cutoff`, even if it is knob/lane 6 on the donor and lane 2 on the actor.
+No lanes, instruments or parameter assignments are created or copied. Values
+are normalized 0–127 and interpreted in the destination parameter's range;
+matching names across different instruments does not promise the same Hz/time.
+
+The raw donor clip's existing lock reader follows its own loop, speed and launch
+phase, including held locks and note-triggered resets to its own lane base.
+It does not follow the donor's Source Weaving routes. Values update on source or
+actor step transitions and before any notes on that master tick, independently
+of rhythm attacks, rests and pitch alignment. At a loop's beginning, the existing
+cyclic position reader can carry a lock from the preceding end of the loop,
+including on first launch. No new interpolation or Fit to Window is introduced.
+
+Unmatched or missing lanes, source stop/mute and unavailable source clips fall
+back to the actor's own position-resolved automation. Turning the route Off or
+selecting Own also restores that timeline. Actor stop/mute and transport stop
+restore its managed instrument lanes to the actor's base values. Source changes
+never release notes early or change their recorded pressure ownership.
+
+Recording the actor bypasses borrowing and retains its own recording path.
+Automation command edits refresh on the next musical tick; note material captured
+into a donor becomes visible at the next source/actor step. Save/load and native/UI
+undo reuse the route and lane state already persisted. Seven- and nine-field old
+routes load with Instrument Source = Own.
+
+The runtime retains only a step/launch/availability watermark to schedule reads.
+It stores no second parameter values or raw-clip cache: applied values remain in
+`auto_cur`, and values are resolved through `Clip::effective_at`. Lookahead
+hashing and the old pitch-cache scaffold remain unchanged.
