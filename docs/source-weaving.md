@@ -177,7 +177,9 @@ root and bass, sounding key, the conductor's next known chord, and override
 candidate/pending counts. The authority can be the existing conductor bus or a
 track's live/input override. `Conductor Next` describes the learned conductor
 progression; it does not predict the lifetime of a live override. No source
-priority, defaults, saved role or audible routing changes are made.
+priority, defaults, saved role or audible routing changes are made. Compact
+chord inversions use a colon (C:E means C over E) because the stock string
+renderer treats a slash as a file-path separator.
 
 Each actor's **Source Preview** page is available from Joint Setup, its Track
 page and its Sources page. Pitch, Rhythm, Expression, Instrument and HB Render show the

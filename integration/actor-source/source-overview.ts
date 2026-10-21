@@ -5,6 +5,8 @@ const conductorFields=['authority','harmony','next','key','root','bass','candida
 const previewFields=['state','pitch','rhythm','expression','instrument','hb_render','gates','notes'];
 const conductorNames=['Harmony Authority','Actor Harmony','Conductor Next','Sounding Key','Effective Root','Effective Bass','Override Candidates','Pending Overrides'];
 const previewNames=['Playback','Pitch Clip / Phase','Rhythm Clip / Phase','Expression Clip / Phase','Instrument Clip / Phase','HB Render Clip / Phase','Held Gates','Sequencer Notes'];
+// Schwung treats string values as paths and hides everything before a slash.
+// Use colon for chord inversions and spaces in diagnostics to preserve identity.
 const readOnly=(key:string,name:string,shortName:string)=>({key,name,short_name:shortName,type:'string',readOnly:true,access:'read'});
 const conductorShort=['Source','Harmony','Next','Key','Root','Bass','Owners','Pending'];
 const previewShort=['State','Pitch','Rhythm','Expr','Instr','HB','Gates','Notes'];
@@ -44,10 +46,10 @@ export function overviewGet(base:number,key:string):string|null {
         // tracks intentionally bypass their own override in HB's resolver.
         const port=portFor(base+3),field=key.slice(15);
         const direct:Record<string,string>={harmony:'final_harmony',next:'next_harmony',key:'sounding_key'};
-        if(direct[field])return port.getParam('midi_fx1:'+direct[field])||'--';
+        if(direct[field])return (port.getParam('midi_fx1:'+direct[field])||'--').replace(/\//g,':');
         const state=snapshot('harmony-'+base,()=>port.getParam('midi_fx1:harmony_source_snapshot'));
         if(state?.schema!==1)return 'Unavailable';
-        if(field==='authority')return state.source==='override'?(Number.isInteger(state.track)&&state.track>=0?'T'+(state.track+1):'Override')+' / '+state.scope:'Conductor bus';
+        if(field==='authority')return state.source==='override'?(Number.isInteger(state.track)&&state.track>=0?'T'+(state.track+1):'Override')+' '+state.scope:'Conductor bus';
         if(field==='root'||field==='bass')return pitchClass(state[field]);
         if(field==='candidates'||field==='pending')return Number.isInteger(state[field])?String(state[field]):'--';
         return '--';
@@ -67,8 +69,8 @@ export function overviewGet(base:number,key:string):string|null {
     const source=state.sources?.[dimension];
     if(!source)return 'No playing clip';
     if(!Number.isInteger(source.track)||!Number.isInteger(source.slot))return 'Unavailable';
-    const label='T'+(source.track+1)+' C'+(source.slot+1);
-    if(!source.active)return label+' / inactive';
-    if(!Number.isFinite(source.phase_ticks)||!Number.isFinite(source.length_ticks)||source.length_ticks<=0)return label+' / --';
-    return label+' / '+Math.round(100*source.phase_ticks/source.length_ticks)+'%';
+    const label='T'+(source.track+1)+'C'+(source.slot+1);
+    if(!source.active)return label+' inactive';
+    if(!Number.isFinite(source.phase_ticks)||!Number.isFinite(source.length_ticks)||source.length_ticks<=0)return label+' --';
+    return label+' '+Math.round(100*source.phase_ticks/source.length_ticks)+'%';
 }

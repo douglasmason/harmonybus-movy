@@ -217,8 +217,8 @@ for(const group of [0,3]){
  appState.focusGroup=group;page=panels.jointPage();
  const overview=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_overview_authority'));
  assert(overview>=0);page.goToPage(overview);flush(page);
- assert.equal(page.performanceGet('joint_overview_authority'),`T${group*4+1} / live`);
- assert.equal(page.performanceGet('joint_overview_harmony'),'C/E');
+ assert.equal(page.performanceGet('joint_overview_authority'),`T${group*4+1} live`);
+ assert.equal(page.performanceGet('joint_overview_harmony'),'C:E');
  assert.equal(page.performanceGet('joint_overview_next'),'F');
  assert.equal(page.performanceGet('joint_overview_bass'),'E');
  const beforeHarmony=harmonyReads;
@@ -227,7 +227,7 @@ for(const group of [0,3]){
  const preview=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_preview_3_notes'));
  assert(preview>=0);page.goToPage(preview);flush(page);
  assert.equal(page.performanceGet('joint_preview_3_state'),'Weave Seq');
- assert.equal(page.performanceGet('joint_preview_3_pitch'),'T2 C3 / 25%');
+ assert.equal(page.performanceGet('joint_preview_3_pitch'),'T2C3 25%');
  assert.equal(page.performanceGet('joint_preview_3_rhythm'),'No playing clip');
  assert.equal(page.performanceGet('joint_preview_3_notes'),'C4 E4');
  assert.equal(page.performanceGet('joint_preview_3_gates'),'2');
