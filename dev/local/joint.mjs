@@ -1,4 +1,16 @@
 import './build/joint-env.mjs';
+import {AudioMonitor} from './audio-monitor.mjs';
+const monitor=new AudioMonitor();
+const audioButton=document.querySelector('#audio');
+const disableAudio=()=>{monitor.disable();audioButton.textContent='Enable audio';audioButton.setAttribute('aria-pressed','false');};
+audioButton.onclick=async()=>{if(monitor.enabled){disableAudio();return;}try{if(await monitor.enable()){audioButton.textContent='Disable audio';audioButton.setAttribute('aria-pressed','true');}}catch(error){document.querySelector('#audio-status').textContent=error.message;}};
+for(const [actor,name] of ['Root','Bass','Comp','Melody'].entries()){
+ const label=document.createElement('label');label.textContent=name+' ';
+ const volume=document.createElement('input');volume.type='range';volume.min='0';volume.max='1';volume.step='.01';volume.value='.6';volume.setAttribute('aria-label',name+' volume');
+ const mute=document.createElement('input');mute.type='checkbox';mute.setAttribute('aria-label',name+' mute');
+ volume.oninput=mute.onchange=()=>monitor.mix(actor,Number(volume.value),mute.checked);
+ label.append(volume,mute,document.createTextNode(' Mute'));document.querySelector('#audio-mix').append(label);
+}
 const status=document.querySelector('#status');
 const metadata=await fetch('/api/dev/module').then(response=>response.json());
 const cache=new Map(),demand=new Map();let connected=false;
@@ -12,6 +24,8 @@ await new Promise((resolve,reject)=>{
   socket.onmessage=event=>{
     const message=JSON.parse(event.data);
     if(message.type==='error'){status.textContent=message.message;return;}
+    if(message.events)monitor.consume(message.events);
+    if(message.requestId==='monitor-stop')monitor.silence();
     for(const [key,value] of Object.entries(message.params??{}))cache.set(key,value);
     if(message.events)document.querySelector('#events').textContent=message.events.slice(-30).map(event=>event.packet.join(' ')).join('\n');
     if(!connected){connected=true;status.textContent='Native Joint Play connected';resolve();}
@@ -98,15 +112,15 @@ function release(){
 }
 document.querySelector('#release').onclick=release;
 document.querySelector('#play').onclick=()=>send({type:'dev_transport',action:'play'});
-document.querySelector('#stop').onclick=()=>{release();send({type:'dev_transport',action:'stop'});};
+document.querySelector('#stop').onclick=()=>{release();monitor.silence();send({type:'dev_transport',action:'stop',id:'monitor-stop'});};
 document.querySelector('#record').onclick=()=>{
  const command=joint.jointRecordCommand();if(!command)return;
  const [,mask,overwrite]=command.split(' ').map(Number);
  send({type:'dev_transport',action:'record',mask,overwrite});
 };
-window.addEventListener('blur',release);document.addEventListener('visibilitychange',()=>{if(document.hidden)release();});
+window.addEventListener('blur',()=>{release();disableAudio();});document.addEventListener('visibilitychange',()=>{if(document.hidden){release();disableAudio();}});
 window.addEventListener('pagehide',()=>{release();socket.close();});
-socket.onclose=()=>{connected=false;release();clearInterval(timer);status.textContent='Disconnected — reload to reconnect';};
+socket.onclose=()=>{disableAudio();connected=false;release();clearInterval(timer);status.textContent='Disconnected — reload to reconnect';};
 document.querySelector('#shift').onchange=event=>appState.shiftHeld=event.target.checked;
 document.querySelector('#previous').onclick=()=>jointPage().changePage(-1);
 document.querySelector('#next').onclick=()=>jointPage().changePage(1);
@@ -136,4 +150,4 @@ const timer=setInterval(()=>{
  const watch=keys.join('|');if(watch!==watchSignature){watchSignature=watch;send({type:'dev_watch',keys});}
 },40);
 // Read-only inspection for browser tests; all input still uses production handlers.
-globalThis.__joint={joint,page:jointPage};
+globalThis.__joint={joint,page:jointPage,monitor};
