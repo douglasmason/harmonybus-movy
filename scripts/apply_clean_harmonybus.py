@@ -608,6 +608,8 @@ def main() -> int:
     patch_clip_weave(root)
     from patch_field_play import patch_field_play
     patch_field_play(root)
+    from patch_field_lfo import patch_field_lfo
+    patch_field_lfo(root)
     patch_actor_source(root)
     from patch_source_routing import patch_source_routing
     patch_source_routing(root)
