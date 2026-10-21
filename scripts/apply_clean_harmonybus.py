@@ -609,6 +609,8 @@ def main() -> int:
     from patch_field_play import patch_field_play
     patch_field_play(root)
     patch_actor_source(root)
+    from patch_source_routing import patch_source_routing
+    patch_source_routing(root)
     print("HarmonyBus clean integration applied")
     return 0
 

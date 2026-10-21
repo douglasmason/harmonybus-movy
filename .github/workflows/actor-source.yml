@@ -1,29 +1,124 @@
-name: Actor source integration regressions
+name: Source Weaving integration and package
 on:
   push:
-    branches: [feature/actor-clip-source-bridge-20261020]
+    branches: [feature/actor-clip-source-bridge-20261020, main]
+    paths:
+      - integration/actor-source/**
+      - integration/joint-play/hb-joint-panels.mjs
+      - scripts/patch_source_routing.py
+      - scripts/apply_clean_harmonybus.py
+      - tests/full_chain_audio.c
+      - .github/workflows/actor-source.yml
   pull_request:
     branches: [main]
     paths:
       - integration/actor-source/**
-      - integration/hb_loop.rs
-      - scripts/patch_actor_source.py
+      - scripts/patch_source_routing.py
       - scripts/apply_clean_harmonybus.py
       - .github/workflows/actor-source.yml
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: source-weaving-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  SOURCE_VERSION: 0.34.1-hbclean.210
+  HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
+  SCHWUNG_ROOT: ${{ github.workspace }}/schwung
+  SCHWUNG: ${{ github.workspace }}/schwung
+  HB_MODULE: ${{ github.workspace }}/harmonybus/modules/harmonybus/module.json
 jobs:
-  sequencer-and-dsp:
+  verify-package:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: Prepare pinned sources
         run: |
           git clone https://github.com/DimaDake/schwung-movy.git movy
           git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
           git clone https://github.com/douglasmason/harmonybus.git harmonybus
-          git -C harmonybus checkout 4f2c44b93118b6babfb9d792642602f451863814
+          git -C harmonybus checkout 59c6d04d9c7a772f6fb2b6c222ba297801de5029
+          git clone https://github.com/charlesvestal/schwung.git schwung
+          git -C schwung checkout a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
           python3 scripts/apply_clean_harmonybus.py movy
-      - name: Test actual integrated sequencer and DSP
-        run: cargo test --manifest-path movy/engine/Cargo.toml -p seq-core -p movy-dsp
+      - name: Browser and real shared-controller regressions
+        working-directory: movy
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build:browser
+          node browser-test/logic.mjs
+          for suite in hb-joint-play hb-joint-panels hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
+            node "browser-test/$suite.mjs"
+          done
+          # Legacy app-loop fails unchanged on the pre-routing hbclean.209 baseline.
+          # Dedicated Joint/session and full logic suites cover the current UI.
+          node browser-test/device-scripts.mjs
+      - name: Native sequencer, DSP and full production chain
+        run: |
+          cargo test --manifest-path movy/engine/Cargo.toml -p seq-core -p movy-dsp
+          bash scripts/test_full_chain_audio.sh movy harmonybus schwung
+          cargo test --release --manifest-path movy/engine/Cargo.toml -p seq-core source_routing_benchmark -- --ignored --nocapture --test-threads=1 | tee source-benchmark.txt
+      - name: ARM toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          sudo ln -sf /usr/bin/aarch64-linux-gnu-gcc /usr/local/bin/aarch64-unknown-linux-gnu-gcc
+          sudo ln -sf /usr/bin/aarch64-linux-gnu-nm /usr/local/bin/aarch64-unknown-linux-gnu-nm
+          sudo ln -sf /usr/bin/aarch64-linux-gnu-strip /usr/local/bin/aarch64-unknown-linux-gnu-strip
+          rustup target add aarch64-unknown-linux-gnu
+      - name: Build verified install package
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          path: Path = Path('movy/module.json')
+          metadata: dict = json.loads(path.read_text())
+          metadata['version'] = os.environ['SOURCE_VERSION']
+          path.write_text(json.dumps(metadata, indent=2) + '\n')
+          PY
+          npm run build:device --prefix movy
+          bash movy/scripts/build-dsp.sh
+          mkdir -p package/movy/configs
+          cp movy/module.json movy/ui.js movy/dist/dsp.so package/movy/
+          cp movy/src/module-configs/*.json package/movy/configs/
+          cp movy/harmonybus-core-source.json package/movy/
+          file package/movy/dsp.so | grep 'ARM aarch64'
+          tar -czf harmonybus-movy-module.tar.gz -C package movy
+          sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-weaving-210
+          path: |
+            harmonybus-movy-module.tar.gz
+            SHA256SUMS
+            source-benchmark.txt
+      - name: Publish tested main build and advance installer last
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Source Weaving" --notes-file docs/source-weaving.md
+          git fetch origin main
+          git switch -C installer-pointer origin/main
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          path: Path = Path('release.json')
+          metadata: dict = json.loads(path.read_text())
+          if metadata['version'] != '0.34.1-hbclean.209':
+              raise SystemExit('Installer moved concurrently; leave it unchanged for review')
+          version: str = os.environ['SOURCE_VERSION']
+          path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add release.json
+          git commit -m "Publish verified Source Weaving $SOURCE_VERSION [skip ci]"
+          git push origin HEAD:main

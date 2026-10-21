@@ -168,3 +168,22 @@ promise a particular correlation coefficient or anticorrelation. Invert a lane's
 low/high mapping for a deliberate inverted response. Placement is cached and
 recomputed only on placement-setting changes, never on animation reads or normal
 audio-block advance. No new jog or track-button functions are introduced.
+
+### Mapping shortcuts and labels (HB 0.2.287 / Movy hbclean.209)
+
+Field Lane Mapping now has an eighth knob, **Apply Mapping**. Choose Velocity,
+Gate or Transpose to configure the selected user lane with existing operations:
+velocity -25..+25% of incoming velocity, gate 25..100% of the lane timing grid,
+or transpose -12..+12 semitones (rounded on note events). Each shortcut enables
+the lane, sets a constant pattern, zero offset, 100% operation chance and Evolve,
+and uses field amount mapping. Existing timing conditions, grid and sample
+coordinates are preserved. Custom is a no-op; editing the range remains available.
+This replaces that lane's previous operation assignment. These are convenience
+mappings onto the existing engine, not new synth/arp parameter destinations.
+
+Output strips now display DSP-formatted mapped values: V = velocity percentage
+change, G = gate percentage of lane grid, Tr = semitones, P = operation chance.
+Remote UI displays the full destination and unit. The bars remain normalized.
+The readout is the mapped amount/chance; subsequent patterns, offsets, conditions
+and competing operations may affect the final rendered note. It is a preview,
+not a claim that a note was emitted. No new jog or track-button controls.

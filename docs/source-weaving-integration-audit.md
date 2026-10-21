@@ -1,7 +1,6 @@
 # Source Weaving integration audit
 
-Status: draft groundwork, not playable cross-clip source routing. No installer
-pointer, module version, or physical device was changed by this work.
+Historical groundwork audit. See `source-weaving.md` for the implemented runtime routing and current behavior. The original audit changed no installer pointer, module version, or physical device.
 
 Audited HarmonyBus `4f2c44b93118b6babfb9d792642602f451863814`, Movy integration
 `369246998a8df5a4e5ba7db58f315231bee2011a`, and the fully patched upstream Movy
@@ -22,7 +21,7 @@ Audited HarmonyBus `4f2c44b93118b6babfb9d792642602f451863814`, Movy integration
 | Diagnostics | Existing remote state and profiling infrastructure | Effective routes, projection revision and source phases |
 | Install | Existing releases remain untouched | Full playable integration and comprehensive release gates are outstanding |
 
-## Refactor implemented in this draft
+## Original draft refactor (before live routing)
 
 - Install source adapter modules in the real `movy-dsp` build. Previously their
   tests were not part of any Cargo target.
@@ -76,3 +75,29 @@ context, so installation now occurs after the existing patch sequence.
 These tests validate the draft projection contract, not playable weaving. No
 cross-clip playback performance improvement, hardware audio result, independent
 source-routing behavior, release artifact, or install readiness is claimed.
+
+## Runtime integration follow-up
+
+`patch_source_routing.py` now routes real accepted source attacks through the
+existing note-emission and Gate implementation. Gate clocks retain the rhythm
+source; existing note releases keep their owner across source changes.
+Sequential/Timeline selection, Joint source panels, native persistence and
+on-demand source diagnostics are implemented. The production chain fixture
+exercises melody weaving plus Conductor Chord Root Only/Triad for bass/comp.
+
+The raw cache was not activated: bounded direct source reads at attacks avoid
+a second lifecycle, stale pointers, or full-clip hashing on idle blocks. The
+draft projection modules remain regression scaffolding. Separate expression,
+instrument/HB automation and operation source selectors are deferred; the actor
+retains its own expression and operations. Existing lookahead producer hashing
+is unchanged and remains a performance follow-up, not a claimed fix.
+
+### Existing upstream harness mismatch
+
+The legacy `browser-test/app-loop.mjs` was executed on both the routing build
+and a fresh pre-routing baseline with the same pinned Schwung controller. Both
+produced the same 11 navigation/browser assertions and stopped at the same
+`move_midi_internal_send is not a function` harness error. It is not counted as
+a passing suite. The new workflow uses the current release's dedicated Joint,
+Session, Field and Grid checks plus the full upstream logic suite, rather than
+claiming this legacy harness passes.

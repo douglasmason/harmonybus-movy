@@ -1,6 +1,6 @@
 /** Normalized lane outputs. UI holds are transient; DSP owns glide and expiry. */
 import { PAD_PALETTE } from '../keyboard/pad-palette.js';
-export type Output = {raw:number;value:number;target:number;latched:boolean};
+export type Output = {raw:number;value:number;target:number;latched:boolean;label?:string;description?:string};
 type Hold = {lane:number;base:number;offset:number;anchor:number|null;spacing:number};
 const holds=new Map<string,Hold>();
 export const outputs:Output[]=Array.from({length:16},()=>({raw:.5,value:.5,target:0,latched:false}));
@@ -8,6 +8,13 @@ export let outputView=false, vertical=false, outputBank=0, latchMode=false;
 export type OutputFinish={lane:number;value:number};
 let changed=false;
 const bound=(value:number)=>Math.max(0,Math.min(1,value));
+/** Labels are formatted by DSP so all surfaces use the same units. */
+export function outputLabels(text:string):boolean{
+    const rows=text.split(';');if(rows[0]!=='fl1'||rows.length!==17)return false;
+    const labels=rows.slice(1).map(row=>row.split('|'));
+    if(labels.some(row=>row.length!==2))return false;
+    outputs.forEach((output,index)=>{[output.label,output.description]=labels[index];});return true;
+}
 export function outputSnapshot(text:string):boolean{
     if(!text.startsWith('fo1,')&&!text.startsWith('fo2,'))return false;
     const values=text.slice(4).split(',').map(Number);
