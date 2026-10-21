@@ -90,6 +90,7 @@ impl Engine {
         source += '\n' + tests.read_text()
     source += '\n' + (assets / 'source_instrument_tests.rs').read_text()
     source += '\n' + (assets / 'source_hb_tests.rs').read_text()
+    source += '\n' + (assets / 'source_operations_tests.rs').read_text()
     path.write_text(source)
     path = core / 'command.rs'
     source = path.read_text()
@@ -145,7 +146,12 @@ impl Engine {
     source = replace_once(source, "        root.params.push({level:'joint_rhythm_'+role});", '''        const sourceLevel='joint_sources_'+role;
         const allSourceKeys=sourceKeys(role);
         const routeKeys=allSourceKeys.slice(0,8);
-        const automationKeys=allSourceKeys.slice(8);
+        const automationKeys=allSourceKeys.slice(8,12);
+        const operationKeys=allSourceKeys.slice(12);
+        const operationLevel='joint_source_operations_'+role;
+        hierarchy.levels[operationLevel]={name:name+' Source Operations',knobs:operationKeys,params:operationKeys.map(key=>({key}))};
+        hierarchy.levels['joint_actor_'+role].params.push({level:operationLevel});
+        root.params.push({level:operationLevel});
         const automationLevel='joint_source_automation_'+role;
         hierarchy.levels[automationLevel]={name:name+' Source Automation',knobs:automationKeys,params:automationKeys.map(key=>({key}))};
         hierarchy.levels['joint_actor_'+role].params.push({level:automationLevel});

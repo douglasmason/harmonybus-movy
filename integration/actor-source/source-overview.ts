@@ -11,6 +11,7 @@ const readOnly=(key:string,name:string,shortName:string)=>({key,name,short_name:
 const conductorShort=['Source','Harmony','Next','Key','Root','Bass','Owners','Pending'];
 const previewShort=['State','Pitch','Rhythm','Expr','Instr','HB','Gates','Notes'];
 export const overviewParameters=[
+    ...roles.map((_,role)=>readOnly('joint_preview_'+role+'_note_ops','Note Ops Clip / Phase','Ops')),
     ...conductorFields.map((field,index)=>readOnly('joint_overview_'+field,conductorNames[index],conductorShort[index])),
     ...roles.flatMap((_,role)=>previewFields.map((field,index)=>readOnly('joint_preview_'+role+'_'+field,previewNames[index],previewShort[index]))),
 ];
@@ -21,6 +22,9 @@ export function overviewHierarchy(hierarchy:any):any {
     roles.forEach((name,role)=>{
         const level='joint_preview_'+role;
         add(level,name+' Source Preview',previewFields.map(field=>level+'_'+field));
+        const operationKey='joint_preview_'+role+'_note_ops';
+        hierarchy.levels['joint_source_operations_'+role].knobs.push(operationKey);
+        hierarchy.levels['joint_source_operations_'+role].params.push({key:operationKey});
         hierarchy.levels.root.params.push({level});
         hierarchy.levels['joint_actor_'+role].params.push({level});
         hierarchy.levels['joint_sources_'+role].params.push({level});
@@ -65,7 +69,7 @@ export function overviewGet(base:number,key:string):string|null {
         const notes=state.notes.filter((pitch:unknown)=>typeof pitch==='number'&&Number.isInteger(pitch)&&pitch>=0&&pitch<=127);
         return notes.length?notes.slice(0,4).map((pitch:number)=>pitchClass(pitch%12)+(Math.floor(pitch/12)-1)).join(' ')+(notes.length>4?' +'+(notes.length-4):''):'--';
     }
-    const dimension=['pitch','rhythm','expression','instrument','hb_render'].indexOf(field);
+    const dimension=['pitch','rhythm','expression','instrument','hb_render','note_ops'].indexOf(field);
     const source=state.sources?.[dimension];
     if(!source)return 'No playing clip';
     if(!Number.isInteger(source.track)||!Number.isInteger(source.slot))return 'Unavailable';
