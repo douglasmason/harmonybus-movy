@@ -159,9 +159,8 @@ changes. Disconnect cancels outstanding touches with their original actor masks,
 releases physical notes, and clears temporary Joint routing.
 
 This is a performance-control view. It does not yet provide the full Session
-mode cycle, transport/clip recording, ordinary step sequencing, pressure
-input, persistence, or audible playback. Recording settings visible in the shared
-pages are editable, but this view has no Record button. The backend still uses
+mode cycle, ordinary step sequencing, pressure input, persistence, or audible
+playback. Play, Stop and Joint Record use the native sequencer. The backend still uses
 the explicit musical test fixture described above, rather than saved Move Sets.
 
 `node dev/local/joint-browser-test.cjs` verifies native follow-bass output,
@@ -176,3 +175,21 @@ Set **Step Buttons** to **Operators** or **Motifs** on the Joint Setup pages.
 Pointer holds and Space/Enter presses use the same production release handling;
 the native backend cancels a still-held step if its browser disconnects.
 **Steps** mode is visibly unavailable until this host supports clip sequencing.
+
+### Local transport and recording
+
+The Joint view provides **Play**, **Stop**, and **Record**, with native
+Stopped/Playing/Count-in/Recording status. Record uses the production Joint
+actor mask and each actor's Replace/Overdub setting. From stopped, Movy supplies
+its own count-in; wait for **Recording** before playing. Press Record again to
+end the take while transport continues, or Stop to finish and stop. Play replays
+the stored source gestures through HB; the MIDI inspector shows the output.
+There is still no audible browser playback or clip editor.
+
+The local host disables Move transport linking and uses Movy's internal 120 BPM
+clock. Browser timing is approximate; manual block stepping remains deterministic.
+Clips exist only in the running processor and are lost when the server exits.
+Only the controlling browser may change transport. Disconnecting it stops the
+sequencer and releases held controls, without clearing recorded clips.
+The API accepts only Play, Stop, and validated Joint recording masks; arbitrary
+sequencer commands and file loading remain unavailable.
