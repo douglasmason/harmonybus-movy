@@ -24,6 +24,23 @@ mod source_routing_tests {
         output.iter().filter_map(|event|match event {OutEvent::NoteOn{track:3,pitch,..}=>Some(*pitch),_=>None}).collect()
     }
     #[test]
+    fn destination_context_and_automation_precede_borrowed_attack() {
+        let mut engine=setup();
+        engine.tracks[3].lane_assigned[0]=true;
+        engine.tracks[3].clips[0].locks.push(crate::clip::Lock{lane:0,step:0,val:87});
+        engine.tracks[3].clips[0].grid_gates.push(crate::grid::Gate{start:0,end:24,lane:0});
+        engine.tracks[3].clips[0].shared_events.push(crate::shared_context::Event{
+            tick:0,kind:1,value:crate::shared_context::Value{on:true,a:1,b:0,c:0}});
+        let output=tick(&mut engine);
+        let attack=output.iter().position(|event|matches!(event,OutEvent::NoteOn{track:3,..})).unwrap();
+        for control in [
+            output.iter().position(|event|matches!(event,OutEvent::Cc{track:3,lane:0,val:87})),
+            output.iter().position(|event|matches!(event,OutEvent::GridMask{track:3,mask:1})),
+            output.iter().position(|event|matches!(event,OutEvent::SharedContext{track:3,kind:1,..})),
+        ] {assert!(control.is_some_and(|position|position<attack),"control must precede attack: {output:?}");}
+        assert_eq!(output.iter().filter(|event|matches!(event,OutEvent::SharedContext{track:3,kind:1,..})).count(),1);
+    }
+    #[test]
     fn sequential_chords_rests_and_gates_use_real_scheduler() {
         let mut engine=setup();
         assert_eq!(ons(&tick(&mut engine)),vec![60,64]);

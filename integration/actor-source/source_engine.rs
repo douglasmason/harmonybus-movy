@@ -43,6 +43,14 @@ impl Engine {
             if !self.tracks[actor].clips[actor_slot].exists() {continue;}
             let own=ClipRef{track:actor,slot:actor_slot};
             if route.rhythm.unwrap_or(own)!= (ClipRef{track:rhythm_track,slot:rhythm_slot}) {continue;}
+            // A donor can run before its destination in the track loop. Resolve
+            // destination controls first, without advancing its clock or replaying
+            // an actor that already ran (and may now point at the next tick).
+            if self.shared_tick_seen[actor]!=self.master_tick {
+                self.grid_tick(actor,out);
+                self.shared_track(actor,out);
+                self.emit_automation(actor,actor_slot,(self.source_positions[actor]/TICKS_PER_STEP) as u16,out);
+            }
             let source=route.pitch.unwrap_or(own);
             let source_track=&self.tracks[source.track];
             if source_track.playing_slot!=Some(source.slot) || source_track.muted {continue;}
