@@ -28,7 +28,8 @@ Pitch-source note keys and rendered-note identity are preserved. Expression and
 per-note operations default to the destination actor's own material at its current
 phase (velocity 100 and no per-note expression/operations when that material is
 empty). Expression Source independently overrides velocity and recorded poly-pressure;
-per-note operations remain on the destination. Instrument parameter routing is
+per-note operations default to the destination unless Note Ops Source is selected.
+Instrument and operation routing are
 described below. Other HB parameter and operation timelines stay on their existing
 tracks; their source selectors remain future work.
 
@@ -81,7 +82,7 @@ Source Weaving consumes the rhythm attacks that the source scheduler accepts.
 Native `source_route_<zero-based actor>` returns the persisted route, and
 `source_diagnostics` returns JSON with resolved source identities, active state,
 loop positions, speed ratios and active gate counts. The sources array is ordered
-pitch, rhythm, expression, instrument, HB render. These reads are on demand.
+pitch, rhythm, expression, instrument, HB render, note operations. These reads are on demand.
 The normal Joint settings metadata also exposes the controls to compatible remote
 surfaces.
 
@@ -169,6 +170,40 @@ sequencer tests, 292 DSP tests, dedicated browser suites and the production
 Movy → Schwung → HarmonyBus fixture checking render velocity before the first
 note, mute fallback, base restoration and paired releases. The two scheduler
 benchmarks run explicitly in release mode. No physical device testing is implied.
+
+## Recorded note-operation sources (Movy 217)
+
+Open the actor's **Source Operations** panel and choose **Note Ops Source** and
+**Note Ops Clip**. Source Weaving must be On. This borrows the existing recorded
+operation outcome attached to a note—such as a recorded transpose or approach—
+independently of pitch, expression and parameter automation. Own preserves the
+previous per-note behavior. Already-rendered pitch material remains rendered;
+operations are not applied again to those notes.
+
+At each accepted rhythm attack, the reader samples the latest raw donor note at
+its own clock/loop phase, wrapping to the last note before the first onset. Tied
+chord notes use the last stored entry, matching the expression reader. All voices
+in the borrowed pitch group receive that same operation outcome, applied by the
+existing HB note path. Sequential/Timeline still controls pitch selection only.
+Unequal loops continue independently; this is not Fit to Window.
+
+A source change or relaunch affects the next accepted attack. Missing, stopped
+or muted donors fall back to the actor's normal operation behavior. An available
+empty donor, or a selected note without recorded operations, supplies no recorded
+override; existing live/held controls still apply. Source note probability and
+conditions are not rerun: this samples raw recorded outcomes, not donor playback.
+
+Held notes retain their existing release and pressure owners after route changes,
+source edits, mute or stop. Recording the actor uses its own playback path.
+Persistence and native/UI undo include the new selector. Old 7/9/11/13-field
+routes default to Own. Clip Variation receives the selected operation before its
+existing protection against omitting operation-bearing notes.
+
+This does **not** borrow Grid holds, timed clip-reader gestures, operation lane
+assignments or shared key/context timelines. Those have separate lifecycles and
+remain on the actor. No new operation engine, cache, harmonic state or persistent
+source pointers are introduced.
+
 ## Conductor overview and Source Preview (Movy 216)
 
 In Joint Play, use the jog dial to open **Conductor Overview**. This read-only

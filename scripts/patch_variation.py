@@ -82,4 +82,4 @@ def patch_variation(root: Path) -> None:
     path.write_text(replace_once(path.read_text(), "        resolve(root, 'src/seq/joint-panels.ts'),", "        resolve(root, 'src/seq/joint-panels.ts'),\n        resolve(root, 'src/seq/variation-panels.ts'),"))
     for relative in ('src/seq/constants.ts', 'engine/crates/movy-dsp/src/lib.rs'):
         path = root / relative
-        path.write_text(path.read_text().replace('0.71.0-hb214-hbrender1', '0.71.0-hb215-variation1'))
+        path.write_text(path.read_text().replace('0.71.0-hb214-hbrender1', '0.71.0-hb217-noteops1'))
