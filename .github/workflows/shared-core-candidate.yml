@@ -1,12 +1,12 @@
 name: FM1 shared-core candidate (no deployment)
 on:
   push:
-    branches: [work/conductor-surface-hardening, work/weave-continuity, work/field-play, work/field-mappings, work/field-choice]
+    branches: [work/conductor-surface-hardening, work/weave-continuity, work/field-play, work/field-mappings, work/field-choice, work/stock-field-mod]
   workflow_dispatch:
 permissions:
   contents: read
 env:
-  HB_REF: c31c4aa123a50b2a9b83d55b1487216f3a728b7f
+  HB_REF: b38cb5a1363520d902d1ec2db7d1d4d99cf0e815
   UPSTREAM_REF: 5c01a4fe7745b730ee98111194fc64328ea2659b
   SCHWUNG_REF: a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
@@ -52,6 +52,7 @@ jobs:
           node browser-test/hb-joint-play.mjs
           node browser-test/hb-joint-panels.mjs
           node browser-test/logic.mjs
+          node ../tests/field_lfo_ui.mjs .
       - name: Native recording and routing regressions
         run: |
           cargo test --manifest-path movy/engine/Cargo.toml -p seq-core -p movy-dsp
@@ -60,7 +61,7 @@ jobs:
           /tmp/surface-bench | tee surface-benchmark.txt
       - name: Build and package ARM candidate
         run: |
-          python3 -c 'import json; p="movy/module.json"; d=json.load(open(p)); d["version"]="0.34.1-hbclean.211"; open(p,"w").write(json.dumps(d,indent=2)+"\n")'
+          python3 -c 'import json; p="movy/module.json"; d=json.load(open(p)); d["version"]="0.34.1-hbclean.218"; open(p,"w").write(json.dumps(d,indent=2)+"\n")'
           npm run build:device --prefix movy
           bash movy/scripts/build-dsp.sh
           mkdir -p package/movy/configs
