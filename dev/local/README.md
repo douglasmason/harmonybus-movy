@@ -68,7 +68,7 @@ latch/momentary switch, orientation, banks and release controls use the unchange
 HB HTML/JavaScript against native track 2. Disconnect releases active remote
 overrides without creating a latch; intentional latches remain until released.
 
-No clip editor, persistence UI, Joint Play panel, pressure UI, full Manager
+No clip editor, persistence UI, pressure UI, full Manager
 emulation, or Live/Local selector is included. The same control API can be used
 on hardware, but this panel's subscription/snapshot integration has not been
 deployed or verified against the physical Move.
@@ -134,11 +134,38 @@ reads run in the same serialized owner as rendering and writes. State/save
 getters and arbitrary loading are excluded.
 
 This reuses the generic Movy parameter harness, not the full device controller:
-HB-specific touch-operation panels, pad/button emulation in this view, browser
-audio, and full Manager integration remain future work. Use the linked pad/MIDI
+This generic view does not contain the Joint Play controls; those are available
+in `/joint`. Browser audio and full Manager integration remain future work. Use the linked pad/MIDI
 panel for the existing musical checks. One browser connection owns writes at a
 time; close that tab before controlling from a different tab.
 
 The browser test additionally checks native version display, a real knob drag
 changing native transpose, per-track channel reads, and the phone-width layout. It also drives the production Field Outputs page
 and verifies that its latch and release controls change native HB state.
+
+## Joint Play performance view
+
+Open `http://127.0.0.1:7701/joint`. This view bundles the production
+`joint-play.ts`, `joint-panels.ts`, and Schwung shared parameter-page controller.
+The browser adapts host I/O and drawing; geometry, actor links, page navigation,
+knob edits, and touch operations remain in their existing production modules.
+The 32 pads enter Movy's native MIDI callback, using the production Joint route.
+
+Supported: all four quartets, root/bass/comp/melody layouts, actor parameter
+pages, operation knob touches, Shift-turn assignment, displayed pad colors,
+and cleanup on blur or disconnect. The page selector exposes the controller's
+existing pages. A held pad retains its original native note owner across layout
+changes. Disconnect cancels outstanding touches with their original actor masks,
+releases physical notes, and clears temporary Joint routing.
+
+This is a performance-control view. It does not yet provide the full Session
+mode cycle, transport/clip recording, the physical step-button row, pressure
+input, persistence, or audible playback. Recording settings visible in the shared
+pages are editable, but this view has no Record button. The backend still uses
+the explicit musical test fixture described above, rather than saved Move Sets.
+
+`node dev/local/joint-browser-test.cjs` verifies native follow-bass output,
+actor knob edits, scoped operation touch/release, a layout change during a held
+note, quartet selection, phone layout, and disconnect release. The native API
+suite additionally tests abrupt disconnection, original touch masks, input
+validation, and exclusive control ownership. Both browser suites run in CI.
