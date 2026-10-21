@@ -82,7 +82,12 @@ int main(int count,char **arguments) {
         line[strcspn(line,"\r\n")]=0;
         char *argument=strchr(line,'\t');if(argument)*argument++=0;
         int valid=1;
-        if(!strcmp(line,"set") && argument) {
+        if(!strcmp(line,"midi") && argument) {
+            int status,note,velocity;char extra;
+            if(sscanf(argument,"%d,%d,%d%c",&status,&note,&velocity,&extra)!=3 ||
+               (status!=128 && status!=144 && status!=160) || note<68 || note>99 || velocity<0 || velocity>127) valid=0;
+            else { uint8_t message[]={(uint8_t)status,(uint8_t)note,(uint8_t)velocity}; api->on_midi(instance,message,3,0); }
+        } else if(!strcmp(line,"set") && argument) {
             char *setting=strchr(argument,'\t');if(setting){*setting++=0;set(argument,setting);}else valid=0;
         } else if(!strcmp(line,"step") && argument) {int blocks=atoi(argument);if(blocks<0||blocks>4096)valid=0;else advance(blocks);}
         else if(strcmp(line,"snapshot") && strcmp(line,"get") && strcmp(line,"read_many"))valid=0;
