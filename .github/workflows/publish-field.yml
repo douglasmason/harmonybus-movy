@@ -1,0 +1,23 @@
+name: Publish verified Field Choice installer
+on:
+  push:
+    branches: [work/publish-field-choice]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify tested artifact and publish installer
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_COMMIT: 2aef5bd17dae635757af7aa91dbc585b9af136e3
+          TESTED_RUN: '39541704780'
+          INSTALL_VERSION: 0.34.1-hbclean.211
+          PREVIOUS_VERSION: 0.34.1-hbclean.210
+          ARTIFACT_NAME: harmonybus-movy-fm1-candidate
+          ARTIFACT_FILE: harmonybus-movy-fm1-candidate.tar.gz
+          ASSET_NAME: harmonybus-movy-module.tar.gz
+        run: python3 scripts/publish_field.py
