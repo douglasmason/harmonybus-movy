@@ -49,6 +49,38 @@ static long render(int blocks){
     }
     return energy;
 }
+static float field_get(const char *key){char text[128]={0};int n=api->get_param(instance,key,text,sizeof(text));assert(n>0);return strtof(text,0);}
+static void test_field_lfos(void){
+    set("cmd","stop");render(16);
+    assert(field_get("ch0:lfo1:field_source_version")==1);
+    set("ch0:midi_fx1:field_glide","0");
+    set("ch0:midi_fx1:field_outputs","fo1,10000,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1");
+    set("ch0:synth:cutoff","20");
+    set("ch0:lfo1:target","synth");set("ch0:lfo1:target_param","cutoff");
+    set("ch0:lfo1:depth","0.5");set("ch0:lfo1:polarity","1");set("ch0:lfo1:enabled","1");set("ch0:lfo1:shape","6");render(16);
+    assert(field_get("ch0:lfo1:shape")==6);assert(field_get("ch0:synth:cutoff")==20);
+    assert(field_get("ch0:synth:cutoff:effective")>=51&&field_get("ch0:synth:cutoff:effective")<=52);
+    set("ch0:midi_fx1:bypassed","1");render(16);assert(field_get("ch0:synth:cutoff:effective")==20);
+    set("ch0:midi_fx1:bypassed","0");render(16);assert(field_get("ch0:synth:cutoff:effective")>50);
+    /* Both slots can address one parameter; clearing one preserves the other. */
+    set("ch0:lfo2:shape","7");set("ch0:lfo2:target","synth");set("ch0:lfo2:target_param","cutoff");
+    set("ch0:lfo2:depth","0.25");set("ch0:lfo2:polarity","1");set("ch0:lfo2:enabled","1");render(16);
+    assert(field_get("ch0:synth:cutoff:effective")>=35&&field_get("ch0:synth:cutoff:effective")<=36);
+    set("ch0:lfo1:enabled","0");render(16);assert(field_get("ch0:synth:cutoff:effective")>=4&&field_get("ch0:synth:cutoff:effective")<=5);
+    set("ch0:lfo2:enabled","0");render(16);assert(field_get("ch0:synth:cutoff:effective")==20);
+    char saved[131072];assert(api->get_param(instance,"ch0:midi_fx1:state",saved,sizeof(saved))>0);
+    set("ch0:lfo1:shape","0");set("ch0:lfo2:shape","0");set("ch0:midi_fx1:state",saved);render(16);
+    assert(field_get("ch0:lfo1:shape")==6&&field_get("ch0:lfo2:shape")==7);
+    set("ch0:lfo1:enabled","1");render(16);
+    assert(api->get_param(instance,"ch0:midi_fx1:state",saved,sizeof(saved))>0);
+    set("ch0:midi_fx1:module","none");render(16);assert(field_get("ch0:synth:cutoff:effective")==20);
+    set("ch0:midi_fx1:module","harmonybus");render(16);set("ch0:midi_fx1:state",saved);render(16);
+    assert(field_get("ch0:lfo1:shape")==6&&field_get("ch0:synth:cutoff:effective")>50);
+    set("ch0:lfo1:enabled","0");
+    set("ch0:lfo1:shape","0");set("ch0:lfo2:shape","0");render(16);
+    assert(field_get("ch0:lfo1:shape")==0&&field_get("ch0:synth:cutoff:effective")==20);
+    puts("Field LFOs: real Movy source selection, two routes, bypass/resume, save/restore and stock waveform return pass");
+}
 static void test_shared_context(void){
     char state[65536],view[2048];
     set("ch0:midi_fx1:performance_reset","1");
@@ -445,5 +477,6 @@ int main(int argc,char **argv){
     api->get_param(instance,"status",status,sizeof(status));assert(strstr(status," aprof=0,")&&strstr(status," rprof=0,"));
     test_source_weaving();
     test_diagnostic_tone();
+    test_field_lfos();
     api->destroy_instance(instance);return 0;
 }
