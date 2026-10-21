@@ -50,7 +50,9 @@ impl Engine {
                 });
                 let value=if own.is_some() {borrowed} else {None}.unwrap_or_else(||
                     own.map_or(track.lane_base[lane],|(slot,step,_)|track.clips[slot].effective_at(lane as u8,step,track.lane_base[lane])));
-                if routed && own.is_some() {managed |= 1<<lane;}
+                // A muted actor must keep its base until unmuted; otherwise
+                // the ordinary muted-track scheduler can reapply its locks.
+                if routed && self.tracks[actor].playing_slot.is_some_and(|slot|self.tracks[actor].clips[slot].exists()) {managed |= 1<<lane;}
                 if track.auto_cur[lane]!=value as i16 {
                     self.tracks[actor].auto_cur[lane]=value as i16;
                     out.push(OutEvent::Cc{track:actor as u8,lane:lane as u8,val:value});

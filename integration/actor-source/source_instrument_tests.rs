@@ -122,6 +122,19 @@ mod source_instrument_tests {
         assert!(tick(&mut engine).contains(&control(91)));
     }
     #[test]
+    fn actor_mute_keeps_base_across_own_locks_until_unmuted() {
+        let mut engine=setup(0);
+        engine.tracks[3].clips[0].set_lock(1,1,120);
+        tick(&mut engine);engine.tracks[3].muted=true;
+        assert!(tick(&mut engine).contains(&control(19)));
+        for _ in 2..=25 {
+            assert!(!tick(&mut engine).contains(&control(120)));
+            assert_eq!(engine.tracks[3].auto_cur[1],19);
+        }
+        engine.tracks[3].muted=false;
+        assert!(tick(&mut engine).contains(&control(72)));
+    }
+    #[test]
     fn instrument_routes_round_trip_and_legacy_routes_default_to_own() {
         let mut engine=setup(0);tick(&mut engine);
         let saved=crate::persist::serialize(&engine);
