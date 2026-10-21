@@ -184,3 +184,35 @@ the unused pitch-cache scaffold remain unchanged.
 Remaining: held/per-note operation selectors, additional HB categories only
 after their ownership semantics are defined, Fit to Window, and the existing
 harmonic lookahead revision/hash audit.
+
+
+## Movy 216: recorded note-operation source
+
+Refreshed main and preserved concurrent Movy 215 Clip Variation. Audited three
+existing operation representations: immutable `Note.actions`, clip-reader
+`operation_intervals`, and `grid_gates` with live hold/config ownership. Only
+`Note.actions` is routed in this increment. A single generic bounded phase-note
+reader now serves expression and note operations. The new selector copies the
+existing Actions value per accepted attack into the ordinary `emit_clip_note`
+path; HB's RecordedActions event still precedes its matching note. The destination
+continues to own grid/held state, recorded key context and note releases. Rendered
+notes bypass operation reapplication through the existing emitter.
+
+HB's recorded words encode note-relative outcomes and approach provenance;
+copying them does not copy the donor's live lane assignments, pending key actions
+or timed holds. HB continues to interpret them at the destination. Missing/muted/
+stopped donors preserve normal actor actions; empty active donors clear the
+recorded override, which does not disable the actor's live controls.
+
+Six new native regressions cover pre-note chord events, track iteration order,
+independent phase, chord ties, donor unavailability/empty material, pressure and
+release ownership, unchanged grid masks, recording, rendered pitches, native
+undo and old saves. The production-chain fixture verifies recorded Transpose +2
+on the first note and actor fallback after donor mute, with both paired releases.
+All 423 sequencer and 292 DSP tests pass, along with browser logic, 20 dedicated
+suites, device-script checks and both explicit release benchmarks. No hardware
+latency/crackle claim is made. Lookahead hashing remains unchanged.
+
+Remaining: independent timed/held-operation routing, other HB categories, Fit to
+Window and the lookahead edit/record/load revision audit. Avoid combining these
+into a generic event bus: each already has an owner that should be reused.
