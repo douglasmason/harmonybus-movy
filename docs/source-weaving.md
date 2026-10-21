@@ -29,7 +29,7 @@ per-note operations default to the destination actor's own material at its curre
 phase (velocity 100 and no per-note expression/operations when that material is
 empty). Expression Source independently overrides velocity and recorded poly-pressure;
 per-note operations remain on the destination. Instrument parameter routing is
-described below. HB parameter and operation timelines stay on their existing
+described below. Other HB parameter and operation timelines stay on their existing
 tracks; their source selectors remain future work.
 
 Expression always samples the latest eligible raw note at its source's own phase,
@@ -81,7 +81,7 @@ Source Weaving consumes the rhythm attacks that the source scheduler accepts.
 Native `source_route_<zero-based actor>` returns the persisted route, and
 `source_diagnostics` returns JSON with resolved source identities, active state,
 loop positions, speed ratios and active gate counts. The sources array is ordered
-pitch, rhythm, expression, instrument. These reads are on demand.
+pitch, rhythm, expression, instrument, HB render. These reads are on demand.
 The normal Joint settings metadata also exposes the controls to compatible remote
 surfaces.
 
@@ -136,3 +136,36 @@ The runtime retains only a step/launch/availability watermark to schedule reads.
 It stores no second parameter values or raw-clip cache: applied values remain in
 `auto_cur`, and values are resolved through `Clip::effective_at`. Lookahead
 hashing and the old pitch-cache scaffold remain unchanged.
+
+## HB render automation sources (Movy 214)
+
+The **Source Automation** panel now also provides **HB Render Source** and
+**HB Render Clip**, independently of Instrument Source. Assign matching HB
+parameters to automation lanes on the donor and actor. Supported targets are
+`midi_fx1:chord_form`, `chord_quality`, `chromatic_quality`, `chord_inversion`,
+`chord_voicing`, `chord_extensions`, `render_velocity_percent`, `arp_gate` and
+`strum_spread` (each with the `midi_fx1:` prefix).
+
+These are local rendering settings. Shared key/harmony, role/routing, chord mode,
+arp playback/rate/hold, reset/clear actions and held/per-note operation controls
+remain with their existing owners. This selector does not borrow those lanes.
+Existing held notes retain their note-off and pressure ownership; changing a
+render setting affects subsequent rendering through HarmonyBus's existing logic.
+
+HB render automation uses the same lock reader and applied-value owner as
+instrument automation, with an independent donor clock, phase and loop length.
+Source changes and relaunches resolve the selected raw clip on the next tick.
+Unequal loops continue independently; alignment does not stretch automation.
+Both categories resolve before notes, including during rests. Missing/muted/
+stopped donors or unmatched lanes fall back to the actor's own timeline;
+actor stop/mute restores its base. Recording the actor bypasses both selectors.
+Own/Off restores the actor timeline. Save/load and native/UI undo include the new
+route; seven-, nine- and eleven-field saves default HB Render Source to Own.
+
+No duplicate parameter or harmonic state, interpolation or new material cache
+is introduced. Operation-source routing, other HB categories, Fit to Window and
+the lookahead revision audit remain future work. Validation includes 413
+sequencer tests, 292 DSP tests, dedicated browser suites and the production
+Movy → Schwung → HarmonyBus fixture checking render velocity before the first
+note, mute fallback, base restoration and paired releases. The two scheduler
+benchmarks run explicitly in release mode. No physical device testing is implied.

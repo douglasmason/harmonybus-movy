@@ -149,3 +149,38 @@ of track indices or playback speeds, including when there is no rhythm attack.
 Remaining: independent HB-parameter selectors (with target/category semantics),
 per-note/held operation selectors and Fit to Window. Instrument routing does not
 solve those lifecycles or the harmonic revision/hash audit.
+
+
+## Movy 214: independent HB render automation
+
+Audited HarmonyBus a360d2f4a0331e6778a128638c39252865b195b8 setters before
+selecting targets. Chord form/quality/chromatic quality/inversion/voicing/
+extensions, render velocity percent, arp gate and strum spread update local
+render configuration. Chord mode and arp playback flush/restart note state;
+arp rate reschedules runtime timing; hold/clear and operation parameters own
+latches or gestures; key/context parameters can mutate shared harmony. Those
+categories are deliberately excluded from this increment. No HarmonyBus DSP
+change is needed.
+
+`source_automation.rs` generalizes the instrument engine with two donor phase
+watermarks and one managed-lane mask. `automation_dimension` is an explicit
+allowlist for HB rendering; exact target matching and `Clip::effective_at`
+remain the readers, `auto_cur` remains the sole applied-value owner. No copied
+lanes, recursive donor routes, harmonic state or persistent raw pointers.
+Stop/mute/record/launch/edit invalidation is shared with instrument routing.
+Routes add an optional final track/slot pair; old 7/9/11-field routes remain
+valid. Diagnostics append HB render after instrument. Source Automation has
+independent instrument and HB selectors; all four controls use existing undo.
+
+New native regressions cover separate donors on either side of the actor index,
+automation-before-note ordering, unequal clocks through rests, category
+exclusions, route switching, donor stop, actor mute/record, releases and old
+save parsing. The actual production-chain fixture confirms HB's 400% velocity
+render reaches the first note, mute restores the actor lock, transport stop
+restores base and the note-off pairs. Existing instrument lifecycle and all
+previous pitch/rhythm/expression regressions still pass. Lookahead hashing and
+the unused pitch-cache scaffold remain unchanged.
+
+Remaining: held/per-note operation selectors, additional HB categories only
+after their ownership semantics are defined, Fit to Window, and the existing
+harmonic lookahead revision/hash audit.

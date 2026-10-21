@@ -17,25 +17,25 @@ def patch_source_routing(root: Path) -> None:
     pub source_routes: [crate::source_route::Route; NUM_TRACKS],
     source_cursors: [crate::source_route::Cursor; NUM_TRACKS],
     source_positions: [u32; NUM_TRACKS],
-    source_instrument_seen: [Option<crate::source_route::InstrumentPhase>; NUM_TRACKS],
-    source_instrument_mask: [u8; NUM_TRACKS],''')
+    source_automation_seen: [Option<crate::source_route::AutomationPhase>; NUM_TRACKS],
+    source_automation_mask: [u8; NUM_TRACKS],''')
     source = replace_once(source, '            hb_weave:', '''            source_routes: [Default::default(); NUM_TRACKS],
             source_cursors: [Default::default(); NUM_TRACKS],
             source_positions: [0; NUM_TRACKS],
-            source_instrument_seen: [None; NUM_TRACKS],
-            source_instrument_mask: [0; NUM_TRACKS],
+            source_automation_seen: [None; NUM_TRACKS],
+            source_automation_mask: [0; NUM_TRACKS],
             hb_weave:''')
     source = replace_once(source, '                if let Some(slot) = t.queued_slot.take() {', '''                if let Some(slot) = t.queued_slot.take() {
-                    self.source_instrument_seen.fill(None);
+                    self.source_automation_seen.fill(None);
                     for actor in 0..NUM_TRACKS {
                         if actor==index || self.source_cursors[actor].source.is_some_and(|source|source.track==index) {
                             self.source_cursors[actor]=Default::default();
                         }
                     }''')
-    source = replace_once(source, '    fn start_transport(&mut self) {', '    fn start_transport(&mut self) {\n        self.source_cursors.fill(Default::default());\n        self.source_instrument_seen.fill(None);')
+    source = replace_once(source, '    fn start_transport(&mut self) {', '    fn start_transport(&mut self) {\n        self.source_cursors.fill(Default::default());\n        self.source_automation_seen.fill(None);')
     source = replace_once(source, '        if self.count_in_left == 0 {\n            for ti in 0..NUM_TRACKS {', '''        if self.count_in_left == 0 {
             for ti in 0..NUM_TRACKS { self.source_positions[ti]=self.tracks[ti].pos_tick; }
-            self.source_instrument_tick(out);
+            self.source_automation_tick(out);
             for ti in 0..NUM_TRACKS {''')
     source = source.replace('if self.gates[gi].track == ti as u8 {', 'if self.gates[gi].clock_track == ti as u8 {')
     source = source.replace('if self.gates[gi].track==ti as u8 {', 'if self.gates[gi].clock_track==ti as u8 {')
@@ -72,27 +72,28 @@ impl Engine {
     source = replace_once(source, '                // Advance + wrap inside the loop window', '''                if let Some(duration)=source_duration { self.source_attack(ti,slot,duration,out); }
                 // Advance + wrap inside the loop window''')
     source = replace_once(source, '    pub fn stop(&mut self, out: &mut Vec<OutEvent>) {',
-        '    pub fn stop(&mut self, out: &mut Vec<OutEvent>) {\n        self.source_instrument_release(out);')
+        '    pub fn stop(&mut self, out: &mut Vec<OutEvent>) {\n        self.source_automation_release(out);')
     source = replace_once(source, '            let base = self.tracks[track].lane_base[lane as usize];',
-        '            if self.source_instrument_mask[track] & (1 << lane) != 0 {continue;}\n            let base = self.tracks[track].lane_base[lane as usize];')
+        '            if self.source_automation_mask[track] & (1 << lane) != 0 {continue;}\n            let base = self.tracks[track].lane_base[lane as usize];')
     for signature, notification in (
-        ('pub fn auto_label(&mut self, track: usize, lane: usize, label: &str) {', 'self.source_instrument_edited(track,lane,None);'),
-        ('pub fn auto_base(&mut self, track: usize, lane: usize, val: u8, out: &mut Vec<OutEvent>) {', 'self.source_instrument_edited(track,lane,Some(val));'),
-        ('pub fn auto_base_quiet(&mut self, track: usize, lane: usize, val: u8) {', 'self.source_instrument_edited(track,lane,Some(val));'),
-        ('pub fn auto_set(&mut self, track: usize, lane: usize, step: u16, val: u8, out: &mut Vec<OutEvent>) {', 'self.source_instrument_edited(track,lane,Some(val));'),
-        ('pub fn auto_set_range(&mut self, track: usize, lane: usize, s0: u16, s1: u16, val: u8, out: &mut Vec<OutEvent>) {', 'self.source_instrument_edited(track,lane,Some(val));'),
-        ('pub fn auto_clear(&mut self, track: usize, lane: usize) {', 'self.source_instrument_invalidate();'),
+        ('pub fn auto_label(&mut self, track: usize, lane: usize, label: &str) {', 'self.source_automation_edited(track,lane,None);'),
+        ('pub fn auto_base(&mut self, track: usize, lane: usize, val: u8, out: &mut Vec<OutEvent>) {', 'self.source_automation_edited(track,lane,Some(val));'),
+        ('pub fn auto_base_quiet(&mut self, track: usize, lane: usize, val: u8) {', 'self.source_automation_edited(track,lane,Some(val));'),
+        ('pub fn auto_set(&mut self, track: usize, lane: usize, step: u16, val: u8, out: &mut Vec<OutEvent>) {', 'self.source_automation_edited(track,lane,Some(val));'),
+        ('pub fn auto_set_range(&mut self, track: usize, lane: usize, s0: u16, s1: u16, val: u8, out: &mut Vec<OutEvent>) {', 'self.source_automation_edited(track,lane,Some(val));'),
+        ('pub fn auto_clear(&mut self, track: usize, lane: usize) {', 'self.source_automation_invalidate();'),
     ):
         source = replace_once(source, signature, signature + '\n        ' + notification)
-    source += helper + '\n' + (assets / 'source_engine.rs').read_text() + '\n' + (assets / 'source_instrument.rs').read_text()
+    source += helper + '\n' + (assets / 'source_engine.rs').read_text() + '\n' + (assets / 'source_automation.rs').read_text()
     tests: Path = assets / 'source_engine_tests.rs'
     if tests.exists():
         source += '\n' + tests.read_text()
     source += '\n' + (assets / 'source_instrument_tests.rs').read_text()
+    source += '\n' + (assets / 'source_hb_tests.rs').read_text()
     path.write_text(source)
     path = core / 'command.rs'
     source = path.read_text()
-    source = replace_once(source, '            apply_op(engine, op, out);', '            apply_op(engine, op, out);\n            if is_undoable_edit(verb) || verb=="uswap" {engine.source_instrument_invalidate();}')
+    source = replace_once(source, '            apply_op(engine, op, out);', '            apply_op(engine, op, out);\n            if is_undoable_edit(verb) || verb=="uswap" {engine.source_automation_invalidate();}')
     source = replace_once(source, '| "mute" | "bpm" | "swing"', '| "mute" | "bpm" | "swing" | "source"')
     source = replace_once(source, '        "swing" => {', '        "source" => { engine.source_route_set(&it.collect::<Vec<_>>().join(" ")); }\n        "swing" => {')
     path.write_text(source)
@@ -102,7 +103,7 @@ impl Engine {
         if *route != Default::default() {s.push_str(&format!("sr {}\\n",route.message(actor)));}
     }
     for (ti, t) in engine.tracks.iter().enumerate() {''')
-    source = replace_once(source, '    engine.host_transport_attached = false;', '    engine.host_transport_attached = false;\n    engine.source_routes.fill(Default::default());\n    engine.source_instrument_invalidate();')
+    source = replace_once(source, '    engine.host_transport_attached = false;', '    engine.host_transport_attached = false;\n    engine.source_routes.fill(Default::default());\n    engine.source_automation_invalidate();')
     source = replace_once(source, '            Some("swing") => {', '            Some("sr") => {engine.source_route_set(&it.collect::<Vec<_>>().join(" "));}\n            Some("swing") => {')
     path.write_text(source)
     # A configured source route replaces the clip side of Joint Follow/Guide,
@@ -159,4 +160,4 @@ impl Engine {
     # Match the new native source-routing contract on both sides of the bridge.
     for relative in ('src/seq/constants.ts', 'engine/crates/movy-dsp/src/lib.rs'):
         path = root / relative
-        path.write_text(path.read_text().replace('0.71.0-hb209-field5', '0.71.0-hb213-instrument1'))
+        path.write_text(path.read_text().replace('0.71.0-hb209-field5', '0.71.0-hb214-hbrender1'))
