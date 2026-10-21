@@ -233,6 +233,22 @@ static void test_source_weaving(void){
     set("cmd","play");energy=render(240);set("cmd","stop");render(32);
     source_velocity_check=0;
     assert(energy>0&&sent_on==3&&sent_off==3&&rendered_mask==((1u<<0)|(1u<<4)|(1u<<7)));
+    /* Parameter target matching reaches the production chain before note-on. */
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 2 0 0\ntk 3 0 0\ncl 0 0 16 0 \ncl 2 0 16 0 0:48:36:100:0\ncl 3 0 16 0 0:48:60:100:0\nsr 3 1 -1 -1 2 0 0 -1 -1 0 0\n");
+    render(16);
+    set("ch0:knob_6_set","synth:cutoff");set("ch3:knob_2_set","synth:cutoff");
+    char parameter_view[8192];
+    api->get_param(instance,"ch3:chain_params",parameter_view,sizeof(parameter_view));
+    set("cmd","alabel 0 5 synth:cutoff;abase 0 5 33;aset 0 5 0 91;alabel 3 1 synth:cutoff;abase 3 1 19;aset 3 1 0 44");render(16);
+    sent_on=sent_off=0;set("cmd","play");energy=render(16);
+    api->get_param(instance,"ch3:synth:cutoff",parameter_view,sizeof(parameter_view));
+    fprintf(stderr,"instrument borrowed cutoff=%s\n",parameter_view);assert(atoi(parameter_view)==91);
+    api->get_param(instance,"ch3:synth:attack_cutoff",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==91);
+    set("cmd","mute 0 1");render(16);
+    api->get_param(instance,"ch3:synth:cutoff",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==44);
+    set("cmd","stop");render(32);
+    api->get_param(instance,"ch3:synth:cutoff",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==19);
+    assert(energy>0&&sent_on==1&&sent_off==1);
     /* Existing conductor-chord generation consumes the woven trigger directly.
        Root Only and Triad exercise bass and comp without another harmony state. */
     set("ch0:midi_fx1:role","Conductor");set("ch0:midi_fx1:chord_mode","Off");

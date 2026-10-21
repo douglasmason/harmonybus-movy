@@ -7,7 +7,7 @@ impl Engine {
             if actor>0 {text.push(',');}
             let route=self.source_routes[actor];
             write!(&mut text,"{{\"actor\":{},\"enabled\":{},\"timeline\":{},\"gates\":{},\"sources\":[",actor,route.enabled,route.timeline,self.gates.iter().filter(|gate|gate.track as usize==actor).count()).unwrap();
-            for (dimension,configured) in [route.pitch,route.rhythm,route.expression].into_iter().enumerate() {
+            for (dimension,configured) in [route.pitch,route.rhythm,route.expression,route.instrument].into_iter().enumerate() {
                 if dimension>0 {text.push(',');}
                 let resolved=configured.or_else(||self.tracks[actor].playing_slot.map(|slot|crate::source_route::ClipRef{track:actor,slot}));
                 if let Some(reference)=resolved {
@@ -28,6 +28,7 @@ impl Engine {
             if previous.pitch!=route.pitch || previous.rhythm!=route.rhythm || previous.timeline!=route.timeline || previous.enabled!=route.enabled {
                 self.source_cursors[actor]=Default::default();
             }
+            self.source_instrument_seen[actor]=None;
             self.source_routes[actor]=route;
             self.dirty=true;
         }
