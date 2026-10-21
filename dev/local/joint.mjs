@@ -97,6 +97,13 @@ function release(){
  for(const slot of [...heldKnobs]){heldKnobs.delete(slot);midi(128,slot,0);knobs[slot].dataset.held='false';}
 }
 document.querySelector('#release').onclick=release;
+document.querySelector('#play').onclick=()=>send({type:'dev_transport',action:'play'});
+document.querySelector('#stop').onclick=()=>{release();send({type:'dev_transport',action:'stop'});};
+document.querySelector('#record').onclick=()=>{
+ const command=joint.jointRecordCommand();if(!command)return;
+ const [,mask,overwrite]=command.split(' ').map(Number);
+ send({type:'dev_transport',action:'record',mask,overwrite});
+};
 window.addEventListener('blur',release);document.addEventListener('visibilitychange',()=>{if(document.hidden)release();});
 window.addEventListener('pagehide',()=>{release();socket.close();});
 socket.onclose=()=>{connected=false;release();clearInterval(timer);status.textContent='Disconnected — reload to reconnect';};
@@ -109,6 +116,10 @@ const panel=document.querySelector('#panel');panel.onchange=()=>jointPage().goTo
 let signature='',watchSignature='';
 const timer=setInterval(()=>{
  if(!connected||document.hidden)return;
+ const transport=Object.fromEntries(String(cache.get('status')??'').split(' ').map(field=>field.split('=')));
+ seqState.playing=transport.play==='1';seqState.recording=transport.rec==='1';seqState.countingIn=transport.cin==='1';
+ document.querySelector('#transport').textContent=seqState.countingIn?'Count-in':seqState.recording?'Recording':seqState.playing?'Playing':'Stopped';
+ document.querySelector('#record').setAttribute('aria-pressed',String(seqState.recording||seqState.countingIn));
  ledFrameReset();joint.syncJoint(write);joint.paintJointPads();joint.renderJoint();
  const stepMode=joint.jointStepMode();if(stepMode)paintHbPerformance();
  document.querySelector('#step-mode').textContent=stepMode===0?'Step sequencing is not available in this host.':stepMode===1?'Operator buttons':'Motif buttons';
