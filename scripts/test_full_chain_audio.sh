@@ -32,3 +32,9 @@ JSON
 cc -O1 -I"$SCHWUNG_SOURCE/src" "$INTEGRATION_ROOT/tests/full_chain_audio.c" -ldl -o "$FIXTURE_ROOT/full-chain-test"
 cargo build --manifest-path "$MOVY_SOURCE/engine/Cargo.toml" -p movy-dsp
 "$FIXTURE_ROOT/full-chain-test" "$MOVY_SOURCE/engine/target/debug/libmovy_dsp.so" "$FIXTURE_ROOT" restored
+
+# Export the verified chain fixture for the local development host.
+if [[ -n "${HB_DEV_OUTPUT:-}" ]]; then
+  mkdir -p "$HB_DEV_OUTPUT"
+  cp -a "$FIXTURE_ROOT/." "$HB_DEV_OUTPUT/"
+fi
