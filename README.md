@@ -511,3 +511,11 @@ The optional Chord + Arp Mode settings duplicate was removed to fit these contro
 its Shift-turn shortcut on Harm Play Controls remains available.
 Shift-touch/turn Key Center shows its scale-choice list; Parallel Scale and Dominant
 Color shortcuts also show their choices. Pad settings remain under Shift + Step 9.
+
+## Develop without a physical Move
+
+The [native development host](dev/local/README.md) runs the production Movy,
+Schwung chain, and HarmonyBus processor locally. It includes a pad/MIDI panel,
+the existing Movy display and knobs, and the production Field Outputs page.
+Start with `bash dev/local/setup.sh`, then `node dev/local/server.mjs`.
+Musical/API and browser regressions run in the Native HB development host workflow.
