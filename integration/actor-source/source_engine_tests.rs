@@ -197,6 +197,115 @@ mod source_routing_tests {
         assert_eq!(engine.source_routes,restored.source_routes);
     }
     #[test]
+    fn expression_donor_changes_velocity_pressure_but_not_actions_or_pitch_cursor() {
+        let mut engine=setup();
+        engine.tracks[0].clips[0].add_note_raw(0,0,48,90,42);
+        engine.tracks[0].clips[0].notes[0].pressure=vec![(0,21),(2,77)];
+        let destination_actions=Some([0;crate::recorded_actions::LANES+1]);
+        let mut donor_actions=[0;crate::recorded_actions::LANES+1];donor_actions[0]=123;
+        engine.tracks[3].clips[0].notes[0].actions=destination_actions;
+        engine.tracks[0].clips[0].notes[0].actions=Some(donor_actions);
+        assert!(engine.source_route_set("3 1 1 0 2 0 0 0 0"));
+        let output=tick(&mut engine);
+        for pitch in [60,64] {
+            assert!(output.contains(&OutEvent::NoteOn{track:3,pitch,vel:42}));
+            let attack=output.iter().position(|event|*event==OutEvent::NoteOn{track:3,pitch,vel:42}).unwrap();
+            let pressure=output.iter().position(|event|*event==OutEvent::PolyPressure{track:3,pitch,value:21}).unwrap();
+            assert!(attack<pressure);
+            assert!(output.contains(&OutEvent::RecordedActions{track:3,pitch,actions:destination_actions}));
+        }
+        engine.source_route_set("3 1 1 0 2 0 0 -1 -1");
+        engine.tracks[0].clips[0].notes.clear();
+        engine.tracks[0].playing_slot=None;
+        for position in 1..=96 {
+            let output=tick(&mut engine);
+            if position==2 {assert!(output.contains(&OutEvent::PolyPressure{track:3,pitch:60,value:77}));}
+            if position==24 {assert!(output.contains(&OutEvent::NoteOff{track:3,pitch:60}));}
+            if position==96 {assert!(output.contains(&OutEvent::NoteOn{track:3,pitch:67,vel:100}));}
+        }
+    }
+    #[test]
+    fn expression_samples_independent_phase_and_wrap_without_track_order_dependency() {
+        for donor in [0,4] {
+            let mut engine=setup();
+            engine.tracks[donor].playing_slot=Some(0);
+            let clip=&mut engine.tracks[donor].clips[0];
+            clip.set_clip_length(4);
+            clip.scale_num=2;
+            clip.add_note_raw(0,0,24,90,42);
+            clip.add_note_raw(2,48,24,91,73);
+            // At donor phase 46 the shared snapshot must select 42, even if
+            // a lower-numbered donor advances to 48 before the rhythm attack.
+            engine.tracks[donor].pos_tick=46;
+            engine.source_route_set(&format!("3 1 1 0 2 0 0 {donor} 0"));
+            assert!(tick(&mut engine).contains(&OutEvent::NoteOn{track:3,pitch:60,vel:42}));
+            for _ in 1..96 {tick(&mut engine);}
+            assert!(tick(&mut engine).contains(&OutEvent::NoteOn{track:3,pitch:67,vel:42}));
+            engine.tracks[2].clips[0].add_note_raw(8,192,24,36,100);
+            for _ in 97..192 {tick(&mut engine);}
+            engine.tracks[donor].pos_tick=70;
+            assert!(tick(&mut engine).contains(&OutEvent::NoteOn{track:3,pitch:60,vel:73}));
+        }
+    }
+    #[test]
+    fn unavailable_expression_does_not_consume_pitch_and_empty_expression_is_neutral() {
+        for unavailable in 0..3 {
+            let mut engine=setup();
+            engine.source_route_set("3 1 1 0 2 0 0 0 0");
+            match unavailable {
+                0=>engine.tracks[0].muted=true,
+                1=>engine.tracks[0].playing_slot=None,
+                _=>engine.tracks[0].playing_slot=Some(1),
+            }
+            assert!(ons(&tick(&mut engine)).is_empty());
+            engine.tracks[0].muted=false;engine.tracks[0].playing_slot=Some(0);
+            for _ in 1..96 {tick(&mut engine);}
+            let output=tick(&mut engine);
+            assert_eq!(ons(&output),vec![60,64]);
+            assert!(output.contains(&OutEvent::NoteOn{track:3,pitch:60,vel:100}));
+        }
+    }
+    #[test]
+    fn expression_pressure_uses_rhythm_clock_and_recording_keeps_own_path() {
+        let mut engine=setup();
+        engine.tracks[0].clips[0].add_note_raw(0,0,48,90,42);
+        engine.tracks[0].clips[0].notes[0].pressure=vec![(4,77),(30,99)];
+        engine.tracks[0].clips[0].scale_den=2;
+        engine.tracks[2].clips[0].scale_num=2;
+        engine.tracks[3].clips[0].scale_den=2;
+        engine.source_route_set("3 1 1 0 2 0 0 0 0");
+        tick(&mut engine);
+        for position in 1..=20 {
+            let output=tick(&mut engine);
+            assert_eq!(output.contains(&OutEvent::PolyPressure{track:3,pitch:60,value:77}),position==2);
+            assert_eq!(output.contains(&OutEvent::NoteOff{track:3,pitch:60}),position==12);
+            assert!(!output.contains(&OutEvent::PolyPressure{track:3,pitch:60,value:99}));
+        }
+        let mut engine=setup();
+        engine.source_route_set("3 1 1 0 2 0 0 0 0");
+        engine.recording=true;engine.rec_track=3;
+        assert_eq!(ons(&tick(&mut engine)),vec![30]);
+    }
+    #[test]
+    fn expression_routes_persist_undo_and_validate_atomically() {
+        let mut engine=setup();
+        engine.source_route_set("3 1 1 0 2 0 0 0 0");
+        let saved=crate::persist::serialize(&engine);
+        let mut restored=Engine::new(48000,12000);
+        assert!(crate::persist::load(&mut restored,&saved));
+        assert_eq!(engine.source_routes,restored.source_routes);
+        let original=engine.source_routes;
+        for invalid in ["3 1 1 0 2 0 0 16 0","3 1 1 0 2 0 0 0 8","3 1 1 0 2 0 0 -1 0","3 1 1 0 2 0 0 0","3 1 1 0 2 0 0 0 0 0"] {
+            assert!(!engine.source_route_set(invalid));assert_eq!(engine.source_routes,original);
+        }
+        // Loading the previous snapshot is the existing native undo mechanism.
+        engine.source_route_set("3 1 1 0 2 0 0 1 0");
+        assert!(crate::persist::load(&mut engine,&saved));
+        assert_eq!(engine.source_routes,original);
+        assert!(engine.source_route_set("3 1 1 0 2 0 0"));
+        assert_eq!(engine.source_routes[3].expression,None);
+    }
+    #[test]
     #[ignore = "isolated release-mode timing measurement, not a hardware audio assertion"]
     fn source_routing_benchmark() {
         use std::time::Instant;

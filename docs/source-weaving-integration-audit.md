@@ -101,3 +101,32 @@ produced the same 11 navigation/browser assertions and stopped at the same
 a passing suite. The new workflow uses the current release's dedicated Joint,
 Session, Field and Grid checks plus the full upstream logic suite, rather than
 claiming this legacy harness passes.
+
+## Expression increment (Movy 212, based on main 211 / HB 288)
+
+The expression selector reuses `Clip::Note.vel` and `Note.pressure`, the bounded
+raw note reader, and `emit_clip_note`/`Gate`. It adds no automation lane, parameter
+state, cache or harmonic authority. `source_positions` samples donor phase before
+track iteration; pressure is captured per attack and runs in rhythm-clock ticks.
+The route appends two optional fields, retaining the seven-field legacy parser.
+Expression-only edits do not reset the pitch cursor. Destination automation,
+grid and shared-context preparation still precede every borrowed attack.
+
+Further timeline audit against the generated current source:
+
+| Dimension | Reusable representation / reader | Work still required |
+| --- | --- | --- |
+| Velocity / pressure | Raw `Note.vel`, `Note.pressure`; existing gate pressure playback | Implemented independent donor; no continuous donor pressure streaming |
+| Instrument automation | `Clip.locks`, `lock_at`, `Engine::emit_automation`, `OutEvent::Cc` | Resolve lane destination identity, base/reset semantics and stop/switch restoration before borrowing |
+| HB parameter automation | Same numbered lock lanes and downstream CC dispatch | Distinguish HB targets from instrument targets; a lane number alone is not a portable parameter identity |
+| Recorded HB context | `Clip.shared_events`, `shared_track`, existing shared/key playback owners | Preserve conductor authority and explicit release ownership; do not copy conductor state into an actor |
+| Per-note operations | `Note.actions`, `RecordedActions`, existing emission helper | Remain destination-owned; a future independent selector must preserve note-relative mapping |
+| Held operations / clip readers | `Clip.operation_intervals`, `Interval::window`, grid gates and existing performance owners | Define donor-clock interval sampling and switch/stop release before routing |
+
+Rechecked `patch_loop_bridge.py`, `integration/hb_loop.rs` and HB's
+`src/clip_timeline_cache.h`: snapshot hashing and the harmonic timeline cache are
+still the existing path. The hash includes musical notes, locks and operation
+intervals but does not constitute an expression-pressure revision. Expression
+reads therefore remain bounded direct reads at attacks. No old scaffold cache is
+activated, and no claim is made that the edit/record/load invalidation audit or
+hashing optimization is complete.

@@ -23,7 +23,7 @@ concurrency:
   group: source-weaving-${{ github.ref }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.210
+  SOURCE_VERSION: 0.34.1-hbclean.212
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -41,7 +41,7 @@ jobs:
           git clone https://github.com/DimaDake/schwung-movy.git movy
           git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
           git clone https://github.com/douglasmason/harmonybus.git harmonybus
-          git -C harmonybus checkout 59c6d04d9c7a772f6fb2b6c222ba297801de5029
+          git -C harmonybus checkout a360d2f4a0331e6778a128638c39252865b195b8
           git clone https://github.com/charlesvestal/schwung.git schwung
           git -C schwung checkout a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
           python3 scripts/apply_clean_harmonybus.py movy
@@ -93,7 +93,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: source-weaving-210
+          name: source-weaving-212
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -104,7 +104,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Source Weaving" --notes-file docs/source-weaving.md
+          mkdir verified-upload
+          gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
+          (cd verified-upload && sha256sum -c ../SHA256SUMS)
           git fetch origin main
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo 'Main moved concurrently; installer unchanged'; exit 1; }
           git switch -C installer-pointer origin/main
           python3 - <<'PY'
           import json
@@ -112,7 +116,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.209':
+          if metadata['version'] != '0.34.1-hbclean.211':
               raise SystemExit('Installer moved concurrently; leave it unchanged for review')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')

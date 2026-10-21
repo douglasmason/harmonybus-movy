@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 static int sent_on,sent_off,rejected;
+static int source_velocity_check;
 static int capture_edges,edge_count,edges[128];
 static int move_play_presses,move_play_releases;
 static unsigned rendered_mask;
@@ -23,7 +24,7 @@ static int send_packet(const uint8_t *packet,int length){
         assert(edge_count<128);
         edges[edge_count++]=(packet[1]&0xf0)==0x90&&packet[3]?1:0;
     }
-    if((packet[1]&0xf0)==0x90&&packet[3]){sent_on++;rendered_mask|=1u<<(packet[2]%12);}
+    if((packet[1]&0xf0)==0x90&&packet[3]){if(source_velocity_check)assert(packet[3]==source_velocity_check);sent_on++;rendered_mask|=1u<<(packet[2]%12);}
     if((packet[1]&0xf0)==0x80||((packet[1]&0xf0)==0x90&&!packet[3]))sent_off++;
     return 4;
 }
@@ -225,6 +226,12 @@ static void test_source_weaving(void){
     render(16);sent_on=sent_off=0;rendered_mask=0;
     set("cmd","play");long energy=render(240);set("cmd","stop");render(32);
     fprintf(stderr,"source melody: pcm=%ld on=%d off=%d mask=%u\n",energy,sent_on,sent_off,rendered_mask);
+    assert(energy>0&&sent_on==3&&sent_off==3&&rendered_mask==((1u<<0)|(1u<<4)|(1u<<7)));
+    /* Independent raw expression donor through the actual MIDI/HB/audio chain. */
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 1 0 0\ntk 2 0 0\ntk 3 0 0\ncl 0 0 16 0 0:48:90:42:0\ncl 1 0 16 0 0:48:60:100:0;0:48:64:80:0;192:48:67:90:8\ncl 2 0 16 0 0:24:36:100:0;96:24:36:100:4\ncl 3 0 16 0 0:24:30:100:0\nsr 3 1 1 0 2 0 0 0 0\n");
+    render(16);sent_on=sent_off=0;rendered_mask=0;source_velocity_check=42;
+    set("cmd","play");energy=render(240);set("cmd","stop");render(32);
+    source_velocity_check=0;
     assert(energy>0&&sent_on==3&&sent_off==3&&rendered_mask==((1u<<0)|(1u<<4)|(1u<<7)));
     /* Existing conductor-chord generation consumes the woven trigger directly.
        Root Only and Triad exercise bass and comp without another harmony state. */

@@ -132,4 +132,4 @@ impl Engine {
     # Match the new native source-routing contract on both sides of the bridge.
     for relative in ('src/seq/constants.ts', 'engine/crates/movy-dsp/src/lib.rs'):
         path = root / relative
-        path.write_text(path.read_text().replace('0.71.0-hb209-field5', '0.71.0-hb211-field6'))
+        path.write_text(path.read_text().replace('0.71.0-hb209-field5', '0.71.0-hb212-expression1'))
