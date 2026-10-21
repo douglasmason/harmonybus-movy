@@ -1,0 +1,29 @@
+name: Native HB development host
+on:
+  pull_request:
+    paths:
+      - 'dev/local/**'
+      - 'scripts/**'
+      - 'integration/**'
+      - 'tests/full_chain_audio.c'
+      - '.github/workflows/local-processor.yml'
+  push:
+    branches: [dev/local-current-20261021]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-and-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build production processor and compare native/API behavior
+        run: bash dev/local/setup.sh
+      - name: Install test browser
+        run: dev/local/node_modules/.bin/playwright install --with-deps chromium --only-shell
+      - name: Exercise production browser controls
+        run: node dev/local/browser-test.cjs
