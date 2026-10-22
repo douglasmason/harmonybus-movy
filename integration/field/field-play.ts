@@ -135,6 +135,11 @@ export function showFieldRoutes(open=true):void {
     if(!fieldActive())return;
     releaseOutputs('knob');sendOutputs();setFieldRoutesOpen(open);appState.dirty=true;
 }
+function fieldReadout(value:string|null):string {
+    if(!value)return '?';
+    const numeric=Number(value);
+    return (Number.isFinite(numeric)?String(Number(numeric.toPrecision(4))):value).slice(0,8);
+}
 export function renderField():void{
     if(routesOpen){
         clear_screen();const snapshot=fieldRoutesSnapshot(),route=selectedFieldRoute();
@@ -143,9 +148,9 @@ export function renderField():void{
             fontPrint(2,14,`F${route.channel} ${Math.round(outputs[route.channel-1].value*100)}% > T${route.track+1} LFO${route.slot}`,1);
             fontPrint(2,24,`${route.target||'No target'} ${route.parameter}`.slice(0,25),1);
             fontPrint(2,34,`${fieldRouteStatus(route)} ${Math.round(route.depth*100)}% ${route.bipolar?'Bi':'Uni'}`,1);
-            fontPrint(2,44,`${route.base??'?'} > ${route.effective??'?'}`.slice(0,25),1);
+            fontPrint(2,44,`B ${fieldReadout(route.base)} > E ${fieldReadout(route.effective)}`,1);
         }else fontPrint(2,24,snapshot.scanned<snapshot.total?'Scanning routes...':'No Field LFO routes',1);
-        fontPrint(2,56,'Jog: browse  Press: edit',1);return;
+        fontPrint(2,56,'Jog: route Press: LFO',1);return;
     }
     if(outputView&&!settingsOpen){
         clear_screen();drawHeader('Field Outputs',latchMode?'Latch':'Momentary');
