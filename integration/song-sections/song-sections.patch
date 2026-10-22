@@ -1,0 +1,1090 @@
+diff --git a/browser-test/hb-song-sections.mjs b/browser-test/hb-song-sections.mjs
+new file mode 100644
+index 00000000..8b10a04a
+--- /dev/null
++++ b/browser-test/hb-song-sections.mjs
+@@ -0,0 +1,99 @@
++import assert from 'node:assert/strict';
++import {readFileSync} from 'node:fs';
++import {installEnv} from './env.mjs';
++installEnv();await import('../dist/esm/app/globals.js');
++const {installMockEngine}=await import('./mock-engine.mjs');
++const {seqEngineTick,resetSeqEngine}=await import('../dist/esm/seq/engine.js');
++const {seqState,resetSeqState}=await import('../dist/esm/seq/state.js');
++const {installEditGuard,setUndoStrict}=await import('../dist/esm/undo/record.js');
++const panel=await import('../dist/esm/seq/section-panels.js');
++const {jointHierarchy}=await import('../dist/esm/seq/joint-panels.js');
++const engine=installMockEngine();resetSeqEngine();resetSeqState();
++seqEngineTick();seqEngineTick();installEditGuard();setUndoStrict(true);
++const nativeRead=globalThis.host_module_get_param;
++let state={schema:1,editable:true,playing:false,count:3,current:{index:0,scene:0},next:null};
++let reads=0;
++globalThis.host_module_get_param=key=>{
++    if(key==='song_section'){reads++;return JSON.stringify(state);}
++    if(key==='song_section_0')return '0 0 1 8 0000100000000000';
++    if(key==='song_section_1')return '1 0 0 0 0000000000000000';
++    return nativeRead(key);
++};
++assert.equal(panel.sectionPanelGet('unrelated'),null);
++assert.equal(panel.sectionPanelGet('joint_section_bars'),'8');
++panel.sectionPanelSet('joint_section_track','5');
++assert.equal(panel.sectionPanelGet('joint_section_action'),'Keep');
++assert.equal(panel.sectionPanelGet('joint_section_state'),'Stopped - edit');
++assert.equal(panel.sectionPanelGet('joint_section_current'),'Entry 1 Scene 1');
++assert.equal(panel.sectionPanelGet('joint_section_next'),'--');
++assert.equal(reads,1,'status fields share one on-demand observation');
++const before=engine.ops.length;
++for(let read=0;read<20;read++)panel.sectionPanelGet('joint_section_current');
++assert.equal(engine.ops.length,before,'observer never sends commands');
++panel.sectionPanelSet('joint_section_bars','12');
++panel.sectionPanelSet('joint_section_action','Stop');
++assert(engine.ops.includes('songsection 0 bars 12'));
++assert(engine.ops.includes('songsection 0 track 4 2'));
++assert(engine.ops.some(op=>op.startsWith('usnap ')),'ordinary Undo snapshot owns recipe edits');
++panel.sectionPanelSet('joint_section_mode','Legacy');
++assert(engine.ops.includes('songsectionclear 0'));
++panel.sectionPanelSet('joint_section_entry','2');
++assert.equal(panel.sectionPanelGet('joint_section_mode'),'Legacy');
++panel.sectionPanelSet('joint_section_mode','Section');
++assert(engine.ops.includes('songsection 1 enable'));
++state={...state,editable:false,playing:true};
++const running=engine.ops.length;
++panel.sectionPanelSet('joint_section_bars','4');
++assert.equal(engine.ops.length,running,'playing guard also exists at the UI boundary');
++state={...state,editable:true,playing:false};
++panel.sectionPanelSet('joint_section_entry','128');
++panel.sectionPanelSet('joint_section_bars','4');
++assert.equal(engine.ops.length,running,'unbuilt entry cannot silently create clips or songs');
++panel.resetSectionPanel();
++assert.equal(panel.sectionPanelGet('joint_section_entry'),'1');
++assert.equal(panel.sectionPanelGet('joint_section_track'),'1');
++const hierarchy=jointHierarchy({levels:{root:{params:[]}}});
++assert.equal(hierarchy.levels.joint_sections.name,'Song Sections');
++assert.equal(hierarchy.levels.joint_sections.knobs.length,8);
++assert.equal(hierarchy.levels.root.params[0].level,'joint_sections');
++engine.status.song='1:0,0,1';engine.status.section='1:1:0';
++for(let tick=0;tick<10;tick++)seqEngineTick();
++assert.deepEqual(seqState.songSection,{pos:1,reps:1,terminal:false});
++const {songBandTokens,songTerminal}=await import('../dist/esm/seq/song.js');
++assert.deepEqual(songBandTokens([0,0,1],0,1000,word=>word.length,1).tokens.map(token=>token.current),[true,false,false]);
++assert.equal(songTerminal(),false,'explicit empty section uses engine terminal state');
++console.log('Song sections: shared panel, Undo grouping, stopped guard, indexed track policy, read neutrality and status parsing pass');
++
++// Exercise the production Schwung controller, not just the parameter adapter.
++const {schwungLibAvailable}=await import('../dist/esm/renderer/schwung-lib.js');
++assert(schwungLibAvailable(),'Requires the real shared controller');
++const {portFor}=await import('../dist/esm/track/registry.js');
++const {appState}=await import('../dist/esm/app/state.js');
++const {jointPage}=await import('../dist/esm/seq/joint-panels.js');
++const module=JSON.parse(readFileSync(process.env.HB_MODULE,'utf8'));
++const port=portFor(3);
++port.getParam=key=>{
++    if(key==='midi_fx1_module')return 'harmonybus';
++    const field=key.split(':').at(-1);
++    if(field==='chain_params')return JSON.stringify(module.capabilities.chain_params);
++    if(field==='ui_hierarchy')return JSON.stringify(module.capabilities.ui_hierarchy);
++    return '';
++};
++appState.focusGroup=0;
++let now=10000;Date.now=()=>now;
++const page=jointPage();assert(page.ready);
++const index=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_section_bars'));
++assert(index>=0);page.goToPage(index);
++const flush=()=>{for(let tick=0;tick<4;tick++){now+=100;page.tick();}};
++flush();
++const prior=engine.ops.length;
++page.knobTurn(1,4);flush();
++assert(engine.ops.slice(prior).includes('songsection 0 bars 9'),'Bars knob sends targeted command through shared controller');
++page.knobTurn(2,4);flush();
++assert.equal(page.performanceGet('joint_section_track'),'2');
++page.knobTurn(3,4);flush();
++assert(engine.ops.includes('songsection 0 track 1 1'),'transition knob targets selected physical track');
++const observed=engine.ops.length;
++for(const slot of [5,6,7]){page.knobTurn(slot,4);page.knobTouch(slot,true);page.knobTouch(slot,false);}
++flush();assert.equal(engine.ops.length,observed,'observation knobs are read-only');
++console.log('Song Sections: real shared controller edits Bars/Track/Transition and preserves read-only observations');
+diff --git a/build/browser.mjs b/build/browser.mjs
+index e979185e..4385deec 100644
+--- a/build/browser.mjs
++++ b/build/browser.mjs
+@@ -26,6 +26,7 @@ await esbuild.build({
+         resolve(root, 'src/seq/joint-play.ts'),
+         resolve(root, 'src/seq/joint-panels.ts'),
+         resolve(root, 'src/seq/variation-panels.ts'),
++        resolve(root, 'src/seq/section-panels.ts'),
+         resolve(root, 'src/seq/output-capture.ts'),
+         resolve(root, 'src/seq/output-wave.ts'),
+         resolve(root, 'src/surfaces/launchpad.ts'),
+diff --git a/engine/crates/movy-dsp/src/lib.rs b/engine/crates/movy-dsp/src/lib.rs
+index a6b9f746..e5839a52 100644
+--- a/engine/crates/movy-dsp/src/lib.rs
++++ b/engine/crates/movy-dsp/src/lib.rs
+@@ -618,6 +618,9 @@ impl Instance {
+              * the engine found the group changed nothing. */
+             key if key.starts_with("variation_") => key[10..].parse::<usize>().ok()
+                 .and_then(|actor|self.engine.variations.get(actor).map(|config|config.message(actor))),
++            "song_section" => Some(self.engine.song_section_snapshot()),
++            key if key.starts_with("song_section_") => key[13..].parse::<usize>().ok()
++                .and_then(|index| self.engine.song_section_message(index)),
+             "source_diagnostics" => Some(self.engine.source_diagnostics()),
+             key if key.starts_with("source_preview_") => key[15..].parse::<usize>().ok()
+                 .and_then(|actor|self.engine.source_preview(actor)),
+@@ -1134,6 +1137,21 @@ pub unsafe extern "C" fn move_plugin_init_v2(
+ 
+ #[cfg(test)]
+ mod tests {
++    #[test]
++    fn song_section_parameter_bridge_uses_production_state() {
++        let _lock = crate::midi_out::test_guard();
++        let mut instance = Instance::new();
++        instance.engine.song = vec![0, 1];
++        instance.set_param("cmd", "songsection 0 bars 8;songsection 0 track 4 1");
++        assert_eq!(instance.get_param("song_section_0").as_deref(), Some("0 0 1 8 0000100000000000"));
++        assert_eq!(instance.get_param("song_section_9"), None);
++        let state = instance.get_param("song_section").unwrap();
++        assert!(state.contains("\"schema\":1"));
++        assert!(state.contains("\"editable\":true"));
++        assert!(state.len() < 1024, "bounded response fits the existing param bridge");
++        assert_eq!(instance.get_param("song_section").unwrap(), state);
++    }
++
+     #[test]
+     fn output_capture_cancels_on_input_stop_and_deadline() {
+         let _lock=crate::midi_out::test_guard();
+diff --git a/engine/crates/seq-core/src/command.rs b/engine/crates/seq-core/src/command.rs
+index 156746b7..6cf59ea0 100644
+--- a/engine/crates/seq-core/src/command.rs
++++ b/engine/crates/seq-core/src/command.rs
+@@ -113,7 +113,7 @@ pub fn is_undoable_edit(verb: &str) -> bool {
+         // automation edits
+         | "aset" | "asetr" | "aclr" | "aclrs" | "aclrstep"
+         // set-level settings
+-        | "mute" | "bpm" | "swing" | "source" | "variation"
++        | "mute" | "bpm" | "swing" | "source" | "variation" | "songsection" | "songsectionclear"
+         // retroactive capture: `cap` writes the buffered phrase into the clip
+         // and `capsel` rewrites it at another tempo. `capclr`/`capdone` only
+         // touch the input buffer and the overlay, so they stay control.
+@@ -475,6 +475,18 @@ fn apply_op(engine: &mut Engine, op: &str, out: &mut Vec<OutEvent>) {
+             }
+         }
+         // song <slot> — start a NEW song from this scene and launch it.
++        "songsection" => {
++            if engine.song_sections_editable() {
++                engine.song_section_edit(&it.collect::<Vec<_>>().join(" "));
++            }
++        }
++        "songsectionclear" => {
++            if engine.song_sections_editable() {
++                if let Some(index) = next().and_then(|v| usize::try_from(v).ok()) {
++                    engine.song_sections.remove(&index);
++                }
++            }
++        }
+         "song" => {
+             if let Some(s) = next() {
+                 engine.song_start(s.max(0) as usize);
+diff --git a/engine/crates/seq-core/src/engine.rs b/engine/crates/seq-core/src/engine.rs
+index 3319bd78..28ecedb5 100644
+--- a/engine/crates/seq-core/src/engine.rs
++++ b/engine/crates/seq-core/src/engine.rs
+@@ -81,6 +81,10 @@ struct Gate {
+ }
+ 
+ pub struct Engine {
++    /// Sparse recipes indexed by the existing raw song press, never clip copies.
++    pub song_sections: std::collections::BTreeMap<usize, SongSection>,
++    song_epoch: u64,
++    song_visit: u64,
+     pub variations: [crate::variation::Variation; NUM_TRACKS],
+     variation_seeds: [u32; NUM_TRACKS],
+     pub source_routes: [crate::source_route::Route; NUM_TRACKS],
+@@ -415,6 +419,9 @@ impl Engine {
+             clipboard_span: 0,
+             clip_clipboard: None,
+             recording: false,
++            song_sections: Default::default(),
++            song_epoch: 0,
++            song_visit: 0,
+             song: Vec::new(),
+             song_pos: 0,
+             song_start_bar: None,
+@@ -733,6 +740,21 @@ impl Engine {
+     /// to its playing clip's loop start. Leaves playing_slot selections
+     /// untouched (used by both Play and Session launch).
+     fn start_transport(&mut self) {
++        self.song_epoch = self.song_epoch.wrapping_add(1);
++        self.song_visit = 0;
++        // A host-clock re-anchor restarts the current occurrence's countdown.
++        // Cancel only an already-armed song successor, never a pending first
++        // scene/manual launch or recording queue unrelated to that successor.
++        if self.song_armed {
++            for track in &mut self.tracks {
++                track.queued_slot = None;
++                track.pending_stop = false;
++                track.pending_select = None;
++            }
++        }
++        self.song_start_bar = None;
++        self.song_armed = false;
++        self.song_armed_launch = None;
+         for actor in 0..NUM_TRACKS { self.variation_seeds[actor] = self.variations[actor].seed; }
+         self.source_cursors.fill(Default::default());
+         self.source_automation_seen.fill(None);
+@@ -766,11 +788,22 @@ impl Engine {
+             self.song_start_bar = None;
+             self.song_armed = false;
+             self.song_armed_launch = None;
+-            for t in &mut self.tracks {
+-                t.active_clip = scene;
+-                t.playing_slot = if t.clips[scene].exists() { Some(scene) } else { None };
++            let recipe = self.song_sections.get(&0).copied().unwrap_or_default();
++            for (track, t) in self.tracks.iter_mut().enumerate() {
++                match recipe.tracks[track] {
++                    SectionTrack::Scene => {
++                        t.active_clip = scene;
++                        t.playing_slot = t.clips[scene].exists().then_some(scene);
++                    }
++                    // Play restarts selected material, including after save/open.
++                    SectionTrack::Keep => {
++                        t.playing_slot = t.active().exists().then_some(t.active_clip);
++                    }
++                    SectionTrack::Stop => t.playing_slot = None,
++                }
+                 t.queued_slot = None;
+                 t.pending_stop = false;
++                t.pending_select = None;
+             }
+             self.capture.clear();
+             self.start_transport();
+@@ -933,10 +966,14 @@ impl Engine {
+     /// a run of identical presses folds here rather than being stored folded.
+     pub fn song_entry_at(&self, i: usize) -> Option<(usize, u32)> {
+         let scene = *self.song.get(i)? as usize;
+-        let reps = self.song[i..]
+-            .iter()
+-            .take_while(|&&s| s as usize == scene)
+-            .count() as u32;
++        // An explicit recipe is one occurrence, even beside the same scene.
++        // Unconfigured presses retain the original contiguous-repeat folding.
++        let reps = if self.song_sections.contains_key(&i) { 1 } else {
++            self.song[i..].iter().enumerate()
++                .take_while(|(offset, s)| **s as usize == scene
++                    && !self.song_sections.contains_key(&(i + offset)))
++                .count() as u32
++        };
+         Some((scene, reps))
+     }
+ 
+@@ -960,6 +997,9 @@ impl Engine {
+     /// stops.
+     pub fn clear_song(&mut self) {
+         self.song.clear();
++        self.song_sections.clear();
++        self.song_epoch = self.song_epoch.wrapping_add(1);
++        self.song_visit = 0;
+         self.song_pos = 0;
+         self.song_start_bar = None;
+         self.song_armed = false;
+@@ -1001,7 +1041,9 @@ impl Engine {
+             let cur = self.song_entry_at(self.song_pos).map(|(s, _)| s);
+             let next = self.song_next_pos(self.song_pos);
+             let nxt = self.song_entry_at(next).map(|(s, _)| s);
+-            if cur.is_some() && nxt != cur {
++            if cur.is_some() && (nxt != cur || (next != self.song_pos
++                && (self.song_sections.contains_key(&next)
++                    || self.song_sections.contains_key(&self.song_pos)))) {
+                 self.song_armed = false;
+                 self.song_armed_launch = None;
+             }
+@@ -1036,18 +1078,19 @@ impl Engine {
+ 
+         // Advance first. The launch armed a bar ago resolved on this boundary,
+         // before we ran, so the entry that was current is now behind us.
+-        if let Some((scene, reps)) = self.song_entry_at(self.song_pos) {
++        if self.song_entry_at(self.song_pos).is_some() {
+             /* Parked on the end of the song. Checked here as well as in
+              * `song_try_arm`, or the next boundary would step off the terminal
+              * scene as if it had simply run its length. */
+-            if self.scene_is_empty(scene) {
++            if self.song_section_terminal(self.song_pos) {
+                 return;
+             }
+             /* Gated on the arm: without it the boundary steps onto an entry
+              * whose clips were never launched, and that scene is skipped
+              * outright — see the stale-arm note in `song_add`. */
+-            if self.song_armed && (bar - start) as u32 >= self.scene_bars(scene) * reps {
++            if self.song_armed && bar.saturating_sub(start) >= u64::from(self.song_section_bars(self.song_pos)) {
+                 self.song_pos = self.song_next_pos(self.song_pos);
++                self.song_visit = self.song_visit.wrapping_add(1);
+                 self.song_start_bar = Some(bar);
+                 self.song_armed = false;
+                 self.song_armed_launch = None;
+@@ -1071,18 +1114,18 @@ impl Engine {
+         if self.song_armed {
+             return;
+         }
+-        let Some((scene, reps)) = self.song_entry_at(self.song_pos) else {
++        let Some((scene, _)) = self.song_entry_at(self.song_pos) else {
+             return;
+         };
+         /* An empty scene is where the arrangement ends, so nothing is armed
+          * after it. The transport keeps running — this is a stop in the song,
+          * not a stop of the machine — and launching a clip or building a new
+          * song leaves it. */
+-        if self.scene_is_empty(scene) {
++        if self.song_section_terminal(self.song_pos) {
+             return;
+         }
+         let start = self.song_start_bar.unwrap_or(bar);
+-        let total = self.scene_bars(scene) * reps;
++        let total = self.song_section_bars(self.song_pos);
+         if bar.saturating_sub(start) as u32 + 1 < total {
+             return;
+         }
+@@ -1094,8 +1137,10 @@ impl Engine {
+              * one-entry song wrapping onto itself. Re-launching would restart
+              * every clip and reset each track's `cycle`, so an A:B trig
+              * condition would never reach B. */
+-            if next_scene != scene {
+-                self.launch_scene(next_scene);
++            if next_scene != scene || (next != self.song_pos
++                && (self.song_sections.contains_key(&next)
++                    || self.song_sections.contains_key(&self.song_pos))) {
++                self.launch_song_section(next);
+                 self.song_armed_launch = Some(next_scene);
+             } else {
+                 self.song_armed_launch = None;
+@@ -2767,6 +2812,10 @@ impl Engine {
+     /// `link_enabled` is restored to its **live** value, not the snapshot's:
+     /// the transport link is not a musical edit and is excluded from undo.
+     pub fn undo_restore(&mut self, blob: &str) -> bool {
++        let live_song = (self.song.clone(), self.song_sections.clone(), self.song_pos,
++            self.song_start_bar, self.song_armed, self.song_armed_launch,
++            self.song_epoch, self.song_visit);
++        let live_selects: Vec<_> = self.tracks.iter().map(|t| t.pending_select).collect();
+         let live_key_playback=self.key_playback.clone();
+         let live_link = self.link_enabled;
+         let live_attachment = self.host_transport_attached;
+@@ -2797,6 +2846,26 @@ impl Engine {
+                 t.pos_tick %= len;
+             }
+         }
++        if self.song == live_song.0 && self.song_sections == live_song.1 {
++            self.song_pos = live_song.2;
++            self.song_start_bar = live_song.3;
++            self.song_armed = live_song.4;
++            self.song_armed_launch = live_song.5;
++            self.song_epoch = live_song.6;
++            self.song_visit = live_song.7;
++            for (track, selection) in self.tracks.iter_mut().zip(live_selects) {
++                track.pending_select = selection;
++            }
++        } else {
++            // A recipe Undo during playback restarts the restored song on the
++            // next existing launch boundary; it cannot inherit an obsolete queue.
++            for track in &mut self.tracks {
++                track.queued_slot = None;
++                track.pending_stop = false;
++                track.pending_select = None;
++            }
++            if self.playing && !self.song.is_empty() { self.launch_song_section(0); }
++        }
+         /* The UI's autosave only writes when the engine reports dirty; without
+          * this an undo is silently dropped at the next save. */
+         self.dirty = true;
+@@ -2832,7 +2901,7 @@ impl Engine {
+         let htp = self.held_trig();
+         let hlmax = self.held_max_gate();
+         format!(
+-            "play={} tick={} bpm={} ext={} link={} trk={} grid={} step={} pos={} len={} lstart={} rec={} cin={} metro={} dirty={} sess={} act={} mute={} hlen={} hnotes={} occ={} alanes={:02x} aauto={:02x} hauto={} hvel={} hgate={} hgmix={} hprob={} hcond={}:{} hinv={} hlmax={} swing={} csc={}/{} ctr={} quant={} dquant={} cap={}.{} song={}",
++            "play={} tick={} bpm={} ext={} link={} trk={} grid={} step={} pos={} len={} lstart={} rec={} cin={} metro={} dirty={} sess={} act={} mute={} hlen={} hnotes={} occ={} alanes={:02x} aauto={:02x} hauto={} hvel={} hgate={} hgmix={} hprob={} hcond={}:{} hinv={} hlmax={} swing={} csc={}/{} ctr={} quant={} dquant={} cap={}.{} song={} section={}",
+             self.playing as u8,
+             self.master_tick,
+             self.clock.bpm_x100(),
+@@ -2874,6 +2943,7 @@ impl Engine {
+             self.capture.pending(self.watch_track as u8),
+             self.capture_gen,
+             self.song_state(),
++            self.song_section_status(),
+         )
+     }
+ 
+@@ -8000,3 +8070,7 @@ impl Engine {
+         assert_eq!(engine.variations,[Default::default();NUM_TRACKS]);
+     }
+ }
++
++include!("song_sections.rs");
++
++include!("song_sections_tests.rs");
+diff --git a/engine/crates/seq-core/src/persist.rs b/engine/crates/seq-core/src/persist.rs
+index 61e4d04a..1786a287 100644
+--- a/engine/crates/seq-core/src/persist.rs
++++ b/engine/crates/seq-core/src/persist.rs
+@@ -42,6 +42,9 @@ pub fn serialize(engine: &Engine) -> String {
+         }
+         s.push('\n');
+     }
++    for (index, section) in &engine.song_sections {
++        s.push_str(&format!("ss1 {} {} {}\n", index, section.bars, section.track_digits()));
++    }
+     for (actor, config) in engine.variations.iter().enumerate() {
+         if *config != Default::default() { s.push_str(&format!("variation {}\n", config.message(actor))); }
+     }
+@@ -231,6 +234,7 @@ pub fn load(engine: &mut Engine, data: &str) -> bool {
+                     engine.link_enabled = v != 0;
+                 }
+             }
++            Some("ss1") => { engine.song_section_set(&it.collect::<Vec<_>>().join(" ")); }
+             Some("sg") => {
+                 engine.song = it
+                     .filter_map(|x| x.parse::<u8>().ok())
+diff --git a/engine/crates/seq-core/src/song_sections.rs b/engine/crates/seq-core/src/song_sections.rs
+new file mode 100644
+index 00000000..fa282eb6
+--- /dev/null
++++ b/engine/crates/seq-core/src/song_sections.rs
+@@ -0,0 +1,155 @@
++// Song recipes extend the existing raw press list and launch queue.
++// Included in engine.rs so runtime observations use the scheduler's own state.
++
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++pub enum SectionTrack {
++    #[default]
++    Scene,
++    Keep,
++    Stop,
++}
++
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++pub struct SongSection {
++    /// Zero uses the scene's existing automatic duration; otherwise 1–256 bars.
++    pub bars: u16,
++    pub tracks: [SectionTrack; NUM_TRACKS],
++}
++
++impl SongSection {
++    pub fn track_digits(&self) -> String {
++        self.tracks.iter().map(|action| match action {
++            SectionTrack::Scene => '0', SectionTrack::Keep => '1', SectionTrack::Stop => '2',
++        }).collect()
++    }
++}
++
++impl Engine {
++    pub fn song_sections_editable(&self) -> bool {
++        !self.playing && !self.pending_play
++    }
++
++    /// Targeted edits avoid read-modify-write races across the asynchronous UI
++    /// bridge. Every command applies to the latest recipe on the engine thread.
++    pub fn song_section_edit(&mut self, message: &str) -> bool {
++        let fields: Vec<_> = message.split_whitespace().collect();
++        let Some(index) = fields.first().and_then(|value| value.parse::<usize>().ok()) else { return false; };
++        if index >= self.song.len() { return false; }
++        let mut recipe = self.song_sections.get(&index).copied().unwrap_or_default();
++        match fields.as_slice() {
++            [_, "enable"] => {},
++            [_, "bars", value] => {
++                let Ok(bars) = value.parse::<u16>() else { return false; };
++                if bars > 256 { return false; }
++                recipe.bars = bars;
++            }
++            [_, "track", track, value] => {
++                let Ok(track) = track.parse::<usize>() else { return false; };
++                if track >= NUM_TRACKS { return false; }
++                recipe.tracks[track] = match *value {
++                    "0" => SectionTrack::Scene, "1" => SectionTrack::Keep,
++                    "2" => SectionTrack::Stop, _ => return false,
++                };
++            }
++            _ => return false,
++        }
++        self.song_sections.insert(index, recipe);
++        true
++    }
++
++    /// Strict, atomic configuration parser shared by commands and persistence.
++    /// The command bridge rejects edits while playing; loading can restore them.
++    pub fn song_section_set(&mut self, message: &str) -> bool {
++        let mut fields = message.split_whitespace();
++        let (Some(index), Some(bars), Some(digits)) = (fields.next(), fields.next(), fields.next()) else { return false; };
++        let (Ok(index), Ok(bars)) = (index.parse::<usize>(), bars.parse::<u16>()) else { return false; };
++        if fields.next().is_some() || index >= self.song.len() || bars > 256 || digits.len() != NUM_TRACKS { return false; }
++        let mut tracks = [SectionTrack::Scene; NUM_TRACKS];
++        for (track, digit) in tracks.iter_mut().zip(digits.bytes()) {
++            *track = match digit { b'0' => SectionTrack::Scene, b'1' => SectionTrack::Keep,
++                b'2' => SectionTrack::Stop, _ => return false };
++        }
++        self.song_sections.insert(index, SongSection { bars, tracks });
++        true
++    }
++
++    pub fn song_section_bars(&self, index: usize) -> u32 {
++        let Some((scene, repeats)) = self.song_entry_at(index) else { return 1; };
++        match self.song_sections.get(&index) {
++            Some(section) if section.bars > 0 => u32::from(section.bars),
++            _ => self.scene_bars(scene).saturating_mul(repeats),
++        }
++    }
++
++    fn song_section_terminal(&self, index: usize) -> bool {
++        !self.song_sections.contains_key(&index)
++            && self.song.get(index).is_some_and(|scene| self.scene_is_empty(*scene as usize))
++    }
++
++    /// Reuse the same queued slots, stops, gate releases and deferred selection
++    /// as launch_scene. Keep never restarts a donor, including its scale/cycle.
++    fn launch_song_section(&mut self, index: usize) {
++        let Some(&scene) = self.song.get(index) else { return; };
++        let scene = scene as usize;
++        let Some(recipe) = self.song_sections.get(&index).copied() else {
++            self.launch_scene(scene);
++            return;
++        };
++        // Song transitions are always armed while transport is running.
++        for (track, t) in self.tracks.iter_mut().enumerate() {
++            t.queued_slot = None;
++            t.pending_stop = false;
++            t.pending_select = None;
++            match recipe.tracks[track] {
++                SectionTrack::Keep => {},
++                SectionTrack::Stop => t.pending_stop = true,
++                SectionTrack::Scene => {
++                    if t.clips[scene].exists() { t.queued_slot = Some(scene); }
++                    else { t.pending_stop = true; t.pending_select = Some(scene); }
++                }
++            }
++        }
++    }
++
++    pub fn song_section_message(&self, index: usize) -> Option<String> {
++        let scene = *self.song.get(index)?;
++        let section = self.song_sections.get(&index);
++        let recipe = section.copied().unwrap_or_default();
++        Some(format!("{} {} {} {} {}", index, scene, section.is_some() as u8,
++            recipe.bars, recipe.track_digits()))
++    }
++
++    fn song_section_status(&self) -> String {
++        match self.song_entry_at(self.song_pos) {
++            Some((_, repeats)) => format!("{}:{}:{}", self.song_pos, repeats,
++                self.song_section_terminal(self.song_pos) as u8),
++            None => "-".into(),
++        }
++    }
++
++    /// On-demand observation only. No UI callback advances time or changes queues.
++    /// Epoch + visit identify a traversal within this engine lifetime; clients
++    /// must establish a new baseline after reconnecting or replacing the engine.
++    pub fn song_section_snapshot(&self) -> String {
++        let running = self.playing && self.song_start_bar.is_some();
++        let terminal = self.song_section_terminal(self.song_pos);
++        let current = match self.song_entry_at(self.song_pos) {
++            Some((scene, repeats)) => {
++                let start = if running { self.song_start_bar.map(|bar| bar.saturating_mul(TICKS_PER_BAR as u64)) } else { None };
++                let end = start.filter(|_| !terminal).map(|tick| tick.saturating_add(u64::from(self.song_section_bars(self.song_pos)) * TICKS_PER_BAR as u64));
++                format!("{{\"index\":{},\"scene\":{},\"repeats\":{},\"bars\":{},\"start_tick\":{},\"end_tick\":{},\"terminal\":{}}}",
++                    self.song_pos, scene, repeats, self.song_section_bars(self.song_pos),
++                    start.map_or("null".into(), |tick| tick.to_string()),
++                    end.map_or("null".into(), |tick| tick.to_string()), terminal)
++            }
++            None => "null".into(),
++        };
++        let next = if running && !terminal && !self.song.is_empty() {
++            let index = self.song_next_pos(self.song_pos);
++            format!("{{\"index\":{},\"scene\":{},\"committed\":{}}}", index, self.song[index], self.song_armed)
++        } else { "null".into() };
++        format!("{{\"schema\":1,\"epoch\":{},\"visit\":{},\"tick\":{},\"ticks_per_bar\":{},\"playing\":{},\"editable\":{},\"started\":{},\"count\":{},\"current\":{},\"next\":{}}}",
++            self.song_epoch, self.song_visit, self.master_tick, TICKS_PER_BAR, self.playing,
++            !self.playing && !self.pending_play, running, self.song.len(), current, next)
++    }
++}
+diff --git a/engine/crates/seq-core/src/song_sections_tests.rs b/engine/crates/seq-core/src/song_sections_tests.rs
+new file mode 100644
+index 00000000..10e7dbca
+--- /dev/null
++++ b/engine/crates/seq-core/src/song_sections_tests.rs
+@@ -0,0 +1,255 @@
++#[cfg(test)]
++mod song_section_tests {
++    use super::*;
++    use crate::{command::apply_batch, persist};
++
++    fn prepared() -> Engine {
++        let mut engine = Engine::new(48000, 12000);
++        for scene in 0..3 {
++            engine.tracks[0].clips[scene].length_steps = 16;
++            engine.tracks[0].clips[scene].toggle_step(0, &[(60 + scene as u8, 100)]);
++        }
++        engine.song = vec![0, 1, 2];
++        engine
++    }
++
++    fn through(engine: &mut Engine, tick: u64) -> Vec<OutEvent> {
++        let mut output = Vec::new();
++        while engine.master_tick <= tick { engine.service_tick(&mut output); }
++        output
++    }
++
++    #[test]
++    fn explicit_bars_ignore_long_donors_and_keep_their_phase_and_cycle() {
++        let mut engine = prepared();
++        engine.tracks[4].clips[0].length_steps = 48; // independent 3-bar donor
++        engine.tracks[4].clips[0].toggle_step(0, &[(45, 90)]);
++        assert!(engine.song_section_edit("0 bars 8"));
++        assert!(engine.song_section_edit("1 bars 2"));
++        assert!(engine.song_section_edit("1 track 4 1"));
++        engine.play();
++        through(&mut engine, 7 * TICKS_PER_BAR as u64);
++        assert_eq!(engine.song_pos, 0);
++        assert_eq!(engine.tracks[0].queued_slot, Some(1));
++        assert_eq!(engine.tracks[4].queued_slot, None);
++        assert!(!engine.tracks[4].pending_stop);
++        through(&mut engine, 8 * TICKS_PER_BAR as u64);
++        assert_eq!(engine.song_pos, 1);
++        assert_eq!(engine.tracks[0].playing_slot, Some(1));
++        assert_eq!(engine.tracks[4].playing_slot, Some(0));
++        assert_eq!(engine.tracks[4].active_clip, 0);
++        assert_eq!(engine.tracks[4].cycle, 3);
++        assert_eq!(engine.tracks[4].pos_tick, 2 * TICKS_PER_BAR + 1);
++        assert_eq!(engine.song_start_bar, Some(8));
++    }
++
++    #[test]
++    fn real_audio_clock_weaving_survives_a_section_boundary_without_donor_restart() {
++        let mut engine = prepared();
++        for track in 1..4 { engine.tracks[track].clips[0].set_loop(0, 16); }
++        engine.tracks[1].clips[0].set_loop(0, 48);
++        engine.tracks[1].clips[0].add_note_raw(0, 0, 48, 60, 100);
++        engine.tracks[1].clips[0].add_note_raw(16, TICKS_PER_BAR, 48, 67, 100);
++        engine.tracks[2].clips[0].set_loop(0, 64);
++        engine.tracks[2].clips[0].add_note_raw(0, 0, 24, 36, 100);
++        engine.tracks[2].clips[0].add_note_raw(20, TICKS_PER_BAR + 96, 24, 36, 100);
++        engine.tracks[3].clips[0].add_note_raw(0, 0, 24, 30, 100);
++        engine.source_route_set("3 1 1 0 2 0 1");
++        engine.song_section_edit("0 bars 1");
++        engine.song_section_edit("1 bars 2");
++        for track in 1..4 { engine.song_section_edit(&format!("1 track {track} 1")); }
++        engine.play();
++        let mut attacks = Vec::new();
++        for _ in 0..(TICKS_PER_BAR + 130) {
++            let mut output = Vec::new();
++            // 250 frames is one 96-PPQN tick at 120 BPM / 48 kHz.
++            engine.advance_block(250, &mut output);
++            attacks.extend(output.iter().filter_map(|event| match event {
++                OutEvent::NoteOn { track:3, pitch, .. } => Some(*pitch), _ => None,
++            }));
++        }
++        assert_eq!(engine.song_pos, 1);
++        assert_eq!(attacks, vec![60, 67], "the post-boundary rhythm attack reads donor phase");
++        assert_eq!(engine.tracks[1].playing_slot, Some(0));
++        assert_eq!(engine.tracks[2].playing_slot, Some(0));
++        assert!(engine.gates.iter().all(|gate| gate.track != 3), "borrowed gate releases normally");
++    }
++
++    #[test]
++    fn explicit_occurrences_split_legacy_repeats_and_same_scene_applies_recipe() {
++        let mut engine = prepared();
++        engine.song = vec![0, 0, 0, 1];
++        assert_eq!(engine.song_entry_at(0), Some((0, 3)));
++        assert!(engine.song_section_edit("1 bars 2"));
++        assert!(engine.song_section_edit("1 track 0 2"));
++        assert_eq!(engine.song_entry_at(0), Some((0, 1)));
++        assert_eq!(engine.song_entry_at(1), Some((0, 1)));
++        assert_eq!(engine.song_next_pos(1), 2);
++        engine.play();
++        through(&mut engine, TICKS_PER_BAR as u64);
++        assert_eq!(engine.song_pos, 1);
++        assert_eq!(engine.tracks[0].playing_slot, None);
++        through(&mut engine, 3 * TICKS_PER_BAR as u64);
++        assert_eq!(engine.song_pos, 2);
++        assert_eq!(engine.tracks[0].playing_slot, Some(0), "leaving explicit Stop restores Scene semantics");
++    }
++
++    #[test]
++    fn stop_releases_an_owned_note_and_keep_retains_scaled_phase() {
++        let mut engine = prepared();
++        engine.tracks[0].clips[0].notes[0].gate = 3 * TICKS_PER_BAR;
++        engine.tracks[4].clips[0].length_steps = 48;
++        engine.tracks[4].clips[0].scale_num = 2;
++        engine.tracks[4].clips[0].scale_den = 3;
++        engine.song_section_edit("0 bars 1");
++        engine.song_section_edit("1 bars 1");
++        engine.song_section_edit("1 track 0 2");
++        engine.song_section_edit("1 track 4 1");
++        engine.play();
++        let output = through(&mut engine, TICKS_PER_BAR as u64);
++        assert_eq!(output.iter().filter(|event| matches!(event, OutEvent::NoteOff{track:0,pitch:60})).count(), 1);
++        assert_eq!(engine.tracks[4].pos_tick, (TICKS_PER_BAR + 1) * 2 / 3);
++        assert_eq!(engine.tracks[4].scale_acc, (TICKS_PER_BAR + 1) * 2 % 3);
++    }
++
++    #[test]
++    fn empty_legacy_scene_is_terminal_but_explicit_rest_has_a_duration() {
++        let mut engine = prepared();
++        engine.song = vec![7, 1];
++        assert!(engine.song_section_terminal(0));
++        engine.song_section_edit("0 bars 2");
++        assert!(!engine.song_section_terminal(0));
++        engine.play();
++        through(&mut engine, 2 * TICKS_PER_BAR as u64);
++        assert_eq!(engine.song_pos, 1);
++        assert_eq!(engine.tracks[0].playing_slot, Some(1));
++    }
++
++    #[test]
++    fn recipes_round_trip_and_legacy_load_clears_them() {
++        let mut engine = prepared();
++        apply_batch(&mut engine, "songsection 0 bars 8;songsection 1 track 4 1;songsection 2 track 0 2", &mut Vec::new());
++        let saved = persist::serialize(&engine);
++        let mut restored = Engine::new(48000, 12000);
++        assert!(persist::load(&mut restored, &saved));
++        assert_eq!(restored.song_sections, engine.song_sections);
++        assert_eq!(persist::serialize(&restored), saved);
++        // First-entry Keep restarts the saved selected clip, not a stale runtime slot.
++        restored.tracks[4].clips[3].length_steps = 48;
++        restored.tracks[4].active_clip = 3;
++        restored.song_section_edit("0 track 4 1");
++        restored.play();
++        assert_eq!(restored.tracks[4].playing_slot, Some(3));
++        assert!(persist::load(&mut restored, "movy1\nsg 0 0 1\n"));
++        assert!(restored.song_sections.is_empty());
++        assert_eq!(restored.song_entry_at(0), Some((0, 2)));
++    }
++
++    #[test]
++    fn strict_commands_cannot_edit_a_running_or_pending_launch() {
++        let mut engine = prepared();
++        for command in ["songsection -1 bars 8", "songsection 0 bars 257", "songsection 0 bars -1", "songsection 9 enable", "songsection 0 track 16 1", "songsection 0 track 1 9", "songsection 0 bars 8 junk"] {
++            apply_batch(&mut engine, command, &mut Vec::new());
++            assert!(engine.song_sections.is_empty(), "{command}");
++        }
++        engine.pending_play = true;
++        apply_batch(&mut engine, "songsection 0 bars 8", &mut Vec::new());
++        assert!(engine.song_sections.is_empty());
++        engine.pending_play = false;
++        apply_batch(&mut engine, "songsection 0 bars 8;songsection 0 track 4 1", &mut Vec::new());
++        let config = engine.song_sections.clone();
++        engine.play();
++        apply_batch(&mut engine, "songsection 0 bars 2;songsectionclear 0", &mut Vec::new());
++        assert_eq!(engine.song_sections, config);
++        assert!(!engine.song_section_set("0 8 000000000000000x"));
++        assert_eq!(engine.song_sections, config, "invalid import is atomic");
++    }
++
++    #[test]
++    fn snapshot_is_neutral_and_distinguishes_forecast_commit_and_occurrence() {
++        let mut engine = prepared();
++        engine.song_section_edit("0 bars 2");
++        engine.play();
++        let epoch = engine.song_epoch;
++        assert!(engine.song_section_snapshot().contains("\"started\":false"));
++        through(&mut engine, 1);
++        let state = engine.song_section_snapshot();
++        assert!(state.contains("\"committed\":false"));
++        assert!(state.contains(&format!("\"end_tick\":{}", 2 * TICKS_PER_BAR)));
++        let before = (engine.master_tick, engine.song_visit, engine.tracks[0].pos_tick, engine.tracks[0].queued_slot);
++        for _ in 0..50 { assert_eq!(engine.song_section_snapshot(), state); }
++        assert_eq!((engine.master_tick, engine.song_visit, engine.tracks[0].pos_tick, engine.tracks[0].queued_slot), before);
++        through(&mut engine, TICKS_PER_BAR as u64);
++        assert!(engine.song_section_snapshot().contains("\"committed\":true"));
++        through(&mut engine, 2 * TICKS_PER_BAR as u64);
++        assert_eq!(engine.song_visit, 1);
++        engine.stop(&mut Vec::new());
++        assert!(engine.song_section_snapshot().contains("\"start_tick\":null"));
++        assert!(engine.song_section_snapshot().contains("\"next\":null"));
++        engine.play();
++        assert_ne!(engine.song_epoch, epoch);
++        assert_eq!(engine.song_visit, 0);
++    }
++
++    #[test]
++    fn undo_restores_recipe_and_preserves_unrelated_running_song_cursor() {
++        let mut engine = prepared();
++        apply_batch(&mut engine, "usnap 1;songsection 0 bars 2;uswap 1 2", &mut Vec::new());
++        assert!(engine.song_sections.is_empty());
++        apply_batch(&mut engine, "uswap 2 3", &mut Vec::new());
++        assert_eq!(engine.song_sections[&0].bars, 2);
++        engine.play();
++        through(&mut engine, 2 * TICKS_PER_BAR as u64);
++        let cursor = (engine.song_pos, engine.song_start_bar, engine.song_armed, engine.song_epoch, engine.song_visit);
++        let queued = engine.tracks[0].queued_slot;
++        let saved = persist::serialize(&engine);
++        assert!(engine.undo_restore(&saved));
++        assert_eq!((engine.song_pos, engine.song_start_bar, engine.song_armed, engine.song_epoch, engine.song_visit), cursor);
++        assert_eq!(engine.tracks[0].queued_slot, queued);
++        let mut modified = prepared();
++        modified.song_section_edit("0 bars 4");
++        assert!(engine.undo_restore(&persist::serialize(&modified)));
++        assert_eq!(engine.song_start_bar, None);
++        assert_eq!(engine.tracks[0].queued_slot, Some(0));
++        through(&mut engine, 3 * TICKS_PER_BAR as u64);
++        assert_eq!(engine.song_pos, 0);
++        assert_eq!(engine.song_start_bar, Some(3));
++        assert_eq!(engine.tracks[0].playing_slot, Some(0));
++    }
++
++    #[test]
++    fn host_reanchor_restarts_current_section_without_a_stale_successor() {
++        let mut engine = prepared();
++        engine.song_section_edit("0 bars 2");
++        engine.song_section_edit("1 bars 2");
++        engine.play();
++        through(&mut engine, 3 * TICKS_PER_BAR as u64);
++        assert_eq!(engine.song_pos, 1);
++        assert_eq!(engine.tracks[0].queued_slot, Some(2));
++        let epoch = engine.song_epoch;
++        engine.on_external_realtime(0xFA, &mut Vec::new());
++        assert_ne!(engine.song_epoch, epoch);
++        through(&mut engine, 1);
++        assert_eq!(engine.song_pos, 1);
++        assert_eq!(engine.song_start_bar, Some(0));
++        assert_eq!(engine.tracks[0].playing_slot, Some(1));
++        assert_eq!(engine.tracks[0].queued_slot, None);
++        through(&mut engine, 2 * TICKS_PER_BAR as u64);
++        assert_eq!(engine.song_pos, 2);
++    }
++
++    #[test]
++    fn single_entry_keep_wraps_without_retrigger_and_manual_launch_clears_recipes() {
++        let mut engine = prepared();
++        engine.song = vec![0];
++        engine.song_section_edit("0 bars 1");
++        engine.song_section_edit("0 track 0 1");
++        engine.play();
++        through(&mut engine, 3 * TICKS_PER_BAR as u64);
++        assert_eq!(engine.tracks[0].cycle, 4);
++        assert_eq!(engine.song_visit, 3);
++        engine.launch_clip(0, 1);
++        assert!(engine.song.is_empty());
++        assert!(engine.song_sections.is_empty());
++    }
++}
+diff --git a/src/seq/engine.ts b/src/seq/engine.ts
+index c335d00b..e52ff607 100644
+--- a/src/seq/engine.ts
++++ b/src/seq/engine.ts
+@@ -416,7 +416,12 @@ function parseStatus(s: string): void {
+         else if (key === 'act') activeFromStr(val);
+         else if (key === 'mute') muteFromStr(val);
+         else if (key === 'sess') sessionFromStr(val);
+-        else if (key === 'song') songFromStr(val);
++        else if (key === 'song') { songFromStr(val); seqState.songSection = null; }
++        else if (key === 'section') {
++            const parts = val.split(':').map(Number);
++            seqState.songSection = parts.length === 3 && parts.every(Number.isInteger)
++                ? {pos:parts[0],reps:parts[1],terminal:parts[2]===1} : null;
++        }
+         else if (key === 'occ') occFromHex(val);
+         else if (key === 'unop') noopSnapId = Number(val);
+         else if (key === 'alanes') seqState.autoAssigned = parseInt(val, 16) || 0;
+diff --git a/src/seq/joint-panels.ts b/src/seq/joint-panels.ts
+index 434a0409..5ebfa402 100644
+--- a/src/seq/joint-panels.ts
++++ b/src/seq/joint-panels.ts
+@@ -1,3 +1,4 @@
++import { sectionParameters, sectionHierarchy, sectionPanelGet, sectionPanelSet, resetSectionPanel } from './section-panels.js';
+ import { variationParameters, variationKeys, variationPanelGet, variationPanelSet } from './variation-panels.js';
+ import { overviewParameters, overviewHierarchy, overviewGet, overviewKey, resetOverview } from './source-overview.js';
+ import { sourceParameters, sourceKeys, sourcePanelGet, sourcePanelSet } from './source-panels.js';
+@@ -83,7 +84,7 @@ export function jointHierarchy(hierarchy:any):any {
+     hierarchy.levels.joint_rhythm_2.params.push({level:'joint_comp_weave'});
+     root.params.push({level:'joint_comp_weave'});
+     hierarchy.levels.joint_record={name:'Joint Recording',knobs:recording.map(parameter=>parameter.key),params:recording};
+-    return overviewHierarchy(hierarchy);
++    return sectionHierarchy(overviewHierarchy(hierarchy));
+ }
+ const pages=new Map<number,SchwungPage>();
+ const touches=new Map<number,SchwungPage>();
+@@ -93,18 +94,20 @@ function panelPort(track:number):TrackPort {
+     const getParam=(key:string):string|null=>{
+         const alias=actorAlias(key);if(alias)return portFor(base+alias.role).getParam(alias.key);
+         const bare=key.replace(/:(base|modulated)$/,'').split(':').pop()??'';
++        const sectionValue=sectionPanelGet(bare);if(sectionValue!==null)return key.endsWith(':modulated')?'0':sectionValue;
+         const overviewValue=overviewGet(base,bare);if(overviewValue!==null)return key.endsWith(':modulated')?'0':overviewValue;
+         const variationValue=variationPanelGet(base,bare);if(variationValue!==null)return key.endsWith(':modulated')?'0':variationValue;
+         const sourceValue=sourcePanelGet(base,bare);if(sourceValue!==null)return key.endsWith(':modulated')?'0':sourceValue;
+         const meta=jointParameters.find(parameter=>parameter.key===bare);
+         if(meta)return key.endsWith(':modulated')?'0':meta.options[jointPanelGet(base,bare)]??meta.options[0];
+         const value=native.getParam(key);
+-        if(key.endsWith(':chain_params')&&value){try{return JSON.stringify([...JSON.parse(value),...jointParameters,...overviewParameters,...actorParameters(JSON.parse(value))]);}catch(_){}}
++        if(key.endsWith(':chain_params')&&value){try{return JSON.stringify([...JSON.parse(value),...jointParameters,...overviewParameters,...sectionParameters,...actorParameters(JSON.parse(value))]);}catch(_){}}
+         return value;
+     };
+     const setParam=(key:string,value:string):boolean=>{
+         const alias=actorAlias(key);if(alias)return portFor(base+alias.role).setParam(alias.key,value);
+         const bare=key.split(':').pop()??'';
++        if(sectionPanelSet(bare,value))return true;
+         if(overviewKey(bare))return true;
+         if(variationPanelSet(base,bare,value))return true;
+         if(sourcePanelSet(base,bare,value))return true;
+@@ -153,7 +156,7 @@ export function releaseJointPanelTouches():void {
+     for(const [slot,page] of touches){if(!releasePerformanceTouch(slot,true))page.knobTouch(slot,false);}
+     touches.clear();
+ }
+-export function resetJointPanels():void {resetOverview();releaseJointPanelTouches();pages.clear();stepPorts.clear();}
++export function resetJointPanels():void {resetSectionPanel();resetOverview();releaseJointPanelTouches();pages.clear();stepPorts.clear();}
+ 
+ // Existing handlers retain physical release ownership through this group port.
+ // No performanceTrack: Joint step modifiers never inject a clip-lane action.
+diff --git a/src/seq/render.ts b/src/seq/render.ts
+index e9f28a36..03a4b805 100644
+--- a/src/seq/render.ts
++++ b/src/seq/render.ts
+@@ -189,7 +189,8 @@ export function drawSongBand(): void {
+     const end = songTerminal();
+     const endW = end ? fontWidth('END') + SONG_GAP * 2 : 0;
+     const { tokens, leading } = songBandTokens(
+-        seqState.songScenes, seqState.songPos, W - x - 2 - endW, fontWidth);
++        seqState.songScenes, seqState.songPos, W - x - 2 - endW, fontWidth,
++        seqState.songSection?.pos === seqState.songPos ? seqState.songSection.reps : undefined);
+     if (leading) {
+         fontPrint(x, TOAST_Y + 1, '.', 0);
+         x += fontWidth('.') + SONG_GAP;
+diff --git a/src/seq/section-panels.ts b/src/seq/section-panels.ts
+new file mode 100644
+index 00000000..0f92363b
+--- /dev/null
++++ b/src/seq/section-panels.ts
+@@ -0,0 +1,81 @@
++/** Shared production Song editor. Scheduling and saved recipes stay in Rust. */
++import { engineReady, seqCmdFlush } from './engine.js';
++import { beginEdit, CLOSE } from '../undo/group.js';
++import { seqEdit } from '../undo/record.js';
++import { seqToast } from './render.js';
++
++const prefix='joint_section_';
++const numbered=(count:number):string[]=>Array.from({length:count},(_,index)=>String(index+1));
++const enumeration=(field:string,name:string,options:string[])=>({key:prefix+field,name,short_name:name,type:'enum',options,options_as_string:true,default:options[0]});
++const readOnly=(field:string,name:string)=>({key:prefix+field,name,short_name:name,type:'string',readOnly:true,access:'read'});
++export const sectionParameters=[
++    enumeration('entry','Entry',numbered(128)),
++    enumeration('bars','Bars',['Auto',...numbered(256)]),
++    enumeration('track','Track',numbered(16)),
++    enumeration('action','Transition',['Scene','Keep','Stop']),
++    enumeration('mode','Recipe',['Legacy','Section']),
++    readOnly('state','Edit State'),readOnly('current','Now'),readOnly('next','Next'),
++    readOnly('scene','Scene'),
++];
++export function sectionHierarchy(hierarchy:any):any {
++    hierarchy.levels.joint_sections={name:'Song Sections',knobs:sectionParameters.slice(0,8).map(parameter=>parameter.key),params:sectionParameters.map(parameter=>({key:parameter.key}))};
++    hierarchy.levels.root.params.unshift({level:'joint_sections'});
++    return hierarchy;
++}
++let entry=0,track=0;
++let cachedState:{at:number;value:any}|null=null;
++export function resetSectionPanel():void {entry=0;track=0;cachedState=null;}
++function read(key:string):string|null {
++    return typeof host_module_get_param==='function'?host_module_get_param(key):null;
++}
++function snapshot(fresh=false):any {
++    const now=Date.now();
++    if(!fresh&&cachedState&&now>=cachedState.at&&now-cachedState.at<100)return cachedState.value;
++    let value:any=null;
++    try {const parsed=JSON.parse(read('song_section')??'null');if(parsed?.schema===1)value=parsed;}catch(_){}
++    cachedState={at:now,value};return value;
++}
++function recipe():{scene:number;configured:boolean;bars:number;actions:string}|null {
++    const parts=(read('song_section_'+entry)??'').trim().split(/\s+/);
++    if(parts.length!==5||Number(parts[0])!==entry||!/^\d+$/.test(parts[1])||!/^[01]$/.test(parts[2])||!/^\d+$/.test(parts[3])||!/^[012]{16}$/.test(parts[4]))return null;
++    return {scene:Number(parts[1]),configured:parts[2]==='1',bars:Number(parts[3]),actions:parts[4]};
++}
++const label=(value:any):string=>value?'Entry '+(value.index+1)+' Scene '+(value.scene+1):'--';
++export function sectionPanelGet(key:string):string|null {
++    if(!key.startsWith(prefix))return null;
++    const field=key.slice(prefix.length);
++    if(field==='entry')return String(entry+1);
++    if(field==='track')return String(track+1);
++    if(['state','current','next'].includes(field)){
++        const state=snapshot();
++        if(!state)return 'Unavailable';
++        if(field==='state')return !state.count?'Build Song first':state.editable?'Stopped - edit':state.playing?'Stop to edit':'Waiting - stop';
++        if(field==='current')return label(state.current)+(state.current?.terminal?' END':'');
++        return label(state.next)+(state.next?.committed?' queued':state.next?' forecast':'');
++    }
++    const value=recipe();
++    if(field==='scene')return value?String(value.scene+1):'No entry';
++    if(field==='mode')return value?.configured?'Section':'Legacy';
++    if(field==='bars')return value?.bars?String(value.bars):'Auto';
++    if(field==='action')return ['Scene','Keep','Stop'][Number(value?.actions[track]??0)];
++    return '--';
++}
++export function sectionPanelSet(key:string,value:string):boolean {
++    if(!key.startsWith(prefix))return false;
++    const field=key.slice(prefix.length);
++    const parameter=sectionParameters.find(parameter=>parameter.key===key);
++    if(!parameter||!('options' in parameter))return true;
++    const selected=parameter.options.indexOf(value);
++    if(selected<0)return true;
++    if(field==='entry'){entry=selected;return true;}
++    if(field==='track'){track=selected;return true;}
++    const state=snapshot(true);
++    if(!engineReady()||!state)return true;
++    if(!state.editable){seqToast('Stop to edit song');return true;}
++    if(entry>=state.count){seqToast('Build song entry first');return true;}
++    const command=field==='mode'?(selected?'songsection '+entry+' enable':'songsectionclear '+entry)
++        :field==='bars'?'songsection '+entry+' bars '+selected
++        :'songsection '+entry+' track '+track+' '+selected;
++    beginEdit({key:'song-section-'+entry+'-'+field+(field==='action'?'-'+track:''),verb:'Song Section',target:'Entry '+(entry+1),close:CLOSE.IDLE,seq:true});
++    seqEdit(command);seqCmdFlush();return true;
++}
+diff --git a/src/seq/song.ts b/src/seq/song.ts
+index 20952bba..41cbe1fe 100644
+--- a/src/seq/song.ts
++++ b/src/seq/song.ts
+@@ -122,10 +122,12 @@ function entryEnd(scenes: number[], pos: number): number {
+  * font, and so the caller measures with the same function it draws with. */
+ export function songBandTokens(
+     scenes: number[], pos: number, maxW: number, width: (s: string) => number,
++    currentReps?: number,
+ ): { tokens: SongToken[]; leading: boolean } {
+     if (scenes.length === 0) return { tokens: [], leading: false };
+     const curFrom = Math.min(Math.max(pos, 0), scenes.length - 1);
+-    const curTo = entryEnd(scenes, curFrom);
++    const curTo = currentReps === undefined ? entryEnd(scenes, curFrom)
++        : Math.min(scenes.length, curFrom + Math.max(1, currentReps));
+     /* The last index that MUST be visible: the end of the entry AFTER the
+      * current one, or the end of the song when the current entry is last. */
+     const must = entryEnd(scenes, Math.min(curTo, scenes.length - 1)) - 1;
+@@ -166,6 +168,7 @@ export function songBandTokens(
+  * from a status field of its own, so the readout cannot disagree with what the
+  * engine actually did. */
+ export function songTerminal(): boolean {
++    if (seqState.songSection?.pos === seqState.songPos) return seqState.songSection.terminal;
+     const n = seqState.songScenes.length;
+     if (n === 0) return false;
+     const scene = seqState.songScenes[Math.min(seqState.songPos, n - 1)];
+diff --git a/src/seq/state.ts b/src/seq/state.ts
+index 64859e12..e0ea8608 100644
+--- a/src/seq/state.ts
++++ b/src/seq/state.ts
+@@ -110,6 +110,7 @@ export interface SeqUiState {
+     sessionMode: boolean;        // pads show the clip grid
+     session: SessionTrack[];     // one entry per track, clip-slot state (from status)
+     /* song mode — mirror of the engine's `song=` (src/seq/song.ts owns the gesture) */
++    songSection: {pos:number;reps:number;terminal:boolean}|null;
+     songScenes: number[];        // raw press list, e.g. [1,2,2,3]
+     songPos: number;             // index in songScenes of the entry now playing
+ 
+@@ -192,6 +193,7 @@ function defaults(): SeqUiState {
+         muted: new Array(TRACK_COUNT).fill(false) as boolean[],
+         sessionMode: false,
+         session: emptySession(),
++        songSection: null,
+         songScenes: [],
+         songPos: 0,
+         autoAssigned: 0,
+diff --git a/src/undo/verbs.ts b/src/undo/verbs.ts
+index fe8c9b8d..5c877344 100644
+--- a/src/undo/verbs.ts
++++ b/src/undo/verbs.ts
+@@ -21,7 +21,7 @@ export const UNDOABLE_VERBS: string[] = [
+     // automation edits
+     'aset', 'asetr', 'aclr', 'aclrs', 'aclrstep',
+     // set-level settings
+-    'mute', 'bpm', 'swing', 'source', 'variation',
++    'mute', 'bpm', 'swing', 'source', 'variation', 'songsection', 'songsectionclear',
+     /* Retroactive capture writes the buffered phrase into the clip, and a
+      * tempo re-selection rewrites it — both are edits. `capclr`/`capdone` only
+      * touch the runtime input buffer and the overlay, so they stay control. */
