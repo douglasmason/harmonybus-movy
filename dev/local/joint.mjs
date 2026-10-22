@@ -175,7 +175,7 @@ globalThis.__joint={joint,page:jointPage,monitor};
 if(sessions){
  const {mountSessions}=await import('./session-ui.mjs');
  await mountSessions({sessions,captureUI:()=>({joint:joint.jointSnapshot(),focusGroup:appState.focusGroup,levels:monitor.levels,muted:monitor.muted}),
- restoreUI:ui=>{joint.restoreJoint(ui?.joint);appState.focusGroup=Number.isInteger(ui?.focusGroup)&&ui.focusGroup>=0&&ui.focusGroup<4?ui.focusGroup:0;
+ restoreUI:ui=>{joint.restoreJoint(ui?.joint);appState.focusGroup=Number.isInteger(ui?.focusGroup)&&ui.focusGroup>=0&&ui.focusGroup<4?ui.focusGroup:0;joint.setJointEnabled(true);
   for(let actor=0;actor<4;actor++){const level=ui?.levels?.[actor]??.6,muted=ui?.muted?.[actor]??false;monitor.levels[actor]=level;monitor.muted[actor]=muted;document.querySelectorAll('#audio-mix input[type=range]')[actor].value=String(level);document.querySelectorAll('#audio-mix input[type=checkbox]')[actor].checked=muted;}
  },disableAudio,isStopped:()=>/(?:^| )play=0/.test(cache.get('status')??''),release:()=>document.querySelector('#release').click()});
 }

@@ -19,7 +19,7 @@ export const writeKeys=new Set(['motion_host','field_outputs_remote','field_outp
 
 export function prepareMetadata(metadata) {
   const params=metadata.capabilities.chain_params;
-  const readable=new Set([...params.filter(p=>!p.writeOnly&&p.key!=='state').map(p=>p.key),'pad_view','pad_output']);
+  const readable=new Set([...params.filter(p=>!p.writeOnly&&p.key!=='state').map(p=>p.key),'pad_view','pad_output','field_view','field_outputs_view2','shared_context_snapshot','harmony_snapshot','harmony_source_snapshot']);
   const enabledWrites=new Set([...writeKeys,...params.filter(p=>!p.readOnly&&p.access!=='read'&&!p.writeOnly&&['enum','int','float'].includes(p.type)).map(p=>p.key)]);
   metadata.dev={readable:[...readable],writable:[...enabledWrites]};
   for(const param of params)if(!enabledWrites.has(param.key)){param.readOnly=true;param.access='read';}
