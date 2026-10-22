@@ -9,6 +9,7 @@ def patch_field_play(root: Path) -> None:
     (root / 'browser-test/hb-field.mjs').write_text((assets / 'hb-field.mjs').read_text())
     (root / 'src/seq/field-play.ts').write_text((assets / 'field-play.ts').read_text())
     (root / 'src/seq/field-outputs.ts').write_text((assets / 'field-outputs.ts').read_text())
+    (root / 'src/seq/field-routes.ts').write_text((assets / 'field-routes.ts').read_text())
     path: Path = root / 'src/seq/router-buttons.ts'
     source: str = "import { fieldEnabled, setFieldEnabled } from './field-play.js';\n" + path.read_text()
     source = replace_once(source, 'seqState.sessionMode ? 0 : gridEnabled()', 'seqState.sessionMode ? 0 : fieldEnabled() ? 5 : gridEnabled()')
@@ -31,8 +32,8 @@ def patch_field_play(root: Path) -> None:
     path = root / 'src/app/input-reset.ts'
     path.write_text("import { releaseField } from '../seq/field-play.js';\n" + path.read_text().replace('    resetJointInput();','    releaseField();\n    resetJointInput();'))
     path = root / 'src/app/globals.ts'
-    source = "import { fieldPad, fieldPressure, fieldSnapshot, clearFieldOutput, releaseFieldSource } from '../seq/field-play.js';\n" + path.read_text()
-    source += "\nObject.assign(globalThis, { fieldPad, fieldPressure, fieldSnapshot, clearFieldOutput, releaseFieldSource });\n"
+    source = "import { fieldPad, fieldPressure, fieldSnapshot, showFieldRoutes, openFieldRoute, clearFieldOutput, releaseFieldSource } from '../seq/field-play.js';\n" + path.read_text()
+    source += "\nObject.assign(globalThis, { fieldPad, fieldPressure, fieldSnapshot, showFieldRoutes, openFieldRoute, clearFieldOutput, releaseFieldSource });\n"
     path.write_text(source)
     path = root / 'src/surfaces/launchpad.ts'
     source = "import { fieldActive, fieldPad, fieldPressure, fieldColors, clearFieldOutput, releaseFieldSource } from '../seq/field-play.js';\n" + path.read_text()
@@ -44,7 +45,7 @@ def patch_field_play(root: Path) -> None:
     source = source.replace('    if (top >= 0 && top < 8) {', '    if(fieldActive()&&modifier&&top===7){if(value)clearFieldOutput();return;}\n    if (top >= 0 && top < 8) {')
     path.write_text(source)
     path = root / 'build/browser.mjs'
-    path.write_text(path.read_text().replace('    entryPoints: [', "    entryPoints: [\n        resolve(root, 'src/seq/field-play.ts'),\n        resolve(root, 'src/seq/field-outputs.ts'),"))
+    path.write_text(path.read_text().replace('    entryPoints: [', "    entryPoints: [\n        resolve(root, 'src/seq/field-routes.ts'),\n        resolve(root, 'src/seq/field-play.ts'),\n        resolve(root, 'src/seq/field-outputs.ts'),"))
 
     path = root / 'src/seq/engine.ts'
     path.write_text(path.read_text().replace('function engineSet(key: string, value: string): void {', 'export const fieldEngineSet = (key: string, value: string): void => engineSet(key, value);\nfunction engineSet(key: string, value: string): void {'))
@@ -141,3 +142,13 @@ mod field_tests {
     for relative in ('src/seq/constants.ts', 'engine/crates/movy-dsp/src/lib.rs'):
         path = root / relative
         path.write_text(path.read_text().replace('0.71.0-hb200', '0.71.0-hb209-field5'))
+
+    # Observations may skip a busy/malformed bulk reply; never expand it into
+    # sixteen blocking per-key requests on the UI thread.
+    path = root / 'src/track/port.ts'
+    source = path.read_text().replace('getMany(keys: string[]):', 'getMany(keys: string[], allowFallback?: boolean):')
+    path.write_text(source)
+    path = root / 'src/track/movy-chain-port.ts'
+    source = path.read_text().replace('getMany(keys: string[]):', 'getMany(keys: string[], allowFallback = true):')
+    source = source.replace('return keys.map((k) => this.getParam(k));', 'return allowFallback ? keys.map((k) => this.getParam(k)) : keys.map(() => null);')
+    path.write_text(source)

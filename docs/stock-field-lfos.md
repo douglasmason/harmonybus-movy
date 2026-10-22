@@ -48,3 +48,37 @@ full-chain fixture verifies the real adapter, two simultaneous contributions,
 bypass/resume, unload/reload, state restoration and return to stock waveforms.
 UI tests cover capability gates, channels, target filtering and unused controls.
 These are software tests; no physical Move was deployed or tested.
+
+## Routing overview
+
+In Field Play, **Shift + press the main encoder** opens Field Routes (terrain or
+outputs view). Turn the encoder to browse assignments; press it to open the
+existing LFO page for that exact track and slot. Back returns to Field Play.
+Pad output overrides remain playable in the overview; knobs do not edit hidden
+settings. Shift + Back / Shift + pad clear gestures remain available in the
+normal output view.
+
+The display shows the Field channel and normalized effective output, track/LFO
+slot, destination parameter, depth, polarity, enabled/HB-bypass state, and
+**base → effective** destination values. Values use the host's native units;
+effective includes all modulation contributions to that target. `?` means the
+readout is not available yet. “Enabled” describes the saved route configuration,
+not proof that its destination accepted a contribution: HB 289's existing
+`active` getter reports configuration, not callback success. No host change is
+required. This increment does not change HB's route semantics.
+
+The existing Remote UI mirror uses the same controller/display. `fieldSnapshot()`
+now includes `routing: {version:1, open, scanned, total, selected, routes}`;
+`showFieldRoutes()` and `openFieldRoute()` are exposed through the same production
+UI globals. Browser/lighting adapters may consume these observations when they
+integrate this revision; their separate deployments are not updated here.
+
+Observations run only with the overview open, at most one bulk read every 125 ms
+(up to 20 keys). The selected track alternates with a round-robin scan of all
+16 tracks: approximately 250 ms selected refresh and four seconds for a full
+background pass. `observedAt` is a per-track UI timestamp in milliseconds, not an
+engine tick. The aggregate is not an atomic engine snapshot. Field sample values
+remain in the existing `outputs` snapshot and retain its independent refresh.
+Reads neither advance Field nor write parameters. Broken bulk replies are skipped
+without per-key retry bursts; missing capability removes that track's cached
+routes. Opening a new overview or switching sets clears the cache.
