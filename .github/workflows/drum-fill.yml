@@ -27,7 +27,7 @@ concurrency:
   group: drum-fill-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.231
+  SOURCE_VERSION: 0.34.1-hbclean.233
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -45,7 +45,7 @@ jobs:
           git clone https://github.com/DimaDake/schwung-movy.git movy
           git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
           git clone https://github.com/douglasmason/harmonybus.git harmonybus
-          git -C harmonybus checkout b907f48b0d6d24598c4b903e4d2e59e9b759ec38
+          git -C harmonybus checkout 7712c10508623392dc6d91dc34842f1bdf8a4aa0
           git clone https://github.com/charlesvestal/schwung.git schwung
           git -C schwung checkout a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
           python3 scripts/apply_clean_harmonybus.py movy
@@ -101,7 +101,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: drum-fill-231
+          name: drum-fill-233
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -121,8 +121,8 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.230':
-              raise SystemExit('Expected Source Weaving 230 before Drum Fill; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.232':
+              raise SystemExit('Expected Field 232 before Drum Fill; installer unchanged')
           PY
           gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Drum Fill" --notes-file docs/drum-fill.md
           mkdir verified-upload
@@ -137,7 +137,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.230':
+          if metadata['version'] != '0.34.1-hbclean.232':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
