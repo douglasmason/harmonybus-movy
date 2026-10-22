@@ -302,6 +302,22 @@ static void test_source_weaving(void){
         set("cmd","stop");render(32);assert(sent_on==1&&sent_off==1);
     }
     puts("Section Shape: real HB output velocity 40/80/120, protected downbeat and shortened paired gate pass");
+    /* A section rest releases its clip voice while a same-pitch live voice
+       keeps its existing HB ownership. The donor timeline keeps advancing. */
+    set("state","movy1\nbpm 12000\nlink 0\ntk 3 0 0\ncl 3 0 64 0 0:1000:60:80:0\nsg 0 0\n");
+    set("cmd","songsection 0 bars 1;songsection 1 bars 1;songsection 1 track 3 1;songsection 1 sound 3 1");
+    set("padmap","3,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60");
+    render(16);sent_on=sent_off=0;
+    set("cmd","play");assert(render(500)>0);
+    uint8_t section_down[]={0x90,68,100},section_up[]={0x80,68,0};
+    api->on_midi(instance,section_down,3,0);render(220);
+    char section_view[1024];api->get_param(instance,"song_section",section_view,sizeof(section_view));
+    assert(strstr(section_view,"\"effective_rest_mask\":8"));
+    assert(render(32)>0); /* live voice survives the clip's boundary release */
+    api->on_midi(instance,section_up,3,0);render(32);
+    assert(render(32)==0);assert(sent_on==sent_off);
+    set("cmd","stop");render(16);
+    puts("Clip Participation: real HB same-pitch live ownership survives section rest, then releases to silence");
     /* Parameter target matching reaches the production chain before note-on. */
     set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 2 0 0\ntk 3 0 0\ncl 0 0 16 0 \ncl 2 0 16 0 0:48:36:100:0\ncl 3 0 16 0 0:48:60:100:0\nsr 3 1 -1 -1 2 0 0 -1 -1 0 0\n");
     render(16);
