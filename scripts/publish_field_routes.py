@@ -76,11 +76,16 @@ def main() -> None:
     assert len(assets) == 1 and assets[0]['size'] == archive.stat().st_size
     updated: dict[str, str] = {'version': version, 'download_url': assets[0]['browser_download_url']}
     if previous != updated:
-        request: dict[str, str] = {'message': f'Publish verified Field routing overview {version} [skip ci]', 'branch': 'main', 'sha': pointer['sha'],
-                                  'content': base64.b64encode((json.dumps(updated, indent=2)+'\n').encode()).decode()}
-        request_path: Path = Path('installer-update.json')
-        request_path.write_text(json.dumps(request))
-        command('gh', 'api', '--method', 'PUT', f'repos/{repository}/contents/release.json', '--input', str(request_path))
+        command('git', 'fetch', 'origin', 'main')
+        assert command('git', 'rev-parse', 'origin/main') == main_sha, 'Main moved during asset verification; installer unchanged'
+        command('git', 'switch', '-C', 'installer-pointer', main_sha)
+        Path('release.json').write_text(json.dumps(updated, indent=2) + '\n')
+        command('git', 'config', 'user.name', 'github-actions[bot]')
+        command('git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com')
+        command('git', 'add', 'release.json')
+        command('git', 'commit', '-m', f'Publish verified Field routing overview {version} [skip ci]')
+        # Ordinary fast-forward push rejects a concurrent change to any main file.
+        command('git', 'push', 'origin', 'HEAD:main')
     print(json.dumps(updated, indent=2))
     print(f'Verified published sha256: {digest}')
 
