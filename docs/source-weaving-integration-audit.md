@@ -249,3 +249,29 @@ an accepted note, source-mute fallback and a simultaneous live hold surviving th
 sequencer release. Browser tests exercise both donor controls through the shared
 controller with existing undo enforcement. Native and ARM gates run in CI because
 the refreshed local workspace has no Rust toolchain. No hardware deployment.
+
+## Movy 220: recorded gesture sources
+
+Based on Movy c00d5e4 (219) and HB b907f48 (0.2.289). `recorded_actions::Interval`
+already reconstructs a `Performance`/`ReadWindow` without retaining state. Reuse
+that reader at the scheduler's recorded fallback, after live/automatic and Grid
+readers. Donor phase selects the interval and age; translated origins wrap tick
+offsets into the actor loop. The ordinary scheduler still applies conditions,
+accepted attacks, gate scaling and source selection. Foreign rhythm keeps its
+existing scheduling owner. No changes to HB or shared harmonic state are needed.
+
+The master snapshot includes playing slots (muted tracks resolve unavailable)
+for this reader, preventing mid-tick launches from changing selection according
+to track numbering. This is scheduling metadata, not a new musical cache.
+Read raw intervals up to the existing 4096 cap; the donor's routes cannot recurse.
+An available empty/inactive interval replaces own recorded gestures with none;
+unavailable donors, recording and disabled routing use the old reader.
+
+New native regressions exercise scheduler attacks/releases in both track orders,
+independent donor rate and relaunch, all four readers and loop-offset mapping,
+availability/recording, live/Grid priority, foreign-rhythm gate ownership,
+snapshot launch behavior, save/undo and legacy routes. The production chain
+fixture checks eight repeated attacks and paired releases through Movy → Schwung
+→ HB. UI controls use the same native route and undo queue, on a separate panel
+within the eight-knob limit. Fit to Window, additional HB automation categories
+and the lookahead edit/record/load revision audit remain unfinished.
