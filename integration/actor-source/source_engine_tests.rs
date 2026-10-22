@@ -144,7 +144,7 @@ mod source_routing_tests {
     #[test]
     fn invalid_route_is_atomic_and_cycles_reference_only_raw_material() {
         let mut engine=setup();let original=engine.source_routes;
-        for message in ["16 1 0 0 0 0 0","3 1 -1 0 0 0 0","3 1 0 9 0 0 0","3 2 0 0 0 0 0","3 1 0 0 0 0 2"] {
+        for message in ["16 1 0 0 0 0 0","3 1 -1 0 0 0 0","3 1 0 9 0 0 0","3 2 0 0 0 0 0","3 1 0 0 0 0 3"] {
             assert!(!engine.source_route_set(message));assert_eq!(engine.source_routes,original);
         }
         engine.source_route_set("1 1 3 0 2 0 0");
@@ -336,13 +336,157 @@ mod source_routing_tests {
     #[ignore = "isolated release-mode timing measurement, not a hardware audio assertion"]
     fn source_routing_benchmark() {
         use std::time::Instant;
-        for enabled in [false,true] {
-            let mut engine=setup();engine.source_routes[3].enabled=enabled;
+        for (enabled,alignment) in [(false,0),(true,0),(true,1),(true,2)] {
+            let mut engine=setup();engine.source_route_set(&format!("3 {} 1 0 2 0 {alignment}",enabled as u8));
             let mut output=Vec::with_capacity(4096);
             let started=Instant::now();let mut count=0usize;
             for _ in 0..100_000 {engine.advance_block(250,&mut output);count+=output.len();output.clear();}
-            println!("source-routing enabled={enabled} ticks=100000 events={count} elapsed_us={}",started.elapsed().as_micros());
+            println!("source-routing enabled={enabled} alignment={alignment} ticks=100000 events={count} elapsed_us={}",started.elapsed().as_micros());
         }
     }
 
+}
+
+#[cfg(test)]
+mod source_fit_window_tests {
+    use super::*;
+    use crate::source_route::{Alignment, fitted_phase};
+    fn setup(actor:usize, donor:usize)->Engine {
+        let mut engine=Engine::new(48000,12000);engine.playing=true;
+        for track in [actor,donor,2] {
+            engine.tracks[track].playing_slot=Some(0);
+            engine.tracks[track].clips[0].set_loop(0,16);
+        }
+        engine.tracks[actor].clips[0].add_note_raw(0,0,24,30,90);
+        engine.tracks[donor].clips[0].set_loop(0,32);
+        for index in 0..4 {
+            engine.tracks[donor].clips[0].add_note_raw(index*8,u32::from(index)*192,48,60+index as u8,70);
+            engine.tracks[2].clips[0].add_note_raw(index*4,u32::from(index)*96,24,36,100);
+        }
+        assert!(engine.source_route_set(&format!("{actor} 1 {donor} 0 2 0 2")));
+        engine
+    }
+    fn tick(engine:&mut Engine)->Vec<OutEvent> {
+        let mut output=Vec::new();engine.advance_block(250,&mut output);output
+    }
+    fn pitches(output:&[OutEvent],actor:usize)->Vec<u8> {
+        output.iter().filter_map(|event|match event {
+            OutEvent::NoteOn{track,pitch,..} if *track as usize==actor=>Some(*pitch),_=>None}).collect()
+    }
+    #[test]
+    fn fitted_pitch_uses_actor_window_across_track_order_and_donor_speed() {
+        for (actor,donor) in [(3,1),(0,4)] {
+            for (numerator,denominator) in [(1,1),(4,1),(1,4)] {
+                let mut engine=setup(actor,donor);
+                engine.tracks[donor].clips[0].scale_num=numerator;
+                engine.tracks[donor].clips[0].scale_den=denominator;
+                let mut attacks=Vec::new();let mut releases=0;
+                for position in 0..=768 {
+                    let output=tick(&mut engine);
+                    let notes=pitches(&output,actor);
+                    if !notes.is_empty(){attacks.push((position,notes));}
+                    releases+=output.iter().filter(|event|matches!(event,OutEvent::NoteOff{track,..} if *track as usize==actor)).count();
+                }
+                assert_eq!(attacks,(0..=8).map(|index|(index*96,vec![60+(index%4) as u8])).collect::<Vec<_>>());
+                assert_eq!(releases,8);
+            }
+        }
+    }
+    #[test]
+    fn actor_speed_changes_fitted_phase_but_rhythm_clock_retains_gates() {
+        let mut engine=setup(3,1);engine.tracks[3].clips[0].scale_den=2;
+        let mut attacks=Vec::new();let mut releases=Vec::new();
+        for position in 0..=768 {
+            let output=tick(&mut engine);
+            let notes=pitches(&output,3);if !notes.is_empty(){attacks.push(notes);}
+            if output.iter().any(|event|matches!(event,OutEvent::NoteOff{track:3,..})){releases.push(position);}
+        }
+        assert_eq!(attacks,vec![vec![60],vec![60],vec![61],vec![61],vec![62],vec![62],vec![63],vec![63],vec![60]]);
+        assert_eq!(releases,(0..8).map(|index|index*96+24).collect::<Vec<_>>());
+    }
+    #[test]
+    fn nonzero_loop_bounds_floor_and_wrap_without_rounding_outside_window() {
+        assert_eq!(fitted_phase(240,240,384,480,1152),480);
+        assert_eq!(fitted_phase(336,240,384,480,1152),768);
+        assert_eq!(fitted_phase(623,240,384,480,1152),1629);
+        assert_eq!(fitted_phase(624,240,384,480,1152),480);
+        assert_eq!(fitted_phase(2,0,7,5,3),5);
+        assert_eq!(fitted_phase(6,0,7,5,3),7);
+        assert_eq!(fitted_phase(u32::MAX-1,0,u32::MAX,0,u32::MAX),u32::MAX-1);
+        let mut engine=setup(3,1);
+        engine.tracks[3].clips[0].set_loop(16,16);engine.tracks[3].pos_tick=384;
+        engine.tracks[1].clips[0].set_loop(16,32);engine.tracks[1].pos_tick=384;
+        // Source's first in-window group is 62; clipped-out notes cannot leak in.
+        assert_eq!(pitches(&tick(&mut engine),3),vec![62]);
+        for _ in 1..96 {tick(&mut engine);}
+        assert_eq!(pitches(&tick(&mut engine),3),vec![63]);
+    }
+    #[test]
+    fn rests_do_not_freeze_fit_phase_and_chords_remain_grouped() {
+        let mut engine=setup(3,1);
+        engine.tracks[1].clips[0].add_note_raw(8,192,48,65,80);
+        engine.tracks[2].clips[0].trigs.push(crate::clip::Trig{step:0,lane:None,props:crate::clip::TrigProps{prob:0,cond_a:1,cond_b:1,invert:false}});
+        assert!(pitches(&tick(&mut engine),3).is_empty());
+        for _ in 1..96 {tick(&mut engine);}
+        assert_eq!(pitches(&tick(&mut engine),3),vec![61,65]);
+    }
+    #[test]
+    fn source_loss_and_alignment_change_keep_existing_release_and_pressure_owners() {
+        let mut engine=setup(3,1);
+        engine.tracks[3].clips[0].notes[0].pressure=vec![(2,77)];
+        assert_eq!(pitches(&tick(&mut engine),3),vec![60]);
+        engine.tracks[1].muted=true;
+        for position in 1..=96 {
+            let output=tick(&mut engine);
+            if position==2 {assert!(output.contains(&OutEvent::PolyPressure{track:3,pitch:60,value:77}));}
+            if position==24 {assert!(output.contains(&OutEvent::NoteOff{track:3,pitch:60}));}
+            assert!(pitches(&output,3).is_empty());
+        }
+        engine.tracks[1].muted=false;
+        engine.source_route_set("3 1 1 0 2 0 0");
+        for _ in 97..192 {tick(&mut engine);}
+        assert_eq!(pitches(&tick(&mut engine),3),vec![60],"Sequential restarts at its first group");
+        engine.source_route_set("3 1 1 0 2 0 2");
+        for _ in 193..288 {tick(&mut engine);}
+        assert_eq!(pitches(&tick(&mut engine),3),vec![63]);
+        let mut output=Vec::new();engine.stop(&mut output);
+        assert!(output.contains(&OutEvent::NoteOff{track:3,pitch:63}));
+    }
+    #[test]
+    fn fit_save_undo_and_recording_use_existing_route_and_own_path() {
+        let mut engine=setup(3,1);let saved=crate::persist::serialize(&engine);
+        let mut restored=Engine::new(48000,12000);assert!(crate::persist::load(&mut restored,&saved));
+        assert_eq!(restored.source_routes,engine.source_routes);
+        let mut output=Vec::new();crate::command::apply_batch(&mut engine,"usnap 2 3",&mut output);
+        engine.source_route_set("3 1 1 0 2 0 1");
+        crate::command::apply_batch(&mut engine,"uswap 2 3",&mut output);
+        assert_eq!(engine.source_routes[3].alignment,Alignment::FitWindow);
+        engine.recording=true;engine.rec_track=3;
+        assert_eq!(pitches(&tick(&mut engine),3),vec![30]);
+        assert_eq!(engine.tracks[1].clips[0].notes.len(),4);
+        for legacy in ["3 1 1 0 2 0 0","3 1 1 0 2 0 1"] {
+            assert!(engine.source_route_set(legacy));
+            assert_ne!(engine.source_routes[3].alignment,Alignment::FitWindow);
+        }
+    }
+    #[test]
+    fn fit_relaunch_follows_actor_reset_and_ignores_donor_phase_reset() {
+        for relaunched in [1,3] {
+            let mut engine=setup(3,1);
+            engine.tracks[3].clips[0].set_loop(0,32);
+            for _ in 0..384 {tick(&mut engine);}
+            engine.tracks[relaunched].queued_slot=Some(0);
+            assert_eq!(pitches(&tick(&mut engine),3),if relaunched==3 {vec![60]} else {vec![62]});
+        }
+    }
+    #[test]
+    fn fit_edits_and_empty_actor_are_read_without_material_cache() {
+        let mut engine=setup(3,1);engine.tracks[3].clips[0].notes.clear();
+        engine.tracks[1].clips[0].notes[0].tick=48;
+        assert_eq!(pitches(&tick(&mut engine),3),vec![63],"before first onset carries last group, like Timeline");
+        engine.tracks[1].clips[0].notes[1].pitch=72;
+        for _ in 1..96 {tick(&mut engine);}
+        assert_eq!(pitches(&tick(&mut engine),3),vec![72]);
+        assert!(engine.source_preview(3).unwrap().contains("\"alignment\":2"));
+    }
 }

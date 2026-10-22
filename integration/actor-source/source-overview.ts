@@ -70,7 +70,7 @@ export function overviewGet(base:number,key:string):string|null {
     const actor=base+Number(match[1]),field=match[2];
     const state=snapshot('source-'+actor,()=>typeof host_module_get_param==='function'?host_module_get_param('source_preview_'+actor):null);
     if(state?.schema!==1||state.actor!==actor)return 'Unavailable';
-    if(field==='state')return !state.playing?'Stopped':state.muted?'Muted':state.recording?'Recording own':state.enabled?(state.timeline?'Weave Time':'Weave Seq'):'Own playback';
+    if(field==='state')return !state.playing?'Stopped':state.muted?'Muted':state.recording?'Recording own':state.enabled?(state.alignment===2?'Weave Fit':state.timeline?'Weave Time':'Weave Seq'):'Own playback';
     if(field==='gates')return Number.isInteger(state.gates)?String(state.gates):'--';
     if(field==='notes'){
         if(!Array.isArray(state.notes))return '--';
@@ -84,5 +84,6 @@ export function overviewGet(base:number,key:string):string|null {
     const label='T'+(source.track+1)+'C'+(source.slot+1);
     if(!source.active)return label+' inactive';
     if(!Number.isFinite(source.phase_ticks)||!Number.isFinite(source.length_ticks)||source.length_ticks<=0)return label+' --';
-    return label+' '+Math.round(100*source.phase_ticks/source.length_ticks)+'%';
+    const phase=field==='pitch'&&state.alignment===2&&Number.isFinite(source.selection_phase_ticks)?source.selection_phase_ticks:source.phase_ticks;
+    return label+' '+Math.round(100*phase/source.length_ticks)+'%'+(field==='pitch'&&state.alignment===2?' fit':'');
 }
