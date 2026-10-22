@@ -4,6 +4,8 @@ on:
     branches: [feature/actor-clip-source-bridge-20261020, main]
     paths:
       - integration/actor-source/**
+      - integration/hb_loop.rs
+      - scripts/patch_loop_bridge.py
       - scripts/patch_source_routing.py
       - scripts/patch_variation.py
       - integration/variation/**
@@ -17,6 +19,8 @@ on:
     branches: [main]
     paths:
       - integration/actor-source/**
+      - integration/hb_loop.rs
+      - scripts/patch_loop_bridge.py
       - scripts/patch_source_routing.py
       - scripts/patch_variation.py
       - integration/variation/**
@@ -30,7 +34,7 @@ concurrency:
   group: source-weaving-${{ github.ref }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.220
+  SOURCE_VERSION: 0.34.1-hbclean.223
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -59,7 +63,7 @@ jobs:
           npm run typecheck
           npm run build:browser
           node browser-test/logic.mjs
-          for suite in hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
+          for suite in hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
             node "browser-test/$suite.mjs"
           done
           # Legacy app-loop fails unchanged on the pre-routing hbclean.209 baseline.
@@ -71,6 +75,7 @@ jobs:
           cargo test --manifest-path movy/engine/Cargo.toml -p seq-core -p movy-dsp
           bash scripts/test_full_chain_audio.sh movy harmonybus schwung
           cargo test --release --manifest-path movy/engine/Cargo.toml -p seq-core source_routing_benchmark -- --ignored --nocapture --test-threads=1 | tee source-benchmark.txt
+          cargo test --release --manifest-path movy/engine/Cargo.toml -p movy-dsp hb_loop_snapshot_benchmark -- --ignored --nocapture --test-threads=1 | tee -a source-benchmark.txt
       - name: ARM toolchain
         run: |
           sudo apt-get update -qq
@@ -101,7 +106,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: source-weaving-220
+          name: source-weaving-223
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -117,7 +122,7 @@ jobs:
             echo 'This Source Weaving version is already published; installer unchanged'
             exit 0
           fi
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Recorded Gesture Sources" --notes-file docs/source-weaving.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Lookahead Content Identity" --notes-file docs/source-weaving.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -130,7 +135,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.219':
+          if metadata['version'] != '0.34.1-hbclean.222':
               raise SystemExit('Installer moved concurrently; leave it unchanged for review')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')

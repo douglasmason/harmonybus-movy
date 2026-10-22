@@ -313,3 +313,17 @@ load Gesture Source = Own. Donor reads are raw, non-recursive and bounded to the
 existing 4096-interval limit. Only playing-slot/phase scheduling metadata is
 snapshotted; no musical cache is introduced. The older source-cache scaffold
 remains inactive and harmonic lookahead hashing remains unchanged.
+
+## Lookahead content identity (Movy 223)
+
+Edits to recorded Grid holds, shared key/context timelines, trigger conditions,
+or automation lane targets/bases now change the existing harmonic lookahead
+content identity. This prevents an old learned timeline from being reused merely
+because the notes stayed unchanged. Undo and save/load retain deterministic
+identity, while playback counters remain excluded. Existing cached timelines
+relearn under the expanded identity on first use; no save conversion is required.
+
+This release preserves Song Sections 222 and Field overview 221. It adds no
+selectors or caches and does not remove tick-level hashing. Full mutation-counter
+optimization and forecast eligibility for independently woven loops remain open,
+alongside Fit to Window. Desktop verification does not establish Move latency.
