@@ -617,6 +617,8 @@ def main() -> int:
     patch_variation(root)
     patch_stock_field(root)
     patch_field_lfo(root)
+    from patch_song_sections import patch_song_sections
+    patch_song_sections(root)
     print("HarmonyBus clean integration applied")
     return 0
 
