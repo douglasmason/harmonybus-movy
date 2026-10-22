@@ -54,6 +54,16 @@ static long render(int blocks){
     return energy;
 }
 static float field_get(const char *key){char text[128]={0};int n=api->get_param(instance,key,text,sizeof(text));assert(n>0);return strtof(text,0);}
+static void field_status_is(const char *expected){
+    char text[64]={0};int length=api->get_param(instance,"ch0:lfo1:status",text,sizeof(text));
+    if(length<=0||!text[0]){
+        /* Other integration gates still pin supported HB289. Only that known
+           legacy build may omit the additive delivery status. */
+        assert(api->get_param(instance,"ch0:midi_fx1:version",text,sizeof(text))>0);
+        assert(!strcmp(text,"0.2.289"));return;
+    }
+    assert(!strcmp(text,expected));
+}
 static void test_field_lfos(void){
     set("cmd","stop");render(16);
     assert(field_get("ch0:lfo1:field_source_version")==1);
@@ -62,9 +72,10 @@ static void test_field_lfos(void){
     set("ch0:synth:cutoff","20");
     set("ch0:lfo1:target","synth");set("ch0:lfo1:target_param","cutoff");
     set("ch0:lfo1:depth","0.5");set("ch0:lfo1:polarity","1");set("ch0:lfo1:enabled","1");set("ch0:lfo1:shape","6");render(16);
+    field_status_is("applied");
     assert(field_get("ch0:lfo1:shape")==6);assert(field_get("ch0:synth:cutoff")==20);
     assert(field_get("ch0:synth:cutoff:effective")>=51&&field_get("ch0:synth:cutoff:effective")<=52);
-    set("ch0:midi_fx1:bypassed","1");render(16);assert(field_get("ch0:synth:cutoff:effective")==20);
+    set("ch0:midi_fx1:bypassed","1");render(16);field_status_is("bypassed");assert(field_get("ch0:synth:cutoff:effective")==20);
     set("ch0:midi_fx1:bypassed","0");render(16);assert(field_get("ch0:synth:cutoff:effective")>50);
     /* Both slots can address one parameter; clearing one preserves the other. */
     set("ch0:lfo2:shape","7");set("ch0:lfo2:target","synth");set("ch0:lfo2:target_param","cutoff");

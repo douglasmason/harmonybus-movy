@@ -68,17 +68,40 @@ not proof that its destination accepted a contribution: HB 289's existing
 required. This increment does not change HB's route semantics.
 
 The existing Remote UI mirror uses the same controller/display. `fieldSnapshot()`
-now includes `routing: {version:1, open, scanned, total, selected, routes}`;
+now includes `routing: {version:2, open, scanned, total, selected, tracks, routes}`;
 `showFieldRoutes()` and `openFieldRoute()` are exposed through the same production
 UI globals. Browser/lighting adapters may consume these observations when they
 integrate this revision; their separate deployments are not updated here.
 
 Observations run only with the overview open, at most one bulk read every 125 ms
-(up to 20 keys). The selected track alternates with a round-robin scan of all
+(up to 22 keys). The selected track alternates with a round-robin scan of all
 16 tracks: approximately 250 ms selected refresh and four seconds for a full
 background pass. `observedAt` is a per-track UI timestamp in milliseconds, not an
 engine tick. The aggregate is not an atomic engine snapshot. Field sample values
 remain in the existing `outputs` snapshot and retain its independent refresh.
 Reads neither advance Field nor write parameters. Broken bulk replies are skipped
-without per-key retry bursts; missing capability removes that track's cached
-routes. Opening a new overview or switching sets clears the cache.
+without per-key retry bursts. Unavailable reads retain last-known routes, visibly
+marked Unavailable; a successful capability=0 read removes unsupported routes. Opening a new overview or switching sets clears the cache.
+
+
+## Actual delivery and observation freshness (HB 290 / Movy 232)
+
+The overview now shows Applied, Pending, Rejected, Unmanaged, Disabled, No target
+or HB bypass using HB's additive `field_lfoN:status` observation. Applied means
+the stock host accepted the last contribution, even at zero depth; it does not
+promise audible change or that destination FX is unbypassed. Rejected is the
+callback's failure result (for example, a missing parameter), not a guessed
+diagnosis. The older `active` getter still describes configuration. HB289 remains
+compatible and displays Enabled when delivery status is unavailable.
+
+A failed/partial batch no longer erases existing routes. Schema2 adds per-track
+attemptedAt, observedAt, state and freshness, plus per-route delivery/freshness.
+Unavailable reads are marked immediately; observations older than five seconds
+or from a future UI timestamp are Stale. These are UI timestamps, not musical
+time. Numeric readouts are hidden and edit navigation is blocked while a route
+is unavailable/stale. A successful fresh read restores normal display/navigation.
+A valid shape change away from Field or capability=0 clears that track's routes.
+Unknown tracks prevent an inaccurate 'No Field LFO routes' empty-state message.
+Clock rollback clears observations. Closing the overview still stops polling.
+Version2 consumers should explicitly check freshness before using cached values;
+existing keys are retained, and no DSP timing/transport is inferred from polling.

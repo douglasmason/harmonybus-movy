@@ -1,4 +1,4 @@
-import { routesOpen, setFieldRoutesOpen, resetFieldRoutes, tickFieldRoutes, selectedFieldRoute, stepFieldRoute, fieldRoutesSnapshot, fieldRouteStatus } from './field-routes.js';
+import { routesOpen, setFieldRoutesOpen, resetFieldRoutes, tickFieldRoutes, selectedFieldRoute, stepFieldRoute, fieldRoutesSnapshot, fieldRouteStatus, fieldRouteFreshness } from './field-routes.js';
 import { selectTrack } from '../track/focus.js';
 import { LFO_CHAIN_INDEX } from '../chain/config.js';
 import { VIEW_KNOBS } from '../app/state.js';
@@ -124,7 +124,7 @@ export function paintField():void{
 }
 /** Remote and Move navigation share this controller; editing remains in the LFO page. */
 export function openFieldRoute():boolean {
-    const route=selectedFieldRoute();if(!route)return false;
+    const route=selectedFieldRoute();if(!route||fieldRouteFreshness(route.track)!=='fresh')return false;
     const model=appState.trackModels[route.track]?.[LFO_CHAIN_INDEX];if(!model)return false;
     setFieldEnabled(false);selectTrack(route.track);seqState.sessionMode=false;
     model.reset();model.changePage(route.slot-1);
@@ -148,8 +148,8 @@ export function renderField():void{
             fontPrint(2,14,`F${route.channel} ${Math.round(outputs[route.channel-1].value*100)}% > T${route.track+1} LFO${route.slot}`,1);
             fontPrint(2,24,`${route.target||'No target'} ${route.parameter}`.slice(0,25),1);
             fontPrint(2,34,`${fieldRouteStatus(route)} ${Math.round(route.depth*100)}% ${route.bipolar?'Bi':'Uni'}`,1);
-            fontPrint(2,44,`B ${fieldReadout(route.base)} > E ${fieldReadout(route.effective)}`,1);
-        }else fontPrint(2,24,snapshot.scanned<snapshot.total?'Scanning routes...':'No Field LFO routes',1);
+            fontPrint(2,44,fieldRouteFreshness(route.track)==='fresh'?`B ${fieldReadout(route.base)} > E ${fieldReadout(route.effective)}`:'Waiting for route data',1);
+        }else fontPrint(2,24,snapshot.scanned<snapshot.total?'Scanning routes...':snapshot.tracks.some(track=>track.freshness!=='fresh')?'Route data unavailable':'No Field LFO routes',1);
         fontPrint(2,56,'Jog: route Press: LFO',1);return;
     }
     if(outputView&&!settingsOpen){
