@@ -1,7 +1,7 @@
 import {defaultSettings,defaultSamples} from './lighting.mjs';
 
 export const lightingStorageKey='harmonybus.lighting.v1';
-const choices={source:['terrain','lanes'],palette:['blend','scale','chord'],position:['degree','pitch','voice'],hueTurns:[1,2,3,4],phraseBars:[0,4,8,16]};
+const choices={source:['terrain','lanes'],palette:['blend','scale','chord'],position:['degree','pitch','voice'],hueTurns:[1,2,3,4],phraseBars:[0,4,8,16],sectionCue:['off','arrival','rotate']};
 /** Validate the complete profile before replacing any active controls or samples. */
 export function lightingProfile(value){
  if(!value||value.schema!==1||!value.settings||typeof value.settings!=='object'||Array.isArray(value.settings))return null;

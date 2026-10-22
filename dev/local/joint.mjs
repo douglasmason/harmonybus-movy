@@ -4,6 +4,16 @@ import {mountLighting} from './lighting-ui.mjs';
 import {AudioMonitor} from './audio-monitor.mjs';
 import {engineReadKey,readableKey} from './protocol-policy.mjs';
 import {mountSong} from './song-ui.mjs';
+import {performanceFeedback,selectedClip} from './performance-ui.mjs';
+let releaseControls=()=>{};
+function showView(name){
+ releaseControls();
+ for(const button of document.querySelectorAll('[data-view]'))button.setAttribute('aria-pressed',String(button.dataset.view===name));
+ for(const panel of document.querySelectorAll('.view-panel'))panel.hidden=panel.id!=='view-'+name;
+}
+for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>showView(button.dataset.view);
+for(const id of ['record','play','stop'])document.querySelector('#'+id).disabled=true;
+const clipCards=Array.from({length:4},()=>{const card=document.createElement('div');card.className='clip-card';document.querySelector('#clip-status').append(card);return card;});
 let monitor=new AudioMonitor();
 const lighting=mountLighting(document.querySelector('#lighting'));
 const audioButton=document.querySelector('#audio');audioButton.disabled=true;
@@ -17,7 +27,7 @@ for(const [actor,name] of ['Root','Bass','Comp','Melody'].entries()){
  label.append(volume,mute,document.createTextNode(' Mute'));document.querySelector('#audio-mix').append(label);
 }
 const status=document.querySelector('#status');
-const {metadata,socket,label,audio,sessions}=await openJointConnection().catch(error=>{status.textContent='Cannot start engine: '+error.message;throw error;});
+const {metadata,socket,label,audio,sessions}=await openJointConnection().catch(error=>{status.textContent='Cannot start engine: '+error.message;document.querySelector('#capture-status').textContent=status.textContent;throw error;});
 if(audio){monitor=audio;audio.onStatus=text=>{document.querySelector('#audio-status').textContent=text;};audio.onDisable=()=>{audioButton.textContent='Enable audio';audioButton.setAttribute('aria-pressed','false');};document.querySelector('#audio-status').textContent='NuSaw · compiled Schwung synth audio';}
 audioButton.disabled=false;
 if(audio){
@@ -44,13 +54,13 @@ await new Promise((resolve,reject)=>{
   socket.onmessage=event=>{
     const message=JSON.parse(event.data);
     if(message.type==='audio_error'){disableAudio();document.querySelector('#audio-status').textContent=message.message;return;}
-    if(message.type==='error'){status.textContent=message.message;return;}
+    if(message.type==='error'){status.textContent=message.message;document.querySelector('#audio-status').textContent=message.message;return;}
     if(message.events)monitor.consume(message.events);
     if(message.requestId==='monitor-stop')monitor.silence();
     for(const [key,value] of Object.entries(message.params??{}))cache.set(key,value);
     lighting.receive(message,cache);
     if(message.events)document.querySelector('#events').textContent=message.events.slice(-30).map(event=>event.packet.join(' ')).join('\n');
-    if(!connected){connected=true;status.textContent=label;resolve();}
+    if(!connected){connected=true;status.textContent=label;for(const id of ['record','play','stop'])document.querySelector('#'+id).disabled=false;resolve();}
   };
   if(socket.readyState===1)socket.onopen();
 });
@@ -133,8 +143,9 @@ function release(){
  for(const index of [...heldPads]){heldPads.delete(index);midi(128,68+index,0);pads[index].dataset.held='false';}
  for(const slot of [...heldKnobs]){heldKnobs.delete(slot);midi(128,slot,0);knobs[slot].dataset.held='false';}
 }
+releaseControls=release;
 document.querySelector('#release').onclick=release;
-document.querySelector('#play').onclick=()=>send({type:'dev_transport',action:'play'});
+document.querySelector('#play').onclick=()=>{release();send({type:'dev_transport',action:'play'});};
 document.querySelector('#stop').onclick=()=>{release();monitor.silence();send({type:'dev_transport',action:'stop',id:'monitor-stop'});};
 document.querySelector('#record').onclick=()=>{
  const command=joint.jointRecordCommand();if(!command)return;
@@ -151,14 +162,32 @@ document.querySelector('#back').onclick=()=>jointPage().back();
 document.querySelector('#enter').onclick=()=>jointPage().click(appState.shiftHeld);
 const panel=document.querySelector('#panel');panel.onchange=()=>jointPage().goToPage(Number(panel.value));
 const song=mountSong({page:jointPage,read:globalThis.host_module_get_param});
+document.querySelector('#song-edit').addEventListener('click',()=>showView('controls'));
 let signature='',watchSignature='';
 const timer=setInterval(()=>{
  if(!connected||document.hidden)return;
  const transport=Object.fromEntries(String(cache.get('status')??'').split(' ').map(field=>field.split('=')));
  seqState.playing=transport.play==='1';seqState.recording=transport.rec==='1';seqState.countingIn=transport.cin==='1';
  song.update();
+ const recordCommand=joint.jointRecordCommand(),recordParts=recordCommand?.split(' ').map(Number)??[];
+ const mask=recordParts[1]??0,overwrite=recordParts[2]??0;
+ const clips=Array.from({length:4},(_,actor)=>{const track=appState.focusGroup*4+actor;return selectedClip(globalThis.host_module_get_param('motif_clip_info_'+track),track);});
+ const feedback=performanceFeedback(transport,clips,{mask,overwrite,audioEnabled:monitor.enabled});
+ document.querySelector('#capture-status').textContent=feedback.headline;
+ document.querySelector('#capture-hint').textContent=feedback.hint;
+ document.querySelector('#position').textContent=feedback.position;
+ document.querySelector('#record').disabled=!mask&&!seqState.recording&&!seqState.countingIn;
+ document.querySelector('#record').title=feedback.target||'Enable recording actors in Controls';
+ document.querySelector('#play').setAttribute('aria-pressed',String(seqState.playing&&!seqState.recording&&!seqState.countingIn));
+ for(let actor=0;actor<4;actor++){
+  const clip=clips[actor],card=clipCards[actor],title=document.createElement('strong'),detail=document.createElement('span');
+  title.textContent=clip?clip.actor+' · T'+(clip.track+1)+' / C'+(clip.slot+1):['Root','Bass','Comp','Melody'][actor];
+  detail.textContent=clip?clip.notes+' notes · '+(mask&(1<<clip.track)?(overwrite&(1<<clip.track)?'replace':'layer'):'not recording'):'Reading…';
+  card.replaceChildren(title,detail);
+ }
  document.querySelector('#transport').textContent=seqState.countingIn?'Count-in':seqState.recording?'Recording':seqState.playing?'Playing':'Stopped';
  document.querySelector('#record').setAttribute('aria-pressed',String(seqState.recording||seqState.countingIn));
+ document.querySelector('#record').textContent=seqState.countingIn?'Cancel take':seqState.recording?'Finish take':'Record';
  ledFrameReset();joint.syncJoint(write);joint.paintJointPads();joint.renderJoint();
  const stepMode=joint.jointStepMode();if(stepMode)paintHbPerformance();
  document.querySelector('#step-mode').textContent=stepMode===0?'Step sequencing is not available in this host.':stepMode===1?'Operator buttons':'Motif buttons';
@@ -172,7 +201,7 @@ const timer=setInterval(()=>{
  const cells=routingCells.map(([track,pitch,target])=>({track,pitch,target}));
  for(let index=0;index<32;index++){const cell=cells[index]??{track:base,pitch:-1,target:-1};pads[index].textContent=`${['Root','Bass','Comp','Melody'][cell.track-base]} ${cell.target>=0?'→'+cell.target:cell.pitch>=0?cell.pitch:'—'}`;const rgb=PAD_PALETTE[padColors.get(68+index)??0]??[30,30,30];pads[index].style.backgroundColor=`rgb(${rgb.join(',')})`;pads[index].style.color=rgb.reduce((total,value)=>total+value,0)>400?'#111':'#fff';}
  lighting.paint(cache,demand,appState.focusGroup);
- const now=Date.now(),keys=[...new Set([...lighting.watchKeys,...[...demand].filter(([,time])=>now-time<750).map(([key])=>key).slice(-60)])];
+ const now=Date.now(),keys=[...new Set([...Array.from({length:4},(_,actor)=>'motif_clip_info_'+(appState.focusGroup*4+actor)),...lighting.watchKeys,...[...demand].filter(([,time])=>now-time<750).map(([key])=>key).slice(-60)])].slice(0,64);
  const watch=keys.join('|');if(watch!==watchSignature){watchSignature=watch;send({type:'dev_watch',keys});}
 },40);
 // Read-only inspection for browser tests; all input still uses production handlers.

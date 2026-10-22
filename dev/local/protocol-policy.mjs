@@ -1,7 +1,7 @@
 export const trackKey=/^ch([0-9]|1[0-5]):midi_fx1:(\w+)(?::(?:base|modulated))?$/;
 export const jointAction=/^(?:joint_pad_)?(?:approach_(?:step_touch_\d+|touch_\d+|control_\w+|mode_active|motif_latch)|motion_(?:gesture_\d+|hold_\d+|release)|key_center|dominant_color|dominant_color_family|harm_play_release\w*|harm_play_advance|target_scale_\w+|motif_placement)$/;
 export const routingKeys=new Set(['joint_map','joint_links','joint_release']);
-export const engineReadKey=/^(?:ping|status|source_diagnostics|song_section(?:_(?:[0-9]|[1-9][0-9]|1[01][0-9]|12[0-7]))?|(?:source_route|source_preview|variation)_(?:[0-9]|1[0-5]))$/;
+export const engineReadKey=/^(?:ping|status|source_diagnostics|song_section(?:_(?:[0-9]|[1-9][0-9]|1[01][0-9]|12[0-7]))?|(?:motif_clip_info|source_route|source_preview|variation)_(?:[0-9]|1[0-5]))$/;
 // Route observations only. Module loading, module state and LFO writes are not exposed.
 export const fieldReadKey=/^ch(?:[0-9]|1[0-5]):(?:midi_fx1:bypassed|lfo[12]:(?:field_source_version|shape|target|target_param|depth|polarity|enabled|active)|(?:synth|fx[1-8]):(?!state:|module:|chain_params:|ui_hierarchy:)[a-zA-Z0-9_.-]{1,64}:(?:base|effective))$/;
 export function readableKey(key,readable){
@@ -17,7 +17,7 @@ export function validateEngineCommand(value){
   if(section&&Number(section[1])<128&&(section[3]===undefined||Number(section[3])<=256)&&(section[4]===undefined||Number(section[4])<16))continue;
   const [verb,...parts]=command.trim().split(/\s+/),values=parts.map(Number);
   if(parts.some(part=>!/^[-]?\d+$/.test(part))||values.some(number=>!Number.isSafeInteger(number)))throw new Error('Invalid engine edit values');
-  if(['usnap','udrop'].includes(verb)&&values.length===1&&values[0]>=0)continue;
+  if(['usnap','ucommit','udrop'].includes(verb)&&values.length===1&&values[0]>=0)continue;
   if(['song','songadd'].includes(verb)&&values.length===1&&values[0]>=0&&values[0]<8)continue;
   if(verb==='songsectionclear'&&values.length===1&&values[0]>=0&&values[0]<128)continue;
   if(verb==='variation'&&values.length===6&&values[0]>=0&&values[0]<16&&values.slice(1,5).every(number=>number>=0&&number<=100)&&values[5]>=1&&values[5]<=256)continue;

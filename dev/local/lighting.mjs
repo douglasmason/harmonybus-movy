@@ -1,4 +1,5 @@
 /** Lighting is a read-only projection of HB field snapshots and rendered MIDI. */
+import {SectionLighting} from './lighting-sections.mjs';
 export const clamp=(value,low=0,high=1)=>Math.max(low,Math.min(high,value));
 export const wrapHue=value=>((value%360)+360)%360;
 export const hueDelta=(first,second)=>((second-first+540)%360)-180;
@@ -47,7 +48,7 @@ export function gaussianWeights(position,width) {
  return weights.map(value=>value/total);
 }
 export const defaultSamples=[[9,18,10],[14,21,13],[54,45,53],[49,42,50]];
-export const defaultSettings=Object.freeze({source:'terrain',palette:'blend',harmony:.75,level:.7,saturation:.85,reactivity:.65,vinyl:.45,hueTurns:2,phraseBars:0,blackout:false,position:'degree',spread:.85});
+export const defaultSettings=Object.freeze({source:'terrain',palette:'blend',harmony:.75,level:.7,saturation:.85,reactivity:.65,vinyl:.45,hueTurns:2,phraseBars:0,blackout:false,position:'degree',spread:.85,sectionCue:'arrival'});
 
 /** Parse existing quantized terrain or lane telemetry; reject incomplete frames. */
 export function parseField(text,source='terrain') {
@@ -90,6 +91,7 @@ export class Lighting {
   this.transport={playing:false,bar:0,tick:0};this.gesture=null;this.lastCue='';this.phraseCount=0;
   this.shared='';this.harmony='';this.suspended=false;
   this.epoch=null;this.snapshotSequence=null;this.sampleClock=null;
+  this.sections=new SectionLighting();
  }
  /** No MIDI or parameter writes: duplicated event-history snapshots are harmless. */
  ingest({field,shared,harmony,status,events=[],observation},now){
@@ -123,7 +125,9 @@ export class Lighting {
   const barTicks=Number.isFinite(ppqn)&&ppqn>0&&Array.isArray(meter)&&meter.length===2&&meter.every(value=>Number.isFinite(value)&&value>0)?ppqn*meter[0]*4/meter[1]:384;
   const bar=Number.isFinite(tick)?Math.floor(tick/barTicks):this.transport.bar;
   if(playing&&this.transport.playing&&Number.isFinite(tick)&&tick<this.transport.tick){this.resetPerformance();this.history=[];resync=true;}
-  if(!resync&&playing&&Number.isFinite(tick)&&(!this.transport.playing||bar!==this.transport.bar)){
+  const sectionCue=this.sections.observe(observation?.structure,now,{reset:resync||this.suspended||now-this.updated>=750||!playing,mode:this.settings.sectionCue,ppqn:ppqn??96});
+  if(sectionCue)this.cue(sectionCue,now);
+  else if(!resync&&playing&&Number.isFinite(tick)&&(!this.transport.playing||bar!==this.transport.bar)){
    // One cue at the observed boundary; never replay missed bars after a stalled tab.
    const phrase=this.settings.phraseBars>0&&bar>0&&bar%this.settings.phraseBars===0;
    this.cue(phrase?'phrase':'downbeat',now);
@@ -152,7 +156,7 @@ export class Lighting {
    else if(kind===176&&(pitch===120||pitch===123)){for(const [key,note] of this.envelopes)if(note.channel===channel){this.notes.delete(key);this.envelopes.delete(key);}this.attacks[channel]=0;}
   }
  }
- /** A future arrangement owner can submit the same explicit cue once per event. */
+ /** Manual auditions and observed section arrivals share the same visual gesture. */
  cue(kind,now){
   if(!['downbeat','phrase','break','arrival'].includes(kind))return;
   this.lastCue=kind;
@@ -160,7 +164,7 @@ export class Lighting {
   this.gesture={kind,start:now,duration:kind==='downbeat'?340:900};
  }
  resetPerformance(){this.notes.clear();this.envelopes.clear();this.attacks.fill(0);this.gesture=null;this.lastSequence=null;}
- suspend(){this.suspended=true;this.resetPerformance();this.history=[];}
+ suspend(){this.suspended=true;this.resetPerformance();this.history=[];this.sections.reset();}
  resume(){this.suspended=false;this.lastFrame=null;this.lastSequence=null;this.updated=-Infinity;this.epoch=null;this.snapshotSequence=null;this.sampleClock=null;}
  resetSource(){this.history=[];this.field=null;this.updated=-Infinity;this.gesture=null;}
  /** Piecewise-linear history lookup is bounded and has no field-clock ownership. */
@@ -176,7 +180,7 @@ export class Lighting {
  render(now){
   const elapsed=this.lastFrame===null?40:clamp(now-this.lastFrame,0,100);this.lastFrame=now;
   const fresh=now-this.updated<750&&!this.suspended;
-  if(!fresh){this.notes.clear();this.envelopes.clear();this.attacks.fill(0);this.gesture=null;}
+  if(!fresh){this.notes.clear();this.envelopes.clear();this.attacks.fill(0);this.gesture=null;this.sections.reset();}
   const liveTime=this.sampleClock??now;
   let values=this.field,sampleTime=liveTime,cueAmount=0;
   if(this.gesture&&fresh){
@@ -202,7 +206,8 @@ export class Lighting {
    if(envelope>voice.energy){voice.position=position;voice.energy=envelope;}
   }
   for(let fixture=0;fixture<4;fixture++){
-   const route=this.settings.source==='lanes'?[fixture,fixture+4,fixture+8]:this.samples[(fixture+rotation)%4];
+   const rotated=(fixture+rotation)%4;
+   const route=this.settings.source==='lanes'?[rotated,rotated+4,rotated+8]:this.samples[rotated];
    const [hueSample,levelSample,saturationSample]=route.map(index=>values?.[index]??.5);
    const rawHue=wrapHue(hueSample*360*this.settings.hueTurns);
    // A circular vector bias, followed by shortest-arc smoothing, avoids 359→0 jumps.
@@ -225,6 +230,6 @@ export class Lighting {
    next.rgb=hsvRgb(next.hue,next.saturation,next.level);this.frame[fixture]=next;
    this.attacks[fixture]*=Math.exp(-elapsed/130);
   }
-  return {fixtures:this.frame,palette,fresh,sampleTime,rewinding:sampleTime<liveTime-10,cue:this.gesture?.kind??'',bar:this.transport.bar+1,playing:this.transport.playing,held:this.notes.size,voices};
+  return {fixtures:this.frame,palette,fresh,sampleTime,rewinding:sampleTime<liveTime-10,cue:this.gesture?.kind??'',bar:this.transport.bar+1,playing:this.transport.playing,held:this.notes.size,voices,sectionLabel:this.sections.label(now)};
  }
 }
