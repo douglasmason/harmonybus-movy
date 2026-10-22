@@ -84,7 +84,7 @@ without per-key retry bursts. Unavailable reads retain last-known routes, visibl
 marked Unavailable; a successful capability=0 read removes unsupported routes. Opening a new overview or switching sets clears the cache.
 
 
-## Actual delivery and observation freshness (HB 290 / Movy 226)
+## Actual delivery and observation freshness (HB 290 / Movy 230)
 
 The overview now shows Applied, Pending, Rejected, Unmanaged, Disabled, No target
 or HB bypass using HB's additive `field_lfoN:status` observation. Applied means
@@ -105,3 +105,4 @@ Unknown tracks prevent an inaccurate 'No Field LFO routes' empty-state message.
 Clock rollback clears observations. Closing the overview still stops polling.
 Version2 consumers should explicitly check freshness before using cached values;
 existing keys are retained, and no DSP timing/transport is inferred from polling.
+
