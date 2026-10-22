@@ -9,7 +9,7 @@ concurrency:
   group: field-routes-${{ github.ref }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.226
+  SOURCE_VERSION: 0.34.1-hbclean.230
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -38,7 +38,7 @@ jobs:
           npm run typecheck
           npm run build:browser
           node browser-test/logic.mjs
-          for suite in hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
+          for suite in hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
             node "browser-test/$suite.mjs"
           done
           # Legacy app-loop fails unchanged on the pre-routing hbclean.209 baseline.
@@ -81,7 +81,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: field-status-226
+          name: field-status-230
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS

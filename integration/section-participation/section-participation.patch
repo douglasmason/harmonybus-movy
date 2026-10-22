@@ -1,0 +1,421 @@
+diff --git a/browser-test/hb-song-sections.mjs b/browser-test/hb-song-sections.mjs
+index 70ba2165..04980378 100644
+--- a/browser-test/hb-song-sections.mjs
++++ b/browser-test/hb-song-sections.mjs
+@@ -15,6 +15,7 @@ let state={schema:1,editable:true,playing:false,count:3,current:{index:0,scene:0
+ let reads=0;
+ globalThis.host_module_get_param=key=>{
+     if(key==='song_section'){reads++;return JSON.stringify(state);}
++    if(key==='song_participation_0')return '0 2';
+     if(key==='song_shape_0')return '0 -20 60';
+     if(key==='song_section_0')return '0 0 1 8 0000100000000000';
+     if(key==='song_section_1')return '1 0 0 0 0000000000000000';
+@@ -114,3 +115,22 @@ const shapeRunning=engine.ops.length;
+ page.knobTurn(1,4);flush();page.knobTurn(2,4);flush();
+ assert.equal(engine.ops.length,shapeRunning,'shape edits use the same stopped guard');
+ console.log('Section Shape: shared controller Energy/Space edits, scope, and running guard pass');
++
++state={...state,editable:true,playing:false};
++const {resetJointPanels}=await import('../dist/esm/seq/joint-panels.js');resetJointPanels();
++const soundPage=jointPage();assert(soundPage.ready);
++const soundFlush=()=>{for(let tick=0;tick<16;tick++){now+=25;soundPage.tick();}};
++const soundIndex=soundPage.ctl.pages.findIndex(item=>item.keys?.includes('joint_section_sound'));
++assert(soundIndex>=0);soundPage.goToPage(soundIndex);soundFlush();
++assert.equal(soundPage.performanceGet('joint_section_sound'),'Normal');
++soundPage.knobTurn(1,4);soundFlush();
++assert.equal(soundPage.performanceGet('joint_section_track'),'2');
++assert.equal(soundPage.performanceGet('joint_section_sound'),'Rest');
++const soundBefore=engine.ops.length;
++soundPage.knobTurn(2,-4);soundFlush();
++assert(engine.ops.slice(soundBefore).includes('songsection 0 sound 1 0'));
++assert.equal(soundPage.performanceGet('joint_section_sound_scope'),'Follower clip only');
++state={...state,editable:false,playing:true};
++const soundRunning=engine.ops.length;soundPage.knobTurn(2,-4);soundFlush();
++assert.equal(engine.ops.length,soundRunning);
++console.log('Clip Participation: shared physical-track selection, Normal/Rest, scope and stopped guard pass');
+diff --git a/engine/crates/movy-dsp/src/lib.rs b/engine/crates/movy-dsp/src/lib.rs
+index a31f6dad..fa771c87 100644
+--- a/engine/crates/movy-dsp/src/lib.rs
++++ b/engine/crates/movy-dsp/src/lib.rs
+@@ -130,7 +130,7 @@ fn parse_mix(val: &str) -> Option<crate::mixer::TrackMix> {
+ }
+ 
+ const DEFAULT_BPM_X100: u32 = 12000;
+-const ENGINE_VERSION: &str = "0.71.0-section-shape1";
++const ENGINE_VERSION: &str = "0.71.0-section-participation1";
+ 
+ /// Tracks backed by schwung's own shadow slots by default. Their notes go out as
+ /// MIDI on the matching channel; everything above this index is a chain movy
+@@ -619,6 +619,8 @@ impl Instance {
+             key if key.starts_with("variation_") => key[10..].parse::<usize>().ok()
+                 .and_then(|actor|self.engine.variations.get(actor).map(|config|config.message(actor))),
+             "song_section" => Some(self.engine.song_section_snapshot()),
++            key if key.starts_with("song_participation_") => key[19..].parse::<usize>().ok()
++                .and_then(|index| self.engine.song_participation_message(index)),
+             key if key.starts_with("song_shape_") => key[11..].parse::<usize>().ok()
+                 .and_then(|index| self.engine.song_shape_message(index)),
+             key if key.starts_with("song_section_") => key[13..].parse::<usize>().ok()
+@@ -1151,6 +1153,10 @@ mod tests {
+         assert_eq!(instance.get_param("song_shape_0").as_deref(), Some("0 -50 75"));
+         assert_eq!(instance.get_param("song_shape_1").as_deref(), Some("1 0 0"));
+         assert_eq!(instance.get_param("song_shape_9"), None);
++        instance.set_param("cmd","songsection 0 sound 15 1");
++        assert_eq!(instance.get_param("song_participation_0").as_deref(),Some("0 32768"));
++        assert_eq!(instance.get_param("song_participation_1").as_deref(),Some("1 0"));
++        assert_eq!(instance.get_param("song_participation_9"),None);
+         let state = instance.get_param("song_section").unwrap();
+         assert!(state.contains("\"schema\":1"));
+         assert!(state.contains("\"editable\":true"));
+diff --git a/engine/crates/seq-core/src/engine.rs b/engine/crates/seq-core/src/engine.rs
+index fc2d915b..69d4ca40 100644
+--- a/engine/crates/seq-core/src/engine.rs
++++ b/engine/crates/seq-core/src/engine.rs
+@@ -2364,7 +2364,7 @@ impl Engine {
+                 .unwrap_or(false);
+             let owner=self.gates[gi].clock_track as usize;
+             let clock_serviced=self.tracks[owner].playing_slot.map(|slot|self.tracks[owner].clips[slot].exists()).unwrap_or(false);
+-            if serviced && clock_serviced {
++            if serviced && clock_serviced && (self.gates[gi].rendered || !self.song_clip_rest(t)) {
+                 gi += 1;
+             } else {
+                 let g = self.gates.swap_remove(gi);
+@@ -6846,6 +6846,7 @@ impl Engine {
+         hb_window: Option<crate::hb_clip_performance::ReadWindow>,
+         hb_rhythm: crate::hb_render_rhythm::Rhythm, modified: bool,
+         clock_track: usize, out: &mut Vec<OutEvent>) {
++                        if !n.rendered && self.song_clip_rest(ti) { return; }
+                         let mut n = n;
+                         let mut gate_override = gate_override;
+                         let mut modified = modified;
+@@ -8264,6 +8265,8 @@ impl Engine {
+ 
+ include!("song_sections.rs");
+ include!("song_shape.rs");
++include!("song_participation.rs");
++include!("song_participation_tests.rs");
+ include!("song_shape_tests.rs");
+ 
+ include!("song_sections_tests.rs");
+diff --git a/engine/crates/seq-core/src/persist.rs b/engine/crates/seq-core/src/persist.rs
+index d4aa0000..b865c816 100644
+--- a/engine/crates/seq-core/src/persist.rs
++++ b/engine/crates/seq-core/src/persist.rs
+@@ -44,6 +44,7 @@ pub fn serialize(engine: &Engine) -> String {
+     }
+     for (index, section) in &engine.song_sections {
+         s.push_str(&format!("ss1 {} {} {}\n", index, section.bars, section.track_digits()));
++        if section.rest_mask != 0 { s.push_str(&format!("sp1 {} {}\n", index, section.rest_mask)); }
+         if section.shape != Default::default() {
+             s.push_str(&format!("sh1 {} {} {}\n", index, section.shape.energy, section.shape.space));
+         }
+@@ -237,6 +238,7 @@ pub fn load(engine: &mut Engine, data: &str) -> bool {
+                     engine.link_enabled = v != 0;
+                 }
+             }
++            Some("sp1") => { engine.song_participation_set(&it.collect::<Vec<_>>().join(" ")); }
+             Some("sh1") => { engine.song_shape_set(&it.collect::<Vec<_>>().join(" ")); }
+             Some("ss1") => { engine.song_section_set(&it.collect::<Vec<_>>().join(" ")); }
+             Some("sg") => {
+diff --git a/engine/crates/seq-core/src/song_participation.rs b/engine/crates/seq-core/src/song_participation.rs
+new file mode 100644
+index 00000000..35f52414
+--- /dev/null
++++ b/engine/crates/seq-core/src/song_participation.rs
+@@ -0,0 +1,31 @@
++// Musical rests reuse the existing clip-emission and gate owner. Source
++// availability is still determined by playback, never by this output policy.
++impl Engine {
++    fn song_clip_rest(&self, track: usize) -> bool {
++        self.song_shape_active()
++            && self.song_sections[&self.song_pos].rest_mask & (1 << track) != 0
++            && self.follower_inputs[track].is_some()
++            && !(self.recording && self.records_track(track))
++    }
++
++    /// Strict optional sp1 line; its ss1 recipe must already exist.
++    pub fn song_participation_set(&mut self, message: &str) -> bool {
++        let fields: Vec<_> = message.split_whitespace().collect();
++        let [index, mask] = fields.as_slice() else { return false; };
++        let (Ok(index), Ok(mask)) = (index.parse::<usize>(), mask.parse::<u16>()) else { return false; };
++        let Some(section) = self.song_sections.get_mut(&index) else { return false; };
++        section.rest_mask = mask;
++        true
++    }
++
++    pub fn song_participation_message(&self, index: usize) -> Option<String> {
++        self.song.get(index)?;
++        Some(format!("{} {}", index, self.song_sections.get(&index).map_or(0, |section|section.rest_mask)))
++    }
++
++    fn song_participation_snapshot(&self) -> String {
++        let target = self.song_sections.get(&self.song_pos).map_or(0, |section|section.rest_mask);
++        let effective = (0..NUM_TRACKS).fold(0u16, |mask,track|mask | if self.song_clip_rest(track) {1 << track} else {0});
++        format!("{{\"scope\":\"follower-clips\",\"target_rest_mask\":{},\"effective_rest_mask\":{}}}",target,effective)
++    }
++}
+diff --git a/engine/crates/seq-core/src/song_participation_tests.rs b/engine/crates/seq-core/src/song_participation_tests.rs
+new file mode 100644
+index 00000000..89b916be
+--- /dev/null
++++ b/engine/crates/seq-core/src/song_participation_tests.rs
+@@ -0,0 +1,152 @@
++#[cfg(test)]
++mod song_participation_tests {
++    use super::*;
++    use crate::{command::apply_batch,persist};
++
++    fn fixture() -> Engine {
++        let mut engine=Engine::new(48000,12000);
++        for track in 0..4 {
++            engine.tracks[track].clips[0].set_loop(0,48);
++            for tick in (0..1152).step_by(24) {
++                engine.tracks[track].clips[0].add_note_raw((tick/24) as u16,tick,18,60+track as u8,90);
++            }
++        }
++        engine.follower_input_context("fic1,0,1,14");
++        engine.song=vec![0];engine.song_section_edit("0 bars 1");
++        engine
++    }
++
++    fn trace(engine: &mut Engine, ticks: usize) -> Vec<(usize,u8,u8,u8,bool)> {
++        let mut trace=Vec::new();
++        for tick in 0..ticks {
++            let mut events=Vec::new();engine.advance_block(250,&mut events);
++            for event in events {
++                match event {
++                    OutEvent::NoteOn{track,pitch,vel}|OutEvent::RenderedOn{track,pitch,vel}=>trace.push((tick,track,pitch,vel,true)),
++                    OutEvent::NoteOff{track,pitch}|OutEvent::RenderedOff{track,pitch}=>trace.push((tick,track,pitch,0,false)),
++                    _=>{},
++                }
++            }
++        }
++        trace.sort_unstable();trace
++    }
++
++    #[test]
++    fn normal_is_exact_and_resting_donor_keeps_serving_another_actor() {
++        let mut plain=fixture();let mut resting=fixture();
++        for engine in [&mut plain,&mut resting] {assert!(engine.source_route_set("2 1 1 0 -1 -1 0"));}
++        resting.song_section_edit("0 sound 1 1");
++        let saved=persist::serialize(&resting);
++        plain.play();resting.play();
++        let expected=trace(&mut plain,800);let actual=trace(&mut resting,800);
++        assert!(!actual.iter().any(|event|event.1==1));
++        assert!(actual.iter().any(|event|event.1==2&&event.4));
++        assert_eq!(actual,expected.into_iter().filter(|event|event.1!=1).collect::<Vec<_>>());
++        for track in 0..4 {
++            assert_eq!((resting.tracks[track].pos_tick,resting.tracks[track].cycle),(plain.tracks[track].pos_tick,plain.tracks[track].cycle));
++            assert_eq!(resting.tracks[track].playing_slot,Some(0));
++        }
++        resting.stop(&mut Vec::new());assert!(resting.gates.is_empty());
++        assert_eq!(persist::serialize(&resting),saved);
++        let mut explicit=fixture();let mut baseline=fixture();
++        explicit.song_section_edit("0 sound 1 0");
++        explicit.play();baseline.play();assert_eq!(trace(&mut explicit,400),trace(&mut baseline,400));
++    }
++
++    #[test]
++    fn boundary_releases_only_clip_gates_and_normal_reenters_at_donor_phase() {
++        let mut engine=fixture();
++        engine.tracks[1].clips[0].notes.clear();
++        engine.tracks[1].clips[0].add_note_raw(0,0,1000,60,90);
++        engine.tracks[1].clips[0].add_note_raw(17,408,48,62,90);
++        engine.tracks[1].clips[0].add_note_raw(33,792,48,64,90);
++        engine.song=vec![0,0,0];
++        for index in 0..3 {
++            engine.song_section_edit(&format!("{index} bars 1"));
++            for track in 0..4 {engine.song_section_edit(&format!("{index} track {track} 1"));}
++        }
++        engine.song_section_edit("1 sound 1 1");engine.play();
++        let events=trace(&mut engine,900);
++        assert_eq!(events.into_iter().filter(|event|event.1==1).collect::<Vec<_>>(),vec![
++            (0,1,60,90,true),(384,1,60,0,false),(792,1,64,90,true),(840,1,64,0,false)]);
++        assert_eq!(engine.tracks[1].pos_tick,900);
++        assert_eq!(engine.tracks[1].cycle,1);
++        assert!(engine.gates.iter().all(|gate|gate.track!=1));
++    }
++
++    #[test]
++    fn conductor_rendered_recording_and_live_capture_remain_available() {
++        let mut plain=fixture();let mut resting=fixture();
++        resting.song_participation_set("0 65535");
++        for engine in [&mut plain,&mut resting] {
++            for note in &mut engine.tracks[2].clips[0].notes {note.rendered=true;}
++            engine.play();engine.recording=true;engine.rec_track=1;
++        }
++        let expected=trace(&mut plain,400);let actual=trace(&mut resting,400);
++        assert_eq!(actual,expected.into_iter().filter(|event|event.1!=3).collect::<Vec<_>>());
++        for engine in [&mut plain,&mut resting] {
++            engine.live_note_on(1,72,73);trace(engine,12);engine.live_note_off(1,72);
++            let note=engine.tracks[1].clips[0].notes.iter().find(|note|note.pitch==72).unwrap();
++            assert_eq!((note.vel,note.gate),(73,12));
++        }
++    }
++
++    #[test]
++    fn scaled_donor_clock_and_automation_are_not_muted() {
++        let mut plain=fixture();let mut resting=fixture();
++        for engine in [&mut plain,&mut resting] {
++            engine.tracks[1].clips[0].scale_num=2;engine.tracks[1].clips[0].scale_den=3;
++            apply_batch(engine,"alabel 1 0 synth:cutoff;abase 1 0 20;aset 1 0 0 37;aset 1 0 8 84",&mut Vec::new());
++        }
++        resting.song_section_edit("0 sound 1 1");plain.play();resting.play();
++        let mut expected=Vec::new();let mut actual=Vec::new();
++        for _ in 0..800 {
++            let mut events=Vec::new();plain.advance_block(250,&mut events);
++            expected.extend(events.into_iter().filter(|event|!matches!(event,OutEvent::NoteOn{track:1,..}|OutEvent::NoteOff{track:1,..}|OutEvent::InputRole{track:1,..}|OutEvent::RecordedActions{track:1,..})));
++            resting.advance_block(250,&mut actual);
++        }
++        // Other gate releases may change order at the same tick; automation is
++        // compared separately to avoid making vector ordering a musical contract.
++        let automation=|events:Vec<OutEvent>|events.into_iter().filter_map(|event|match event {OutEvent::Cc{track,lane,val}=>Some((track,lane,val)),_=>None}).collect::<Vec<_>>();
++        let expected=automation(expected);assert!(!expected.is_empty());
++        assert_eq!(automation(actual),expected);
++        assert_eq!((resting.tracks[1].pos_tick,resting.tracks[1].scale_acc),(plain.tracks[1].pos_tick,plain.tracks[1].scale_acc));
++    }
++
++    #[test]
++    fn persistence_undo_and_strict_stopped_edits_preserve_other_recipe_fields() {
++        let mut engine=fixture();
++        apply_batch(&mut engine,"songsection 0 energy 40;songsection 0 sound 1 1;songsection 0 sound 15 1",&mut Vec::new());
++        let saved=persist::serialize(&engine);assert!(saved.contains("sp1 0 32770\n"));
++        let mut restored=fixture();assert!(persist::load(&mut restored,&saved));
++        assert_eq!(persist::serialize(&restored),saved);
++        apply_batch(&mut engine,"usnap 1;songsection 0 sound 1 0;uswap 1 2",&mut Vec::new());
++        assert_eq!(engine.song_sections[&0].rest_mask,32770);
++        assert_eq!(engine.song_sections[&0].shape.energy,40);
++        for command in ["0 sound 16 1","0 sound 1 2","0 sound -1 0","0 sound 1 0 junk"] {assert!(!engine.song_section_edit(command));}
++        for message in ["0 -1","0 65536","0 2 junk","9 1"] {assert!(!engine.song_participation_set(message));}
++        engine.pending_play=true;
++        apply_batch(&mut engine,"songsection 0 sound 1 0",&mut Vec::new());
++        assert_eq!(engine.song_sections[&0].rest_mask,32770);
++        engine.pending_play=false;engine.play();
++        apply_batch(&mut engine,"songsection 0 sound 1 0",&mut Vec::new());
++        assert_eq!(engine.song_sections[&0].rest_mask,32770);
++        assert!(persist::load(&mut engine,"movy1\nsg 0\nss1 0 1 0000000000000000\nsh1 0 40 20\n"));
++        assert_eq!(engine.song_sections[&0].rest_mask,0);
++    }
++
++    #[test]
++    fn observations_distinguish_target_eligibility_and_stop_without_side_effects() {
++        let mut engine=fixture();engine.song_participation_set("0 15");
++        assert!(engine.song_section_snapshot().contains("\"effective_rest_mask\":0"));
++        engine.play();trace(&mut engine,1);
++        assert!(engine.song_section_snapshot().contains("\"target_rest_mask\":15,\"effective_rest_mask\":14"));
++        let snapshot=engine.song_section_snapshot();let tick=engine.master_tick;
++        for _ in 0..100 {assert_eq!(engine.song_section_snapshot(),snapshot);}
++        assert_eq!(engine.master_tick,tick);
++        engine.recording=true;engine.rec_track=1;
++        assert!(engine.song_section_snapshot().contains("\"effective_rest_mask\":12"));
++        engine.stop(&mut Vec::new());assert!(engine.song_section_snapshot().contains("\"effective_rest_mask\":0"));
++        engine.launch_clip(1,0);assert_eq!(engine.song_participation_message(0),None);
++    }
++}
+diff --git a/engine/crates/seq-core/src/song_sections.rs b/engine/crates/seq-core/src/song_sections.rs
+index 41f1a46a..4a3f36e0 100644
+--- a/engine/crates/seq-core/src/song_sections.rs
++++ b/engine/crates/seq-core/src/song_sections.rs
+@@ -15,6 +15,7 @@ pub struct SongSection {
+     pub bars: u16,
+     pub tracks: [SectionTrack; NUM_TRACKS],
+     pub shape: SectionShape,
++    pub rest_mask: u16,
+ }
+ 
+ impl SongSection {
+@@ -54,6 +55,15 @@ impl Engine {
+                 if space > 100 { return false; }
+                 recipe.shape.space = space;
+             }
++            [_, "sound", track, value] => {
++                let Ok(track) = track.parse::<usize>() else { return false; };
++                if track >= NUM_TRACKS { return false; }
++                match *value {
++                    "0" => recipe.rest_mask &= !(1 << track),
++                    "1" => recipe.rest_mask |= 1 << track,
++                    _ => return false,
++                }
++            }
+             [_, "track", track, value] => {
+                 let Ok(track) = track.parse::<usize>() else { return false; };
+                 if track >= NUM_TRACKS { return false; }
+@@ -80,7 +90,7 @@ impl Engine {
+             *track = match digit { b'0' => SectionTrack::Scene, b'1' => SectionTrack::Keep,
+                 b'2' => SectionTrack::Stop, _ => return false };
+         }
+-        self.song_sections.insert(index, SongSection { bars, tracks, shape: SectionShape::default() });
++        self.song_sections.insert(index, SongSection { bars, tracks, shape: SectionShape::default(), rest_mask: 0 });
+         true
+     }
+ 
+@@ -159,8 +169,8 @@ impl Engine {
+             let index = self.song_next_pos(self.song_pos);
+             format!("{{\"index\":{},\"scene\":{},\"committed\":{}}}", index, self.song[index], self.song_armed)
+         } else { "null".into() };
+-        format!("{{\"schema\":1,\"epoch\":{},\"visit\":{},\"tick\":{},\"ticks_per_bar\":{},\"playing\":{},\"editable\":{},\"started\":{},\"count\":{},\"current\":{},\"next\":{},\"shape\":{}}}",
++        format!("{{\"schema\":1,\"epoch\":{},\"visit\":{},\"tick\":{},\"ticks_per_bar\":{},\"playing\":{},\"editable\":{},\"started\":{},\"count\":{},\"current\":{},\"next\":{},\"shape\":{},\"participation\":{}}}",
+             self.song_epoch, self.song_visit, self.master_tick, TICKS_PER_BAR, self.playing,
+-            !self.playing && !self.pending_play, running, self.song.len(), current, next, self.song_shape_snapshot())
++            !self.playing && !self.pending_play, running, self.song.len(), current, next, self.song_shape_snapshot(), self.song_participation_snapshot())
+     }
+ }
+diff --git a/src/seq/constants.ts b/src/seq/constants.ts
+index fd93c2fe..21f9dddf 100644
+--- a/src/seq/constants.ts
++++ b/src/seq/constants.ts
+@@ -36,7 +36,7 @@ export const MAIN_PAGE_STEPS: Record<number, number> = { 4: 0, 6: 0, 8: 0 };
+  * build-dsp.sh fails the build when they diverge. The UI re-issues the DSP
+  * load until ping returns this exact version (fixes the fire-and-forget
+  * load race and stale engines after redeploy). */
+-export const ENGINE_VERSION = '0.71.0-section-shape1';
++export const ENGINE_VERSION = '0.71.0-section-participation1';
+ export const ENGINE_DSP_PATH = '/data/UserData/schwung/modules/tools/movy/dsp.so';
+ 
+ /* Where the engine finds schwung's chain host, and where it may keep its own
+diff --git a/src/seq/section-panels.ts b/src/seq/section-panels.ts
+index c7d042b8..d3bebde9 100644
+--- a/src/seq/section-panels.ts
++++ b/src/seq/section-panels.ts
+@@ -19,6 +19,8 @@ export const sectionParameters=[
+     {...enumeration('energy','Energy',Array.from({length:201},(_,index)=>String(index-100))),default:'0'},
+     enumeration('space','Space',Array.from({length:101},(_,index)=>String(index))),
+     readOnly('scope','Shape Scope'),
++    enumeration('sound','Clip Sound',['Normal','Rest']),
++    readOnly('sound_scope','Sound Scope'),
+ ];
+ export function sectionHierarchy(hierarchy:any):any {
+     hierarchy.levels.joint_sections={name:'Song Sections',knobs:sectionParameters.slice(0,8).map(parameter=>parameter.key),params:sectionParameters.map(parameter=>({key:parameter.key}))};
+@@ -26,6 +28,9 @@ export function sectionHierarchy(hierarchy:any):any {
+     hierarchy.levels.joint_section_shape={name:'Section Shape',knobs:shapeKeys,params:shapeKeys.map(key=>({key}))};
+     hierarchy.levels.joint_sections.params=sectionParameters.slice(0,9).map(parameter=>({key:parameter.key}));
+     hierarchy.levels.joint_sections.params.push({level:'joint_section_shape'});
++    const soundKeys=['entry','track','sound','sound_scope','state','current','next'].map(field=>prefix+field);
++    hierarchy.levels.joint_section_sound={name:'Clip Participation',knobs:soundKeys,params:soundKeys.map(key=>({key}))};
++    hierarchy.levels.joint_sections.params.push({level:'joint_section_sound'});
+     hierarchy.levels.root.params.unshift({level:'joint_sections'});
+     return hierarchy;
+ }
+@@ -54,6 +59,13 @@ export function sectionPanelGet(key:string):string|null {
+     if(field==='entry')return String(entry+1);
+     if(field==='track')return String(track+1);
+     if(field==='scope')return 'All follower clips';
++    if(field==='sound_scope')return 'Follower clip only';
++    if(field==='sound'){
++        const parts=(read('song_participation_'+entry)??'').trim().split(/\s+/);
++        if(parts.length!==2||Number(parts[0])!==entry)return 'Normal';
++        const mask=Number(parts[1]);
++        return Number.isInteger(mask)&&mask>=0&&mask<=65535&&(mask&(1<<track))?'Rest':'Normal';
++    }
+     if(field==='energy'||field==='space'){
+         const parts=(read('song_shape_'+entry)??'').trim().split(/\s+/);
+         if(parts.length!==3||Number(parts[0])!==entry)return '0';
+@@ -91,7 +103,8 @@ export function sectionPanelSet(key:string,value:string):boolean {
+     const command=field==='mode'?(selected?'songsection '+entry+' enable':'songsectionclear '+entry)
+         :field==='bars'?'songsection '+entry+' bars '+selected
+         :field==='energy'||field==='space'?'songsection '+entry+' '+field+' '+value
++        :field==='sound'?'songsection '+entry+' sound '+track+' '+selected
+         :'songsection '+entry+' track '+track+' '+selected;
+-    beginEdit({key:'song-section-'+entry+'-'+field+(field==='action'?'-'+track:''),verb:'Song Section',target:'Entry '+(entry+1),close:CLOSE.IDLE,seq:true});
++    beginEdit({key:'song-section-'+entry+'-'+field+(field==='action'||field==='sound'?'-'+track:''),verb:'Song Section',target:'Entry '+(entry+1),close:CLOSE.IDLE,seq:true});
+     seqEdit(command);seqCmdFlush();return true;
+ }

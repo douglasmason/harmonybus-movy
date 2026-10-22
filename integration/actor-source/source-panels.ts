@@ -2,12 +2,12 @@
 import { seqCmdFlush, engineReady } from './engine.js';
 import { beginEdit, CLOSE } from '../undo/group.js';
 import { seqEdit } from '../undo/record.js';
-const fields=['enabled','pitch_track','pitch_slot','rhythm_track','rhythm_slot','alignment','expression_track','expression_slot','instrument_track','instrument_slot','hb_render_track','hb_render_slot','note_ops_track','note_ops_slot','grid_holds_track','grid_holds_slot','gesture_track','gesture_slot'];
-const names=['Source Weaving','Pitch Source','Pitch Clip','Rhythm Source','Rhythm Clip','Alignment','Expression Source','Expression Clip','Instrument Source','Instrument Clip','HB Render Source','HB Render Clip','Note Ops Source','Note Ops Clip','Grid Holds Source','Grid Holds Clip','Gesture Source','Gesture Clip'];
+const fields=['enabled','pitch_track','pitch_slot','rhythm_track','rhythm_slot','alignment','expression_track','expression_slot','instrument_track','instrument_slot','hb_render_track','hb_render_slot','note_ops_track','note_ops_slot','grid_holds_track','grid_holds_slot','gesture_track','gesture_slot','expression_alignment'];
+const names=['Source Weaving','Pitch Source','Pitch Clip','Rhythm Source','Rhythm Clip','Alignment','Expression Source','Expression Clip','Instrument Source','Instrument Clip','HB Render Source','HB Render Clip','Note Ops Source','Note Ops Clip','Grid Holds Source','Grid Holds Clip','Gesture Source','Gesture Clip','Expression Alignment'];
 const choices=[['Off','On'],['Own',...Array.from({length:16},(_,index)=>String(index+1))],
     Array.from({length:8},(_,index)=>String(index+1)),
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
-    Array.from({length:8},(_,index)=>String(index+1)),['Sequential','Timeline'],
+    Array.from({length:8},(_,index)=>String(index+1)),['Sequential','Timeline','Fit to Window'],
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
     Array.from({length:8},(_,index)=>String(index+1)),
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
@@ -19,7 +19,7 @@ const choices=[['Off','On'],['Own',...Array.from({length:16},(_,index)=>String(i
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
     Array.from({length:8},(_,index)=>String(index+1)),
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
-    Array.from({length:8},(_,index)=>String(index+1))];
+    Array.from({length:8},(_,index)=>String(index+1)),['Timeline','Fit to Window']];
 export const sourceKeys=(role:number):string[]=>fields.map(field=>'joint_source_'+role+'_'+field);
 export const sourceParameters=[0,1,2,3].flatMap(role=>sourceKeys(role).map((key,index)=>({key,name:names[index],short_name:names[index],type:'enum',options:choices[index],options_as_string:true,default:choices[index][0]})));
 function identity(base:number,key:string):{actor:number;field:number}|null {
@@ -36,7 +36,8 @@ function read(actor:number):number[] {
     if(values.length===13)values.push(-1,-1);
     if(values.length===15)values.push(-1,-1);
     if(values.length===17)values.push(-1,-1);
-    return values.length===19&&values.every(Number.isFinite)?values:[actor,0,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1];
+    if(values.length===19)values.push(0);
+    return values.length===20&&values.every(Number.isFinite)?values:[actor,0,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0];
 }
 export function sourcePanelGet(base:number,key:string):string|null {
     const target=identity(base,key);if(!target)return null;
