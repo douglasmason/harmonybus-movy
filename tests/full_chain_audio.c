@@ -51,7 +51,13 @@ static long render(int blocks){
 }
 static float field_get(const char *key){char text[128]={0};int n=api->get_param(instance,key,text,sizeof(text));assert(n>0);return strtof(text,0);}
 static void field_status_is(const char *expected){
-    char text[64]={0};assert(api->get_param(instance,"ch0:lfo1:status",text,sizeof(text))>0);
+    char text[64]={0};int length=api->get_param(instance,"ch0:lfo1:status",text,sizeof(text));
+    if(length<=0||!text[0]){
+        /* Other integration gates still pin supported HB289. Only that known
+           legacy build may omit the additive delivery status. */
+        assert(api->get_param(instance,"ch0:midi_fx1:version",text,sizeof(text))>0);
+        assert(!strcmp(text,"0.2.289"));return;
+    }
     assert(!strcmp(text,expected));
 }
 static void test_field_lfos(void){
