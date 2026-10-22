@@ -60,6 +60,14 @@ mod source_grid_tests {
         assert!(output.is_empty());
     }
     #[test]
+    fn donor_launch_changes_wait_for_next_master_snapshot() {
+        let mut engine=setup(0);tick(&mut engine);
+        engine.tracks[0].playing_slot=None;
+        let mut output=Vec::new();engine.grid_tick(3,&mut output);
+        assert!(output.is_empty());assert_eq!(engine.grid_masks[3],2);
+        assert!(tick(&mut engine).contains(&mask(1)));
+    }
+    #[test]
     fn grid_route_save_undo_and_legacy_compatibility() {
         let mut engine=setup(0);let saved=crate::persist::serialize(&engine);
         let mut restored=Engine::new(48000,12000);assert!(crate::persist::load(&mut restored,&saved));assert_eq!(restored.source_routes,engine.source_routes);

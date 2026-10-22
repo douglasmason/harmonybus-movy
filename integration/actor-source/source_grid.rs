@@ -5,6 +5,10 @@ impl Engine {
         let track=&self.tracks[actor];
         let Some(slot)=track.playing_slot else {return 0;};
         if track.muted || !track.clips[slot].exists() {return 0;}
+        // Once the pre-track pass resolves this actor, later track iterations
+        // reuse its existing mask. A donor launch must not change the result
+        // halfway through the master tick.
+        if self.source_grid_active[actor] {return self.grid_masks[actor];}
         let route=self.source_routes[actor];
         if route.enabled && !(self.recording && self.records_track(actor)) {
             if let Some(reference)=route.grid_holds {
@@ -23,7 +27,9 @@ impl Engine {
         for actor in 0..NUM_TRACKS {
             let route=self.source_routes[actor];
             let routed=route.enabled && route.grid_holds.is_some();
-            if routed || self.source_grid_active[actor] {self.grid_tick(actor,out);}
+            let previous=self.source_grid_active[actor];
+            self.source_grid_active[actor]=false;
+            if routed || previous {self.grid_tick(actor,out);}
             self.source_grid_active[actor]=routed;
         }
     }
