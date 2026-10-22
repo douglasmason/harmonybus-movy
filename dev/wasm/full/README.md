@@ -218,3 +218,10 @@ MIME types. CI tests the copied package and uploads `browser-joint-static`; it
 does not deploy automatically. Preserve the Site's private audience and any
 concurrent UI overlay when publishing. Full Remote UI/Manager, ordinary clip
 editing, offline reload caching and external MIDI integration remain separate.
+
+## Lighting preview
+
+Joint now includes a read-only four-corner light field, driven by the compiled
+HB Perlin snapshots and rendered live/recorded MIDI. See
+[`dev/local/LIGHTING.md`](../../local/LIGHTING.md) for sample mapping, spatial
+voices, lifecycle, structural cues, tests, and the future physical DMX boundary.

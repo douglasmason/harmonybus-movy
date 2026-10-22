@@ -1,8 +1,10 @@
 import './build/joint-env.mjs';
 import {openJointConnection} from './joint-connection.mjs';
+import {mountLighting} from './lighting-ui.mjs';
 import {AudioMonitor} from './audio-monitor.mjs';
 import {engineReadKey} from './protocol-policy.mjs';
 let monitor=new AudioMonitor();
+const lighting=mountLighting(document.querySelector('#lighting'));
 const audioButton=document.querySelector('#audio');audioButton.disabled=true;
 const disableAudio=()=>{monitor.disable();audioButton.textContent='Enable audio';audioButton.setAttribute('aria-pressed','false');};
 audioButton.onclick=async()=>{if(monitor.enabled){disableAudio();return;}audioButton.disabled=true;try{if(await monitor.enable()){audioButton.textContent='Disable audio';audioButton.setAttribute('aria-pressed','true');}}catch(error){document.querySelector('#audio-status').textContent=error.message;}finally{audioButton.disabled=false;}};
@@ -45,6 +47,7 @@ await new Promise((resolve,reject)=>{
     if(message.events)monitor.consume(message.events);
     if(message.requestId==='monitor-stop')monitor.silence();
     for(const [key,value] of Object.entries(message.params??{}))cache.set(key,value);
+    lighting.receive(message,cache);
     if(message.events)document.querySelector('#events').textContent=message.events.slice(-30).map(event=>event.packet.join(' ')).join('\n');
     if(!connected){connected=true;status.textContent=label;resolve();}
   };
@@ -137,9 +140,9 @@ document.querySelector('#record').onclick=()=>{
  const [,mask,overwrite]=command.split(' ').map(Number);
  send({type:'dev_transport',action:'record',mask,overwrite});
 };
-window.addEventListener('blur',()=>{release();disableAudio();});document.addEventListener('visibilitychange',()=>{if(document.hidden){release();disableAudio();}});
+window.addEventListener('blur',()=>{release();disableAudio();lighting.suspend();});window.addEventListener('focus',()=>lighting.resume());document.addEventListener('visibilitychange',()=>{if(document.hidden){release();disableAudio();lighting.suspend();}else lighting.resume();});
 window.addEventListener('pagehide',()=>{release();socket.close();});
-socket.onclose=()=>{disableAudio();connected=false;release();clearInterval(timer);status.textContent='Disconnected — reload to reconnect';};
+socket.onclose=()=>{lighting.suspend();lighting.paint(cache,demand,appState.focusGroup);disableAudio();connected=false;release();clearInterval(timer);status.textContent='Disconnected — reload to reconnect';};
 document.querySelector('#shift').onchange=event=>appState.shiftHeld=event.target.checked;
 document.querySelector('#previous').onclick=()=>jointPage().changePage(-1);
 document.querySelector('#next').onclick=()=>jointPage().changePage(1);
@@ -165,17 +168,19 @@ const timer=setInterval(()=>{
  const base=appState.focusGroup*4;
  const cells=routingCells.map(([track,pitch,target])=>({track,pitch,target}));
  for(let index=0;index<32;index++){const cell=cells[index]??{track:base,pitch:-1,target:-1};pads[index].textContent=`${['Root','Bass','Comp','Melody'][cell.track-base]} ${cell.target>=0?'→'+cell.target:cell.pitch>=0?cell.pitch:'—'}`;const rgb=PAD_PALETTE[padColors.get(68+index)??0]??[30,30,30];pads[index].style.backgroundColor=`rgb(${rgb.join(',')})`;pads[index].style.color=rgb.reduce((total,value)=>total+value,0)>400?'#111':'#fff';}
- const now=Date.now(),keys=[...demand].filter(([,time])=>now-time<750).map(([key])=>key).slice(-64);
+ lighting.paint(cache,demand,appState.focusGroup);
+ const now=Date.now(),keys=[...new Set([...lighting.watchKeys,...[...demand].filter(([,time])=>now-time<750).map(([key])=>key).slice(-60)])];
  const watch=keys.join('|');if(watch!==watchSignature){watchSignature=watch;send({type:'dev_watch',keys});}
 },40);
 // Read-only inspection for browser tests; all input still uses production handlers.
-globalThis.__joint={joint,page:jointPage,monitor};
+globalThis.__joint={joint,page:jointPage,monitor,lighting};
 
 // The same production Joint snapshot/restore methods used by the hardware UI.
 if(sessions){
  const {mountSessions}=await import('./session-ui.mjs');
- await mountSessions({sessions,captureUI:()=>({joint:joint.jointSnapshot(),focusGroup:appState.focusGroup,levels:monitor.levels,muted:monitor.muted}),
+ await mountSessions({sessions,captureUI:()=>({joint:joint.jointSnapshot(),focusGroup:appState.focusGroup,levels:monitor.levels,muted:monitor.muted,lighting:lighting.profile}),
  restoreUI:ui=>{joint.restoreJoint(ui?.joint);appState.focusGroup=Number.isInteger(ui?.focusGroup)&&ui.focusGroup>=0&&ui.focusGroup<4?ui.focusGroup:0;joint.setJointEnabled(true);
+  if(ui?.lighting)lighting.restoreProfile(ui.lighting);
   for(let actor=0;actor<4;actor++){const level=ui?.levels?.[actor]??.6,muted=ui?.muted?.[actor]??false;monitor.levels[actor]=level;monitor.muted[actor]=muted;document.querySelectorAll('#audio-mix input[type=range]')[actor].value=String(level);document.querySelectorAll('#audio-mix input[type=checkbox]')[actor].checked=muted;}
  },disableAudio,isStopped:()=>/(?:^| )play=0/.test(cache.get('status')??''),release:()=>document.querySelector('#release').click()});
 }
