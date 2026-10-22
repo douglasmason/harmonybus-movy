@@ -1,3 +1,7 @@
+import { routesOpen, setFieldRoutesOpen, resetFieldRoutes, tickFieldRoutes, selectedFieldRoute, stepFieldRoute, fieldRoutesSnapshot, fieldRouteStatus } from './field-routes.js';
+import { selectTrack } from '../track/focus.js';
+import { LFO_CHAIN_INDEX } from '../chain/config.js';
+import { VIEW_KNOBS } from '../app/state.js';
 import { fontPrint } from '../font/index.js';
 import { outputs, latchMode, cancelOutputLane, type OutputFinish, outputView, vertical, outputBank, outputLane, outputSnapshot, outputLabels, outputPad, outputPressure, outputKnob, releaseOutputs, outputFrame, outputHeld, outputDirty, outputSent, outputColors } from './field-outputs.js';
 /** Field Play owns gestures and display only; noise and timing belong to HB DSP. */
@@ -27,7 +31,7 @@ export function releaseField():void{
 }
 export function setFieldEnabled(value:boolean):void{
     if(enabled===value)return;
-    releaseField();releaseLaunchpad();enabled=value;owner=appState.activeTrack.index;page=null;paint.fill(-1);lastRead=-Infinity;
+    setFieldRoutesOpen(false);releaseField();releaseLaunchpad();enabled=value;owner=appState.activeTrack.index;page=null;paint.fill(-1);lastRead=-Infinity;
     // Immediately retire the native fast note map before another pad can arrive.
     if(engineReady()){syncPadRoute(fieldEngineSet);if(value){fieldEngineSet('joint_map','off');fieldEngineSet('joint_release','1');}}appState.dirty=true;
 }
@@ -80,12 +84,13 @@ function sendGesture(now=Date.now()):void{
 }
 export function tickField(now=Date.now()):void{
     const nextSet=currentSetUuid();
-    if(setId!==nextSet){releaseField();if(owner>=0)clearFieldOutput();setId=nextSet;page=null;lastRead=-Infinity;}
+    if(setId!==nextSet){resetFieldRoutes();releaseField();if(owner>=0)clearFieldOutput();setId=nextSet;page=null;lastRead=-Infinity;}
     if(pendingClears.size&&now-outputSendAt>=33)sendOutputs(now);
-    if(!fieldActive()){if(held.size||outputHeld())releaseField();return;}
+    if(!fieldActive()){setFieldRoutesOpen(false);if(held.size||outputHeld())releaseField();return;}
     if(owner!==appState.activeTrack.index){releaseField();owner=appState.activeTrack.index;page=null;}
     if(held.size&&now-lastSend>=400)sendGesture(now);
-    fieldPage().tick();
+    if(tickFieldRoutes(now))appState.dirty=true;
+    if(!routesOpen)fieldPage().tick();
     if((outputDirty()&&now-outputSendAt>=33)||(outputHeld()&&now-outputSendAt>=400))sendOutputs(now);
     if(now-outputReadAt>=125){
         outputReadAt=now;
@@ -117,7 +122,36 @@ export function paintField():void{
     const changes=colors.flatMap((color,index)=>color===paint[index]?[]:[{note:68+index,color}]);
     for(const change of sendPadLedFrame(changes))paint[change.note-68]=change.color;
 }
+/** Remote and Move navigation share this controller; editing remains in the LFO page. */
+export function openFieldRoute():boolean {
+    const route=selectedFieldRoute();if(!route)return false;
+    const model=appState.trackModels[route.track]?.[LFO_CHAIN_INDEX];if(!model)return false;
+    setFieldEnabled(false);selectTrack(route.track);seqState.sessionMode=false;
+    model.reset();model.changePage(route.slot-1);
+    appState.trackChainIndex[route.track]=LFO_CHAIN_INDEX;
+    appState.currentView=VIEW_KNOBS;appState.trackView[route.track]=VIEW_KNOBS;appState.dirty=true;return true;
+}
+export function showFieldRoutes(open=true):void {
+    if(!fieldActive())return;
+    releaseOutputs('knob');sendOutputs();setFieldRoutesOpen(open);appState.dirty=true;
+}
+function fieldReadout(value:string|null):string {
+    if(!value)return '?';
+    const numeric=Number(value);
+    return (Number.isFinite(numeric)?String(Number(numeric.toPrecision(4))):value).slice(0,8);
+}
 export function renderField():void{
+    if(routesOpen){
+        clear_screen();const snapshot=fieldRoutesSnapshot(),route=selectedFieldRoute();
+        drawHeader('Field Routes',`${snapshot.scanned}/${snapshot.total}`);
+        if(route){
+            fontPrint(2,14,`F${route.channel} ${Math.round(outputs[route.channel-1].value*100)}% > T${route.track+1} LFO${route.slot}`,1);
+            fontPrint(2,24,`${route.target||'No target'} ${route.parameter}`.slice(0,25),1);
+            fontPrint(2,34,`${fieldRouteStatus(route)} ${Math.round(route.depth*100)}% ${route.bipolar?'Bi':'Uni'}`,1);
+            fontPrint(2,44,`B ${fieldReadout(route.base)} > E ${fieldReadout(route.effective)}`,1);
+        }else fontPrint(2,24,snapshot.scanned<snapshot.total?'Scanning routes...':'No Field LFO routes',1);
+        fontPrint(2,56,'Jog: route Press: LFO',1);return;
+    }
     if(outputView&&!settingsOpen){
         clear_screen();drawHeader('Field Outputs',latchMode?'Latch':'Momentary');
         const count=vertical?8:4;
@@ -126,13 +160,21 @@ export function renderField():void{
             fontPrint(column+2,14+row*10,`${lane+1}${output.latched?'L':''} ${output.label??Math.round(output.value*100)+'%'}`,1);
             if(!output.label)fill_rect(column+36,17+row*10,Math.round(output.value*25),2,1);
         }
-        fontPrint(2,56,'Shift pad/back: clear',1);return;
+        fontPrint(2,56,'Shift press: routes',1);return;
     }
     clear_screen();const panel=fieldPage();drawHeader('Field Play',`${rate.toFixed(1)}x / ${zoom.toFixed(1)}x`);drawBankBar(panel.pageIndex,panel.pageCount);panel.render('Pads: speed / size');
 }
 export function fieldMidi(data:number[]):boolean{
     if(!fieldActive())return false;
     const [status,key,value]=data,type=status&240;
+    if(type===176&&key===MoveMainButton&&value&&appState.shiftHeld){showFieldRoutes(!routesOpen);return true;}
+    if(routesOpen){
+        if(type===176&&key===51){if(value)showFieldRoutes(false);return true;}
+        if(type===176&&key===14){stepFieldRoute(value<64?1:-1);appState.dirty=true;return true;}
+        if(type===176&&key===MoveMainButton){if(value)openFieldRoute();return true;}
+        // Pad overrides remain playable; knobs cannot silently edit a hidden panel.
+        if((type===176&&key>=71&&key<=78)||((type===144||type===128)&&key<8))return true;
+    }
     if([128,144,160].includes(type)&&key>=68&&key<100){if(type===160)fieldPressure('move',key-68,value);else fieldPad('move',key-68,type===144&&value>0);return true;}
     if(type===176&&key===51&&appState.shiftHeld){if(value)clearFieldOutput();return true;}
     if(outputView&&!settingsOpen){
@@ -149,4 +191,4 @@ export function fieldMidi(data:number[]):boolean{
     return false;
 }
 /** Remote UI uses the same event contract. Polling this snapshot is read-only. */
-export function fieldSnapshot(){return {active:fieldActive(),rate,scale:zoom,values:[...samples],view:outputView?'outputs':'terrain',orientation:vertical?'vertical':'horizontal',bank:outputBank,override:latchMode?'latch':'momentary',outputs:outputs.map(output=>({...output}))};}
+export function fieldSnapshot(){return {active:fieldActive(),rate,scale:zoom,values:[...samples],view:outputView?'outputs':'terrain',orientation:vertical?'vertical':'horizontal',bank:outputBank,override:latchMode?'latch':'momentary',outputs:outputs.map(output=>({...output})),routing:fieldRoutesSnapshot()};}
