@@ -20,6 +20,9 @@ audioButton.disabled=false;
 if(audio){
  document.querySelector('#audio-test').hidden=false;document.querySelector('#audio-diagnostics').hidden=false;
  audio.onDiagnostic=value=>{document.querySelector('#audio-report').textContent=JSON.stringify(value,null,2);};
+ audio.onDiagnostic(audio.diagnostic());
+ const build=document.createElement('p');build.textContent=`Browser build ${audio.build?.engineSource?.commit?.slice(0,12)??'unknown'} · HB ${metadata.version??audio.build?.harmonyBus?.version??'unknown'} · 44,100 Hz`;
+ document.querySelector('#status').after(build);
  document.querySelector('#audio-test').onclick=async()=>{try{await audio.testSpeaker();audioButton.textContent='Disable audio';audioButton.setAttribute('aria-pressed','true');}catch(error){document.querySelector('#audio-status').textContent=error.message;}};
  document.querySelector('#audio-copy').onclick=async()=>{try{await navigator.clipboard.writeText(document.querySelector('#audio-report').textContent);}catch{document.querySelector('#audio-status').textContent='Select and copy the diagnostics text, or take a screenshot.';}};
 }

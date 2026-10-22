@@ -14,8 +14,11 @@ self.onmessage=({data})=>{
    if(service)throw new Error('Already initialized');
    const response=await fetch('../build/full/modules/midi_fx/harmonybus/module.json');
    if(!response.ok)throw new Error('Missing HB metadata');
-   service=await createJointService(await response.json(),emit);
-   service.visibility(data.hidden);postMessage({type:'ready',metadata:service.metadata});
+   const info=await fetch('../build/full/build-info.json');
+   if(!info.ok)throw new Error('Missing engine build identification');
+   const build=await info.json();
+   service=await createJointService(await response.json(),emit,build);
+   service.visibility(data.hidden);postMessage({type:'ready',metadata:service.metadata,build});
   }else if(!service)throw new Error('Engine not initialized');
   else if(data.type==='audio-start')service.attachAudio(data.port);
   else if(data.type==='audio-stop')service.detachAudio();

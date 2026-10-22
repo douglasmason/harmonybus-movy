@@ -17,12 +17,14 @@ def patch_source_routing(root: Path) -> None:
     pub source_routes: [crate::source_route::Route; NUM_TRACKS],
     source_cursors: [crate::source_route::Cursor; NUM_TRACKS],
     source_positions: [u32; NUM_TRACKS],
+    source_playing_slots: [Option<usize>; NUM_TRACKS],
     source_grid_active: [bool; NUM_TRACKS],
     source_automation_seen: [Option<crate::source_route::AutomationPhase>; NUM_TRACKS],
     source_automation_mask: [u8; NUM_TRACKS],''')
     source = replace_once(source, '            hb_weave:', '''            source_routes: [Default::default(); NUM_TRACKS],
             source_cursors: [Default::default(); NUM_TRACKS],
             source_positions: [0; NUM_TRACKS],
+            source_playing_slots: [None; NUM_TRACKS],
             source_grid_active: [false; NUM_TRACKS],
             source_automation_seen: [None; NUM_TRACKS],
             source_automation_mask: [0; NUM_TRACKS],
@@ -36,7 +38,10 @@ def patch_source_routing(root: Path) -> None:
                     }''')
     source = replace_once(source, '    fn start_transport(&mut self) {', '    fn start_transport(&mut self) {\n        self.source_cursors.fill(Default::default());\n        self.source_automation_seen.fill(None);')
     source = replace_once(source, '        if self.count_in_left == 0 {\n            for ti in 0..NUM_TRACKS {', '''        if self.count_in_left == 0 {
-            for ti in 0..NUM_TRACKS { self.source_positions[ti]=self.tracks[ti].pos_tick; }
+            for ti in 0..NUM_TRACKS {
+                self.source_positions[ti]=self.tracks[ti].pos_tick;
+                self.source_playing_slots[ti]=self.tracks[ti].playing_slot.filter(|_|!self.tracks[ti].muted);
+            }
             self.source_automation_tick(out);
             self.source_grid_tick(out);
             for ti in 0..NUM_TRACKS {''')
@@ -94,6 +99,9 @@ impl Engine {
     source += '\n' + (assets / 'source_instrument_tests.rs').read_text()
     source += '\n' + (assets / 'source_hb_tests.rs').read_text()
     source += '\n' + (assets / 'source_operations_tests.rs').read_text()
+    source = replace_once(source, '.or_else(||clip.operation_intervals.iter().rev().find_map(|interval|interval.window(pos,slot,clip.loop_start_ticks(),clip.length_ticks())));', '.or_else(||self.source_gesture_window(ti,slot,pos));')
+    source += '\n' + (assets / 'source_gestures.rs').read_text()
+    source += '\n' + (assets / 'source_gesture_tests.rs').read_text()
     source += '\n' + (assets / 'source_grid.rs').read_text()
     source += '\n' + (assets / 'source_grid_tests.rs').read_text()
     path.write_text(source)
@@ -157,7 +165,12 @@ impl Engine {
         const allSourceKeys=sourceKeys(role);
         const routeKeys=allSourceKeys.slice(0,8);
         const automationKeys=allSourceKeys.slice(8,12);
-        const operationKeys=allSourceKeys.slice(12);
+        const gestureKeys=allSourceKeys.slice(16);
+        const gestureLevel='joint_source_gestures_'+role;
+        hierarchy.levels[gestureLevel]={name:name+' Clip Gestures',knobs:gestureKeys,params:gestureKeys.map(key=>({key}))};
+        hierarchy.levels['joint_actor_'+role].params.push({level:gestureLevel});
+        root.params.push({level:gestureLevel});
+        const operationKeys=allSourceKeys.slice(12,16);
         const operationLevel='joint_source_operations_'+role;
         hierarchy.levels[operationLevel]={name:name+' Source Operations',knobs:operationKeys,params:operationKeys.map(key=>({key}))};
         hierarchy.levels['joint_actor_'+role].params.push({level:operationLevel});

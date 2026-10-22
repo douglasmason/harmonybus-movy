@@ -24,7 +24,7 @@ export async function openBrowserConnection(){
  const ready=new Promise((resolve,reject)=>{
   worker.onerror=event=>{reject(new Error(event.message));socket.onerror?.(event);close();};
   worker.onmessage=({data})=>{
-   if(data.type==='ready'){socket.readyState=1;resolve(data.metadata);}
+   if(data.type==='ready'){audio.build=data.build;socket.readyState=1;resolve(data.metadata);}
    else if(data.type==='fatal'){const error=new Error(data.message);reject(error);socket.onerror?.(error);close();}
    else if(data.type==='reply'){const item=pending.get(data.id);pending.delete(data.id);if(data.error)item?.reject(new Error(data.error));else item?.resolve(data.value);}
    else if(data.type==='update'||data.type==='event'){

@@ -45,3 +45,4 @@ em++ "$OUT"/objects/*.o "$OUT/engine/target/wasm32-unknown-emscripten/release/li
   -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=web,worker,node -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=8388608 \
   -sEXPORTED_FUNCTIONS='["_full_init","_full_destroy","_full_render","_full_set","_full_get","_full_step","_full_midi","_full_clear","_full_count","_full_event","_full_overflow"]' \
   -sEXPORTED_RUNTIME_METHODS='["cwrap","HEAP16"]' --embed-file "$MODULES@/modules" -o "$OUT/engine.mjs"
+node "$ROOT/dev/wasm/full/build-info.mjs"

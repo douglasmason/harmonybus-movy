@@ -324,6 +324,13 @@ static void test_source_weaving(void){
     set("ch3:midi_fx1:motion_hold_1","Off");energy+=render(224);set("cmd","stop");render(32);
     assert(energy>0&&sent_on==2&&sent_off==2&&rendered_mask==((1u<<2)|1));
     set("ch3:midi_fx1:motion_operation_1","Off");
+    /* Raw recorded Repeat intervals borrow timing without copying notes or
+       introducing another gate owner. Eight attacks, eight paired releases. */
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 3 0 0\ncl 0 0 16 0 \ncl 3 0 16 0 0:2:60:100:0\noi 0 0 0 48 0 0 0 12 1 6\nsr 3 1 -1 -1 -1 -1 0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 0 0\n");
+    render(16);sent_on=sent_off=0;rendered_mask=0;
+    set("cmd","play");energy=render(120);set("cmd","stop");render(32);
+    fprintf(stderr,"source gestures: pcm=%ld on=%d off=%d mask=%u\n",energy,sent_on,sent_off,rendered_mask);
+    assert(energy>0&&sent_on==8&&sent_off==8&&rendered_mask==1);
     /* Existing conductor-chord generation consumes the woven trigger directly.
        Root Only and Triad exercise bass and comp without another harmony state. */
     set("ch0:midi_fx1:role","Conductor");set("ch0:midi_fx1:chord_mode","Off");

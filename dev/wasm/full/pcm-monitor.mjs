@@ -4,7 +4,7 @@ export class PcmMonitor {
  diagnostic(){
   let outputPeak=0;
   if(this.context?.state==='running'&&this.analyser?.getFloatTimeDomainData){const samples=new Float32Array(this.analyser.fftSize);this.analyser.getFloatTimeDomainData(samples);for(const value of samples)outputPeak=Math.max(outputPeak,Math.abs(value));}
-  return {phase:this.phase,context:this.context?.state??'closed',engineRate:44100,outputRate:this.context?.sampleRate??null,audioSession:globalThis.navigator?.audioSession?.type??'unavailable',masterGain:this.gain?.gain.value??this.master,actorLevels:this.levels,actorMuted:this.muted,outputPeak,...this.stats,transitions:this.transitions.slice(-8),error:this.lastError,userAgent:globalThis.navigator?.userAgent??''};
+  return {build:this.build??null,phase:this.phase,context:this.context?.state??'closed',engineRate:44100,outputRate:this.context?.sampleRate??null,audioSession:globalThis.navigator?.audioSession?.type??'unavailable',masterGain:this.gain?.gain.value??this.master,actorLevels:this.levels,actorMuted:this.muted,outputPeak,...this.stats,transitions:this.transitions.slice(-8),error:this.lastError,userAgent:globalThis.navigator?.userAgent??''};
  }
  report(text){this.onStatus?.(text);this.onDiagnostic?.(this.diagnostic());}
  async bounded(promise,label){let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out. Tap Enable audio again in Safari.`)),5000);})]);}finally{clearTimeout(timer);}}
@@ -15,8 +15,6 @@ export class PcmMonitor {
  }
  async enable(){
   const generation=++this.generation;
-  if(!globalThis.isSecureContext)throw new Error('Audio needs HTTPS. Open this page in Safari using its https link.');
-  if(!globalThis.AudioContext||!globalThis.AudioWorkletNode)throw new Error('AudioWorklet is unavailable. Open this page directly in Safari.');
   // WebKit otherwise classifies Web Audio as ambient, which can obey Silent Mode.
   if(navigator.audioSession){
    try{this.previousSessionType=navigator.audioSession.type;navigator.audioSession.type='playback';}catch{this.previousSessionType=null;}
@@ -24,6 +22,8 @@ export class PcmMonitor {
   this.phase='Starting';this.lastError=null;this.report('Starting audio…');
   // The production engines use 44.1 kHz. Reject unsupported rates, never retune them.
   try{
+   if(!globalThis.isSecureContext)throw new Error('Audio needs HTTPS. Open this page in Safari using its https link.');
+   if(!globalThis.AudioContext||!globalThis.AudioWorkletNode)throw new Error('AudioWorklet is unavailable. Open this page directly in Safari.');
    const context=new AudioContext({sampleRate:44100,latencyHint:'interactive'});this.context=context;
    if(!context.audioWorklet)throw new Error('AudioWorklet is unavailable. Open the HTTPS page directly in Safari.');
    context.onstatechange=()=>{

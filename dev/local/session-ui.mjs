@@ -37,7 +37,8 @@ export async function mountSessions({sessions,captureUI,restoreUI,disableAudio,i
  input.onchange=()=>run(async()=>{
   const file=input.files[0];input.value='';if(!file)return;
   if(file.size>MAX_BYTES)throw new Error('Session exceeds 8 MB limit');
-  const session=JSON.parse(await file.text());await open(session);await stored(session);
+  const session=JSON.parse(await file.text());await open(session);
+  try{await stored(session);}catch(error){message(`Session imported, but device save failed: ${error.message}. Export a backup.`);}
  });
  // Restore before arming autosave so an empty startup can never overwrite a saved performance.
  await run(async()=>{const session=await stored();if(session)await open(session);else{armed=true;message('Autosaves while stopped. Export a backup before clearing browser data.');}});

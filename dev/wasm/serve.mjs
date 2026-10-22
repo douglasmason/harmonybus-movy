@@ -9,7 +9,7 @@ for(const [route,file] of [
  ['/local/observations.mjs','../local/observations.mjs'],
  ['/local/build/session-codecs.mjs','../local/build/session-codecs.mjs'],
  ...['engine.mjs','joint-transport.mjs','joint-service.mjs','joint-worker.mjs','pcm-monitor.mjs','pcm-worklet.mjs','session.mjs'].map(name=>['/wasm/full/'+name,'full/'+name]),
- ...['engine.mjs','engine.wasm','modules/midi_fx/harmonybus/module.json','NuSaw-LICENSE.txt'].map(name=>['/wasm/build/full/'+name,'build/full/'+name])
+ ...['engine.mjs','engine.wasm','build-info.json','modules/midi_fx/harmonybus/module.json','NuSaw-LICENSE.txt'].map(name=>['/wasm/build/full/'+name,'build/full/'+name])
 ])files.set(route,file);
 export function serve(port=7702,siteRoot=null) {
  return createServer(async(request,response)=>{

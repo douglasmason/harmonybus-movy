@@ -10,7 +10,7 @@ export function validateEngineCommand(value){
   if(parts.some(part=>!/^[-]?\d+$/.test(part))||values.some(number=>!Number.isSafeInteger(number)))throw new Error('Invalid engine edit values');
   if(['usnap','udrop'].includes(verb)&&values.length===1&&values[0]>=0)continue;
   if(verb==='variation'&&values.length===6&&values[0]>=0&&values[0]<16&&values.slice(1,5).every(number=>number>=0&&number<=100)&&values[5]>=1&&values[5]<=256)continue;
-  if(verb==='source'&&values.length===17&&values[0]>=0&&values[0]<16&&[0,1].includes(values[1])&&[0,1].includes(values[6])&&[2,4,7,9,11,13,15].every(index=>values[index]>=-1&&values[index]<16&&values[index+1]>=-1&&values[index+1]<8))continue;
+  if(verb==='source'&&[17,19].includes(values.length)&&values[0]>=0&&values[0]<16&&[0,1].includes(values[1])&&[0,1].includes(values[6])&&[2,4,7,9,11,13,15,...(values.length===19?[17]:[])].every(index=>values[index]===-1?values[index+1]===-1:values[index]>=0&&values[index]<16&&values[index+1]>=0&&values[index+1]<8))continue;
   throw new Error('Engine command unavailable in this host: '+verb);
  }
  return value;

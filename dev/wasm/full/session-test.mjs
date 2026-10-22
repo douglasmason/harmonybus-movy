@@ -9,6 +9,8 @@ test('production session roundtrip includes clips, song, HB, NuSaw, mix and LFOs
   for(let track=0;track<16;track++)original.request('set',`ch${track}:synth:module`,'nusaw');
   original.request('step',128);
   original.request('set','cmd','tog 0 0 60 100;tog 1 2 65 90');
+  original.request('set','cmd','song 0;songadd 0;stop');
+  assert.match(original.request('get','state').value,/sg 0 0/);
   original.request('set','ch1:midi_fx1:master_transpose','5');
   original.request('set','ch3:mix','.4,-.2,0,0,0');
   original.request('set','ch2:synth:cutoff','1500');

@@ -68,7 +68,7 @@ latch/momentary switch, orientation, banks and release controls use the unchange
 HB HTML/JavaScript against native track 2. Disconnect releases active remote
 overrides without creating a latch; intentional latches remain until released.
 
-No clip editor, persistence UI, pressure UI, full Manager
+The native host has no clip editor, persistence UI, pressure UI, full Manager
 emulation, or Live/Local selector is included. The same control API can be used
 on hardware, but this panel's subscription/snapshot integration has not been
 deployed or verified against the physical Move.
@@ -103,8 +103,8 @@ C-major → D-minor change, parameter-write restrictions, balanced note releases
 on disconnect, and process-global isolation. Browser verification exercises the
 real Schwung client, chord buttons, held pad, parameter edit, and 390px layout.
 
-The current baseline is Movy integration tag `v0.34.1-hbclean.207-dev.1`,
-HB tag `v0.2.285-dev.1` (`b1619b9`), upstream Movy `5c01a4fe`, and Schwung
+The browser continuation integrates main `b8b796c` (Movy `0.34.1-hbclean.220`),
+HB `0.2.289` (`b907f48`), upstream Movy `5c01a4fe`, and Schwung
 `e877ed64`. Exact dependency revisions are pinned in `setup.sh`; the integration
 comes from this checkout. Setup patches a fresh temporary export each run, so
 rerunning it cannot double-apply patches or overwrite edits in cached checkouts.
@@ -216,9 +216,9 @@ native root/bass voices, duplicate suppression, overlapping-note ownership,
 mute state, Stop cleanup and stream-gap cleanup. Safari/iOS listening has not
 been verified.
 
-Browser-only feasibility work is in [`../wasm/README.md`](../wasm/README.md).
-That separate static page runs actual HB and Movy sequencer WebAssembly, with
-native differential tests; it does not yet replace this full native Joint host.
+The early compiler slice is documented in [`../wasm/README.md`](../wasm/README.md).
+The full production browser host, durable save/open and existing private trial are
+documented in [`../wasm/full/README.md`](../wasm/full/README.md).
 
 The same `/joint` page can now use the compiled browser engine. See
 [`../wasm/full/README.md`](../wasm/full/README.md): the static server serves

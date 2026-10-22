@@ -18,7 +18,7 @@ This reuses the Joint performance view; full Schwung Manager and the other
 remote routes have not been connected to the browser engine.
 
 After building native assets as documented in `dev/local/README.md`, activate
-Emscripten 4.0.10 and install both Rust targets:
+Rust 1.99.1 and Emscripten 4.0.10, then install both Rust targets:
 
 ```sh
 rustup target add wasm32-unknown-unknown wasm32-unknown-emscripten
@@ -27,6 +27,7 @@ node --test dev/wasm/test.mjs dev/wasm/full/test.mjs
 node dev/wasm/browser-test.mjs
 node dev/wasm/full/browser-test.mjs
 node dev/wasm/full/audio-browser-test.mjs
+node dev/wasm/full/session-browser-test.mjs
 node dev/wasm/serve.mjs
 ```
 
@@ -131,16 +132,89 @@ cleanup. A fault-injection test verifies bounded buffering, underrun silence and
 rejection of stale PCM after Stop. This is not physical listening verification,
 exhaustive synth parity or validation of Move hardware deadlines/crackles.
 
-## Static package and next step
+## Durable browser sessions
+
+The browser Session panel autosaves to IndexedDB every five seconds while stopped
+and after Stop. It restores on reload before enabling autosave. **Save on device**,
+**Open saved**, **Export backup** and **Import backup** provide explicit control.
+Stop recording/playback and release controls before saving. Export a backup before
+clearing browser data; private browsing, browser eviction or quota limits can
+prevent or remove device storage. A failed startup restore does not overwrite the
+saved session. Audio must be enabled explicitly after opening.
+
+The versioned/checksummed JSON envelope uses production Movy state wrappers and
+bulk/LFO codecs. It includes all 16 clips/track sets, engine-owned Scenes/Song,
+Source Weaving and Clip Variation state, HB and NuSaw state, chain mix, LFOs and
+Joint UI configuration. There is no independent browser sequencer. A candidate
+Wasm engine loads and reads back every supported component before replacing the
+current engine; invalid, unsupported or non-roundtrippable state leaves the
+current session intact. Unknown instruments, extra effects, sends, or unsupported
+LFO state fail visibly. This is not a Move Set importer or stock Move instruments.
+HB's retired clip-context field is normalized to the production loader's Live
+value; no other HB state difference is accepted. Zero-Hz unset LFO sentinels are
+preserved without clamping. Native save/open remains outside this browser change;
+no unfinished local host.c experiment was found in the inspected checkouts.
+
+## Audio diagnosis on iPad
+
+The Audio panel starts expanded. **Enable audio** invokes AudioContext resume
+synchronously from the tap, requests the playback audio session where supported,
+and fails explicitly on an output rate other than 44.1 kHz. Startup and worklet
+loading have timeouts. Interruptions disable audio and ask for a new tap; re-enable
+preserves the mix. **Test speakers** sends a short 440 Hz diagnostic tone through
+the same output gain. The musical sound remains compiled NuSaw.
+
+**Audio diagnostics** includes source/build IDs, audio session and context state,
+requested/output sample rates, worker PCM peak, received/rendered/underrun frames,
+worklet signal peak, post-gain analyser peak, actor levels/mutes, gain, recent
+transitions, errors and user agent. Copy the text or screenshot it while holding
+a pad with transport stopped. Signal counters and peaks locate a break in the
+path; they do not prove that an iPad speaker was audible. The user's last physical
+report was silence, and there is no subsequent verified successful iPad listening
+result. Chromium waveform tests do not close that report.
+
+## Shared observations
+
+Both transports attach schema-1 `observation` objects to updates, containing
+engine status and watched production Field/harmony/source/variation snapshots.
+`clock.sampleFrame / 44100` advances in the serialized render owner even while
+musical transport is stopped; `transportTick` is the engine's master tick at
+96 PPQN. Observers never step an engine. Browser epochs change on session open.
+Events carry epoch/sequence, final-output MIDI, a request-boundary sample stamp
+and trigger provenance (`live-input`, `render`, or `control`). Render-time events
+can include sequenced and delayed live notes; `performance: unresolved` states
+that limitation explicitly. Precise intra-block timestamps, note-owner provenance
+and arrangement section boundaries require production hooks; `structure` is null.
+Consumers must reset sequence tracking when epoch changes. Do not infer attacks
+from repeated snapshot/history delivery or invent a second transport clock.
+
+Production Source Weaving (including Grid holds and recorded gesture sources),
+Clip Variation and conductor diagnostics are reused via bounded root reads and
+validated edit commands. This host does not add arrangement, fills or lighting
+mappings. The concurrent four-light preview is preserved as the existing private
+Site overlay, not copied into this public branch.
+
+## Static package and deployed trial
+
+The existing owner-private trial is deployed at
+https://harmonybus-browser-trial.yummyprawn.chatgpt.site . Version 2 used packaging
+commit `83633fd1a14c6f4a9712c16383587364df394509`, distinct from GitHub engine source
+`7abe52abf95d10605fc8d7e58e03e01b7d83137f`. Its compiled HB is `0.2.285-dev.1`,
+its older internal workerbuild label is `0.34.1-hbclean.202`, and its engine Wasm
+SHA-256 is `2eff0ce95bfa823b0ef44a9b5814339697929dbe3980b412ae664b7f0e58475a`.
+Version 3 adds the separately owned private lighting overlay to that same engine.
+
+This continuation refreshes integration main to `b8b796c` (Movy 220), HB to
+`b907f48b0d6d24598c4b903e4d2e59e9b759ec38` (289), retaining upstream Movy
+`5c01a4fe`, Schwung `e877ed64`, and NuSaw `e3787739`. The compiled
+`/wasm/build/full/build-info.json` records exact source commit/tree, clean/dirty
+status, dependencies, toolchains and Wasm SHA-256. It is displayed in diagnostics
+and included in saved sessions. Site packaging commits remain separate.
 
 After building, run `node dev/wasm/package.mjs`. The output in
 `dev/wasm/build/site` contains only static assets and opens Joint by default. Serve
-that directory at an HTTPS origin root (not a subdirectory), with JavaScript and
-`application/wasm` MIME types. No API, native processor, shared-memory headers or
-runtime downloads are required. CI tests the copied package and uploads it as
-`browser-joint-static`. Nothing is deployed automatically. This is ready for a
-hosting trial, not a claim of tested iPad compatibility or offline reload support.
-
-Next: host the static package for a physical iPad Safari trial covering latency,
-sustained polyphony, interruptions, backgrounding and audio restart. Session
-save/open, full Manager integration and service-worker caching remain pending.
+that directory at an HTTPS origin root with JavaScript and `application/wasm`
+MIME types. CI tests the copied package and uploads `browser-joint-static`; it
+does not deploy automatically. Preserve the Site's private audience and any
+concurrent UI overlay when publishing. Full Remote UI/Manager, ordinary clip
+editing, offline reload caching and external MIDI integration remain separate.
