@@ -2,7 +2,9 @@ import {Lighting,fixturePositions,clamp,defaultSettings,defaultSamples} from './
 import {lightingProfile,loadLightingProfile,saveLightingProfile} from './lighting-profile.mjs';
 
 /** Mount a transport-neutral preview. All state consumed here is read-only. */
-export function mountLighting(container){
+export function mountLighting(container,monitor=null){
+ const monitorFixtures=monitor?[...monitor.querySelectorAll('[data-fixture]')]:[];
+ const monitorState=monitor?.querySelector('#light-monitor-state');
  const model=new Lighting();let group=0,selected=0,dimension=0,lastFrame=null;
  let storage;try{storage=globalThis.localStorage;}catch{}
  const saved=loadLightingProfile(storage);
@@ -24,6 +26,11 @@ export function mountLighting(container){
  <button id="light-blackout" aria-pressed="false">Blackout</button>
  </div></div>
  <p class="light-note">Live notes and clips share the same response. Each voice has a home; pitch moves a soft region across the four lights. The moving dots show the strongest note in each voice.</p>
+ <details class="light-voices"><summary>Voice identities</summary>
+ <p class="light-note">Output channels 1–4 represent Root, Bass, Comp and Melody. These are channel identities; tracks sharing an output channel share its lighting response. Strength changes lights only.</p>
+ <div class="light-controls">${['Root','Bass','Comp','Melody'].map((name,index)=>`<label>${name} · channel ${index+1} strength <input id="light-voiceGain${index}" type="range" min="0" max="1" step=".01"></label>
+ <label>${name} home <select id="light-voiceHome${index}"><option value="0">Upper left</option><option value="1">Upper right</option><option value="2">Lower right</option><option value="3">Lower left</option></select></label>`).join('')}</div>
+ <p class="light-note">Zero strength hides that voice’s note response; the Perlin background continues. Home controls anchor degree motion; pitch mode uses the home’s vertical side.</p></details>
  <p id="light-storage" class="light-note" role="status"></p><button id="light-reset">Reset lighting settings</button>
  <div class="toolbar"><button data-light-cue="phrase">Try phrase change</button><button data-light-cue="break">Try break</button><button data-light-cue="arrival">Try arrival</button></div>
  <details class="light-samples"><summary>Field samples & color cycle</summary>
@@ -40,6 +47,7 @@ export function mountLighting(container){
  const profile=()=>lightingProfile({schema:1,settings:model.settings,samples:model.samples});
  const persist=()=>{select('storage').textContent=saveLightingProfile(storage,profile());};
  const controls={level:'level',saturation:'saturation',reactivity:'reactivity',vinyl:'vinyl',phraseBars:'phraseBars',hueTurns:'hueTurns',spread:'spread','harmony-amount':'harmony',palette:'palette',position:'position',source:'source',sectionCue:'sectionCue'};
+ for(let voice=0;voice<4;voice++)for(const setting of ["voiceGain","voiceHome"])controls[setting+voice]=setting+voice;
  function syncControls(){
   for(const [id,key] of Object.entries(controls))select(id).value=String(model.settings[key]);
   select('sample-grid').hidden=model.settings.source==='lanes';
@@ -53,6 +61,7 @@ export function mountLighting(container){
  for(const key of ['level','saturation','reactivity','vinyl','phraseBars','hueTurns','spread'])bind(key,key);
  bind('harmony-amount','harmony');bind('palette','palette',false);bind('position','position',false);
  bind('sectionCue','sectionCue',false);
+ for(let voice=0;voice<4;voice++)for(const setting of ['voiceGain','voiceHome'])bind(setting+voice,setting+voice);
  select('source').onchange=event=>{model.settings.source=event.target.value;model.resetSource();select('sample-grid').hidden=event.target.value==='lanes';persist();};
  select('select').onchange=event=>selected=Number(event.target.value);
  select('dimension').onchange=event=>dimension=Number(event.target.value);
@@ -105,7 +114,13 @@ export function mountLighting(container){
   const prefix=`ch${group*4+3}:midi_fx1:`;
   for(const key of ['field_view','field_outputs_view2','shared_context_snapshot','harmony_snapshot'])demand.set(prefix+key,Date.now());
   const frame=model.render(now);lastFrame=frame;
-  if(container.firstElementChild.open)draw(frame);
+  if(container.firstElementChild.open&&!container.closest('[hidden]'))draw(frame);
+  if(monitor&&!monitor.closest('[hidden]')){
+   for(const light of monitorFixtures){const fixture=frame.fixtures[Number(light.dataset.fixture)];light.style.backgroundColor=`rgb(${fixture.rgb.join(',')})`;}
+   const state=model.settings.blackout?'Blackout':!frame.fresh?'Waiting':`${frame.held} held`;
+   monitorState.textContent=state;
+   monitor.setAttribute('aria-label',`Open lighting controls · ${state}`);
+  }
   select('state').textContent=model.settings.blackout?'Blackout':!frame.fresh?'Waiting for current field data':`${frame.playing?'Bar '+frame.bar:'Live play · transport stopped'} · ${frame.held} held ${frame.rewinding?'· field rewind':''}`;
   select('harmony').textContent=frame.palette.label;
   select('section').textContent=frame.sectionLabel+(frame.cue?` · ${frame.cue==='phrase'?'rotation':frame.cue}`:'');
