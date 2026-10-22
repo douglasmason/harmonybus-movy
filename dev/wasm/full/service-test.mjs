@@ -17,13 +17,14 @@ test('shared source/variation edits, stopped live observations and transactional
   await send({type:'dev_watch',keys:['source_preview_1','source_route_1','variation_1']});
   const snapshot=updates.at(-1);assert(snapshot.observation.views.source_preview_1);assert.equal(snapshot.observation.clock.playing,false);
   assert.equal(snapshot.observation.structure.schema,1);assert.equal(snapshot.observation.structure.count,0);
-  await send({type:'dev_engine_edit',value:'song 0;songadd 1; songsection 0 bars 2;songsection 1 enable;songsection 1 track 2 2'});
+  await send({type:'dev_engine_edit',value:'usnap 2;song 0;songadd 1; songsection 0 bars 2;songsection 1 enable;songsection 1 track 2 2;ucommit 2'});
+  assert.notEqual(updates.at(-1).type,'error','shared section edits must finish their production Undo group');
   await send({type:'dev_watch',keys:['song_section_0','song_section_1','ch0:lfo1:field_source_version','ch0:lfo1:shape','ch0:synth:cutoff:base','ch0:synth:cutoff:effective']});
   assert.equal(updates.at(-1).observation.structure.count,2);
   assert.equal(updates.at(-1).params.song_section_0,'0 0 1 2 0000000000000000');
   assert.equal(updates.at(-1).observation.views['ch0:lfo1:field_source_version'],'1');
   const songBefore=service.read('state');
-  for(const value of ['song 8','songsection 128 enable','songsection 0 bars 257','songsection 0 track 16 0','songsection 0 track 0 3','songsectionclear -1','songsection 0 enable;load /tmp/no']){
+  for(const value of ['ucommit -1','ucommit 1 2','ucommit nope','song 8','songsection 128 enable','songsection 0 bars 257','songsection 0 track 16 0','songsection 0 track 0 3','songsectionclear -1','songsection 0 enable;load /tmp/no']){
    await send({type:'dev_engine_edit',value});assert.equal(updates.at(-1).type,'error');assert.equal(service.read('state'),songBefore);
   }
   for(const key of ['ch0:synth:state:base','ch16:lfo1:shape','song_section_128']){await send({type:'dev_watch',keys:[key]});assert.equal(updates.at(-1).type,'error');}

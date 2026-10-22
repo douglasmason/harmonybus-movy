@@ -17,7 +17,7 @@ export function validateEngineCommand(value){
   if(section&&Number(section[1])<128&&(section[3]===undefined||Number(section[3])<=256)&&(section[4]===undefined||Number(section[4])<16))continue;
   const [verb,...parts]=command.trim().split(/\s+/),values=parts.map(Number);
   if(parts.some(part=>!/^[-]?\d+$/.test(part))||values.some(number=>!Number.isSafeInteger(number)))throw new Error('Invalid engine edit values');
-  if(['usnap','udrop'].includes(verb)&&values.length===1&&values[0]>=0)continue;
+  if(['usnap','ucommit','udrop'].includes(verb)&&values.length===1&&values[0]>=0)continue;
   if(['song','songadd'].includes(verb)&&values.length===1&&values[0]>=0&&values[0]<8)continue;
   if(verb==='songsectionclear'&&values.length===1&&values[0]>=0&&values[0]<128)continue;
   if(verb==='variation'&&values.length===6&&values[0]>=0&&values[0]<16&&values.slice(1,5).every(number=>number>=0&&number<=100)&&values[5]>=1&&values[5]<=256)continue;
