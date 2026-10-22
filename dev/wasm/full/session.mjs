@@ -66,7 +66,8 @@ export async function restoreCandidate(engine,session){
  engine.request('set','chains',doc);engine.request('step',128);
  if(engine.request('get','chains').value!==doc)throw new Error('Engine rejected chain modules');
  engine.request('set','state',state);
- if(engine.request('get','state').value!==state)throw new Error('Engine cannot restore this sequencer state without changes');
+ const restored=engine.request('get','state').value;
+ if(restored!==state){const expected=state.split('\n'),actual=restored.split('\n'),index=expected.findIndex((line,index)=>line!==actual[index]);throw new Error(`Engine cannot restore this sequencer state without changes (line ${index+1}, ${expected[index]?.split(' ')[0]??'end'})`);}
  for(const track of payload.chains){
   for(const entry of track.components)engine.request('set',`ch${track.track}:${entry.component}:state`,entry.state);
   // Zero Hz is the production sentinel for an uninitialized LFO. A write would

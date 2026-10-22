@@ -141,6 +141,10 @@ Stop recording/playback and release controls before saving. Export a backup befo
 clearing browser data; private browsing, browser eviction or quota limits can
 prevent or remove device storage. A failed startup restore does not overwrite the
 saved session. Audio must be enabled explicitly after opening.
+**Export saved copy** downloads the stored file without asking the engine to load
+or rewrite it, including after a failed restore. Pending operations replace stale
+success messages until their transaction finishes. Restore mismatches identify the
+first differing sequencer line/tag while preserving the original stored file.
 
 The versioned/checksummed JSON envelope uses production Movy state wrappers and
 bulk/LFO codecs. It includes all 16 clips/track sets, engine-owned Scenes/Song,

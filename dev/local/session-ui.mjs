@@ -10,7 +10,7 @@ export async function mountSessions({sessions,captureUI,restoreUI,disableAudio,i
  const status=document.querySelector('#session-status'),buttons=[...panel.querySelectorAll('button')];
  let busy=false,armed=false,lastSavedPayload=null;
  function message(text){status.textContent=text;}
- async function run(action){if(busy)return;busy=true;buttons.forEach(button=>button.disabled=true);try{await action();}catch(error){message(`${error.message}. Current session retained.`);}finally{busy=false;buttons.forEach(button=>button.disabled=false);}}
+ async function run(action){if(busy)return;busy=true;const previous=status.textContent;buttons.forEach(button=>button.disabled=true);message('Working…');try{await action();if(status.textContent==='Working…')message(previous);}catch(error){message(`${error.message}. Current session retained.`);}finally{busy=false;buttons.forEach(button=>button.disabled=false);}}
  async function snapshot(){return sessions.save(captureUI());}
  async function save(automatic=false){
   const session=await snapshot(),payload=JSON.stringify(session.payload);
@@ -27,10 +27,14 @@ export async function mountSessions({sessions,captureUI,restoreUI,disableAudio,i
  }
  document.querySelector('#session-save').onclick=()=>run(()=>save());
  document.querySelector('#session-open').onclick=()=>run(async()=>open(await stored()));
- document.querySelector('#session-export').onclick=()=>run(async()=>{
-  const session=await snapshot();const url=URL.createObjectURL(new Blob([JSON.stringify(session,null,2)],{type:'application/json'}));
+ function download(session){
+  const url=URL.createObjectURL(new Blob([JSON.stringify(session,null,2)],{type:'application/json'}));
   const anchor=document.createElement('a');anchor.href=url;anchor.download=`harmonybus-${new Date().toISOString().replace(/[:.]/g,'-')}.hb-session.json`;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
   message('Backup download requested. Check Safari Downloads / Files.');
+ }
+ document.querySelector('#session-export').onclick=()=>run(async()=>download(await snapshot()));
+ document.querySelector('#session-export-saved').onclick=()=>run(async()=>{
+  const session=await stored();if(!session)throw new Error('No saved session on this device');download(session);
  });
  const input=document.querySelector('#session-file');
  document.querySelector('#session-import').onclick=()=>input.click();

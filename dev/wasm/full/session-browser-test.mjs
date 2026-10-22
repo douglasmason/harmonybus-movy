@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import {chromium} from '../../local/node_modules/playwright/index.mjs';
 import {serve} from '../serve.mjs';
 const server=serve(0,process.env.WASM_PACKAGED?new URL('../build/site/',import.meta.url):null);
@@ -36,7 +37,9 @@ try{
  await page.locator('[data-key="joint_section_bars"]').press('ArrowUp');
  await page.waitForFunction(async()=>(await __wasmRead('song_section_0')).startsWith('0 0 1 '));
  const songState=await page.evaluate(()=>__wasmRead('state'));assert.match(songState,/ss1 0 /);
- await page.locator('#session-save').click();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('Saved on this device'));
+ await page.locator('#session-save').click();await page.waitForFunction(()=>!document.querySelector('#session-save').disabled&&document.querySelector('#session-status').textContent.includes('Saved on this device'));
+ const savedDownloadPromise=page.waitForEvent('download');await page.locator('#session-export-saved').click();const savedDownload=await savedDownloadPromise;
+ const savedCopy=JSON.parse(await readFile(await savedDownload.path(),'utf8'));assert.match(savedCopy.payload.sequencer,/ss1 0 /);
  await page.reload();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
  assert.equal(await page.evaluate(()=>__wasmRead('state')),songState);
  await page.locator('#song').evaluate(element=>element.open=true);await page.locator('#song-edit').click();
