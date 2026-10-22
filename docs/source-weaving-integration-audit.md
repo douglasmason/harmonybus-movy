@@ -417,3 +417,6 @@ readback and fitted phase display. The production audio fixture compares 40/40
 Timeline velocities with 40/80 fitted velocities under the same Sequential pitch
 and rhythm material, including paired releases. The explicit scheduler benchmark
 now includes fitted expression. No physical deployment or latency claim.
+
+Integrated concurrent Clip Participation 228 (e49a5fb), preserving its follower
+rests and live-note ownership. Final verification uses the combined source tree.
