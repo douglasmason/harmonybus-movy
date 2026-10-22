@@ -17,11 +17,13 @@ def patch_source_routing(root: Path) -> None:
     pub source_routes: [crate::source_route::Route; NUM_TRACKS],
     source_cursors: [crate::source_route::Cursor; NUM_TRACKS],
     source_positions: [u32; NUM_TRACKS],
+    source_grid_active: [bool; NUM_TRACKS],
     source_automation_seen: [Option<crate::source_route::AutomationPhase>; NUM_TRACKS],
     source_automation_mask: [u8; NUM_TRACKS],''')
     source = replace_once(source, '            hb_weave:', '''            source_routes: [Default::default(); NUM_TRACKS],
             source_cursors: [Default::default(); NUM_TRACKS],
             source_positions: [0; NUM_TRACKS],
+            source_grid_active: [false; NUM_TRACKS],
             source_automation_seen: [None; NUM_TRACKS],
             source_automation_mask: [0; NUM_TRACKS],
             hb_weave:''')
@@ -36,6 +38,7 @@ def patch_source_routing(root: Path) -> None:
     source = replace_once(source, '        if self.count_in_left == 0 {\n            for ti in 0..NUM_TRACKS {', '''        if self.count_in_left == 0 {
             for ti in 0..NUM_TRACKS { self.source_positions[ti]=self.tracks[ti].pos_tick; }
             self.source_automation_tick(out);
+            self.source_grid_tick(out);
             for ti in 0..NUM_TRACKS {''')
     source = source.replace('if self.gates[gi].track == ti as u8 {', 'if self.gates[gi].clock_track == ti as u8 {')
     source = source.replace('if self.gates[gi].track==ti as u8 {', 'if self.gates[gi].clock_track==ti as u8 {')
@@ -91,6 +94,13 @@ impl Engine {
     source += '\n' + (assets / 'source_instrument_tests.rs').read_text()
     source += '\n' + (assets / 'source_hb_tests.rs').read_text()
     source += '\n' + (assets / 'source_operations_tests.rs').read_text()
+    source += '\n' + (assets / 'source_grid.rs').read_text()
+    source += '\n' + (assets / 'source_grid_tests.rs').read_text()
+    path.write_text(source)
+    path = core / 'grid.rs'
+    source = path.read_text()
+    source = replace_once(source, 'let next=if state.muted {0} else {state.playing_slot.map_or(0,|slot|mask(&state.clips[slot],state.pos_tick))};',
+        'let next=self.source_grid_mask(track);')
     path.write_text(source)
     path = core / 'command.rs'
     source = path.read_text()

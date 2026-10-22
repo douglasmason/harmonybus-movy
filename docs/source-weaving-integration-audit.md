@@ -220,3 +220,32 @@ into a generic event bus: each already has an owner that should be reused.
 Concurrent Movy 216 conductor/source overview was preserved before release.
 Note-operation identity is appended to native previews and shown on the Source
 Operations panel without displacing the existing eight-field Source Preview.
+
+
+## Movy 219: Grid hold source
+
+Refreshed to Movy main 22be239 and HB b907f48 (0.2.289), preserving stock-host
+Field modulation. Grid gates are raw start/end/lane intervals. The existing
+`grid_tick` owns both the emitted GridMask and destination clip-reader holds;
+HB `motion_sequence_mask` owns sequencer holds separately from live `held` bits.
+Its stopped-lane handling explicitly excludes live-held lanes. Reuse all these
+owners: only mask lookup selects a donor, and a pre-track pass resolves routed
+actors every master tick. A boolean marks actors needing one final restoration
+after routing is disabled; no second hold/value cache is introduced.
+
+Donor phase is captured before track iteration. Hold edges use that phase;
+destination clip-reader gesture origins/age still use the actor's clip/clock.
+Repeated grid_tick calls do not advance gesture age or duplicate mask edges.
+Source switches that keep a lane down do not release/reacquire it. Source
+unavailability falls back to own holds, while active empty material supplies zero.
+Actor recording bypasses borrowing. Existing flush/stop paths release Grid holds
+without taking ownership of live holds or sounding notes.
+
+Regressions cover track-order independence, fast donor/slow actor releases during
+rests, source availability, recording/Off/Own restoration, mute, empty sources,
+relaunch, stop, raw nonrecursive reads, destination clip-reader ownership, save
+compatibility and native undo. The production-chain fixture checks Transpose on
+an accepted note, source-mute fallback and a simultaneous live hold surviving the
+sequencer release. Browser tests exercise both donor controls through the shared
+controller with existing undo enforcement. Native and ARM gates run in CI because
+the refreshed local workspace has no Rust toolchain. No hardware deployment.

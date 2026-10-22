@@ -82,7 +82,7 @@ Source Weaving consumes the rhythm attacks that the source scheduler accepts.
 Native `source_route_<zero-based actor>` returns the persisted route, and
 `source_diagnostics` returns JSON with resolved source identities, active state,
 loop positions, speed ratios and active gate counts. The sources array is ordered
-pitch, rhythm, expression, instrument, HB render, note operations. These reads are on demand.
+pitch, rhythm, expression, instrument, HB render, note operations, Grid holds. These reads are on demand.
 The normal Joint settings metadata also exposes the controls to compatible remote
 surfaces.
 
@@ -239,3 +239,39 @@ This increment provides on-device inspection. It does not yet add a graphical
 source/result timeline, progression editing, follow-track toggles or a new Remote
 UI page. A future timeline must use accepted scheduler events and distinguish
 pre-HB material from final sounding output.
+
+## Grid hold sources (Movy 219)
+
+The actor's **Source Operations** panel now also provides **Grid Holds Source**
+and **Grid Holds Clip**, with a read-only donor phase. With Source Weaving On,
+these borrow the raw Grid operation-lane hold intervals from a playing clip.
+They replace the actor's recorded Grid holds, independently of Note Ops Source.
+The lane numbers use the existing operation bank and destination configuration;
+no assignments or live control state are copied from the donor.
+
+Hold start/end edges follow the donor's own clock and loop phase, even during
+rests or when the actor runs more slowly. Edges resolve before notes. The held
+operation acts on the actor: clip repeat/reverse/time-shift/speed still use the
+actor's material, origin and clock. Existing rhythmic-source selection keeps its
+current semantics; borrowed holds do not create a new rhythm scheduler.
+
+Source changes, edits and relaunches are resolved on the next master tick. A lane
+that stays down across a source change remains held without an artificial
+retrigger. Unequal loops stay independent. Missing/stopped/muted donors fall
+back to the actor's own Grid timeline. An available empty donor releases all
+borrowed Grid holds. Own/Off and actor recording restore the actor's timeline.
+Actor mute/stop and transport stop release sequencer holds through the existing
+Grid owner. Live finger holds retain their independent HB owner, and notes keep
+their existing release/pressure ownership.
+
+Save/load and native/UI undo include this route. Old 7/9/11/13/15-field routes
+load with Grid Holds Source = Own. This reads raw Grid gates, without following
+the donor's own routes or rerunning note conditions. Recorded timed clip-reader
+`operation_intervals` are a separate representation and are not borrowed here.
+Key-related lane assignments still use HB's existing key-operation ownership;
+choosing a hold source does not clone key or harmony state.
+
+Concurrent Movy 218 stock-host Field sources and HB 0.2.289 are preserved.
+The implementation uses the existing Grid mask, gesture and HB sequence/live
+hold owners. It adds no musical cache or copied material. Timed-gesture routing,
+Fit to Window and the lookahead revision audit remain unfinished.

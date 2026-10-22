@@ -7,7 +7,7 @@ impl Engine {
         let route=self.source_routes[actor];
         let recording=self.recording && self.records_track(actor);
         let mut text=format!("{{\"schema\":1,\"actor\":{},\"enabled\":{},\"playing\":{},\"muted\":{},\"recording\":{},\"timeline\":{},\"sources\":[",actor,route.enabled,self.playing,track.muted,recording,route.timeline);
-        for (dimension,configured) in [route.pitch,route.rhythm,route.expression,route.instrument,route.hb_render,route.note_ops].into_iter().enumerate() {
+        for (dimension,configured) in [route.pitch,route.rhythm,route.expression,route.instrument,route.hb_render,route.note_ops,route.grid_holds].into_iter().enumerate() {
             if dimension>0 {text.push(',');}
             let resolved=configured.or_else(||track.playing_slot.map(|slot|crate::source_route::ClipRef{track:actor,slot}));
             if let Some(reference)=resolved {
@@ -39,7 +39,7 @@ impl Engine {
             if actor>0 {text.push(',');}
             let route=self.source_routes[actor];
             write!(&mut text,"{{\"actor\":{},\"enabled\":{},\"timeline\":{},\"gates\":{},\"sources\":[",actor,route.enabled,route.timeline,self.gates.iter().filter(|gate|gate.track as usize==actor).count()).unwrap();
-            for (dimension,configured) in [route.pitch,route.rhythm,route.expression,route.instrument,route.hb_render,route.note_ops].into_iter().enumerate() {
+            for (dimension,configured) in [route.pitch,route.rhythm,route.expression,route.instrument,route.hb_render,route.note_ops,route.grid_holds].into_iter().enumerate() {
                 if dimension>0 {text.push(',');}
                 let resolved=configured.or_else(||self.tracks[actor].playing_slot.map(|slot|crate::source_route::ClipRef{track:actor,slot}));
                 if let Some(reference)=resolved {
