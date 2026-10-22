@@ -1,0 +1,147 @@
+name: Section Shape verification and package
+on:
+  push:
+    branches: [main]
+    paths:
+      - integration/section-shaping/**
+      - scripts/patch_section_shaping.py
+      - scripts/apply_clean_harmonybus.py
+      - scripts/patch_idle_probe.py
+      - tests/full_chain_audio.c
+      - docs/section-shaping.md
+      - .github/workflows/section-shaping.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - integration/section-shaping/**
+      - scripts/patch_section_shaping.py
+      - scripts/apply_clean_harmonybus.py
+      - scripts/patch_idle_probe.py
+      - tests/full_chain_audio.c
+      - docs/section-shaping.md
+      - .github/workflows/section-shaping.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: section-shaping-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+env:
+  SOURCE_VERSION: 0.34.1-hbclean.224
+  HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
+  SCHWUNG_ROOT: ${{ github.workspace }}/schwung
+  SCHWUNG: ${{ github.workspace }}/schwung
+  HB_MODULE: ${{ github.workspace }}/harmonybus/modules/harmonybus/module.json
+jobs:
+  verify-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare pinned sources
+        run: |
+          git clone https://github.com/DimaDake/schwung-movy.git movy
+          git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
+          git clone https://github.com/douglasmason/harmonybus.git harmonybus
+          git -C harmonybus checkout b907f48b0d6d24598c4b903e4d2e59e9b759ec38
+          git clone https://github.com/charlesvestal/schwung.git schwung
+          git -C schwung checkout a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
+          python3 scripts/apply_clean_harmonybus.py movy
+      - name: Browser and real shared-controller regressions
+        working-directory: movy
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build:browser
+          node browser-test/logic.mjs
+          for suite in hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
+            node "browser-test/$suite.mjs"
+          done
+          # Legacy app-loop fails unchanged on the pre-routing hbclean.209 baseline.
+          # Dedicated Joint/session and full logic suites cover the current UI.
+          node browser-test/device-scripts.mjs
+          node ../tests/field_lfo_ui.mjs .
+          if test -f ../tests/field_routes_ui.mjs; then node ../tests/field_routes_ui.mjs .; fi
+      - name: Native sequencer, DSP and full production chain
+        run: |
+          cargo test --manifest-path movy/engine/Cargo.toml -p seq-core -p movy-dsp
+          bash scripts/test_full_chain_audio.sh movy harmonybus schwung
+          cargo test --release --manifest-path movy/engine/Cargo.toml -p seq-core source_routing_benchmark -- --ignored --nocapture --test-threads=1 | tee source-benchmark.txt
+      - name: ARM toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          sudo ln -sf /usr/bin/aarch64-linux-gnu-gcc /usr/local/bin/aarch64-unknown-linux-gnu-gcc
+          sudo ln -sf /usr/bin/aarch64-linux-gnu-nm /usr/local/bin/aarch64-unknown-linux-gnu-nm
+          sudo ln -sf /usr/bin/aarch64-linux-gnu-strip /usr/local/bin/aarch64-unknown-linux-gnu-strip
+          rustup target add aarch64-unknown-linux-gnu
+      - name: Build verified install package
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          path: Path = Path('movy/module.json')
+          metadata: dict = json.loads(path.read_text())
+          metadata['version'] = os.environ['SOURCE_VERSION']
+          path.write_text(json.dumps(metadata, indent=2) + '\n')
+          PY
+          npm run build:device --prefix movy
+          bash movy/scripts/build-dsp.sh
+          mkdir -p package/movy/configs
+          cp movy/module.json movy/ui.js movy/dist/dsp.so package/movy/
+          cp movy/src/module-configs/*.json package/movy/configs/
+          cp movy/harmonybus-core-source.json package/movy/
+          file package/movy/dsp.so | grep 'ARM aarch64'
+          tar -czf harmonybus-movy-module.tar.gz -C package movy
+          sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: section-shaping-224
+          path: |
+            harmonybus-movy-module.tar.gz
+            SHA256SUMS
+            source-benchmark.txt
+      - name: Publish verified main package and advance installer last
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v$SOURCE_VERSION" >/dev/null 2>&1; then
+            echo 'This Section Shape version is already published; installer unchanged'
+            exit 0
+          fi
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo 'Main moved concurrently; installer unchanged'; exit 1; }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          metadata: dict = json.loads(Path('release.json').read_text())
+          if metadata['version'] != '0.34.1-hbclean.223':
+              raise SystemExit('Expected Source Weaving 223 before Section Shape; installer unchanged')
+          PY
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Section Shape" --notes-file docs/section-shaping.md
+          mkdir verified-upload
+          gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
+          (cd verified-upload && sha256sum -c ../SHA256SUMS)
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo 'Main moved concurrently; installer unchanged'; exit 1; }
+          git switch -C installer-pointer origin/main
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          path: Path = Path('release.json')
+          metadata: dict = json.loads(path.read_text())
+          if metadata['version'] != '0.34.1-hbclean.223':
+              raise SystemExit('Installer moved concurrently; leave it unchanged')
+          version: str = os.environ['SOURCE_VERSION']
+          path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add release.json
+          git commit -m "Publish verified Section Shape $SOURCE_VERSION [skip ci]"
+          git push origin HEAD:main

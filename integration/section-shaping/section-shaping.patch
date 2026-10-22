@@ -1,0 +1,491 @@
+diff --git a/browser-test/hb-song-sections.mjs b/browser-test/hb-song-sections.mjs
+index 8b10a04a..70ba2165 100644
+--- a/browser-test/hb-song-sections.mjs
++++ b/browser-test/hb-song-sections.mjs
+@@ -15,6 +15,7 @@ let state={schema:1,editable:true,playing:false,count:3,current:{index:0,scene:0
+ let reads=0;
+ globalThis.host_module_get_param=key=>{
+     if(key==='song_section'){reads++;return JSON.stringify(state);}
++    if(key==='song_shape_0')return '0 -20 60';
+     if(key==='song_section_0')return '0 0 1 8 0000100000000000';
+     if(key==='song_section_1')return '1 0 0 0 0000000000000000';
+     return nativeRead(key);
+@@ -97,3 +98,19 @@ const observed=engine.ops.length;
+ for(const slot of [5,6,7]){page.knobTurn(slot,4);page.knobTouch(slot,true);page.knobTouch(slot,false);}
+ flush();assert.equal(engine.ops.length,observed,'observation knobs are read-only');
+ console.log('Song Sections: real shared controller edits Bars/Track/Transition and preserves read-only observations');
++
++const shapeIndex=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_section_energy'));
++assert(shapeIndex>=0,'Section Shape is reachable in the existing controller');
++page.goToPage(shapeIndex);flush();
++assert.equal(page.performanceGet('joint_section_energy'),'-20');
++assert.equal(page.performanceGet('joint_section_space'),'60');
++assert.equal(page.performanceGet('joint_section_scope'),'All follower clips');
++const shapeBefore=engine.ops.length;
++page.knobTurn(1,4);flush();page.knobTurn(2,4);flush();
++assert(engine.ops.slice(shapeBefore).includes('songsection 0 energy -19'));
++assert(engine.ops.slice(shapeBefore).includes('songsection 0 space 61'));
++state={...state,editable:false,playing:true};
++const shapeRunning=engine.ops.length;
++page.knobTurn(1,4);flush();page.knobTurn(2,4);flush();
++assert.equal(engine.ops.length,shapeRunning,'shape edits use the same stopped guard');
++console.log('Section Shape: shared controller Energy/Space edits, scope, and running guard pass');
+diff --git a/engine/crates/movy-dsp/src/lib.rs b/engine/crates/movy-dsp/src/lib.rs
+index ff00d40c..55227b29 100644
+--- a/engine/crates/movy-dsp/src/lib.rs
++++ b/engine/crates/movy-dsp/src/lib.rs
+@@ -130,7 +130,7 @@ fn parse_mix(val: &str) -> Option<crate::mixer::TrackMix> {
+ }
+ 
+ const DEFAULT_BPM_X100: u32 = 12000;
+-const ENGINE_VERSION: &str = "0.71.0-song-sections1";
++const ENGINE_VERSION: &str = "0.71.0-section-shape1";
+ 
+ /// Tracks backed by schwung's own shadow slots by default. Their notes go out as
+ /// MIDI on the matching channel; everything above this index is a chain movy
+@@ -619,6 +619,8 @@ impl Instance {
+             key if key.starts_with("variation_") => key[10..].parse::<usize>().ok()
+                 .and_then(|actor|self.engine.variations.get(actor).map(|config|config.message(actor))),
+             "song_section" => Some(self.engine.song_section_snapshot()),
++            key if key.starts_with("song_shape_") => key[11..].parse::<usize>().ok()
++                .and_then(|index| self.engine.song_shape_message(index)),
+             key if key.starts_with("song_section_") => key[13..].parse::<usize>().ok()
+                 .and_then(|index| self.engine.song_section_message(index)),
+             "source_diagnostics" => Some(self.engine.source_diagnostics()),
+@@ -1145,6 +1147,10 @@ mod tests {
+         instance.set_param("cmd", "songsection 0 bars 8;songsection 0 track 4 1");
+         assert_eq!(instance.get_param("song_section_0").as_deref(), Some("0 0 1 8 0000100000000000"));
+         assert_eq!(instance.get_param("song_section_9"), None);
++        instance.set_param("cmd", "songsection 0 energy -50;songsection 0 space 75");
++        assert_eq!(instance.get_param("song_shape_0").as_deref(), Some("0 -50 75"));
++        assert_eq!(instance.get_param("song_shape_1").as_deref(), Some("1 0 0"));
++        assert_eq!(instance.get_param("song_shape_9"), None);
+         let state = instance.get_param("song_section").unwrap();
+         assert!(state.contains("\"schema\":1"));
+         assert!(state.contains("\"editable\":true"));
+diff --git a/engine/crates/seq-core/src/engine.rs b/engine/crates/seq-core/src/engine.rs
+index 1927e06d..fc2d915b 100644
+--- a/engine/crates/seq-core/src/engine.rs
++++ b/engine/crates/seq-core/src/engine.rs
+@@ -6866,6 +6866,20 @@ impl Engine {
+                             gate_override = Some(duration);
+                             modified = true;
+                         }
++                        let shape = self.song_shape();
++                        if shape != SectionShape::default() && self.follower_inputs[ti].is_some() && !n.rendered
++                            && !(self.recording && self.records_track(ti)) {
++                            let clock_slot = self.tracks[clock_track].playing_slot.unwrap_or(slot);
++                            let phase = self.source_positions[clock_track];
++                            let seed = crate::humanize::Humanize::seed(ti, clock_slot, phase);
++                            let duration = gate_override.unwrap_or_else(||hb_window.map_or(n.gate.max(1), |window| window.duration(n.gate)));
++                            let protected = n.actions.is_some() || phase % TICKS_PER_BAR == 0
++                                || self.master_tick.saturating_sub(1) % u64::from(TICKS_PER_BAR) == 0;
++                            let Some((velocity, duration)) = shape.apply(seed, n.vel, duration, protected) else { return; };
++                            n.vel = velocity;
++                            // Energy alone must not change overlapping note/gate semantics.
++                            if shape.space > 0 { gate_override = Some(duration); modified = true; }
++                        }
+                         // Non-destructive clip transpose: shift only the emitted
+                         // pitch (and its gate, so note-off matches); stored notes
+                         // and live pads stay at concert pitch.
+@@ -8249,5 +8263,7 @@ impl Engine {
+ }
+ 
+ include!("song_sections.rs");
++include!("song_shape.rs");
++include!("song_shape_tests.rs");
+ 
+ include!("song_sections_tests.rs");
+diff --git a/engine/crates/seq-core/src/persist.rs b/engine/crates/seq-core/src/persist.rs
+index 1786a287..d4aa0000 100644
+--- a/engine/crates/seq-core/src/persist.rs
++++ b/engine/crates/seq-core/src/persist.rs
+@@ -44,6 +44,9 @@ pub fn serialize(engine: &Engine) -> String {
+     }
+     for (index, section) in &engine.song_sections {
+         s.push_str(&format!("ss1 {} {} {}\n", index, section.bars, section.track_digits()));
++        if section.shape != Default::default() {
++            s.push_str(&format!("sh1 {} {} {}\n", index, section.shape.energy, section.shape.space));
++        }
+     }
+     for (actor, config) in engine.variations.iter().enumerate() {
+         if *config != Default::default() { s.push_str(&format!("variation {}\n", config.message(actor))); }
+@@ -234,6 +237,7 @@ pub fn load(engine: &mut Engine, data: &str) -> bool {
+                     engine.link_enabled = v != 0;
+                 }
+             }
++            Some("sh1") => { engine.song_shape_set(&it.collect::<Vec<_>>().join(" ")); }
+             Some("ss1") => { engine.song_section_set(&it.collect::<Vec<_>>().join(" ")); }
+             Some("sg") => {
+                 engine.song = it
+diff --git a/engine/crates/seq-core/src/song_sections.rs b/engine/crates/seq-core/src/song_sections.rs
+index fa282eb6..41f1a46a 100644
+--- a/engine/crates/seq-core/src/song_sections.rs
++++ b/engine/crates/seq-core/src/song_sections.rs
+@@ -14,6 +14,7 @@ pub struct SongSection {
+     /// Zero uses the scene's existing automatic duration; otherwise 1–256 bars.
+     pub bars: u16,
+     pub tracks: [SectionTrack; NUM_TRACKS],
++    pub shape: SectionShape,
+ }
+ 
+ impl SongSection {
+@@ -43,6 +44,16 @@ impl Engine {
+                 if bars > 256 { return false; }
+                 recipe.bars = bars;
+             }
++            [_, "energy", value] => {
++                let Ok(energy) = value.parse::<i16>() else { return false; };
++                if !(-100..=100).contains(&energy) { return false; }
++                recipe.shape.energy = energy;
++            }
++            [_, "space", value] => {
++                let Ok(space) = value.parse::<u16>() else { return false; };
++                if space > 100 { return false; }
++                recipe.shape.space = space;
++            }
+             [_, "track", track, value] => {
+                 let Ok(track) = track.parse::<usize>() else { return false; };
+                 if track >= NUM_TRACKS { return false; }
+@@ -69,7 +80,7 @@ impl Engine {
+             *track = match digit { b'0' => SectionTrack::Scene, b'1' => SectionTrack::Keep,
+                 b'2' => SectionTrack::Stop, _ => return false };
+         }
+-        self.song_sections.insert(index, SongSection { bars, tracks });
++        self.song_sections.insert(index, SongSection { bars, tracks, shape: SectionShape::default() });
+         true
+     }
+ 
+@@ -148,8 +159,8 @@ impl Engine {
+             let index = self.song_next_pos(self.song_pos);
+             format!("{{\"index\":{},\"scene\":{},\"committed\":{}}}", index, self.song[index], self.song_armed)
+         } else { "null".into() };
+-        format!("{{\"schema\":1,\"epoch\":{},\"visit\":{},\"tick\":{},\"ticks_per_bar\":{},\"playing\":{},\"editable\":{},\"started\":{},\"count\":{},\"current\":{},\"next\":{}}}",
++        format!("{{\"schema\":1,\"epoch\":{},\"visit\":{},\"tick\":{},\"ticks_per_bar\":{},\"playing\":{},\"editable\":{},\"started\":{},\"count\":{},\"current\":{},\"next\":{},\"shape\":{}}}",
+             self.song_epoch, self.song_visit, self.master_tick, TICKS_PER_BAR, self.playing,
+-            !self.playing && !self.pending_play, running, self.song.len(), current, next)
++            !self.playing && !self.pending_play, running, self.song.len(), current, next, self.song_shape_snapshot())
+     }
+ }
+diff --git a/engine/crates/seq-core/src/song_shape.rs b/engine/crates/seq-core/src/song_shape.rs
+new file mode 100644
+index 00000000..521cd331
+--- /dev/null
++++ b/engine/crates/seq-core/src/song_shape.rs
+@@ -0,0 +1,59 @@
++// Section overlays are evaluated at the existing clip emission point. They
++// never write source material, actor parameters, clocks, or gate ownership.
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++pub struct SectionShape {
++    pub energy: i16, // -100..100; relative velocity 50..150 percent
++    pub space: u16,  // 0..100; omit 0..75 percent, gate 100..25 percent
++}
++
++impl SectionShape {
++    fn apply(self, random: u32, velocity: u8, duration: u32, protected: bool) -> Option<(u8, u32)> {
++        if self == Self::default() { return Some((velocity, duration)); }
++        // One fixed rank per actor/clip phase. Increasing Space only removes
++        // additional eligible attacks; it never rolls a replacement pattern.
++        if !protected && random % 10000 < u32::from(self.space) * 75 { return None; }
++        let velocity = if velocity == 0 { 0 } else {
++            ((i64::from(velocity) * (200 + i64::from(self.energy)) + 100) / 200).clamp(1, 127) as u8
++        };
++        let duration = ((u64::from(duration) * (400 - u64::from(self.space) * 3) + 200) / 400)
++            .clamp(1, u64::from(u32::MAX)) as u32;
++        Some((velocity, duration))
++    }
++}
++
++impl Engine {
++    fn song_shape_active(&self) -> bool {
++        self.playing && self.song_start_bar.is_some()
++            && self.song_sections.contains_key(&self.song_pos)
++    }
++
++    fn song_shape(&self) -> SectionShape {
++        if self.song_shape_active() { self.song_sections[&self.song_pos].shape }
++        else { SectionShape::default() }
++    }
++
++    /// Optional sh1 save line, following the corresponding ss1 recipe. Strict
++    /// parsing avoids creating an occurrence from an orphan or corrupt line.
++    pub fn song_shape_set(&mut self, message: &str) -> bool {
++        let fields: Vec<_> = message.split_whitespace().collect();
++        let [index, energy, space] = fields.as_slice() else { return false; };
++        let (Ok(index), Ok(energy), Ok(space)) = (index.parse::<usize>(), energy.parse::<i16>(), space.parse::<u16>()) else { return false; };
++        if !(-100..=100).contains(&energy) || space > 100 { return false; }
++        let Some(section) = self.song_sections.get_mut(&index) else { return false; };
++        section.shape = SectionShape { energy, space };
++        true
++    }
++
++    pub fn song_shape_message(&self, index: usize) -> Option<String> {
++        self.song.get(index)?;
++        let shape = self.song_sections.get(&index).map_or(SectionShape::default(), |section| section.shape);
++        Some(format!("{} {} {}", index, shape.energy, shape.space))
++    }
++
++    fn song_shape_snapshot(&self) -> String {
++        let target = self.song_sections.get(&self.song_pos).map_or(SectionShape::default(), |section| section.shape);
++        let effective = self.song_shape();
++        format!("{{\"scope\":\"follower-clips\",\"active\":{},\"target\":{{\"energy\":{},\"space\":{}}},\"effective\":{{\"energy\":{},\"space\":{}}}}}",
++            self.song_shape_active(), target.energy, target.space, effective.energy, effective.space)
++    }
++}
+diff --git a/engine/crates/seq-core/src/song_shape_tests.rs b/engine/crates/seq-core/src/song_shape_tests.rs
+new file mode 100644
+index 00000000..9d5e48ae
+--- /dev/null
++++ b/engine/crates/seq-core/src/song_shape_tests.rs
+@@ -0,0 +1,194 @@
++#[cfg(test)]
++mod song_shape_tests {
++    use super::*;
++    use crate::{command::apply_batch, persist};
++
++    fn fixture(energy: i16, space: u16) -> Engine {
++        let mut engine = Engine::new(48000, 12000);
++        for track in 0..4 {
++            for tick in (0..TICKS_PER_BAR).step_by(24) {
++                for pitch in [60, 64, 67] {
++                    engine.tracks[track].active_mut().add_note_raw((tick/24) as u16, tick, 18, pitch, 80);
++                }
++            }
++        }
++        engine.follower_input_context("fic1,0,1,14");
++        engine.song = vec![0];
++        engine.song_section_edit(&format!("0 energy {energy}"));
++        engine.song_section_edit(&format!("0 space {space}"));
++        engine
++    }
++
++    fn trace(engine: &mut Engine, count: usize) -> Vec<(usize, u8, u8, u8, bool)> {
++        let mut trace = Vec::new();
++        for tick in 0..count {
++            let mut output = Vec::new();
++            engine.advance_block(250, &mut output); // real audio clock, 48 kHz / 120 BPM
++            for event in output {
++                match event {
++                    OutEvent::NoteOn{track,pitch,vel} | OutEvent::RenderedOn{track,pitch,vel} => trace.push((tick,track,pitch,vel,true)),
++                    OutEvent::NoteOff{track,pitch} | OutEvent::RenderedOff{track,pitch} => trace.push((tick,track,pitch,0,false)),
++                    _ => {},
++                }
++            }
++        }
++        trace.sort_unstable(); // simultaneous independent releases can swap order in the shared gate vector
++        trace
++    }
++
++    #[test]
++    fn neutral_shape_is_exact_with_variation_and_does_not_rewrite_state() {
++        let mut plain = fixture(0, 0);
++        let mut shaped = fixture(0, 0);
++        plain.song_sections.clear();
++        for engine in [&mut plain, &mut shaped] { engine.variation_set("1 70 30 50 25 8"); }
++        let saved = persist::serialize(&shaped);
++        plain.play(); shaped.play();
++        assert_eq!(trace(&mut plain, 768), trace(&mut shaped, 768));
++        shaped.stop(&mut Vec::new());
++        assert_eq!(persist::serialize(&shaped), saved);
++    }
++
++    #[test]
++    fn energy_is_monotonic_and_space_removes_a_nested_set_of_attacks() {
++        let mut last_count = usize::MAX;
++        let mut prior: Option<Vec<(usize,u8)>> = None;
++        for space in [0, 25, 50, 75, 100] {
++            let mut engine = fixture(0, space); engine.play();
++            let events = trace(&mut engine, 768);
++            let attacks: Vec<_> = events.iter().filter(|event| event.1==1 && event.4).map(|event|(event.0,event.2)).collect();
++            assert!(attacks.len() <= last_count);
++            if let Some(prior) = prior { assert!(attacks.iter().all(|event|prior.contains(event))); }
++            assert!(attacks.contains(&(0,60)) && attacks.contains(&(384,60)), "downbeats survive");
++            let first: Vec<_> = attacks.iter().filter(|event|event.0<384).copied().collect();
++            let second: Vec<_> = attacks.iter().filter(|event|event.0>=384).map(|event|(event.0-384,event.1)).collect();
++            assert_eq!(first, second);
++            assert_eq!(events.iter().filter(|event|event.1==1&&event.4).count(), events.iter().filter(|event|event.1==1&&!event.4).count());
++            last_count = attacks.len(); prior = Some(attacks);
++        }
++        assert!(last_count < 96);
++        for energy in [-100, 0, 100] {
++            let mut engine = fixture(energy, 0); engine.play();
++            let events = trace(&mut engine, 384);
++            assert!(events.iter().filter(|event|event.1==1&&event.4).all(|event|event.3==(80*(200+i32::from(energy))/200) as u8));
++            assert!(events.iter().filter(|event|event.1==0&&event.4).all(|event|event.3==80), "conductor exact");
++            assert_eq!(events.iter().filter(|event|event.1==1&&event.4).count(), 48);
++        }
++    }
++
++    #[test]
++    fn section_boundary_changes_shape_once_without_restarting_woven_donors() {
++        let mut engine = fixture(-100, 0);
++        engine.song = vec![0,0,0];
++        for index in 0..3 {
++            engine.song_section_edit(&format!("{index} bars 1"));
++            for track in 0..4 {engine.song_section_edit(&format!("{index} track {track} 1"));}
++        }
++        engine.song_section_edit("1 energy 100");
++        engine.tracks[2].clips[0].set_loop(0,48);
++        engine.tracks[3].clips[0].set_loop(0,64);
++        for tick in [384,768] {engine.tracks[3].clips[0].add_note_raw((tick/24) as u16,tick,18,60,80);}
++        engine.source_route_set("1 1 2 0 3 0 1 -1 -1 -1 -1");
++        engine.play();
++        let events = trace(&mut engine, 780);
++        for (tick,velocity) in [(0,40),(384,120),(768,80)] {
++            assert!(events.iter().any(|event|event.0==tick&&event.1==1&&event.3==velocity&&event.4), "boundary {tick}: {events:?}");
++        }
++        assert_eq!(engine.tracks[2].pos_tick,780);
++        assert_eq!(engine.tracks[3].pos_tick,780);
++        assert_eq!(engine.tracks[3].cycle,1);
++        assert_eq!(engine.variations[1],Default::default());
++        engine.stop(&mut Vec::new());assert!(engine.gates.is_empty());
++        assert_eq!(engine.song_shape(), SectionShape::default());
++    }
++
++    #[test]
++    fn boundary_keeps_existing_gate_and_shortens_only_the_new_attack() {
++        let mut engine=fixture(0,0);
++        engine.tracks[1].clips[0].notes.clear();
++        engine.tracks[1].clips[0].set_loop(0,32);
++        engine.tracks[1].clips[0].add_note_raw(0,0,600,60,80);
++        engine.tracks[1].clips[0].add_note_raw(17,408,100,72,80);
++        engine.tracks[1].clips[0].notes[1].actions=Some([0;crate::recorded_actions::LANES+1]);
++        engine.song=vec![0,0];
++        engine.song_section_edit("0 bars 1");
++        engine.song_section_edit("1 bars 1");
++        engine.song_section_edit("1 track 1 1");
++        engine.song_section_edit("1 space 100");
++        engine.play();let events=trace(&mut engine,700);
++        let releases: Vec<_>=events.iter().filter(|event|event.1==1&&!event.4).map(|event|(event.0,event.2)).collect();
++        assert_eq!(releases,vec![(433,72),(600,60)]);
++        assert!(engine.gates.iter().all(|gate|gate.track!=1));
++    }
++
++    #[test]
++    fn saved_shapes_undo_legacy_load_and_strict_edits() {
++        let mut engine = fixture(-40,65);
++        let saved = persist::serialize(&engine);
++        assert!(saved.contains("ss1 0 0 0000000000000000\nsh1 0 -40 65\n"));
++        let mut restored = Engine::new(48000,12000);
++        assert!(persist::load(&mut restored,&saved));
++        assert_eq!(persist::serialize(&restored),saved);
++        restored.follower_input_context("fic1,0,1,14");engine.play();restored.play();
++        assert_eq!(trace(&mut engine,384),trace(&mut restored,384));
++        engine.stop(&mut Vec::new());
++        apply_batch(&mut engine,"usnap 1;songsection 0 energy 90;songsection 0 space 0;uswap 1 2",&mut Vec::new());
++        assert_eq!(engine.song_sections[&0].shape,SectionShape{energy:-40,space:65});
++        for command in ["0 energy -101","0 energy 101","0 space -1","0 space 101","0 space 2 junk"] {
++            assert!(!engine.song_section_edit(command));
++        }
++        for invalid in ["0 -101 2","0 2 101","0 0 0 junk","9 0 0"] {assert!(!engine.song_shape_set(invalid));}
++        engine.pending_play=true;
++        apply_batch(&mut engine,"songsection 0 energy 1;songsection 0 space 1",&mut Vec::new());
++        assert_eq!(engine.song_sections[&0].shape,SectionShape{energy:-40,space:65});
++        engine.pending_play=false;engine.play();
++        apply_batch(&mut engine,"songsection 0 energy 1;songsection 0 space 1",&mut Vec::new());
++        assert_eq!(engine.song_sections[&0].shape,SectionShape{energy:-40,space:65});
++        assert!(persist::load(&mut engine,"movy1\nsg 0\nss1 0 4 0000000000000000\n"));
++        assert_eq!(engine.song_sections[&0].shape,SectionShape::default());
++    }
++
++    #[test]
++    fn recording_rendered_and_live_notes_bypass_shape_and_operations_survive() {
++        let mut plain = fixture(0,0); let mut shaped = fixture(100,100);
++        for engine in [&mut plain,&mut shaped] {
++            for note in &mut engine.tracks[2].clips[0].notes {note.rendered=true;}
++            engine.play();engine.recording=true;engine.rec_track=1;
++        }
++        let plain_trace = trace(&mut plain,384); let shaped_trace = trace(&mut shaped,384);
++        assert_eq!(plain_trace.iter().filter(|event|event.1<=2).collect::<Vec<_>>(),shaped_trace.iter().filter(|event|event.1<=2).collect::<Vec<_>>());
++        for engine in [&mut plain, &mut shaped] {
++            engine.rec_track=3;
++            engine.live_note_on(3,72,80);
++            assert_eq!(engine.rec_pending.last().unwrap().vel,80);
++            trace(engine,12);
++            engine.live_note_off(3,72);
++            let note=engine.tracks[3].clips[0].notes.iter().find(|note|note.pitch==72).unwrap();
++            assert_eq!((note.vel,note.gate),(80,12));
++        }
++        let mut protected=fixture(0,100);
++        for note in &mut protected.tracks[1].clips[0].notes { note.actions=Some([0;crate::recorded_actions::LANES+1]); }
++        protected.play();
++        assert_eq!(trace(&mut protected,384).iter().filter(|event|event.1==1&&event.4).count(),48);
++        let shape=SectionShape{energy:0,space:100};
++        assert_eq!(shape.apply(0,80,400,true),Some((80,100)));
++        assert_eq!(shape.apply(0,80,400,false),None);
++        assert_eq!(shape.apply(9999,0,u32::MAX,true),Some((0,1073741824)));
++    }
++
++    #[test]
++    fn shape_observation_is_neutral_and_effective_only_after_launch() {
++        let mut engine=fixture(50,40);
++        let target="\"target\":{\"energy\":50,\"space\":40}";
++        assert!(engine.song_section_snapshot().contains(target));
++        assert!(engine.song_section_snapshot().contains("\"effective\":{\"energy\":0,\"space\":0}"));
++        engine.play();assert_eq!(engine.song_shape(),SectionShape::default());
++        trace(&mut engine,1);
++        assert_eq!(engine.song_shape(),SectionShape{energy:50,space:40});
++        let saved=persist::serialize(&engine);let tick=engine.master_tick;
++        let snapshot=engine.song_section_snapshot();
++        for _ in 0..100 {assert_eq!(engine.song_section_snapshot(),snapshot);}
++        assert_eq!(engine.master_tick,tick);assert_eq!(persist::serialize(&engine),saved);
++        engine.launch_clip(1,0);assert_eq!(engine.song_shape(),SectionShape::default());
++    }
++}
+diff --git a/src/seq/constants.ts b/src/seq/constants.ts
+index fe328a41..fd93c2fe 100644
+--- a/src/seq/constants.ts
++++ b/src/seq/constants.ts
+@@ -36,7 +36,7 @@ export const MAIN_PAGE_STEPS: Record<number, number> = { 4: 0, 6: 0, 8: 0 };
+  * build-dsp.sh fails the build when they diverge. The UI re-issues the DSP
+  * load until ping returns this exact version (fixes the fire-and-forget
+  * load race and stale engines after redeploy). */
+-export const ENGINE_VERSION = '0.71.0-song-sections1';
++export const ENGINE_VERSION = '0.71.0-section-shape1';
+ export const ENGINE_DSP_PATH = '/data/UserData/schwung/modules/tools/movy/dsp.so';
+ 
+ /* Where the engine finds schwung's chain host, and where it may keep its own
+diff --git a/src/seq/section-panels.ts b/src/seq/section-panels.ts
+index 0f92363b..c7d042b8 100644
+--- a/src/seq/section-panels.ts
++++ b/src/seq/section-panels.ts
+@@ -16,9 +16,16 @@ export const sectionParameters=[
+     enumeration('mode','Recipe',['Legacy','Section']),
+     readOnly('state','Edit State'),readOnly('current','Now'),readOnly('next','Next'),
+     readOnly('scene','Scene'),
++    {...enumeration('energy','Energy',Array.from({length:201},(_,index)=>String(index-100))),default:'0'},
++    enumeration('space','Space',Array.from({length:101},(_,index)=>String(index))),
++    readOnly('scope','Shape Scope'),
+ ];
+ export function sectionHierarchy(hierarchy:any):any {
+     hierarchy.levels.joint_sections={name:'Song Sections',knobs:sectionParameters.slice(0,8).map(parameter=>parameter.key),params:sectionParameters.map(parameter=>({key:parameter.key}))};
++    const shapeKeys=['entry','energy','space','scope','state','current','next'].map(field=>prefix+field);
++    hierarchy.levels.joint_section_shape={name:'Section Shape',knobs:shapeKeys,params:shapeKeys.map(key=>({key}))};
++    hierarchy.levels.joint_sections.params=sectionParameters.slice(0,9).map(parameter=>({key:parameter.key}));
++    hierarchy.levels.joint_sections.params.push({level:'joint_section_shape'});
+     hierarchy.levels.root.params.unshift({level:'joint_sections'});
+     return hierarchy;
+ }
+@@ -46,6 +53,14 @@ export function sectionPanelGet(key:string):string|null {
+     const field=key.slice(prefix.length);
+     if(field==='entry')return String(entry+1);
+     if(field==='track')return String(track+1);
++    if(field==='scope')return 'All follower clips';
++    if(field==='energy'||field==='space'){
++        const parts=(read('song_shape_'+entry)??'').trim().split(/\s+/);
++        if(parts.length!==3||Number(parts[0])!==entry)return '0';
++        const energy=Number(parts[1]),space=Number(parts[2]);
++        if(!Number.isInteger(energy)||energy < -100||energy>100||!Number.isInteger(space)||space<0||space>100)return '0';
++        return String(field==='energy'?energy:space);
++    }
+     if(['state','current','next'].includes(field)){
+         const state=snapshot();
+         if(!state)return 'Unavailable';
+@@ -75,6 +90,7 @@ export function sectionPanelSet(key:string,value:string):boolean {
+     if(entry>=state.count){seqToast('Build song entry first');return true;}
+     const command=field==='mode'?(selected?'songsection '+entry+' enable':'songsectionclear '+entry)
+         :field==='bars'?'songsection '+entry+' bars '+selected
++        :field==='energy'||field==='space'?'songsection '+entry+' '+field+' '+value
+         :'songsection '+entry+' track '+track+' '+selected;
+     beginEdit({key:'song-section-'+entry+'-'+field+(field==='action'?'-'+track:''),verb:'Song Section',target:'Entry '+(entry+1),close:CLOSE.IDLE,seq:true});
+     seqEdit(command);seqCmdFlush();return true;
