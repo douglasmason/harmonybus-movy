@@ -1,4 +1,4 @@
-# Selected drum fills — Movy 0.34.1-hbclean.230
+# Selected drum fills — Movy 0.34.1-hbclean.231
 
 Turn an existing drum clip into a fill variation using the ordinary clip editor.
 Stop playback and recording, select a drum pad and its clip, then open Clip
@@ -58,3 +58,6 @@ contract. Saved notes use the existing clip format. Matching UI/DSP identity is
 `0.71.0-drum-fill1`. Browser hosts reuse the production editor and command batch;
 no JavaScript fill generator or timer is needed. No Site or physical device was
 deployed by this release.
+
+This build includes the published Source Weaving instrument Fit to Window work
+from Movy 230, alongside Section Shape and Clip Participation.
