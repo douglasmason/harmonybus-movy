@@ -177,9 +177,9 @@ requested/output sample rates, worker PCM peak, received/rendered/underrun frame
 worklet signal peak, post-gain analyser peak, actor levels/mutes, gain, recent
 transitions, errors and user agent. Copy the text or screenshot it while holding
 a pad with transport stopped. Signal counters and peaks locate a break in the
-path; they do not prove that an iPad speaker was audible. The user's last physical
-report was silence, and there is no subsequent verified successful iPad listening
-result. Chromium waveform tests do not close that report.
+path; they do not prove that an iPad speaker was audible. The user subsequently confirmed audible speaker-test and live-pad output on iPad.
+Their attempted recorded playback was silent and the old layout required excessive
+scrolling. Updated playback and ergonomics still need physical verification.
 
 ## Shared observations
 

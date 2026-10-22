@@ -155,7 +155,7 @@ document.querySelector('#record').onclick=()=>{
 };
 window.addEventListener('blur',()=>{release();disableAudio();lighting.suspend();});window.addEventListener('focus',()=>lighting.resume());document.addEventListener('visibilitychange',()=>{if(document.hidden){release();disableAudio();lighting.suspend();}else lighting.resume();});
 window.addEventListener('pagehide',()=>{release();socket.close();});
-socket.onclose=()=>{lighting.suspend();lighting.paint(cache,demand,appState.focusGroup);disableAudio();connected=false;release();clearInterval(timer);status.textContent='Disconnected — reload to reconnect';};
+socket.onclose=()=>{lighting.suspend();lighting.paint(cache,demand,appState.focusGroup);disableAudio();connected=false;release();clearInterval(timer);status.textContent='Disconnected — reload to reconnect';document.querySelector('#capture-status').textContent=status.textContent;for(const id of ['record','play','stop'])document.querySelector('#'+id).disabled=true;};
 document.querySelector('#shift').onchange=event=>appState.shiftHeld=event.target.checked;
 document.querySelector('#previous').onclick=()=>jointPage().changePage(-1);
 document.querySelector('#next').onclick=()=>jointPage().changePage(1);
