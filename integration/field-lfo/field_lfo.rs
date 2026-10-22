@@ -45,7 +45,7 @@ impl ChainInstance {
             if sub=="field_source_version"{return self.get_param_raw("midi_fx1:field_mod_version");}
             let hb=format!("midi_fx1:field_lfo{}:",bank);
             let shape=self.get_param_raw(&(hb.clone()+"shape")).and_then(|s|s.parse::<i32>().ok()).unwrap_or(0);
-            if shape>=6&&matches!(sub,"shape"|"enabled"|"target"|"target_param"|"depth"|"polarity"|"active"){
+            if shape>=6&&matches!(sub,"shape"|"enabled"|"target"|"target_param"|"depth"|"polarity"|"active"|"status"){
                 return self.get_param_raw(&(hb+sub));
             }
         }

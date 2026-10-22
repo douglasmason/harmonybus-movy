@@ -1,7 +1,7 @@
 name: Field routing overview verification and package
 on:
   push:
-    branches: [feature/field-routing-overview-20261022]
+    branches: [feature/field-route-status-20261022]
   workflow_dispatch:
 permissions:
   contents: read
@@ -9,7 +9,7 @@ concurrency:
   group: field-routes-${{ github.ref }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.221
+  SOURCE_VERSION: 0.34.1-hbclean.226
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -27,7 +27,7 @@ jobs:
           git clone https://github.com/DimaDake/schwung-movy.git movy
           git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
           git clone https://github.com/douglasmason/harmonybus.git harmonybus
-          git -C harmonybus checkout b907f48b0d6d24598c4b903e4d2e59e9b759ec38
+          git -C harmonybus checkout 7712c10508623392dc6d91dc34842f1bdf8a4aa0
           git clone https://github.com/charlesvestal/schwung.git schwung
           git -C schwung checkout a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
           python3 scripts/apply_clean_harmonybus.py movy
@@ -81,7 +81,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: field-routes-221
+          name: field-status-226
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
