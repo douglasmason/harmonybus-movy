@@ -10,6 +10,7 @@
 #include <string.h>
 static int sent_on,sent_off,rejected;
 static int source_velocity_check;
+static int capture_source_velocity,source_velocity_count,source_velocities[16];
 static int capture_edges,edge_count,edges[128];
 static int move_play_presses,move_play_releases;
 static unsigned rendered_mask;
@@ -20,6 +21,9 @@ static double position(void){return beat;}
 static int clock_status(void){return 0;}
 static int send_packet(const uint8_t *packet,int length){
     if(length!=4){rejected++;return 0;}
+    if(capture_source_velocity&&(packet[1]&0xf0)==0x90&&packet[3]){
+        assert(source_velocity_count<16);source_velocities[source_velocity_count++]=packet[3];
+    }
     if(capture_edges&&((packet[1]&0xf0)==0x90||(packet[1]&0xf0)==0x80)){
         assert(edge_count<128);
         edges[edge_count++]=(packet[1]&0xf0)==0x90&&packet[3]?1:0;
@@ -283,6 +287,16 @@ static void test_source_weaving(void){
         assert(rendered_mask==(alignment==2?((1u<<0)|(1u<<2)):(1u<<0)));
     }
     puts("source fit: proportional pitch window and unchanged Timeline audio with paired releases pass");
+    /* Expression can fit independently while pitch stays Sequential. */
+    for(int fitted=0;fitted<=1;fitted++){
+        set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 1 0 0\ntk 2 0 0\ntk 3 0 0\ncl 0 0 32 0 0:48:90:40:0;192:48:90:80:8\ncl 1 0 16 0 0:48:60:100:0;192:48:64:100:8\ncl 2 0 16 0 0:24:36:100:0;96:24:36:100:4\ncl 3 0 16 0 \n");
+        snprintf(parameter,sizeof(parameter),"source 3 1 1 0 2 0 0 0 0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 %d",fitted);set("cmd",parameter);
+        render(16);sent_on=sent_off=0;rendered_mask=0;source_velocity_count=0;capture_source_velocity=1;
+        set("cmd","play");energy=render(240);set("cmd","stop");render(32);capture_source_velocity=0;
+        assert(energy>0&&sent_on==2&&sent_off==2&&rendered_mask==((1u<<0)|(1u<<4)));
+        assert(source_velocity_count==2&&source_velocities[0]==40&&source_velocities[1]==(fitted?80:40));
+    }
+    puts("source expression fit: independent velocity selection and paired releases through production HB pass");
     /* Independent raw expression donor through the actual MIDI/HB/audio chain. */
     set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 1 0 0\ntk 2 0 0\ntk 3 0 0\ncl 0 0 16 0 0:48:90:42:0\ncl 1 0 16 0 0:48:60:100:0;0:48:64:80:0;192:48:67:90:8\ncl 2 0 16 0 0:24:36:100:0;96:24:36:100:4\ncl 3 0 16 0 0:24:30:100:0\nsr 3 1 1 0 2 0 0 0 0\n");
     render(16);sent_on=sent_off=0;rendered_mask=0;source_velocity_check=42;

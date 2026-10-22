@@ -27,6 +27,9 @@ export function overviewHierarchy(hierarchy:any):any {
         const operationKey='joint_preview_'+role+'_note_ops';
         hierarchy.levels['joint_source_operations_'+role].knobs.push(operationKey);
         hierarchy.levels['joint_source_operations_'+role].params.push({key:operationKey});
+        const expressionKey='joint_preview_'+role+'_expression';
+        hierarchy.levels['joint_source_expression_'+role].knobs.push(expressionKey);
+        hierarchy.levels['joint_source_expression_'+role].params.push({key:expressionKey});
         const gestureKey='joint_preview_'+role+'_gestures';
         hierarchy.levels['joint_source_gestures_'+role].knobs.push(gestureKey);
         hierarchy.levels['joint_source_gestures_'+role].params.push({key:gestureKey});
@@ -84,6 +87,7 @@ export function overviewGet(base:number,key:string):string|null {
     const label='T'+(source.track+1)+'C'+(source.slot+1);
     if(!source.active)return label+' inactive';
     if(!Number.isFinite(source.phase_ticks)||!Number.isFinite(source.length_ticks)||source.length_ticks<=0)return label+' --';
-    const phase=field==='pitch'&&state.alignment===2&&Number.isFinite(source.selection_phase_ticks)?source.selection_phase_ticks:source.phase_ticks;
-    return label+' '+Math.round(100*phase/source.length_ticks)+'%'+(field==='pitch'&&state.alignment===2?' fit':'');
+    const fitted=(field==='pitch'&&state.alignment===2)||(field==='expression'&&state.expression_fit===true);
+    const phase=fitted&&Number.isFinite(source.selection_phase_ticks)?source.selection_phase_ticks:source.phase_ticks;
+    return label+' '+Math.round(100*phase/source.length_ticks)+'%'+(fitted?' fit':'');
 }

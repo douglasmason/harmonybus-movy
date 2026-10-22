@@ -155,7 +155,7 @@ const sourceRoutes=new Map();
 globalThis.host_module_get_param=key=>key.startsWith('source_route_')?(sourceRoutes.get(Number(key.slice(13)))??`${key.slice(13)} 0 -1 -1 -1 -1 0`):nativeGet(key);
 globalThis.host_module_set_param_blocking=(key,value,timeout)=>{
  if(key==='cmd')for(const command of value.split(';'))if(command.startsWith('source ')){
-  const fields=command.slice(7).split(' ').map(Number);assert.equal(fields.length,19);sourceRoutes.set(fields[0],fields.join(' '));
+  const fields=command.slice(7).split(' ').map(Number);assert.equal(fields.length,20);sourceRoutes.set(fields[0],fields.join(' '));
  }
  return nativeSet?.(key,value,timeout);
 };
@@ -183,6 +183,13 @@ for(const group of [0,3]){
  assert.equal(sourceRoutes.get(actor)?.split(' ')[7],'0','Expression Source is independent');
  page.knobTurn(7,4);flush(page);
  assert.equal(sourceRoutes.get(actor)?.split(' ')[8],'1','Expression Clip selects slot 2');
+ const expressionPage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_source_3_expression_alignment'));
+ assert(expressionPage>=0);page.goToPage(expressionPage);flush(page);
+ assert.equal(page.keyAt(0),'joint_source_3_expression_track');
+ assert.equal(page.keyAt(1),'joint_source_3_expression_slot');
+ page.knobTurn(2,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[19],'1','Expression Fit is independent');
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[6],'1','Pitch alignment retained');
  const automationPage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_source_3_instrument_track'));
  assert(automationPage>=0);page.goToPage(automationPage);flush(page);
  page.knobTurn(0,4);flush(page);
@@ -263,6 +270,8 @@ for(const group of [0,3]){
  previewValue=JSON.stringify({schema:1,actor:group*4+3,enabled:true,playing:true,alignment:2,timeline:false,sources:[{track:1,slot:2,active:true,phase_ticks:96,selection_phase_ticks:192,length_ticks:384}]});now+=101;
  assert.equal(page.performanceGet('joint_preview_3_state'),'Weave Fit');
  assert.equal(page.performanceGet('joint_preview_3_pitch'),'T2C3 50% fit');
+ previewValue=JSON.stringify({schema:1,actor:group*4+3,enabled:true,playing:true,alignment:0,expression_fit:true,sources:[null,null,{track:4,slot:1,active:true,phase_ticks:48,selection_phase_ticks:96,length_ticks:192}]});now+=101;
+ assert.equal(page.performanceGet('joint_preview_3_expression'),'T5C2 50% fit');
  previewValue='bad JSON';now+=101;
  assert.equal(page.performanceGet('joint_preview_3_notes'),'Unavailable','failure replaces old output');
  previewValue=null;now+=101;

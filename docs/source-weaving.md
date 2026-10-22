@@ -390,3 +390,35 @@ raw donor phase remains available in native diagnostics. Woven conductor forecas
 suspension remains in effect: fitting pitch alone does not prove the entire
 performance repeats at the actor's loop length. Accurate woven forecasting and
 fitting other dimensions are not implemented.
+
+## Independent expression alignment (Movy 229)
+
+**Source Expression → Expression Alignment** offers **Timeline** (the default)
+and **Fit to Window**, independently of pitch alignment. The panel reuses the
+Expression Source/Clip controls and shows the selected expression phase. Its
+source and clip shortcuts remain on the existing Sources panel.
+
+Timeline samples the donor's own loop position. Fit maps the actor's loop progress
+into the expression donor's loop using the same proportional mapping as pitch
+Fit. At each accepted rhythm attack, the last raw note at or before that phase
+supplies velocity and its pressure curve; before the first onset, the last note
+carries across the boundary. Chord ties use the last stored note, as before.
+This fits **which expression note is selected**. The selected pressure curve
+plays from its beginning with the existing note-relative rhythm clock; its
+internal timing is not stretched. Pressure after note release remains discarded.
+
+Actor speed, loop length and relaunch determine fitted progress; donor speed and
+relaunch phase affect Timeline only. Source/mode changes and edits affect later
+attacks without resetting Sequential pitch progression. Existing sounding notes
+keep their pressure and release owners. Missing, stopped or muted expression
+sources silence new woven attacks without consuming Sequential pitches. An
+available empty expression clip supplies velocity 100 and no pressure curve.
+Own expression remains the actor's existing path; recording and Source Weaving
+Off use ordinary own playback. No held-operation, automation or harmony state is
+copied or fitted by this setting.
+
+Native/UI undo and saves retain expression alignment. Older routes default to
+Timeline and keep their nineteen-field encoding. Only enabled expression Fit
+adds a twentieth field; those routes require this release or newer. Woven
+conductor prediction remains conservatively suspended with independent donors.
+Precise forecasts and fitted automation/operation timelines remain unfinished.
