@@ -275,3 +275,44 @@ fixture checks eight repeated attacks and paired releases through Movy → Schwu
 → HB. UI controls use the same native route and undo queue, on a separate panel
 within the eight-knob limit. Fit to Window, additional HB automation categories
 and the lookahead edit/record/load revision audit remain unfinished.
+
+## Movy 223: close stored lookahead identity gaps
+
+Refreshed to main 84b270f (Song Sections 222), preserving Field overview 221,
+with HB b907f48 (0.2.289). The producer still reads public Clip/Track fields at
+musical ticks and stopped refreshes. There is no complete existing clip-content
+revision counter to substitute: `dirty` is a save/UI flag, playback mutates flags,
+recording writes directly, and undo/load replace content. HB's separate rendering
+keys and lane revisions do not cover these Movy mutations.
+
+Concrete omissions fixed in the existing content hash: Grid gate start/end/lane,
+shared context tick/kind/on/a/b/c, all trigger fields, and track automation lane
+assignment, full target label and base. Counts and label lengths delimit the new
+collections; a content-schema marker prevents reuse of old persisted hashes.
+Notes, locks, key identity and timed gesture intervals keep their existing hash
+coverage. Fired/cycle/current automation values remain runtime state, not content.
+
+| Mutation path | Current coverage / evidence |
+| --- | --- |
+| Grid editor commands | Existing gtog mutates raw gates; new hash changes immediately |
+| Shared context recording/replacement | Existing shared_capture and sorted record update raw events; regression checks both |
+| Trigger edits | Full step/lane/probability/A/B/invert identity; nonperiodic activity rule unchanged |
+| Automation assignments/base | Existing auto_label/auto_base reflected without relying on emitted current value |
+| Undo/redo | Existing usnap/uswap restores content identity, not a monotonic counter |
+| Save/load | Same serialized content recreates the same hash; no new save fields |
+| Copy/launch | Content copied by existing clip clone; slot identity remains part of the hash |
+| Mute/stop and relaunch | Existing activity/phase owner remains authoritative; mute does not mutate stored identity |
+| Ordinary playback | Existing wrap test and runtime-field regression keep content identity stable |
+
+This is a bounded correctness increment, not a completed cache redesign. It adds
+some hash work and includes an explicit release benchmark for the producer.
+A future optimization must first centralize or notify all public mutations,
+including note capture/tails, edits, variation, context, load/undo, duplication and
+launch timing. Do not use `dirty` as a complete cache revision and do not activate
+the old source adapter cache. Pressure remains outside this harmonic projection.
+
+Separate unresolved eligibility work: multi-source weaving cannot be assumed to
+repeat at the destination clip period; recursive key context, live/automatic
+reader gestures and stochastic rendering also need explicit forecast semantics.
+This release fixes stored identity omissions only; it does not claim those
+forecasts are now complete. Fit to Window remains unimplemented.

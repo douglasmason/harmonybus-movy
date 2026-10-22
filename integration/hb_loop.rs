@@ -65,6 +65,30 @@ pub fn snapshot(engine: &Engine, track_index: usize) -> Snapshot {
         for value in [interval.start as u64, interval.length as u64, interval.origin as u64,
             interval.age, interval.lane as u64, interval.operation as u64, interval.amount as i64 as u64, interval.grid as u64] { hash(&mut revision,value); }
     }
+    // Version the expanded content identity so persisted pre-audit timelines
+    // cannot be reused under the new contract. Runtime playheads/flags are not
+    // content revisions; mutation paths remain covered by direct reads.
+    hash(&mut revision, 0x48424c4f4f5032);
+    hash(&mut revision, clip.grid_gates.len() as u64);
+    for gate in &clip.grid_gates {
+        for value in [gate.start as u64, gate.end as u64, gate.lane as u64] {hash(&mut revision,value);}
+    }
+    hash(&mut revision, clip.shared_events.len() as u64);
+    for event in &clip.shared_events {
+        for value in [event.tick as u64,event.kind as u64,event.value.on as u64,
+            event.value.a as i64 as u64,event.value.b as i64 as u64,event.value.c as i64 as u64] {hash(&mut revision,value);}
+    }
+    hash(&mut revision, clip.trigs.len() as u64);
+    for trig in &clip.trigs {
+        for value in [trig.step as u64,trig.lane.map_or(128,u64::from),trig.props.prob as u64,
+            trig.props.cond_a as u64,trig.props.cond_b as u64,trig.props.invert as u64] {hash(&mut revision,value);}
+    }
+    for lane in 0..8 {
+        hash(&mut revision,track.lane_assigned[lane] as u64);
+        hash(&mut revision,track.lane_base[lane] as u64);
+        hash(&mut revision,track.lane_label[lane].len() as u64);
+        for byte in track.lane_label[lane].bytes() {hash(&mut revision,u64::from(byte));}
+    }
     // Probability and multi-pass conditions need a longer/non-deterministic model.
     // Do not claim their nominal clip loop is an exact repeating harmony cycle.
     if clip.trigs.iter().any(|trig| trig.props.prob != 100 || trig.props.cond_b != 1 || trig.props.invert) {
@@ -246,5 +270,108 @@ mod opening_tests {
         assert_eq!(opening_preview(&engine,0).as_c_str().to_str().unwrap(),"0");
         engine.tracks[0].muted=false;engine.playing=true;
         assert_eq!(opening_preview(&engine,0).as_c_str().to_str().unwrap(),"0");
+    }
+}
+
+#[cfg(test)]
+mod revision_audit_tests {
+    use super::*;
+    use seq_core::{command,grid,shared_context::{Event,Value}};
+    fn setup()->Engine {
+        let mut engine=Engine::new(48000,12000);
+        engine.tracks[0].playing_slot=Some(0);
+        engine.tracks[0].clips[0].set_loop(0,16);
+        engine.tracks[0].clips[0].add_note_raw(0,0,24,60,100);
+        engine
+    }
+    #[test]
+    fn grid_and_shared_context_edits_invalidate_same_note_material() {
+        let mut engine=setup();let plain=snapshot(&engine,0).revision;
+        engine.tracks[0].clips[0].grid_gates.push(grid::Gate{start:0,end:24,lane:0});
+        let held=snapshot(&engine,0).revision;assert_ne!(held,plain);
+        engine.tracks[0].clips[0].grid_gates[0].end=48;
+        assert_ne!(snapshot(&engine,0).revision,held);
+        engine.tracks[0].clips[0].grid_gates.clear();assert_eq!(snapshot(&engine,0).revision,plain);
+        engine.tracks[0].clips[0].shared_events.push(Event{tick:0,kind:1,value:Value{on:true,a:2,b:0,c:0}});
+        let contextual=snapshot(&engine,0).revision;assert_ne!(contextual,plain);
+        engine.tracks[0].clips[0].shared_events[0].value.a=3;
+        assert_ne!(snapshot(&engine,0).revision,contextual);
+    }
+    #[test]
+    fn trigger_identity_includes_lane_step_and_each_condition_value() {
+        let mut engine=setup();let plain=snapshot(&engine,0).revision;
+        engine.tracks[0].clips[0].trigs.push(seq_core::clip::Trig{step:0,lane:None,props:seq_core::clip::TrigProps::DEFAULT});
+        for field in 0..6 {
+            let before=snapshot(&engine,0).revision;
+            let trig=&mut engine.tracks[0].clips[0].trigs[0];
+            match field {0=>trig.step=1,1=>trig.lane=Some(60),2=>trig.props.prob=50,
+                3=>trig.props.cond_a=2,4=>trig.props.cond_b=3,_=>trig.props.invert=true}
+            assert_ne!(snapshot(&engine,0).revision,before);
+        }
+        assert_eq!(snapshot(&engine,0).active,2);
+        engine.tracks[0].clips[0].trigs.clear();assert_eq!(snapshot(&engine,0).revision,plain);
+    }
+    #[test]
+    fn automation_mapping_and_base_are_content_but_current_value_is_not() {
+        let mut engine=setup();let mut events=Vec::new();
+        let plain=snapshot(&engine,0).revision;
+        engine.auto_label(0,0,"midi_fx1:chord_form");engine.auto_base(0,0,10,&mut events);
+        let mapped=snapshot(&engine,0).revision;assert_ne!(mapped,plain);
+        engine.auto_base(0,0,20,&mut events);let changed=snapshot(&engine,0).revision;assert_ne!(changed,mapped);
+        engine.auto_label(0,0,"midi_fx1:chord_quality");assert_ne!(snapshot(&engine,0).revision,changed);
+        let current=snapshot(&engine,0).revision;
+        engine.tracks[0].auto_cur[0]=100;engine.tracks[0].last_auto_step=10;
+        engine.tracks[0].clips[0].notes[0].fired=true;engine.tracks[0].cycle=9;
+        assert_eq!(snapshot(&engine,0).revision,current);
+    }
+    #[test]
+    fn grid_command_undo_load_and_slot_launch_keep_content_identity() {
+        let mut engine=setup();let before=snapshot(&engine,0).revision;let mut events=Vec::new();
+        command::apply_batch(&mut engine,"usnap 1;gtog 0 0 24 128 100",&mut events);
+        let edited=snapshot(&engine,0).revision;assert_ne!(edited,before);
+        let saved=seq_core::persist::serialize(&engine);
+        let mut restored=Engine::new(48000,12000);assert!(seq_core::persist::load(&mut restored,&saved));
+        restored.tracks[0].playing_slot=Some(0);assert_eq!(snapshot(&restored,0).revision,edited);
+        command::apply_batch(&mut engine,"uswap 1 2",&mut events);assert_eq!(snapshot(&engine,0).revision,before);
+        command::apply_batch(&mut engine,"uswap 2 3",&mut events);assert_eq!(snapshot(&engine,0).revision,edited);
+        engine.tracks[0].clips[1]=engine.tracks[0].clips[0].clone();
+        engine.tracks[0].playing_slot=Some(1);assert_ne!(snapshot(&engine,0).revision,edited);
+        engine.tracks[0].playing_slot=Some(0);assert_eq!(snapshot(&engine,0).revision,edited);
+        engine.tracks[0].muted=true;assert_eq!(snapshot(&engine,0).active,0);
+        engine.tracks[0].muted=false;assert_eq!(snapshot(&engine,0).revision,edited);
+    }
+    #[test]
+    fn live_shared_recording_invalidates_and_round_trips() {
+        let mut engine=setup();engine.playing=true;engine.toggle_record(0);
+        let before=snapshot(&engine,0).revision;
+        engine.shared_capture("sc1,0,1,1,2,0,0");
+        let recorded=snapshot(&engine,0).revision;assert_ne!(recorded,before);
+        engine.shared_capture("sc1,0,1,1,3,0,0");
+        assert_ne!(snapshot(&engine,0).revision,recorded);
+        let saved=seq_core::persist::serialize(&engine);let mut restored=Engine::new(48000,12000);
+        assert!(seq_core::persist::load(&mut restored,&saved));restored.tracks[0].playing_slot=Some(0);
+        assert_eq!(snapshot(&restored,0).revision,snapshot(&engine,0).revision);
+    }
+}
+
+#[cfg(test)]
+mod revision_benchmark {
+    use super::*;
+    #[test]
+    #[ignore = "release-mode producer cost, not a physical audio latency assertion"]
+    fn hb_loop_snapshot_benchmark() {
+        for dense in [false,true] {
+            let mut engine=Engine::new(48000,12000);engine.tracks[0].playing_slot=Some(0);
+            let clip=&mut engine.tracks[0].clips[0];clip.set_loop(0,256);
+            for index in 0..if dense {512}else{16} {clip.add_note_raw(index as u16,index*6,6,60,100);}
+            if dense {
+                clip.grid_gates=vec![seq_core::grid::Gate{start:0,end:24,lane:0};4096];
+                clip.shared_events=vec![seq_core::shared_context::Event{tick:0,kind:1,value:seq_core::shared_context::Value{on:true,a:2,b:0,c:0}};512];
+                clip.trigs=vec![seq_core::clip::Trig{step:0,lane:None,props:seq_core::clip::TrigProps::DEFAULT};1024];
+            }
+            let start=std::time::Instant::now();
+            for _ in 0..16_000 {std::hint::black_box(snapshot(std::hint::black_box(&engine),0));}
+            println!("lookahead-snapshot dense={dense} samples=16000 elapsed_us={}",start.elapsed().as_micros());
+        }
     }
 }
