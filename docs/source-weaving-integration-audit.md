@@ -316,3 +316,35 @@ repeat at the destination clip period; recursive key context, live/automatic
 reader gestures and stochastic rendering also need explicit forecast semantics.
 This release fixes stored identity omissions only; it does not claim those
 forecasts are now complete. Fit to Window remains unimplemented.
+
+## Movy 225: conservative woven forecast eligibility
+
+The existing producer described only the destination clip's period/revision,
+including when raw foreign pitches/rhythm made an empty destination audible.
+HB already interprets `active=2` as non-repeating, clears composed prediction
+knowledge and detaches the active per-clip learner while retaining reusable own
+content entries. Reuse that protocol; do not add a cache, a simulated scheduler
+or an LCM-based claim about accepted attacks.
+
+`Route::has_independent_sources` checks all eight references against the actor's
+current slot. Source Weaving Off and None/explicit Own references remain eligible;
+any independent reference remains conservative across donor loss and actor
+recording fallback. Actor mute/stop/missing clips still return inactive. Empty
+own note material cannot hide an independently routed conductor. The same pure
+predicate suppresses incorrect stopped opening previews using the selected
+startup slot. HB's role filter means woven followers do not block conductors.
+
+Five DSP regressions cover dimension/alignment combinations, own/foreign slot
+identity, empty and missing material, recording, read-only playback neutrality,
+paired stop events, undo/save/load and stopped previews. The production audio
+fixture verifies actual metadata-to-HB Non-repeating status with audible borrowed
+notes and paired releases, followed by normal own learning eligibility. An
+isolated test reuses HB's production learning harness to prove a ready own cache
+is suspended on active=2, restored on active=1, and unaffected by woven followers;
+it runs under UBSan. The larger audio fixture is not used to assert a particular
+learning time because its earlier tests intentionally exercise dynamic HB state.
+
+This establishes honest suspension, not accurate multi-source forecasts. Keep
+revision hashing and its 223 coverage; other live/automatic/stochastic rendering
+eligibility remains distinct. Integrated published Song Section shaping 224 (main a339c51) without conflicts;
+the combined release gates include its audio fixtures and the Field route UI checks.

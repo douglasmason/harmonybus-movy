@@ -5,6 +5,7 @@ on:
     paths:
       - integration/actor-source/**
       - integration/hb_loop.rs
+      - tests/woven_forecast.c
       - scripts/patch_loop_bridge.py
       - scripts/patch_source_routing.py
       - scripts/patch_variation.py
@@ -20,6 +21,7 @@ on:
     paths:
       - integration/actor-source/**
       - integration/hb_loop.rs
+      - tests/woven_forecast.c
       - scripts/patch_loop_bridge.py
       - scripts/patch_source_routing.py
       - scripts/patch_variation.py
@@ -34,7 +36,7 @@ concurrency:
   group: source-weaving-${{ github.ref }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.223
+  SOURCE_VERSION: 0.34.1-hbclean.225
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -70,10 +72,13 @@ jobs:
           # Dedicated Joint/session and full logic suites cover the current UI.
           node browser-test/device-scripts.mjs
           node ../tests/field_lfo_ui.mjs .
+          node ../tests/field_routes_ui.mjs .
       - name: Native sequencer, DSP and full production chain
         run: |
           cargo test --manifest-path movy/engine/Cargo.toml -p seq-core -p movy-dsp
           bash scripts/test_full_chain_audio.sh movy harmonybus schwung
+          cc -std=c11 -D_POSIX_C_SOURCE=200809L -O1 -g -fsanitize=undefined -fno-sanitize-recover=all -I harmonybus/tests tests/woven_forecast.c harmonybus/src/harmony_core.c -lm -o /tmp/woven-forecast-test
+          /tmp/woven-forecast-test
           cargo test --release --manifest-path movy/engine/Cargo.toml -p seq-core source_routing_benchmark -- --ignored --nocapture --test-threads=1 | tee source-benchmark.txt
           cargo test --release --manifest-path movy/engine/Cargo.toml -p movy-dsp hb_loop_snapshot_benchmark -- --ignored --nocapture --test-threads=1 | tee -a source-benchmark.txt
       - name: ARM toolchain
@@ -106,7 +111,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: source-weaving-223
+          name: source-weaving-225
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -122,7 +127,7 @@ jobs:
             echo 'This Source Weaving version is already published; installer unchanged'
             exit 0
           fi
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Lookahead Content Identity" --notes-file docs/source-weaving.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Woven Forecast Eligibility" --notes-file docs/source-weaving.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -135,7 +140,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.222':
+          if metadata['version'] != '0.34.1-hbclean.224':
               raise SystemExit('Installer moved concurrently; leave it unchanged for review')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')

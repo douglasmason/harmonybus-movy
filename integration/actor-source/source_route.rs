@@ -17,6 +17,15 @@ pub struct Route {
     pub gestures: Option<ClipRef>,
 }
 impl Route {
+    /// A destination loop alone cannot prove the period of independent donors.
+    /// Keep this conservative across donor stop/mute and recording fallback.
+    pub fn has_independent_sources(self, actor:usize, slot:usize)->bool {
+        let own=ClipRef{track:actor,slot};
+        self.enabled && [self.pitch,self.rhythm,self.expression,self.instrument,
+            self.hb_render,self.note_ops,self.grid_holds,self.gestures]
+            .into_iter().flatten().any(|source|source!=own)
+    }
+
     /// `actor enabled pitch-track pitch-slot rhythm-track rhythm-slot timeline [expression-track expression-slot [instrument-track instrument-slot [hb-render-track hb-render-slot [note-ops-track note-ops-slot [grid-holds-track grid-holds-slot [gesture-track gesture-slot]]]]]]`.
     /// Legacy seven/nine/eleven/thirteen/fifteen/seventeen-field routes retain Own for omitted dimensions.
     /// A -1 track with -1 slot means that actor's own playing clip.
