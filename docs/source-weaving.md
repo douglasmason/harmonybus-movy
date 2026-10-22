@@ -355,3 +355,38 @@ not calculate a donor LCM or simulate future accepted attacks: sequential pitch
 cursors, conditions and operation timelines need more than length arithmetic.
 Accurate woven forecasts, other dynamic-reader eligibility, revision-based hash
 optimization and Fit to Window remain future work. No hardware test is implied.
+
+## Fit to Window pitch alignment (Movy 226)
+
+In an actor's Sources panel, **Alignment → Fit to Window** maps the actor's
+current loop position proportionally into the Pitch Source's loop. For example,
+a two-bar pitch phrase spans one bar when the actor's loop is one bar. This is
+pitch selection at existing accepted rhythm attacks, not time-stretching audio
+or generating extra attacks. Sequential and Timeline retain their prior behavior.
+
+The mapped tick is `pitch_start + floor(actor_offset * pitch_length / actor_length)`.
+Both loop starts are respected; the window is half-open and wraps with the actor.
+The last pitch/chord group at or before that tick is selected; before the first
+group, the last group carries across the loop boundary, matching Timeline.
+Rests/failed rhythm conditions produce no notes, but do not freeze the actor phase.
+Pitch-donor speed and relaunch phase do not affect this mapping. Actor speed and
+relaunch do, through its existing transport position. Unequal loops are fitted
+only for pitch; no lengths, rates or recorded notes are modified.
+
+Rhythm still owns attack timing, conditions and gate durations. Expression,
+instrument automation, HB Render automation, note operations, Grid holds and
+recorded gestures retain their existing independent phase/ownership rules.
+Changing alignment or source affects subsequent attacks; sounding notes retain
+their release and pressure owners. This setting does not stretch held operations.
+Pitch/rhythm donors must still be playing and unmuted; unavailable material is
+silent. An empty actor clip remains usable with foreign pitch and rhythm sources.
+Actor recording uses its own playback path; Source Weaving Off restores that path.
+
+The existing route/undo/save field now accepts alignment 2. Old values 0 and 1
+load unchanged. New Fit routes require Movy 226 or newer; older readers reject
+that route instead of interpreting it as another mode. Source Preview displays
+**Weave Fit**, and its Pitch phase displays the fitted selection position;
+raw donor phase remains available in native diagnostics. Woven conductor forecast
+suspension remains in effect: fitting pitch alone does not prove the entire
+performance repeats at the actor's loop length. Accurate woven forecasting and
+fitting other dimensions are not implemented.

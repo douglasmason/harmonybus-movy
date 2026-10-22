@@ -6,14 +6,19 @@ impl Engine {
         let track=self.tracks.get(actor)?;
         let route=self.source_routes[actor];
         let recording=self.recording && self.records_track(actor);
-        let mut text=format!("{{\"schema\":1,\"actor\":{},\"enabled\":{},\"playing\":{},\"muted\":{},\"recording\":{},\"timeline\":{},\"sources\":[",actor,route.enabled,self.playing,track.muted,recording,route.timeline);
+        let mut text=format!("{{\"schema\":1,\"actor\":{},\"enabled\":{},\"playing\":{},\"muted\":{},\"recording\":{},\"alignment\":{},\"timeline\":{},\"sources\":[",actor,route.enabled,self.playing,track.muted,recording,route.alignment as u8,(route.alignment==crate::source_route::Alignment::Timeline));
         for (dimension,configured) in [route.pitch,route.rhythm,route.expression,route.instrument,route.hb_render,route.note_ops,route.grid_holds,route.gestures].into_iter().enumerate() {
             if dimension>0 {text.push(',');}
             let resolved=configured.or_else(||track.playing_slot.map(|slot|crate::source_route::ClipRef{track:actor,slot}));
             if let Some(reference)=resolved {
                 let donor=&self.tracks[reference.track];let clip=&donor.clips[reference.slot];
                 let active=self.playing && !donor.muted && donor.playing_slot==Some(reference.slot) && clip.exists();
-                write!(&mut text,"{{\"track\":{},\"slot\":{},\"active\":{},\"phase_ticks\":{},\"length_ticks\":{}}}",reference.track,reference.slot,active,donor.pos_tick.saturating_sub(clip.loop_start_ticks()),clip.length_ticks()).unwrap();
+                let phase=donor.pos_tick.saturating_sub(clip.loop_start_ticks());
+                let selected=if dimension==0 && route.alignment==crate::source_route::Alignment::FitWindow {
+                    track.playing().map_or(phase,|actor_clip|crate::source_route::fitted_phase(
+                        track.pos_tick,actor_clip.loop_start_ticks(),actor_clip.length_ticks(),0,clip.length_ticks()))
+                } else {phase};
+                write!(&mut text,"{{\"track\":{},\"slot\":{},\"active\":{},\"phase_ticks\":{},\"selection_phase_ticks\":{},\"length_ticks\":{}}}",reference.track,reference.slot,active,phase,selected,clip.length_ticks()).unwrap();
             } else {text.push_str("null");}
         }
         text.push_str("],\"notes\":[");
@@ -38,7 +43,7 @@ impl Engine {
         for actor in 0..NUM_TRACKS {
             if actor>0 {text.push(',');}
             let route=self.source_routes[actor];
-            write!(&mut text,"{{\"actor\":{},\"enabled\":{},\"timeline\":{},\"gates\":{},\"sources\":[",actor,route.enabled,route.timeline,self.gates.iter().filter(|gate|gate.track as usize==actor).count()).unwrap();
+            write!(&mut text,"{{\"actor\":{},\"enabled\":{},\"alignment\":{},\"timeline\":{},\"gates\":{},\"sources\":[",actor,route.enabled,route.alignment as u8,(route.alignment==crate::source_route::Alignment::Timeline),self.gates.iter().filter(|gate|gate.track as usize==actor).count()).unwrap();
             for (dimension,configured) in [route.pitch,route.rhythm,route.expression,route.instrument,route.hb_render,route.note_ops,route.grid_holds,route.gestures].into_iter().enumerate() {
                 if dimension>0 {text.push(',');}
                 let resolved=configured.or_else(||self.tracks[actor].playing_slot.map(|slot|crate::source_route::ClipRef{track:actor,slot}));
@@ -57,7 +62,7 @@ impl Engine {
         let Some((actor, route))=crate::source_route::Route::parse(message) else {return false;};
         if self.source_routes[actor] != route {
             let previous=self.source_routes[actor];
-            if previous.pitch!=route.pitch || previous.rhythm!=route.rhythm || previous.timeline!=route.timeline || previous.enabled!=route.enabled {
+            if previous.pitch!=route.pitch || previous.rhythm!=route.rhythm || previous.alignment!=route.alignment || previous.enabled!=route.enabled {
                 self.source_cursors[actor]=Default::default();
             }
             self.source_automation_seen[actor]=None;
@@ -109,14 +114,19 @@ impl Engine {
             let expression_track=&self.tracks[expression_source.track];
             let expression_clip=&expression_track.clips[expression_source.slot];
             if expression_track.muted || expression_track.playing_slot!=Some(expression_source.slot) || !expression_clip.exists() {continue;}
+            let pitch_phase=if route.alignment==crate::source_route::Alignment::FitWindow {
+                let actor_clip=&self.tracks[actor].clips[actor_slot];
+                crate::source_route::fitted_phase(self.source_positions[actor],actor_clip.loop_start_ticks(),
+                    actor_clip.length_ticks(),clip.loop_start_ticks(),clip.length_ticks())
+            } else {self.source_positions[source.track]};
             let cursor=&mut self.source_cursors[actor];
             if cursor.source!=Some(source) {*cursor=crate::source_route::Cursor{source:Some(source),onset:None};}
             let start=clip.loop_start_ticks();let end=clip.loop_end_ticks();
             let eligible=|note: &&crate::clip::Note| note.vel>0 && !note.suppress && note.tick>=start && note.tick<end;
-            let onset=if route.timeline {
+            let onset=if route.alignment!=crate::source_route::Alignment::Sequential {
                 // Captured before any track advances on this master tick, so
                 // source track numbering cannot change the selected pitch.
-                let phase=self.source_positions[source.track];
+                let phase=pitch_phase;
                 clip.notes.iter().take(crate::clip::MAX_NOTES).filter(eligible).filter(|note|note.tick<=phase).map(|note|note.tick).max()
                     .or_else(||clip.notes.iter().take(crate::clip::MAX_NOTES).filter(eligible).map(|note|note.tick).max())
             } else {

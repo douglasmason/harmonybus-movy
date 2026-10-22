@@ -420,9 +420,9 @@ mod woven_eligibility_tests {
         let mut engine=setup();let own=snapshot(&engine,0);
         assert_eq!(own.active,1);
         for dimension in 0..8 {
-            for timeline in [false,true] {
+            for alignment in [seq_core::source_route::Alignment::Sequential,seq_core::source_route::Alignment::Timeline,seq_core::source_route::Alignment::FitWindow] {
                 engine.source_routes[0]=route(dimension,Some(ClipRef{track:1,slot:0}));
-                engine.source_routes[0].timeline=timeline;
+                engine.source_routes[0].alignment=alignment;
                 let woven=snapshot(&engine,0);
                 assert_eq!(woven.active,2);assert_eq!(woven.period,own.period);
                 assert_eq!(woven.origin,own.origin);

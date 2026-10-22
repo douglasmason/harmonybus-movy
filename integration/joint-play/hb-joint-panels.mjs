@@ -175,6 +175,10 @@ for(const group of [0,3]){
  assert.equal(sourceRoutes.get(actor)?.split(' ')[1],'1');
  page.knobTurn(5,4);flush(page);
  assert.equal(sourceRoutes.get(actor)?.split(' ')[6],'1','Timeline');
+ page.knobTurn(5,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[6],'2','Fit to Window');
+ page.knobTurn(5,-4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[6],'1','Timeline restored');
  page.knobTurn(6,4);flush(page);
  assert.equal(sourceRoutes.get(actor)?.split(' ')[7],'0','Expression Source is independent');
  page.knobTurn(7,4);flush(page);
@@ -256,6 +260,9 @@ for(const group of [0,3]){
  for(let index=0;index<8;index++){page.knobTurn(index,4);page.knobTouch(index,true);page.knobTouch(index,false);}
  flush(page);
  assert.equal(writes.length,beforeWrites,'read-only controls swallow turns/touches');
+ previewValue=JSON.stringify({schema:1,actor:group*4+3,enabled:true,playing:true,alignment:2,timeline:false,sources:[{track:1,slot:2,active:true,phase_ticks:96,selection_phase_ticks:192,length_ticks:384}]});now+=101;
+ assert.equal(page.performanceGet('joint_preview_3_state'),'Weave Fit');
+ assert.equal(page.performanceGet('joint_preview_3_pitch'),'T2C3 50% fit');
  previewValue='bad JSON';now+=101;
  assert.equal(page.performanceGet('joint_preview_3_notes'),'Unavailable','failure replaces old output');
  previewValue=null;now+=101;

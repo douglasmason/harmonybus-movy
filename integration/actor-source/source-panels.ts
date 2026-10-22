@@ -7,7 +7,7 @@ const names=['Source Weaving','Pitch Source','Pitch Clip','Rhythm Source','Rhyth
 const choices=[['Off','On'],['Own',...Array.from({length:16},(_,index)=>String(index+1))],
     Array.from({length:8},(_,index)=>String(index+1)),
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
-    Array.from({length:8},(_,index)=>String(index+1)),['Sequential','Timeline'],
+    Array.from({length:8},(_,index)=>String(index+1)),['Sequential','Timeline','Fit to Window'],
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
     Array.from({length:8},(_,index)=>String(index+1)),
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],

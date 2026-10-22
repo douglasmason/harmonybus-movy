@@ -272,6 +272,17 @@ static void test_source_weaving(void){
     set("cmd","play");long energy=render(240);set("cmd","stop");render(32);
     fprintf(stderr,"source melody: pcm=%ld on=%d off=%d mask=%u\n",energy,sent_on,sent_off,rendered_mask);
     assert(energy>0&&sent_on==3&&sent_off==3&&rendered_mask==((1u<<0)|(1u<<4)|(1u<<7)));
+    /* Fit compresses a two-bar pitch loop into the actor's one-bar window.
+       Timeline remains independent; both use the same attacks and releases. */
+    for(int alignment=1;alignment<=2;alignment++){
+        set("state","movy1\nbpm 12000\nlink 0\ntk 1 0 0\ntk 2 0 0\ntk 3 0 0\ncl 1 0 32 0 0:48:60:100:0;192:48:62:100:8;384:48:64:100:16;576:48:67:100:24\ncl 2 0 16 0 0:24:36:100:0;96:24:36:100:4\ncl 3 0 16 0 \n");
+        snprintf(parameter,sizeof(parameter),"source 3 1 1 0 2 0 %d",alignment);set("cmd",parameter);
+        render(16);sent_on=sent_off=0;rendered_mask=0;
+        set("cmd","play");energy=render(240);set("cmd","stop");render(32);
+        assert(energy>0&&sent_on==2&&sent_off==2);
+        assert(rendered_mask==(alignment==2?((1u<<0)|(1u<<2)):(1u<<0)));
+    }
+    puts("source fit: proportional pitch window and unchanged Timeline audio with paired releases pass");
     /* Independent raw expression donor through the actual MIDI/HB/audio chain. */
     set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 1 0 0\ntk 2 0 0\ntk 3 0 0\ncl 0 0 16 0 0:48:90:42:0\ncl 1 0 16 0 0:48:60:100:0;0:48:64:80:0;192:48:67:90:8\ncl 2 0 16 0 0:24:36:100:0;96:24:36:100:4\ncl 3 0 16 0 0:24:30:100:0\nsr 3 1 1 0 2 0 0 0 0\n");
     render(16);sent_on=sent_off=0;rendered_mask=0;source_velocity_check=42;
