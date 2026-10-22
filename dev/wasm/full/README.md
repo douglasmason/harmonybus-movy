@@ -183,10 +183,34 @@ musical transport is stopped; `transportTick` is the engine's master tick at
 Events carry epoch/sequence, final-output MIDI, a request-boundary sample stamp
 and trigger provenance (`live-input`, `render`, or `control`). Render-time events
 can include sequenced and delayed live notes; `performance: unresolved` states
-that limitation explicitly. Precise intra-block timestamps, note-owner provenance
-and arrangement section boundaries require production hooks; `structure` is null.
+that limitation explicitly. Precise intra-block timestamps and note-owner
+provenance still require production hooks. `structure` now carries
+the existing schema-1 `song_section` snapshot unchanged: epoch, visit, count,
+current entry and start/end ticks, and next entry with its committed/forecast flag.
+Its stopped/pending boundaries stay null; consumers must not substitute UI time.
 Consumers must reset sequence tracking when epoch changes. Do not infer attacks
 from repeated snapshot/history delivery or invent a second transport clock.
+
+The bounded read policy also exposes LFO 1/2 Field route configuration, HB bypass,
+and synth/FX parameter base/effective readouts through `dev_watch` and the shared
+track ports. These are observations, not LFO or module-loading controls. Up to 64
+watched keys are read in the serialized owner without advancing the engine. Field
+overview navigation/editing remains with the shared controller's owning work.
+
+## Existing Song controls
+
+**Scenes & Song → Build a new song** adapts the production Loop + Scene gesture.
+The first Scene button replaces the current song, later presses append, and
+repeated scenes extend an entry. Finish building to disable the scene buttons.
+The engine owns scene launches and scheduling, including timed rests and legacy
+empty-scene END behavior. No second sequencer or arrangement policy is introduced.
+
+**Edit Song Sections** opens the production Joint parameter pages: Entry, Bars,
+Track, Transition, Recipe, and engine Now/Next/edit state. Stop before editing.
+Recipes use production `ss1` serialization and survive Save/Open, export/import
+and reload. A fixture exported from the deployed v4/Movy 220 engine must restore
+without sequencer changes. Native/Wasm tests compare section snapshots, visits,
+boundaries, final MIDI and saved recipes across the same rendered block sequence.
 
 Production Source Weaving (including Grid holds and recorded gesture sources),
 Clip Variation and conductor diagnostics are reused via bounded root reads and
@@ -204,7 +228,11 @@ its older internal workerbuild label is `0.34.1-hbclean.202`, and its engine Was
 SHA-256 is `2eff0ce95bfa823b0ef44a9b5814339697929dbe3980b412ae664b7f0e58475a`.
 Version 3 adds the separately owned private lighting overlay to that same engine.
 
-This continuation refreshes integration main to `b8b796c` (Movy 220), HB to
+Version 4 (`fecdd01f90673993ab993b0c61d48c4467bf239e`) published durable sessions,
+audio diagnostics, and Movy 220 / HB 289 with the private lighting overlay intact.
+
+This continuation refreshes integration main to `84b270f750ca900f823f1d7e9a163f42d678726c`
+(Movy 222, including Field overview 221 and Song Sections), HB to
 `b907f48b0d6d24598c4b903e4d2e59e9b759ec38` (289), retaining upstream Movy
 `5c01a4fe`, Schwung `e877ed64`, and NuSaw `e3787739`. The compiled
 `/wasm/build/full/build-info.json` records exact source commit/tree, clean/dirty

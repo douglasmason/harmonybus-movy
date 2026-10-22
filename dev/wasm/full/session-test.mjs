@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import {createFullEngine} from './engine.mjs';
 import {capturePayload,sealSession,validateSession,restoreCandidate} from './session.mjs';
 
@@ -11,6 +12,8 @@ test('production session roundtrip includes clips, song, HB, NuSaw, mix and LFOs
   original.request('set','cmd','tog 0 0 60 100;tog 1 2 65 90');
   original.request('set','cmd','song 0;songadd 0;stop');
   assert.match(original.request('get','state').value,/sg 0 0/);
+  original.request('set','cmd','songsection 0 bars 2;songsection 0 track 1 1;songsection 0 track 2 2');
+  assert.match(original.request('get','state').value,/ss1 0 2 0120000000000000/);
   original.request('set','ch1:midi_fx1:master_transpose','5');
   original.request('set','ch3:mix','.4,-.2,0,0,0');
   original.request('set','ch2:synth:cutoff','1500');
@@ -32,4 +35,15 @@ test('production session roundtrip includes clips, song, HB, NuSaw, mix and LFOs
   await assert.rejects(()=>restoreCandidate(candidate,unsupported),/Unsupported instrument/);
   assert.equal(original.request('get','ch1:midi_fx1:master_transpose').value,original.request('get','ch1:midi_fx1:master_transpose').value);
  }finally{original.dispose();candidate.dispose();}
+});
+
+test('the published v4 / Movy 220 session opens unchanged on the current engine',async()=>{
+ const session=JSON.parse(await readFile(new URL('./fixtures/session-v4.json',import.meta.url)));
+ const candidate=await createFullEngine();
+ try{
+  await restoreCandidate(candidate,session);
+  assert.equal(capturePayload(candidate,{}).sequencer,session.payload.sequencer);
+  candidate.request('set','cmd','play');
+  assert(candidate.request('step',1500).events.some(packet=>(packet[1]&240)===144&&packet[3]>0));
+ }finally{candidate.dispose();}
 });

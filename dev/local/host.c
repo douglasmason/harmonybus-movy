@@ -52,7 +52,7 @@ static void snapshot(void) {
         char key[128];snprintf(key,sizeof(key),"ch%d:midi_fx1:%s",track,keys[index]);
         if(track||index) putchar(','); quote(key);putchar(':');param(key);
     }
-    printf(",\"status\":");param("status");putchar('}');
+    printf(",\"status\":");param("status");printf(",\"song_section\":");param("song_section");putchar('}');
 }
 int main(int count,char **arguments) {
     if(count!=3) {fprintf(stderr,"usage: host libmovy_dsp.so module-root\n");return 2;}

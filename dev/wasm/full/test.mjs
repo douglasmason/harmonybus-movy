@@ -35,6 +35,15 @@ test('full production Wasm dispatch matches native chain host: harmony, operatio
   observed.length=0;await both('set','cmd','play');await both('step',1500);
   assert(observed.some(packet=>(packet[1]&240)===144&&packet[2]===60&&packet[3]>0));
   await both('set','cmd','stop');await both('step',32);
+  await both('set','cmd','song 0;songadd 1;songadd 0;songsection 0 bars 1;songsection 1 bars 1;songsection 1 track 1 2');
+  await both('get','state');await both('get','song_section_0');await both('get','song_section_1');
+  await both('set','ch0:lfo1:shape','6');await both('get','ch0:lfo1:shape');await both('get','ch0:lfo1:field_source_version');
+  await both('set','cmd','play');const visits=new Set();
+  for(let index=0;index<8;index++){
+   await both('step',512);const section=JSON.parse((await both('get','song_section')).value);visits.add(section.visit);
+  }
+  assert(visits.size>1,'section visits advance across the engine-owned boundaries');
+  await both('set','cmd','stop');
  }finally{native.close();}
 });
 

@@ -1,6 +1,6 @@
 /** Local protocol transport. Every musical command enters production Movy DSP. */
 import {createFullEngine} from './engine.mjs';
-import {prepareMetadata,trackKey,jointAction,routingKeys,engineReadKey,validateEngineCommand} from '../../local/protocol-policy.mjs';
+import {prepareMetadata,trackKey,jointAction,routingKeys,readableKey,validateEngineCommand} from '../../local/protocol-policy.mjs';
 import {capturePayload,sealSession,validateSession,restoreCandidate} from './session.mjs';
 import {observation,eventObservation} from '../../local/observations.mjs';
 export async function createJointService(raw,emit,build=null){
@@ -17,7 +17,7 @@ export async function createJointService(raw,emit,build=null){
  let sequence=0,recent=[],watches=[],timer=null,last=performance.now(),remainder=0,beat=0;
  const touches=new Map(),physical=new Set();
  const socket={readyState:1,onmessage:event=>emit(JSON.parse(event.data)),onclose:null,onerror:null,onopen:null,send,close};
- const base=['status'];
+ const base=['status','song_section'];
  for(let track=0;track<4;track++)for(const key of ['role','version','travel_map','master_transpose','harmony_snapshot','harmony_source_snapshot','follower_snapshot','shared_context_snapshot','pad_view','field_outputs_view2'])base.push(`ch${track}:midi_fx1:${key}`);
  function request(...args){
   const result=engine.request(...args);
@@ -104,7 +104,7 @@ export async function createJointService(raw,emit,build=null){
      if(action==='stop')cleanup();else request('set','cmd',command);
     }else if(message.type==='dev_engine_edit')request('set','cmd',validateEngineCommand(message.value));
     else if(message.type==='dev_watch'){
-     if(!Array.isArray(message.keys)||message.keys.length>64||message.keys.some(key=>{if(typeof key!=='string')return true;if(engineReadKey.test(key))return false;const match=trackKey.exec(key);return !match||!readable.has(match[2]);}))throw new Error('Invalid watch');
+     if(!Array.isArray(message.keys)||message.keys.length>64||message.keys.some(key=>!readableKey(key,readable)))throw new Error('Invalid watch');
      watches=[...new Set(message.keys)];
     }else if(message.type==='dev_release')cleanup();
     else if(!['subscribe_tool','refetch_tool','subscribe','get_hierarchy'].includes(message.type))throw new Error('Unsupported message');

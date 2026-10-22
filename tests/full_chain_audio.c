@@ -66,6 +66,19 @@ static void test_field_lfos(void){
     set("ch0:lfo2:shape","7");set("ch0:lfo2:target","synth");set("ch0:lfo2:target_param","cutoff");
     set("ch0:lfo2:depth","0.25");set("ch0:lfo2:polarity","1");set("ch0:lfo2:enabled","1");render(16);
     assert(field_get("ch0:synth:cutoff:effective")>=35&&field_get("ch0:synth:cutoff:effective")<=36);
+    /* Overview reads must neither advance the Field nor disturb the combined
+       value of two sources addressing the same target. */
+    char field_before[2048],field_after[2048];
+    assert(api->get_param(instance,"ch0:midi_fx1:field_outputs_view2",field_before,sizeof(field_before))>0);
+    const float effective_before=field_get("ch0:synth:cutoff:effective");
+    for(int read=0;read<100;read++){
+        assert(field_get("ch0:synth:cutoff:base")==20);
+        assert(field_get("ch0:synth:cutoff:effective")==effective_before);
+        assert(field_get("ch0:lfo1:active")==1);
+        assert(field_get("ch0:lfo2:active")==1);
+        assert(api->get_param(instance,"ch0:midi_fx1:field_outputs_view2",field_after,sizeof(field_after))>0);
+        assert(!strcmp(field_before,field_after));
+    }
     set("ch0:lfo1:enabled","0");render(16);assert(field_get("ch0:synth:cutoff:effective")>=4&&field_get("ch0:synth:cutoff:effective")<=5);
     set("ch0:lfo2:enabled","0");render(16);assert(field_get("ch0:synth:cutoff:effective")==20);
     char saved[131072];assert(api->get_param(instance,"ch0:midi_fx1:state",saved,sizeof(saved))>0);

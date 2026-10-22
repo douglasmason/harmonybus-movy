@@ -1,7 +1,8 @@
 import './build/joint-env.mjs';
 import {openJointConnection} from './joint-connection.mjs';
 import {AudioMonitor} from './audio-monitor.mjs';
-import {engineReadKey} from './protocol-policy.mjs';
+import {engineReadKey,readableKey} from './protocol-policy.mjs';
+import {mountSong} from './song-ui.mjs';
 let monitor=new AudioMonitor();
 const audioButton=document.querySelector('#audio');audioButton.disabled=true;
 const disableAudio=()=>{monitor.disable();audioButton.textContent='Enable audio';audioButton.setAttribute('aria-pressed','false');};
@@ -69,8 +70,8 @@ const read=(track,key)=>{
   if(key==='midi_fx1:name')return metadata.name;
   if(key==='midi_fx1:chain_params')return JSON.stringify(metadata.capabilities.chain_params);
   if(key==='midi_fx1:ui_hierarchy')return JSON.stringify(metadata.capabilities.ui_hierarchy);
-  if(!key.startsWith('midi_fx1:')||!readable.has(key.slice(9).replace(/:(?:base|modulated)$/,'')))return null;
-  const full=`ch${track}:${key}`;demand.set(full,Date.now());return cache.get(full)??null;
+  const full=`ch${track}:${key}`;if(!readableKey(full,readable))return null;
+  demand.set(full,Date.now());return cache.get(full)??null;
 };
 for(let track=0;track<16;track++){
  const port=portFor(track);port.bulkReads=true;
@@ -146,11 +147,13 @@ document.querySelector('#next').onclick=()=>jointPage().changePage(1);
 document.querySelector('#back').onclick=()=>jointPage().back();
 document.querySelector('#enter').onclick=()=>jointPage().click(appState.shiftHeld);
 const panel=document.querySelector('#panel');panel.onchange=()=>jointPage().goToPage(Number(panel.value));
+const song=mountSong({page:jointPage,read:globalThis.host_module_get_param});
 let signature='',watchSignature='';
 const timer=setInterval(()=>{
  if(!connected||document.hidden)return;
  const transport=Object.fromEntries(String(cache.get('status')??'').split(' ').map(field=>field.split('=')));
  seqState.playing=transport.play==='1';seqState.recording=transport.rec==='1';seqState.countingIn=transport.cin==='1';
+ song.update();
  document.querySelector('#transport').textContent=seqState.countingIn?'Count-in':seqState.recording?'Recording':seqState.playing?'Playing':'Stopped';
  document.querySelector('#record').setAttribute('aria-pressed',String(seqState.recording||seqState.countingIn));
  ledFrameReset();joint.syncJoint(write);joint.paintJointPads();joint.renderJoint();
@@ -175,7 +178,7 @@ globalThis.__joint={joint,page:jointPage,monitor};
 if(sessions){
  const {mountSessions}=await import('./session-ui.mjs');
  await mountSessions({sessions,captureUI:()=>({joint:joint.jointSnapshot(),focusGroup:appState.focusGroup,levels:monitor.levels,muted:monitor.muted}),
- restoreUI:ui=>{joint.restoreJoint(ui?.joint);appState.focusGroup=Number.isInteger(ui?.focusGroup)&&ui.focusGroup>=0&&ui.focusGroup<4?ui.focusGroup:0;joint.setJointEnabled(true);
+ restoreUI:ui=>{song.reset();joint.restoreJoint(ui?.joint);appState.focusGroup=Number.isInteger(ui?.focusGroup)&&ui.focusGroup>=0&&ui.focusGroup<4?ui.focusGroup:0;joint.setJointEnabled(true);
   for(let actor=0;actor<4;actor++){const level=ui?.levels?.[actor]??.6,muted=ui?.muted?.[actor]??false;monitor.levels[actor]=level;monitor.muted[actor]=muted;document.querySelectorAll('#audio-mix input[type=range]')[actor].value=String(level);document.querySelectorAll('#audio-mix input[type=checkbox]')[actor].checked=muted;}
  },disableAudio,isStopped:()=>/(?:^| )play=0/.test(cache.get('status')??''),release:()=>document.querySelector('#release').click()});
 }

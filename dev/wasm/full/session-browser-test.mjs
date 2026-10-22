@@ -27,6 +27,20 @@ try{
  await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
  assert.equal(await page.evaluate(()=>__wasmRead('state')),before);
  const downloadPromise=page.waitForEvent('download');await page.locator('#session-export').click();const download=await downloadPromise;assert(download.suggestedFilename().endsWith('.hb-session.json'));
+ await page.locator('#song').evaluate(element=>element.open=true);
+ await page.locator('#song-build').click();
+ await page.getByRole('button',{name:'Scene 1',exact:true}).click();
+ await page.getByRole('button',{name:'Scene 2',exact:true}).click();
+ await page.locator('#song-build').click();await page.locator('#stop').click();await page.locator('#song-edit').click();
+ await page.waitForFunction(()=>document.querySelector('[data-key="joint_section_bars"]')?.textContent.includes('Auto'));
+ await page.locator('[data-key="joint_section_bars"]').press('ArrowUp');
+ await page.waitForFunction(async()=>(await __wasmRead('song_section_0')).startsWith('0 0 1 '));
+ const songState=await page.evaluate(()=>__wasmRead('state'));assert.match(songState,/ss1 0 /);
+ await page.locator('#session-save').click();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('Saved on this device'));
+ await page.reload();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
+ assert.equal(await page.evaluate(()=>__wasmRead('state')),songState);
+ await page.locator('#song').evaluate(element=>element.open=true);await page.locator('#song-edit').click();
+ await page.waitForFunction(()=>document.querySelector('[data-key="joint_section_bars"]')?.textContent&&!document.querySelector('[data-key="joint_section_bars"]').textContent.includes('Auto'));
  await page.locator('#panel').selectOption(await page.getByRole('option',{name:/BassT\/Bass Clip Variation$/}).getAttribute('value'));
  await page.waitForFunction(()=>document.querySelector('[data-key="joint_variation_1_amount"]')?.textContent.includes('0'));
  await page.locator('[data-key="joint_variation_1_amount"]').press('ArrowUp');
@@ -35,5 +49,5 @@ try{
  await page.locator('[data-key="joint_source_1_enabled"]').press('ArrowUp');
  await page.waitForFunction(async()=>(await __wasmRead('source_route_1')).startsWith('1 1 '));
  assert.deepEqual(errors,[]);
- console.log('PASS IndexedDB recording reload, corrupt-import preservation, valid import/export and production variation/source panel edits');
+ console.log('PASS IndexedDB recording reload, corrupt-import preservation, valid import/export, Song Sections gesture/edit/reload and production variation/source panel edits');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

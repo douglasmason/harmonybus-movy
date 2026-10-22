@@ -6,7 +6,7 @@ import {WebSocketServer} from 'ws';
 import {Processor} from './processor.mjs';
 import {observation,eventObservation} from './observations.mjs';
 const root=dirname(fileURLToPath(import.meta.url));
-import {trackKey,jointAction,routingKeys,prepareMetadata,engineReadKey,validateEngineCommand} from './protocol-policy.mjs';
+import {trackKey,jointAction,routingKeys,prepareMetadata,readableKey,validateEngineCommand} from './protocol-policy.mjs';
 /** Limited development API; no autosave reads or arbitrary filesystem/loader commands. */
 export async function startServer({port=7701,host='127.0.0.1',realtime=true}={}) {
   const metadata=JSON.parse(await readFile(resolve(root,'build/modules/midi_fx/harmonybus/module.json'),'utf8'));
@@ -94,11 +94,7 @@ export async function startServer({port=7701,host='127.0.0.1',realtime=true}={})
       if(controller&&controller!==socket)throw new Error('Another browser owns the controls');
       controller=socket;await processor.request('set','cmd',validateEngineCommand(message.value));
     } else if(message.type==='dev_watch') {
-      if(!Array.isArray(message.keys)||message.keys.length>64||message.keys.some(key=>{
-        if(typeof key!=='string')return true;if(engineReadKey.test(key))return false;
-        const match=trackKey.exec(key);
-        return !match||!readable.has(match[2]);
-      }))throw new Error('Invalid parameter watch');
+      if(!Array.isArray(message.keys)||message.keys.length>64||message.keys.some(key=>!readableKey(key,readable)))throw new Error('Invalid parameter watch');
       watches.set(socket,[...new Set(message.keys)]);
     } else if(message.type==='dev_step') {
       const blocks=Number(message.blocks);if(!Number.isInteger(blocks)||blocks<0||blocks>4096)throw new Error('Invalid block count');
