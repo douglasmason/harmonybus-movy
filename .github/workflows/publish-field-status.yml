@@ -1,0 +1,25 @@
+name: Publish verified Field route status
+on:
+  push:
+    branches: [work/publish-field-status-232]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_COMMIT: db1bce03614dfb5ae8fa08e16b26e13423dad9f1
+      TESTED_RUN: '39866653203'
+      SECOND_TESTED_RUN: '39866656336'
+      INTEGRATED_BASE: 27bdaef8a7c9f5815ec4f83fd47c71093e925d0e
+      INSTALL_VERSION: 0.34.1-hbclean.232
+      PREVIOUS_VERSION: 0.34.1-hbclean.230
+      ARTIFACT_NAME: field-status-232
+      ARTIFACT_FILE: harmonybus-movy-module.tar.gz
+      ASSET_NAME: harmonybus-movy-module.tar.gz
+      RELEASE_NOTES: "Field overview displays actual Applied/Pending/Rejected status with HB290 and marks Stale/Unavailable observations. Preserves published Movy230 Source Weaving and Clip Participation; compatible with HB289. Native/browser/full production chain and ARM package validated. Install HB290 first. No Schwung host changes or physical deployment."
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/publish_field_status.py
