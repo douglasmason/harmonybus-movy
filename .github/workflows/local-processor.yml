@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: 22
       - name: Check lighting projection
-        run: node --test dev/local/lighting-test.mjs
+        run: node --test dev/local/lighting-test.mjs dev/local/performance-test.mjs
       - name: Pin Rust toolchain
         run: |
           rustup toolchain install 1.99.1 --profile minimal
@@ -53,6 +53,7 @@ jobs:
           node dev/wasm/package.mjs
           WASM_PACKAGED=1 node dev/wasm/full/browser-test.mjs
           WASM_PACKAGED=1 node dev/wasm/full/audio-browser-test.mjs
+          WASM_PACKAGED=1 node dev/wasm/full/performance-browser-test.mjs
           WASM_PACKAGED=1 node dev/wasm/full/session-browser-test.mjs
       - uses: actions/upload-artifact@v4
         with:

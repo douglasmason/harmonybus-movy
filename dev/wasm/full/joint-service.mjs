@@ -19,6 +19,7 @@ export async function createJointService(raw,emit,build=null){
  const touches=new Map(),physical=new Set();
  const socket={readyState:1,onmessage:event=>emit(JSON.parse(event.data)),onclose:null,onerror:null,onopen:null,send,close};
  const base=['status','song_section'];
+ const clipInfo=new Map();
  for(let track=0;track<4;track++)for(const key of ['role','version','travel_map','master_transpose','harmony_snapshot','harmony_source_snapshot','follower_snapshot','shared_context_snapshot','pad_view','field_outputs_view2'])base.push(`ch${track}:midi_fx1:${key}`);
  function request(...args){
   const result=engine.request(...args);
@@ -27,7 +28,12 @@ export async function createJointService(raw,emit,build=null){
   recent=recent.slice(-256);return result;
  }
  function snapshot(id){
-  const params={};for(const key of new Set([...base,...watches]))params[key]=request('get',key).value;
+  const params={},now=performance.now();for(const key of new Set([...base,...watches])){
+   if(key.startsWith('motif_clip_info_')){
+    const previous=clipInfo.get(key);if(!previous||now-previous.time>=500)clipInfo.set(key,{time:now,value:request('get',key).value});
+    params[key]=clipInfo.get(key).value;
+   }else params[key]=request('get',key).value;
+  }
   socket.onmessage?.({data:JSON.stringify({type:'param_update',params,beat,events:recent,observation:observation(params,{epoch,sequence:++snapshotSequence,sampleFrame,build}),requestId:id})});
  }
  function cleanup(){
@@ -102,7 +108,9 @@ export async function createJointService(raw,emit,build=null){
      if(action==='play'||action==='stop')command=action;
      else if(action==='record'&&Number.isInteger(mask)&&mask>0&&mask<=65535&&Number.isInteger(overwrite)&&overwrite>=0&&overwrite<=65535&&(overwrite&mask)===overwrite)command=`jrec ${mask} ${overwrite}`;
      else throw new Error('Invalid transport');
-     if(action==='stop')cleanup();else request('set','cmd',command);
+     // Play must close a take before restarting: production play() alone retains recording.
+     if(action==='stop')cleanup();else {if(action==='play'&&/(?:^| )(?:rec|cin)=1(?: |$)/.test(engine.request('get','status').value))cleanup();request('set','cmd',command);}
+     clipInfo.clear();
     }else if(message.type==='dev_engine_edit')request('set','cmd',validateEngineCommand(message.value));
     else if(message.type==='dev_watch'){
      if(!Array.isArray(message.keys)||message.keys.length>64||message.keys.some(key=>!readableKey(key,readable)))throw new Error('Invalid watch');
@@ -126,7 +134,7 @@ export async function createJointService(raw,emit,build=null){
    candidate=await createFullEngine(engineOptions);
    const ui=await restoreCandidate(candidate,session);
    cleanup();const previous=engine;engine=candidate;candidate=null;previous.dispose?.();
-   epoch++;recent=[];last=performance.now();remainder=0;beat=0;sampleFrame=0;
+   epoch++;clipInfo.clear();recent=[];last=performance.now();remainder=0;beat=0;sampleFrame=0;
    snapshot();return ui;
   }finally{candidate?.dispose?.();loading=false;last=performance.now();}
  }

@@ -177,9 +177,9 @@ requested/output sample rates, worker PCM peak, received/rendered/underrun frame
 worklet signal peak, post-gain analyser peak, actor levels/mutes, gain, recent
 transitions, errors and user agent. Copy the text or screenshot it while holding
 a pad with transport stopped. Signal counters and peaks locate a break in the
-path; they do not prove that an iPad speaker was audible. The user's last physical
-report was silence, and there is no subsequent verified successful iPad listening
-result. Chromium waveform tests do not close that report.
+path; they do not prove that an iPad speaker was audible. The user subsequently confirmed audible speaker-test and live-pad output on iPad.
+Their attempted recorded playback was silent and the old layout required excessive
+scrolling. Updated playback and ergonomics still need physical verification.
 
 ## Shared observations
 
@@ -262,3 +262,28 @@ Joint now includes a read-only four-corner light field, driven by the compiled
 HB Perlin snapshots and rendered live/recorded MIDI. See
 [`dev/local/LIGHTING.md`](../../local/LIGHTING.md) for sample mapping, spatial
 voices, lifecycle, structural cues, tests, and the future physical DMX boundary.
+
+### iPad performance layout and recording feedback
+
+The playing surface now owns the viewport: transport and audio enable remain visible,
+with separate Controls, Song, Session, Audio, Lights and Info panels. Secondary panels
+scroll internally. Pads retain pointer capture and `touch-action: none`; changing a
+panel releases held controls. Browser regressions check portrait/landscape tablet and
+phone viewport fit.
+
+Record uses the production one-bar count-in. Live pads can sound during count-in
+without being captured; the countdown and instruction are now prominent. The four
+actor cards read production `motif_clip_info_N` (selected slot and note count), not
+live MIDI history. Browser reads of these fingerprinted getters are throttled to
+500 ms. Counts describe selected clips, not disk-save success or audible output.
+The cards show replace/layer/not-recording per the existing Joint record mask.
+Replace recording erases earlier material on each loop; Finish take stops capture
+while playback continues. Stop ends transport. Play now closes an active take
+before restarting production playback, because production `play()` alone preserves
+recording. Songs retain their existing first-scene playback behavior.
+
+Physical report: speaker test and live pads made sound on the user's iPad. An
+attempt at recorded playback made no audible sound and controls required excessive
+scrolling. The host transport bug is reproduced, but the precise cause of that
+physical attempt is not established. Updated iPad replay/ergonomics remain to be
+verified. No engine/pin or hardware installer change is part of this increment.

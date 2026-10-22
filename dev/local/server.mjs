@@ -81,6 +81,7 @@ export async function startServer({port=7701,host='127.0.0.1',realtime=true}={})
       } else throw new Error('Invalid transport action');
       if(controller&&controller!==socket)throw new Error('Another browser owns the controls');
       controller=socket;
+      if(action==='play'&&/(?:^| )(?:rec|cin)=1(?: |$)/.test((await processor.request('get','status')).value))await processor.request('set','cmd','stop');
       await processor.request('set','cmd',command);
     } else if(message.type==='dev_midi') {
       const data=message.data;

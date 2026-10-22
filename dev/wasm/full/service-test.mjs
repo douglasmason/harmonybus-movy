@@ -47,3 +47,25 @@ test('shared source/variation edits, stopped live observations and transactional
   await send({type:'dev_engine_edit',value:'load /tmp/anything'});assert.equal(updates.at(-1).type,'error');
  }finally{service.socket.close();}
 });
+
+test('Play finishes a real take before replay; clip feedback reports captured notes',async()=>{
+ const updates=[],service=await createJointService(structuredClone(raw),value=>updates.push(value));
+ const send=async value=>{service.socket.send(JSON.stringify(value));await settle();};
+ const until=async predicate=>{const deadline=Date.now()+6000;while(!predicate()){if(Date.now()>deadline)throw new Error('Timed out waiting for production engine');await new Promise(resolve=>setTimeout(resolve,25));}};
+ try{
+  await send({type:'dev_watch',keys:['motif_clip_info_0']});
+  await send({type:'set_param',key:'joint_map',value:Array(32).fill('0,60,-1,0').join(';')});
+  await send({type:'dev_transport',action:'record',mask:1,overwrite:1});
+  assert.match(service.read('status'),/cin=1/);
+  await until(()=>/rec=1/.test(service.read('status')));
+  await send({type:'dev_midi',data:[144,68,100]});await new Promise(resolve=>setTimeout(resolve,150));
+  // Play also closes a held note. No separate Stop press is required.
+  await send({type:'dev_transport',action:'play'});
+  assert.match(service.read('status'),/play=1/);assert.match(service.read('status'),/rec=0/);
+  assert(Number(service.read('motif_clip_info_0').split(',')[4])>0);
+  assert(Number(updates.at(-1).params.motif_clip_info_0.split(',')[4])>0);
+  const sequence=service.stats().sequence;
+  await until(()=>updates.some(update=>update.events?.some(event=>event.sequence>sequence&&event.provenance.trigger==='render'&&(event.packet[1]&240)===144&&event.packet[3]>0)));
+  await send({type:'dev_transport',action:'stop'});
+ }finally{service.socket.close();}
+});

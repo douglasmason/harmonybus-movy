@@ -15,7 +15,7 @@ try{
  assert.deepEqual(sockets,[],'browser-only Joint must not open a native WebSocket');
  await page.waitForFunction(async()=>(await __wasmRead('ch15:midi_fx1:version'))==='0.2.285-dev.1');
  const root=page.getByRole('button',{name:'Pad 1',exact:true});
- await root.focus();await page.keyboard.down('Space');
+ await page.locator('[data-view=perform]').click();await root.focus();await page.keyboard.down('Space');
  await page.waitForFunction(async()=>(await __wasmRead('ch0:midi_fx1:pad_output'))==='po1,48'&&(await __wasmRead('ch1:midi_fx1:pad_output'))==='po1,48');
  await page.keyboard.up('Space');
  await page.waitForFunction(async()=>(await __wasmRead('ch0:midi_fx1:pad_output'))==='po1'&&(await __wasmRead('ch1:midi_fx1:pad_output'))==='po1');
@@ -23,7 +23,7 @@ try{
  await page.locator('#stop').click();await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Stopped');
  await page.locator('#record').click();await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Count-in');
  await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Recording',{},{timeout:10000});
- await root.focus();await page.keyboard.down('Space');await page.waitForTimeout(180);await page.keyboard.up('Space');
+ await page.locator('[data-view=perform]').click();await root.focus();await page.keyboard.down('Space');await page.waitForTimeout(180);await page.keyboard.up('Space');
  await page.locator('#stop').click();await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Stopped');
  assert.match(await page.evaluate(async()=>(await __wasmRead('state'))),/\d+:\d+:48:100:/,'production recording contains pad input');
  await page.locator('#play').click();await page.waitForFunction(async()=>(await __wasmRead('ch0:midi_fx1:pad_output')).includes('48'),{},{timeout:10000});
@@ -36,23 +36,23 @@ try{
  assert.equal(await page.locator('#transport').textContent(),'Playing');
  await page.locator('#stop').click();
  await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Stopped');
- await root.focus();await page.keyboard.down('Space');await page.waitForTimeout(100);
+ await page.locator('[data-view=perform]').click();await root.focus();await page.keyboard.down('Space');await page.waitForTimeout(100);
  await page.evaluate(()=>dispatchEvent(new Event('blur')));await page.keyboard.up('Space');
  await page.waitForFunction(async()=>(await __wasmRead('ch0:midi_fx1:pad_output'))==='po1');
  const actorPage=await page.evaluate(()=>__joint.page().ctl.pages.findIndex(item=>item.keys?.includes('joint_actor_3_travel_map')));
- await page.locator('#panel').selectOption(String(actorPage));
+ await page.locator('[data-view=controls]').click();await page.locator('#panel').selectOption(String(actorPage));
  await page.waitForFunction(()=>document.querySelector('[data-key="joint_actor_3_travel_map"]'));
  const before=await page.evaluate(async()=>(await __wasmRead('ch3:midi_fx1:travel_map')));
  await page.locator('[data-key="joint_actor_3_travel_map"]').focus();await page.keyboard.press('ArrowUp');
  await page.waitForFunction(async previous=>(await __wasmRead('ch3:midi_fx1:travel_map'))!==previous,before);
- await page.locator('#panel').selectOption('0');
+ await page.locator('[data-view=controls]').click();await page.locator('#panel').selectOption('0');
  await page.waitForFunction(()=>document.querySelector('[data-key="joint_unit"]'));
  await page.locator('[data-key="joint_unit"]').focus();await page.keyboard.press('ArrowUp');await page.waitForTimeout(200);
- await root.focus();await page.keyboard.down('Space');
+ await page.locator('[data-view=perform]').click();await root.focus();await page.keyboard.down('Space');
  await page.waitForFunction(async()=>(await __wasmRead('ch4:midi_fx1:pad_output'))==='po1,48');
  await page.keyboard.up('Space');await page.waitForFunction(async()=>(await __wasmRead('ch4:midi_fx1:pad_output'))==='po1');
  // Hiding the page releases held input and pauses worker advancement.
- await root.focus();await page.keyboard.down('Space');
+ await page.locator('[data-view=perform]').click();await root.focus();await page.keyboard.down('Space');
  await page.waitForFunction(async()=>(await __wasmRead('ch4:midi_fx1:pad_output'))==='po1,48');
  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
  await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Stopped');
