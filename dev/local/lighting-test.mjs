@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {Lighting,parseField,harmonicColor,gaussianWeights,voicePosition,hsvRgb,mixHue,hueDelta} from './lighting.mjs';
 import {lightingProfile,loadLightingProfile,saveLightingProfile,lightingStorageKey} from './lighting-profile.mjs';
 import {observation,eventObservation} from './observations.mjs';
+import {SectionLighting,lightingSection} from './lighting-sections.mjs';
 const terrain=value=>'nf1,1,1,'+Array(64).fill(value).join(',');
 const shared=(scale='Major',key='C')=>`dp1|${key}|C|--|--|--|0|${scale}|Live / clips`;
 const harmony=chord=>`hp1|--|${chord}|${chord}|${chord}`;
@@ -127,4 +128,64 @@ test('lighting profiles roundtrip independently and reject corrupt mappings atom
  assert.equal(lightingProfile({...profile,settings:{source:'invented'}}),null);
  stored='{broken';assert.equal(loadLightingProfile(storage).profile,null);
  assert.match(saveLightingProfile(undefined,profile),/unavailable/);
+});
+
+const section=(visit=1,changes={})=>({schema:1,epoch:3,visit,tick:(visit-1)*384,ticks_per_bar:384,playing:true,started:true,
+ current:{index:visit-1,scene:(visit-1)%8,start_tick:(visit-1)*384,end_tick:visit*384,terminal:false},
+ next:{index:visit,scene:visit%8,committed:false},...changes});
+test('forecasts and queued successors never trigger; actual traversal does once',()=>{
+ const reader=new SectionLighting();assert.equal(reader.observe(section(),0),null);
+ assert.equal(reader.observe(section(1,{tick:383,next:{index:6,scene:6,committed:true}}),40),null);
+ assert.match(reader.label(40),/section 7 \(queued\)/);
+ assert.equal(reader.observe(section(2),80),'arrival');
+ assert.equal(reader.observe(section(2),120),null);
+ assert.match(reader.label(120),/Section 2 · scene 2 → section 3 \(forecast\)/);
+});
+test('same-entry loop visits rotate; disabled cues still advance the baseline',()=>{
+ const reader=new SectionLighting();reader.observe(section(),0);
+ const wrapped=section(2,{current:{index:0,scene:0,start_tick:384,end_tick:768,terminal:false}});
+ assert.equal(reader.observe(wrapped,40,{mode:'rotate'}),'phrase');
+ assert.equal(reader.observe(section(3),80,{mode:'off'}),null);
+ assert.equal(reader.observe(section(3),120,{mode:'arrival'}),null);
+ assert.equal(reader.observe(section(4),160),'arrival');
+});
+test('resync suppresses missed, late, stale, replaced or malformed section boundaries',()=>{
+ const attempts=[
+  [section(2),40,{reset:true}], [section(2),1000,{}], [section(3),40,{}],
+  [section(2,{tick:430}),40,{}], [section(2,{epoch:4}),40,{}],
+  [section(2,{current:{index:1,scene:1,start_tick:500,end_tick:884,terminal:false},tick:500}),40,{}],
+  [section(2,{schema:2}),40,{}]
+ ];
+ for(const [next,now,options] of attempts){const reader=new SectionLighting();reader.observe(section(),0);assert.equal(reader.observe(next,now,options),null);}
+ const reader=new SectionLighting();reader.observe(section(),0);reader.observe(null,40);assert.equal(reader.observe(section(2),80),null);
+ assert.equal(lightingSection(section(2,{visit:NaN})),null);
+ assert.equal(lightingSection(section(2,{next:{index:2,scene:2,committed:'yes'}})),null);
+ assert.match(reader.label(1000),/unavailable/);
+});
+test('terminal endings dim once; stopped sections and initial Play establish state',()=>{
+ const reader=new SectionLighting();reader.observe(section(1,{playing:false,started:false,current:{index:0,scene:0,start_tick:null,end_tick:null,terminal:false},next:null}),0);
+ assert.match(reader.label(0),/stopped/);assert.equal(reader.observe(section(),40),null);
+ const ending=section(2,{current:{index:1,scene:1,start_tick:384,end_tick:null,terminal:true},next:null});
+ assert.equal(reader.observe(ending,80),'break');assert.match(reader.label(80),/ending/);
+ assert.equal(reader.observe(ending,120),null);
+});
+test('automatic section cue wins over bar rotation and retains live notes',()=>{
+ const model=new Lighting();model.settings.phraseBars=4;
+ const feed=(structure,sequence,now,events=[])=>{
+  const view=observation({status:`play=1 tick=${structure.tick}`,song_section:JSON.stringify(structure)},{epoch:1,sequence,sampleFrame:Math.round(now*44.1)});
+  model.ingest({field:terrain(64),events,observation:view},now);
+ };
+ feed(section(4,{tick:1535}),1,0);feed(section(5),2,40,[timedEvent(1,1764)]);
+ assert.equal(model.lastCue,'arrival');assert.equal(model.phraseCount,0);assert.equal(model.notes.size,1);
+ assert.match(model.render(40).sectionLabel,/Section 5/);
+ const profile=lightingProfile({schema:1,settings:{},samples:model.samples});assert.equal(profile.settings.sectionCue,'arrival');
+ assert.equal(lightingProfile({...profile,settings:{sectionCue:'invented'}}),null);
+});
+
+test('section rotation changes fixture routing in effective output-lane mode',()=>{
+ const model=new Lighting(),control=new Lighting();
+ const field='fo2,0,0,0,'+Array.from({length:16},(_,index)=>`5000,${index*600},0`).join(',')+',0,0,0,0';
+ for(const target of [model,control]){target.settings.source='lanes';target.ingest({field},0);target.render(0);}
+ model.cue('phrase',0);
+ assert(model.render(40).fixtures[0].level>control.render(40).fixtures[0].level);
 });

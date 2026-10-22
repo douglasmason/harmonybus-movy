@@ -9,7 +9,7 @@ export function mountLighting(container){
  if(saved.profile){model.settings=saved.profile.settings;model.samples=saved.profile.samples;}
  container.innerHTML=`<details open><summary>Light field <span class="light-tag">4 fixtures · preview</span></summary>
  <div class="light-layout"><div><canvas id="light-stage" width="600" height="600" aria-label="Four colored lights at the corners of a square"></canvas>
- <p id="light-state" role="status">Waiting for the field…</p><p id="light-harmony"></p></div>
+ <p id="light-state" role="status">Waiting for the field…</p><p id="light-harmony"></p><p id="light-section" class="light-note" role="status"></p></div>
  <div class="light-controls">
  <label>Palette follows <select id="light-palette"><option value="blend">Scale + chord</option><option value="scale">Scale</option><option value="chord">Chord</option></select></label>
  <label>Harmony color <input id="light-harmony-amount" type="range" min="0" max="1" step=".01" value=".75"></label>
@@ -20,6 +20,7 @@ export function mountLighting(container){
  <label>Spread <input id="light-spread" type="range" min=".25" max="2" step=".05" value=".85"></label>
  <label>Downbeat rewind <input id="light-vinyl" type="range" min="0" max="1" step=".01" value=".45"></label>
  <label>Phrase rotation <select id="light-phraseBars"><option value="0">Off</option><option value="4">Every 4 bars</option><option value="8">Every 8 bars</option><option value="16">Every 16 bars</option></select></label>
+ <label>Section change <select id="light-sectionCue"><option value="arrival">Arrival glow</option><option value="rotate">Rotate samples</option><option value="off">Off</option></select></label>
  <button id="light-blackout" aria-pressed="false">Blackout</button>
  </div></div>
  <p class="light-note">Live notes and clips share the same response. Each voice has a home; pitch moves a soft region across the four lights. The moving dots show the strongest note in each voice.</p>
@@ -33,12 +34,12 @@ export function mountLighting(container){
  <label>Dimension <select id="light-dimension"><option value="0">Hue</option><option value="1">Level</option><option value="2">Saturation</option></select></label></div>
  <div id="light-sample-grid" aria-label="Perlin sample coordinates"></div><p id="light-sample-label"></p>
  <p>Output mode uses hue lanes 1–4, level lanes 5–8, and saturation lanes 9–12, including your live field overrides. The preview never changes HB mappings or field speed.</p></details>
- <p class="light-note">DMX output is not connected. Phrase rotation is a bar-count pattern; song-section cues are manual until the arrangement engine supplies them.</p>
+ <p class="light-note">Section changes follow the song as it plays. Upcoming sections are shown as forecasts or queued; they trigger only when reached. Endings gently dim. Phrase rotation is an optional bar-count pattern. DMX output is not connected.</p>
  </details>`;
  const select=id=>container.querySelector('#light-'+id);
  const profile=()=>lightingProfile({schema:1,settings:model.settings,samples:model.samples});
  const persist=()=>{select('storage').textContent=saveLightingProfile(storage,profile());};
- const controls={level:'level',saturation:'saturation',reactivity:'reactivity',vinyl:'vinyl',phraseBars:'phraseBars',hueTurns:'hueTurns',spread:'spread','harmony-amount':'harmony',palette:'palette',position:'position',source:'source'};
+ const controls={level:'level',saturation:'saturation',reactivity:'reactivity',vinyl:'vinyl',phraseBars:'phraseBars',hueTurns:'hueTurns',spread:'spread','harmony-amount':'harmony',palette:'palette',position:'position',source:'source',sectionCue:'sectionCue'};
  function syncControls(){
   for(const [id,key] of Object.entries(controls))select(id).value=String(model.settings[key]);
   select('sample-grid').hidden=model.settings.source==='lanes';
@@ -51,6 +52,7 @@ export function mountLighting(container){
  const bind=(id,key,numeric=true)=>{select(id).oninput=event=>{model.settings[key]=numeric?Number(event.target.value):event.target.value;persist();};};
  for(const key of ['level','saturation','reactivity','vinyl','phraseBars','hueTurns','spread'])bind(key,key);
  bind('harmony-amount','harmony');bind('palette','palette',false);bind('position','position',false);
+ bind('sectionCue','sectionCue',false);
  select('source').onchange=event=>{model.settings.source=event.target.value;model.resetSource();select('sample-grid').hidden=event.target.value==='lanes';persist();};
  select('select').onchange=event=>selected=Number(event.target.value);
  select('dimension').onchange=event=>dimension=Number(event.target.value);
@@ -106,6 +108,7 @@ export function mountLighting(container){
   if(container.firstElementChild.open)draw(frame);
   select('state').textContent=model.settings.blackout?'Blackout':!frame.fresh?'Waiting for current field data':`${frame.playing?'Bar '+frame.bar:'Live play · transport stopped'} · ${frame.held} held ${frame.rewinding?'· field rewind':''}`;
   select('harmony').textContent=frame.palette.label;
+  select('section').textContent=frame.sectionLabel+(frame.cue?` · ${frame.cue==='phrase'?'rotation':frame.cue}`:'');
   const chosen=model.samples[selected][dimension];
   select('sample-label').textContent=model.settings.source==='lanes'?'12 field outputs · existing coordinates and overrides':`Light ${selected+1} ${['hue','level','saturation'][dimension]} · x ${((chosen%8-3.5)*.35).toFixed(2)}, y ${((Math.floor(chosen/8)-3.5)*.35).toFixed(2)}, z 0`;
   if(container.querySelector('.light-samples').open)for(let index=0;index<64;index++){

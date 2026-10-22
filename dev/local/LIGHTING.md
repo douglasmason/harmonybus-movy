@@ -59,10 +59,26 @@ not represent physical beam angle or moving-head pan/tilt.
 A downbeat gesture rewinds a bounded two-second history of actual field samples,
 then catches up continuously in 340 ms. It affects lighting only. Four/eight/
 sixteen-bar phrase rotation is optional and off by default. Phrase, break, and
-arrival buttons audition structural gestures; automatic song-section detection
-is not implemented. Future arrangement code should emit explicit boundary cues
-into `Lighting.cue(kind, now)` using its existing clock, rather than add a song
-planner here. The cue timestamp is local presentation time, not an audio clock.
+arrival buttons audition structural gestures. Section change offers Arrival glow
+(default), Rotate samples or Off, saved in the existing profile. Rotation works
+for both spatial samples and output lanes. The cue timestamp is local
+presentation time, not an audio clock.
+
+Automatic section cues consume the existing production schema-1
+`observation.structure` (`song_section`). A cue requires a consecutive visit in
+the same arrangement epoch, with the new start matching the previous end and
+observed within a quarter note subdivision (PPQN/4 ticks) of that boundary.
+Same-entry song wraps count as visits; a changed forecast or `next.committed`
+alone never triggers a cue. The UI distinguishes upcoming forecast/queued entries.
+An actual terminal ending uses the gentle break dip. No arbitrary rest, fill or
+Energy/Space meaning is inferred from scene number or note density.
+
+Initial Play, reconnect/engine replacement, missing or malformed structure,
+epoch changes, skipped visits, clock discontinuities and observations separated
+by over 750 ms establish a baseline without replaying section gestures. One
+accepted section gesture takes priority over a coincident bar-count gesture.
+Older hosts retain manual cues and the existing downbeat/bar-count fallback.
+This adds no subscriptions, engine writes, scheduler, Field generator or clock.
 
 ## Lifecycle and limitations
 
