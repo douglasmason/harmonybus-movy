@@ -88,7 +88,7 @@ Schwung controller exercises Track and Clip Sound through the existing page.
 Production-chain testing covers same-pitch live/recorded ownership at the rest
 boundary and final release to silence.
 
-The release includes Source Weaving 226, Field 227 and Section Shape 224. Full native,
+The release includes Source Weaving 226 and Section Shape 224. Full native,
 browser/controller, production-chain, inherited benchmark and ARM packaging
 checks gate publication; the installer advances only after upload checksum
 verification. No physical device or browser Site is deployed by this increment.
