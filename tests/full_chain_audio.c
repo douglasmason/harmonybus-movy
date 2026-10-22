@@ -358,6 +358,31 @@ static void test_source_weaving(void){
         assert(energy>0&&sent_on==(comp?6:2)&&sent_off==sent_on);
         assert(rendered_mask==(comp?((1u<<0)|(1u<<4)|(1u<<7)):(1u<<0)));
     }
+    /* Woven conductors must not teach the destination's nominal loop as a
+       proven cycle. Exercise actual metadata -> HB fallback and paired audio. */
+    set("ch3:midi_fx1:role","Off");set("ch3:midi_fx1:render_channel","Off");
+    set("ch0:midi_fx1:render_channel","4");set("ch0:midi_fx1:content_map","Free");
+    set("ch0:midi_fx1:travel_map","None");set("ch0:mix","1,0,0,0,0");
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 1 0 0\ntk 2 0 0\ncl 0 0 16 0 \ncl 1 0 24 0 0:24:60:100:0;96:24:64:100:4\ncl 2 0 16 0 0:24:36:100:0;96:24:36:100:4\nsr 0 1 1 0 2 0 0\n");
+    render(16);sent_on=sent_off=0;rendered_mask=0;
+    set("cmd","play");energy=render(240);
+    api->get_param(instance,"ch0:midi_fx1:next_model",parameter_view,sizeof(parameter_view));
+    assert(!strcmp(parameter_view,"Non-repeating"));
+    set("cmd","stop");render(32);
+    assert(energy>0&&sent_on==2&&sent_off==2);
+    /* Donor loss stays conservatively ineligible; disabling routing restores
+       the existing own-clip learner without altering the source clip. */
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 16 0 0:192:60:100:0;192:192:65:100:8\nsr 0 1 1 0 -1 -1 0\n");
+    set("cmd","play");render(80);api->get_param(instance,"ch0:midi_fx1:next_model",parameter_view,sizeof(parameter_view));
+    assert(!strcmp(parameter_view,"Non-repeating"));
+    set("cmd","source 0 0 1 0 -1 -1 0");render(80);
+    api->get_param(instance,"ch0:midi_fx1:next_model",parameter_view,sizeof(parameter_view));
+    assert(strcmp(parameter_view,"Non-repeating"));
+    assert(!strcmp(parameter_view,"Learning")||!strcmp(parameter_view,"Locked"));
+    set("cmd","source 0 1 1 0 -1 -1 0");render(16);
+    api->get_param(instance,"ch0:midi_fx1:next_model",parameter_view,sizeof(parameter_view));
+    assert(!strcmp(parameter_view,"Non-repeating"));
+    set("cmd","stop");render(32);
     puts("source weaving: actual Movy/chain/HB melody, conductor root and comp with paired releases pass");
 }
 

@@ -33,7 +33,11 @@ pub fn snapshot(engine: &Engine, track_index: usize) -> Snapshot {
     if track.muted || !clip.exists() { return result; }
     let start = clip.loop_start_ticks();
     let end = clip.loop_end_ticks();
-    if !clip.notes.iter().any(|note| note.tick >= start && note.tick < end && note.vel > 0) { return result; }
+    let independent=engine.source_routes[track_index]
+        .has_independent_sources(track_index,result.slot as usize);
+    // Empty destination notes do not imply silence when pitches/rhythm can be
+    // borrowed. Keep the conductor present so HB suspends a stale own-loop model.
+    if !independent && !clip.notes.iter().any(|note| note.tick >= start && note.tick < end && note.vel > 0) { return result; }
     let numerator = u64::from(clip.scale_num.max(1));
     let denominator = u64::from(clip.scale_den.max(1));
     let window = u64::from(end - start) * denominator;
@@ -42,7 +46,7 @@ pub fn snapshot(engine: &Engine, track_index: usize) -> Snapshot {
     // Both operands describe the next position; keep the loop origin in that
     // common coordinate system even though the published playhead is completed.
     result.origin = (next_tick % result.period + result.period - phase % result.period) % result.period;
-    result.active = 1;
+    result.active = if independent {2} else {1};
     let mut revision = 14695981039346656037;
     for value in [track.playing_slot.unwrap() as u64, start as u64, end as u64, numerator, denominator,
                   clip.transpose as i64 as u64, clip.quant as u64] { hash(&mut revision, value); }
@@ -234,7 +238,10 @@ pub fn opening_preview(engine: &Engine, track_index: usize) -> Message<12288> {
     let track=&engine.tracks[track_index];
     let slot=engine.song_entry_at(0).map(|entry|entry.0).unwrap_or(track.active_clip);
     let clip=&track.clips[slot];
-    if engine.playing || track.muted || !clip.exists() {write!(&mut message,"0").unwrap();return message;}
+    if engine.playing || track.muted || !clip.exists()
+        || engine.source_routes[track_index].has_independent_sources(track_index,slot) {
+        write!(&mut message,"0").unwrap();return message;
+    }
     let first=clip.notes.iter().filter(|note|note.vel>0&&note.tick>=clip.loop_start_ticks()&&note.tick<clip.loop_end_ticks()).map(|note|note.tick).min();
     let Some(first)=first else {write!(&mut message,"0").unwrap();return message;};
     write!(&mut message,"1").unwrap();
@@ -373,5 +380,100 @@ mod revision_benchmark {
             for _ in 0..16_000 {std::hint::black_box(snapshot(std::hint::black_box(&engine),0));}
             println!("lookahead-snapshot dense={dense} samples=16000 elapsed_us={}",start.elapsed().as_micros());
         }
+    }
+}
+
+#[cfg(test)]
+mod woven_eligibility_tests {
+    use super::*;
+    use seq_core::source_route::{ClipRef,Route};
+    fn setup()->Engine {
+        let mut engine=Engine::new(48000,12000);
+        for track in 0..3 {engine.tracks[track].playing_slot=Some(0);engine.tracks[track].clips[0].set_loop(0,16);}
+        engine.tracks[0].clips[0].add_note_raw(0,0,24,48,100);
+        engine.tracks[1].clips[0].set_loop(0,24);
+        engine.tracks[1].clips[0].add_note_raw(0,0,24,60,100);
+        engine.tracks[1].clips[0].add_note_raw(4,96,24,64,100);
+        engine.tracks[2].clips[0].add_note_raw(0,0,24,36,100);
+        engine.tracks[2].clips[0].add_note_raw(4,96,24,36,100);
+        engine
+    }
+    fn route(dimension:usize,reference:Option<ClipRef>)->Route {
+        let mut route=Route{enabled:true,..Default::default()};
+        match dimension {0=>route.pitch=reference,1=>route.rhythm=reference,2=>route.expression=reference,
+            3=>route.instrument=reference,4=>route.hb_render=reference,5=>route.note_ops=reference,
+            6=>route.grid_holds=reference,_=>route.gestures=reference}route
+    }
+    #[test]
+    fn stopped_preview_cannot_advertise_unplayed_own_material() {
+        let mut engine=setup();let own=opening_preview(&engine,0).as_c_str().to_bytes().to_vec();
+        assert_ne!(own,b"0");
+        for dimension in 0..8 {
+            engine.source_routes[0]=route(dimension,Some(ClipRef{track:1,slot:0}));
+            assert_eq!(opening_preview(&engine,0).as_c_str().to_bytes(),b"0");
+            engine.source_routes[0].enabled=false;
+            assert_eq!(opening_preview(&engine,0).as_c_str().to_bytes(),own);
+        }
+    }
+    #[test]
+    fn every_independent_dimension_suspends_own_period_claim() {
+        let mut engine=setup();let own=snapshot(&engine,0);
+        assert_eq!(own.active,1);
+        for dimension in 0..8 {
+            for timeline in [false,true] {
+                engine.source_routes[0]=route(dimension,Some(ClipRef{track:1,slot:0}));
+                engine.source_routes[0].timeline=timeline;
+                let woven=snapshot(&engine,0);
+                assert_eq!(woven.active,2);assert_eq!(woven.period,own.period);
+                assert_eq!(woven.origin,own.origin);
+                engine.source_routes[0].enabled=false;assert_eq!(snapshot(&engine,0).active,1);
+                engine.source_routes[0]=route(dimension,None);assert_eq!(snapshot(&engine,0).active,1);
+                engine.source_routes[0]=route(dimension,Some(ClipRef{track:0,slot:0}));assert_eq!(snapshot(&engine,0).active,1);
+                engine.source_routes[0]=route(dimension,Some(ClipRef{track:0,slot:1}));assert_eq!(snapshot(&engine,0).active,2);
+            }
+        }
+    }
+    #[test]
+    fn empty_destination_and_unavailable_donors_cannot_hide_a_conductor() {
+        let mut engine=setup();engine.source_routes[0]=route(0,Some(ClipRef{track:1,slot:0}));
+        engine.tracks[0].clips[0].notes.clear();assert_eq!(snapshot(&engine,0).active,2);
+        engine.tracks[1].muted=true;assert_eq!(snapshot(&engine,0).active,2);
+        engine.tracks[1].playing_slot=None;assert_eq!(snapshot(&engine,0).active,2);
+        engine.tracks[1].clips[0].clear();assert_eq!(snapshot(&engine,0).active,2);
+        engine.playing=true;engine.toggle_record(0);assert_eq!(snapshot(&engine,0).active,2);
+        engine.tracks[0].muted=true;assert_eq!(snapshot(&engine,0).active,0);
+        engine.tracks[0].muted=false;engine.tracks[0].playing_slot=None;assert_eq!(snapshot(&engine,0).active,0);
+        engine.tracks[0].playing_slot=Some(0);engine.tracks[0].clips[0].clear();assert_eq!(snapshot(&engine,0).active,0);
+    }
+    #[test]
+    fn route_undo_and_save_load_restore_forecast_eligibility() {
+        let mut engine=setup();let mut events=Vec::new();
+        seq_core::command::apply_batch(&mut engine,"usnap 1;source 0 1 1 0 2 0 0",&mut events);
+        assert_eq!(snapshot(&engine,0).active,2);
+        let saved=seq_core::persist::serialize(&engine);let mut restored=Engine::new(48000,12000);
+        assert!(seq_core::persist::load(&mut restored,&saved));restored.tracks[0].playing_slot=Some(0);
+        assert_eq!(snapshot(&restored,0).active,2);
+        seq_core::command::apply_batch(&mut engine,"uswap 1 2",&mut events);assert_eq!(snapshot(&engine,0).active,1);
+        seq_core::command::apply_batch(&mut engine,"uswap 2 3",&mut events);assert_eq!(snapshot(&engine,0).active,2);
+    }
+    #[test]
+    fn metadata_reads_preserve_woven_events_gates_and_transport() {
+        let mut observed=setup();let mut control=setup();
+        for engine in [&mut observed,&mut control] {
+            engine.playing=true;engine.source_route_set("0 1 1 0 2 0 0");
+            engine.tracks[0].clips[0].notes.clear();engine.tracks[0].clips[0].scale_den=2;
+        }
+        let mut emitted=0;
+        for _ in 0..800 {
+            let mut actual=Vec::new();let mut expected=Vec::new();
+            observed.advance_block(250,&mut actual);control.advance_block(250,&mut expected);
+            assert_eq!(snapshot(&observed,0).active,2);
+            assert_eq!(actual,expected);
+            emitted+=actual.iter().filter(|event|matches!(event,seq_core::engine::OutEvent::NoteOn{track:0,..})).count();
+            assert_eq!(observed.hb_master_tick(),control.hb_master_tick());
+        }
+        assert!(emitted>=4);
+        let mut actual=Vec::new();let mut expected=Vec::new();observed.stop(&mut actual);control.stop(&mut expected);
+        assert_eq!(actual,expected);
     }
 }

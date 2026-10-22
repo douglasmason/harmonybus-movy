@@ -327,3 +327,31 @@ This release preserves Song Sections 222 and Field overview 221. It adds no
 selectors or caches and does not remove tick-level hashing. Full mutation-counter
 optimization and forecast eligibility for independently woven loops remain open,
 alongside Fit to Window. Desktop verification does not establish Move latency.
+
+## Woven conductor forecast eligibility (Movy 225)
+
+A conductor with Source Weaving On and any source reference outside its own
+playing track/clip now reports **Non-repeating** to the existing HarmonyBus
+lookahead engine. Its destination loop is not proof of the combined source
+cycle. Learned-loop prediction is suspended and HB follows observed harmony;
+source playback, accepted attacks, automation and note releases keep their
+existing owners. Woven followers do not suspend a separate conductor's forecast.
+
+This is deliberately conservative, including expression/instrument-only routes
+and donors that currently match the actor's length. Donor stop/mute/missing clips
+and recording fallback do not temporarily re-enable predictions. An available
+empty destination is still reported as non-repeating when it has independent
+routes, since it can sound borrowed notes. A stopped/muted/missing destination
+retains the existing inactive behavior.
+
+Own/Off, or references explicitly naming the actor's own playing clip, retain
+normal eligibility. Switching back permits the existing own-content cache to be
+reused; it does not clone or rewrite a timeline. Stopped opening previews also
+withhold own notes for an independent route instead of presenting those notes as
+the woven result. No source setting or save format changes.
+
+The guard uses the existing nonperiodic protocol and HB cache lifecycle. It does
+not calculate a donor LCM or simulate future accepted attacks: sequential pitch
+cursors, conditions and operation timelines need more than length arithmetic.
+Accurate woven forecasts, other dynamic-reader eligibility, revision-based hash
+optimization and Fit to Window remain future work. No hardware test is implied.
