@@ -89,7 +89,10 @@ paired releases, unchanged live capture and rendered/recording paths, unequal
 3- and 4-bar woven donors across section boundaries, save/load/Undo and malformed
 or running edits. The actual Schwung controller exercises Energy/Space and the
 stopped guard. Native DSP, existing browser/Field/controller suites, production
-chain audio and ARM packaging are release gates.
+chain audio and ARM packaging are release gates. The real HB chain verifies
+output velocities 40/80/120 from a velocity-80 source and the shortened paired
+gate at full Space. The combined 223 + shaping tree passes 456 sequencer and
+298 DSP tests before release CI.
 
 Physical Move playback and iPad listening require device verification. The
 standalone browser session owns integration and deployment of these shared

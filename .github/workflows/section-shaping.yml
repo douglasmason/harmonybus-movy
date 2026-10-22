@@ -1,11 +1,13 @@
 name: Section Shape verification and package
 on:
   push:
-    branches: [feature/section-shaping-20261022, main]
+    branches: [main]
     paths:
       - integration/section-shaping/**
       - scripts/patch_section_shaping.py
       - scripts/apply_clean_harmonybus.py
+      - scripts/patch_idle_probe.py
+      - tests/full_chain_audio.c
       - docs/section-shaping.md
       - .github/workflows/section-shaping.yml
   pull_request:
@@ -14,6 +16,8 @@ on:
       - integration/section-shaping/**
       - scripts/patch_section_shaping.py
       - scripts/apply_clean_harmonybus.py
+      - scripts/patch_idle_probe.py
+      - tests/full_chain_audio.c
       - docs/section-shaping.md
       - .github/workflows/section-shaping.yml
   workflow_dispatch:

@@ -278,6 +278,19 @@ static void test_source_weaving(void){
     set("cmd","play");energy=render(240);set("cmd","stop");render(32);
     source_velocity_check=0;
     assert(energy>0&&sent_on==3&&sent_off==3&&rendered_mask==((1u<<0)|(1u<<4)|(1u<<7)));
+    /* Section Shape reaches actual HB MIDI, and Space releases through its
+       normal gate owner while a downbeat is protected from omission. */
+    for(int strength=-100;strength<=100;strength+=100){
+        set("state","movy1\nbpm 12000\nlink 0\ntk 3 0 0\ncl 3 0 16 0 0:48:60:80:0\nsg 0\n");
+        char shape_command[128];
+        snprintf(shape_command,sizeof(shape_command),"songsection 0 energy %d;songsection 0 space 100",strength);
+        set("cmd",shape_command);render(16);
+        sent_on=sent_off=0;source_velocity_check=80*(200+strength)/200;
+        set("cmd","play");energy=render(30);source_velocity_check=0;
+        assert(energy>0&&sent_on==1&&sent_off==1);
+        set("cmd","stop");render(32);assert(sent_on==1&&sent_off==1);
+    }
+    puts("Section Shape: real HB output velocity 40/80/120, protected downbeat and shortened paired gate pass");
     /* Parameter target matching reaches the production chain before note-on. */
     set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 2 0 0\ntk 3 0 0\ncl 0 0 16 0 \ncl 2 0 16 0 0:48:36:100:0\ncl 3 0 16 0 0:48:60:100:0\nsr 3 1 -1 -1 2 0 0 -1 -1 0 0\n");
     render(16);
