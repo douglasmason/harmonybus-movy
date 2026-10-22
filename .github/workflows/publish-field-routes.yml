@@ -1,0 +1,24 @@
+name: Publish verified Field routing overview
+on:
+  push:
+    branches: [work/publish-field-routes-221]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_COMMIT: 9ee95c6f0ee0b259de6229ae53c97536f89255f2
+      TESTED_RUN: '39712346599'
+      INTEGRATED_BASE: d501738b95a1d8d0980ca641c451fb93f3531b18
+      INSTALL_VERSION: 0.34.1-hbclean.221
+      PREVIOUS_VERSION: 0.34.1-hbclean.220
+      ARTIFACT_NAME: field-routes-221
+      ARTIFACT_FILE: harmonybus-movy-module.tar.gz
+      ASSET_NAME: harmonybus-movy-module.tar.gz
+      RELEASE_NOTES: "Field routing overview in Field Play: Shift + main encoder, jog to browse, press to open the existing exact track/LFO slot. Shows effective Field channel output, target, enabled/HB-bypass status, depth/polarity and native base/effective parameter values. Bounded batched read-only observations; no host or DSP changes. Includes Movy 220 recorded gesture sources. Requires existing HarmonyBus 0.2.289. Native/browser regressions and ARM package verified; no physical device deployed."
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/publish_field_routes.py
