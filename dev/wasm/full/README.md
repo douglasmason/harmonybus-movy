@@ -145,6 +145,10 @@ saved session. Audio must be enabled explicitly after opening.
 or rewrite it, including after a failed restore. Pending operations replace stale
 success messages until their transaction finishes. Restore mismatches identify the
 first differing sequencer line/tag while preserving the original stored file.
+The Worker retains its initial Wasm bytes for candidate restores, so a later
+deployment cannot replace the engine beneath an open session, and import/open
+work after networking disconnects. At secure origins the initial binary hash must
+match build metadata. This does not add offline page reload/install caching.
 
 The versioned/checksummed JSON envelope uses production Movy state wrappers and
 bulk/LFO codecs. It includes all 16 clips/track sets, engine-owned Scenes/Song,
@@ -219,8 +223,9 @@ boundaries, final MIDI and saved recipes across the same rendered block sequence
 Production Source Weaving (including Grid holds and recorded gesture sources),
 Clip Variation and conductor diagnostics are reused via bounded root reads and
 validated edit commands. This host does not add arrangement, fills or lighting
-mappings. The concurrent four-light preview is preserved as the existing private
-Site overlay, not copied into this public branch.
+mappings. Published lighting PR #96 is integrated without changing its mappings;
+its profiles remain in browser storage and the session UI envelope. Original
+private overlay patches remain in Site history.
 
 ## Static package and deployed trial
 
@@ -250,3 +255,10 @@ MIME types. CI tests the copied package and uploads `browser-joint-static`; it
 does not deploy automatically. Preserve the Site's private audience and any
 concurrent UI overlay when publishing. Full Remote UI/Manager, ordinary clip
 editing, offline reload caching and external MIDI integration remain separate.
+
+## Lighting preview
+
+Joint now includes a read-only four-corner light field, driven by the compiled
+HB Perlin snapshots and rendered live/recorded MIDI. See
+[`dev/local/LIGHTING.md`](../../local/LIGHTING.md) for sample mapping, spatial
+voices, lifecycle, structural cues, tests, and the future physical DMX boundary.

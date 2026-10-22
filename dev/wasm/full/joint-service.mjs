@@ -5,7 +5,8 @@ import {capturePayload,sealSession,validateSession,restoreCandidate} from './ses
 import {observation,eventObservation} from '../../local/observations.mjs';
 export async function createJointService(raw,emit,build=null){
  const {metadata,readable,enabledWrites}=prepareMetadata(raw);
- let engine=await createFullEngine();
+ const engineOptions={expectedWasmSha256:build?.wasmSha256};
+ let engine=await createFullEngine(engineOptions);
  // Browser fixture uses a production synth; the differential fixture retains probe.
  for(let track=0;track<16;track++)engine.request('set',`ch${track}:synth:module`,'nusaw');
  engine.request('step',64);
@@ -122,7 +123,7 @@ export async function createJointService(raw,emit,build=null){
   loading=true;
   let candidate;
   try{
-   candidate=await createFullEngine();
+   candidate=await createFullEngine(engineOptions);
    const ui=await restoreCandidate(candidate,session);
    cleanup();const previous=engine;engine=candidate;candidate=null;previous.dispose?.();
    epoch++;recent=[];last=performance.now();remainder=0;beat=0;sampleFrame=0;

@@ -1,6 +1,23 @@
 /** Thin API transport around the complete compiled production Movy plugin. */
 import createModule from '../build/full/engine.mjs';
-export async function createFullEngine(options={}) {
+let browserBinary;
+async function retainedBrowserBinary(){
+ // Every candidate in this Worker must use the SAME build as the live engine.
+ // A deployment or network loss after initial loading must not change restores.
+ return browserBinary??=(async()=>{
+  const response=await fetch(new URL('../build/full/engine.wasm',import.meta.url));
+  if(!response.ok)throw new Error('Cannot load the compiled browser engine');
+  const bytes=new Uint8Array(await response.arrayBuffer());
+  const digest=globalThis.crypto?.subtle?await crypto.subtle.digest('SHA-256',bytes):null;
+  return {bytes,sha256:digest?[...new Uint8Array(digest)].map(byte=>byte.toString(16).padStart(2,'0')).join(''):null};
+ })();
+}
+export async function createFullEngine({expectedWasmSha256,...options}={}) {
+ if(typeof process==='undefined'||!process.versions?.node){
+  const binary=await retainedBrowserBinary();
+  if(expectedWasmSha256&&binary.sha256&&binary.sha256!==expectedWasmSha256)throw new Error('Engine build changed during loading; reload the page before opening a session');
+  options={...options,wasmBinary:binary.bytes};
+ }
  const module=await createModule(options);
  const initialize=module.cwrap('full_init','number',['string']);
  const set=module.cwrap('full_set',null,['string','string']);

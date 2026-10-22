@@ -19,6 +19,8 @@ try{
  await page.getByRole('button',{name:'Pad 1',exact:true}).press('Space');
  await page.waitForFunction(()=>document.querySelector('#events').textContent.split('\n').some(line=>{const packet=line.split(' ').map(Number);return (packet[1]&240)===144&&packet[3]>0;}));
  const session=await page.evaluate(()=>new Promise((resolve,reject)=>{const request=indexedDB.open('harmonybus-browser',1);request.onsuccess=()=>{const database=request.result,query=database.transaction('sessions').objectStore('sessions').get('current');query.onsuccess=()=>{resolve(query.result);database.close();};query.onerror=()=>reject(query.error);};}));
+ // Candidate engines must reuse the initial bytes, even across deployment/network loss.
+ await page.context().setOffline(true);
  // A damaged backup cannot replace a restored recording or overwrite its device save.
  const corrupt=structuredClone(session);corrupt.payload.sequencer+='broken';
  await page.locator('#session-file').setInputFiles({name:'bad.hb-session.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(corrupt))});
@@ -40,6 +42,10 @@ try{
  await page.locator('#session-save').click();await page.waitForFunction(()=>!document.querySelector('#session-save').disabled&&document.querySelector('#session-status').textContent.includes('Saved on this device'));
  const savedDownloadPromise=page.waitForEvent('download');await page.locator('#session-export-saved').click();const savedDownload=await savedDownloadPromise;
  const savedCopy=JSON.parse(await readFile(await savedDownload.path(),'utf8'));assert.match(savedCopy.payload.sequencer,/ss1 0 /);
+ await page.locator('#session-file').setInputFiles({name:'song.hb-session.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(savedCopy))});
+ await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
+ assert.equal(await page.evaluate(()=>__wasmRead('state')),songState);
+ await page.context().setOffline(false);
  await page.reload();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
  assert.equal(await page.evaluate(()=>__wasmRead('state')),songState);
  await page.locator('#song').evaluate(element=>element.open=true);await page.locator('#song-edit').click();
@@ -52,5 +58,10 @@ try{
  await page.locator('[data-key="joint_source_1_enabled"]').press('ArrowUp');
  await page.waitForFunction(async()=>(await __wasmRead('source_route_1')).startsWith('1 1 '));
  assert.deepEqual(errors,[]);
- console.log('PASS IndexedDB recording reload, corrupt-import preservation, valid import/export, Song Sections gesture/edit/reload and production variation/source panel edits');
+ const stale=await browser.newPage();
+ await stale.route('**/build-info.json',async route=>{const response=await route.fetch();const info=await response.json();info.wasmSha256='0'.repeat(64);await route.fulfill({json:info});});
+ await stale.goto(`http://127.0.0.1:${server.address().port}/joint?engine=wasm`);
+ await stale.waitForFunction(()=>document.querySelector('#status').textContent.includes('Engine build changed during loading'));
+ await stale.close();
+ console.log('PASS IndexedDB recording reload, corrupt-import preservation, offline import/export with retained engine bytes, Song Sections gesture/edit/reload and production variation/source panel edits');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
