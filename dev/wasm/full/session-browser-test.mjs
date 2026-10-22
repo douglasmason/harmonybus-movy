@@ -16,7 +16,7 @@ try{
  assert.equal(await page.evaluate(()=>__wasmRead('state')),before);
  await page.waitForFunction(()=>document.querySelector('[data-pad="0"]')?.textContent!=='Root —');
  await page.getByRole('button',{name:'Pad 1',exact:true}).press('Space');
- await page.waitForFunction(()=>document.querySelector('#events').textContent.includes('9 144'));
+ await page.waitForFunction(()=>document.querySelector('#events').textContent.split('\n').some(line=>{const packet=line.split(' ').map(Number);return (packet[1]&240)===144&&packet[3]>0;}));
  const session=await page.evaluate(()=>new Promise((resolve,reject)=>{const request=indexedDB.open('harmonybus-browser',1);request.onsuccess=()=>{const database=request.result,query=database.transaction('sessions').objectStore('sessions').get('current');query.onsuccess=()=>{resolve(query.result);database.close();};query.onerror=()=>reject(query.error);};}));
  // A damaged backup cannot replace a restored recording or overwrite its device save.
  const corrupt=structuredClone(session);corrupt.payload.sequencer+='broken';

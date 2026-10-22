@@ -9,8 +9,10 @@ mkdir -p "$SOURCES"
 checkout() {
   local name="$1" url="$2" revision="$3"
   if [[ ! -d "$SOURCES/$name" ]]; then
-    git clone "$url" "$SOURCES/$name"
-    git -C "$SOURCES/$name" checkout "$revision"
+    git init -q "$SOURCES/$name"
+    git -C "$SOURCES/$name" remote add origin "$url"
+    git -C "$SOURCES/$name" fetch --depth 1 origin "$revision"
+    git -C "$SOURCES/$name" checkout --detach "$revision"
   elif [[ "$(git -C "$SOURCES/$name" rev-parse HEAD)" != "$revision" ]]; then
     printf 'Unexpected source revision in %s; use a fresh sources directory.\n' "$SOURCES/$name" >&2
     exit 1
