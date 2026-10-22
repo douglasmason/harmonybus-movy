@@ -28,7 +28,7 @@ trap 'rm -rf "$PREPARED"' EXIT
 git -C "$SOURCES/movy" archive HEAD | tar -x -C "$PREPARED"
 git -C "$PREPARED" init -q
 HARMONYBUS_ROOT="$SOURCES/harmonybus" python3 "$ROOT/scripts/apply_clean_harmonybus.py" "$PREPARED"
-npm ci --prefix "$PREPARED"
-npm ci --prefix "$ROOT/dev/local"
+npm ci --no-audit --no-fund --prefix "$PREPARED"
+npm ci --no-audit --no-fund --prefix "$ROOT/dev/local"
 bash "$ROOT/dev/local/build.sh" "$PREPARED" "$SOURCES/harmonybus" "$SOURCES/schwung"
 node --test "$ROOT/dev/local/test.mjs"
