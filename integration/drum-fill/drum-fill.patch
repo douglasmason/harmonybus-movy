@@ -1,0 +1,326 @@
+diff --git a/browser-test/hb-clip-tools.mjs b/browser-test/hb-clip-tools.mjs
+index 97402a3e..9e4a2788 100644
+--- a/browser-test/hb-clip-tools.mjs
++++ b/browser-test/hb-clip-tools.mjs
+@@ -19,5 +19,22 @@ assert(engine.ops.includes('cfill 0 0'));
+ const count=engine.ops.filter(op=>op.startsWith('cfill')).length;
+ seqState.recording=true;clipPageClick(0);seqEngineTick();
+ assert.equal(engine.ops.filter(op=>op.startsWith('cfill')).length,count);
++seqState.recording=false;
++const { appState }=await import('../dist/esm/app/state.js');
++appState.activeTrack.index=0;
++appState.trackModels[0]=[null,{getDrumConfig:()=>({padCount:16})}];
++resetClipPage();seqState.watchLane=38;seqState.lenSteps=16;seqState.playing=false;
++clipPageKnob(4,-8,0);clipPageKnob(5,8,0);clipPageKnob(7,8,0);
++assert.equal(buildClipPageVM().rows[1][1].displayValue,'Last 2 Beats');
++assert.equal(buildClipPageVM().rows[1][2].displayValue,'Note 38');
++assert.equal(buildClipPageVM().rows[1][3].displayValue,'101');
++const previousDepth=undoDepth();clipPageClick(0);seqEngineTick();
++assert(engine.ops.includes('dfill 0 38 192 24 101'));
++assert.equal(undoDepth(),previousDepth+1);
++const drumCount=engine.ops.filter(op=>op.startsWith('dfill')).length;
++seqState.playing=true;clipPageClick(0);seqEngineTick();
++seqState.playing=false;seqState.watchLane=-1;clipPageClick(0);seqEngineTick();
++seqState.watchLane=38;seqState.lenSteps=0;clipPageClick(0);seqEngineTick();
++assert.equal(engine.ops.filter(op=>op.startsWith('dfill')).length,drumCount);
+ uninstallMockEngine();
+ console.log('Clip action UI: grid choice, explicit apply, one Undo and recording guard pass');
+diff --git a/engine/crates/movy-dsp/src/lib.rs b/engine/crates/movy-dsp/src/lib.rs
+index 5cd29d1d..ceeb54bf 100644
+--- a/engine/crates/movy-dsp/src/lib.rs
++++ b/engine/crates/movy-dsp/src/lib.rs
+@@ -130,7 +130,7 @@ fn parse_mix(val: &str) -> Option<crate::mixer::TrackMix> {
+ }
+ 
+ const DEFAULT_BPM_X100: u32 = 12000;
+-const ENGINE_VERSION: &str = "0.71.0-section-participation1";
++const ENGINE_VERSION: &str = "0.71.0-drum-fill1";
+ 
+ /// Tracks backed by schwung's own shadow slots by default. Their notes go out as
+ /// MIDI on the matching channel; everything above this index is a chain movy
+diff --git a/engine/crates/seq-core/src/clip_tools.rs b/engine/crates/seq-core/src/clip_tools.rs
+index c1f529a1..66f7577a 100644
+--- a/engine/crates/seq-core/src/clip_tools.rs
++++ b/engine/crates/seq-core/src/clip_tools.rs
+@@ -15,6 +15,37 @@ pub fn playback_tick(note: &Note, quant: u8, swing: u32, end: u32, span: u32) ->
+ }
+ 
+ impl Engine {
++    /// Replace only this drum's attacks in the tail of the active loop.
++    /// Planning and capacity checks precede mutation; no partial fills or new clock.
++    pub fn fill_drum_tail(&mut self, message: &str) -> bool {
++        let fields: Vec<_> = message.split_whitespace().collect();
++        let [track, pitch, span, grid, velocity] = fields.as_slice() else { return false; };
++        let (Ok(track), Ok(pitch), Ok(span), Ok(grid), Ok(velocity)) =
++            (track.parse::<usize>(), pitch.parse::<u8>(), span.parse::<u32>(), grid.parse::<u32>(), velocity.parse::<u8>())
++            else { return false; };
++        if track >= self.tracks.len() || !self.track_is_drum(track)
++            || !self.song_sections_editable() || self.recording || pitch > 127
++            || !(1..=127).contains(&velocity) || !matches!(span, 96 | 192 | 384)
++            || !matches!(grid, 24 | 48 | 96 | 192 | 384) { return false; }
++        let clip = self.tracks[track].active();
++        if !clip.exists() { return false; }
++        let end = clip.loop_end_ticks();
++        let start = end.saturating_sub(span).max(clip.loop_start_ticks());
++        let replacement_count = clip.notes.iter().filter(|note|
++            note.pitch == pitch && (start..end).contains(&note.tick)).count();
++        let count = (end - start).div_ceil(grid) as usize;
++        if clip.notes.len() - replacement_count + count > crate::clip::MAX_NOTES { return false; }
++        let clip = self.tracks[track].active_mut();
++        clip.notes.retain(|note| note.pitch != pitch || !(start..end).contains(&note.tick));
++        for tick in (start..end).step_by(grid as usize) {
++            clip.notes.push(Note { tick, gate: (grid / 2).min(12).min(end-tick).max(1),
++                pitch, vel: velocity, step: (tick / TICKS_PER_STEP) as u16,
++                suppress: false, fired: false, actions: None, input_key: None,
++                rendered: false, pressure: Vec::new() });
++        }
++        true
++    }
++
+     /// Grid zero only fills; otherwise snap starts to the nearest chosen grid.
+     /// Only the selected melodic clip's current loop is edited. Trig conditions
+     /// and automation stay attached to their existing step positions.
+@@ -122,3 +153,67 @@ pub fn swing_delay(swing_pct: u32, step: u16, scale_num: u8, scale_den: u8) -> u
+         let sixteenth_ticks = num * TICKS_PER_STEP / den;
+         (swing_pct - 50) * sixteenth_ticks / 60
+     }
++
++#[cfg(test)]
++mod drum_fill_tests {
++    use crate::{engine::Engine, clip::{Note, MAX_NOTES}, command::apply_batch, persist};
++    fn setup() -> Engine {
++        let mut engine=Engine::new(48000,12000);
++        engine.set_track_drum(0,true);
++        let clip=engine.tracks[0].active_mut();
++        clip.length_steps=16; clip.loop_start_steps=16;
++        for (tick,pitch) in [(24,38),(384,36),(660,38),(680,38),(700,42),(768,38)] {
++            clip.notes.push(Note {tick,pitch,gate:10,vel:90,step:(tick/24) as u16,
++                actions:None,input_key:None,rendered:false,suppress:false,fired:false,pressure:Vec::new()});
++        }
++        engine
++    }
++    #[test]
++    fn drum_fill_preserves_other_lanes_outside_window_and_clip_settings() {
++        let mut engine=setup();
++        engine.tracks[0].active_mut().scale_num=2;
++        let preserved: Vec<_>=engine.tracks[0].active().notes.iter()
++            .filter(|note|note.pitch!=38 || !(672..768).contains(&note.tick)).cloned().collect();
++        assert!(engine.fill_drum_tail("0 38 96 24 111"));
++        let clip=engine.tracks[0].active();
++        assert_eq!(clip.notes[..preserved.len()],preserved);
++        let fill=&clip.notes[preserved.len()..];
++        assert_eq!(fill.iter().map(|note|note.tick).collect::<Vec<_>>(),vec![672,696,720,744]);
++        assert!(fill.iter().all(|note|note.pitch==38&&note.vel==111&&note.gate==12&&note.input_key.is_none()&&note.actions.is_none()));
++        assert_eq!((clip.loop_start_steps,clip.length_steps,clip.scale_num),(16,16,2));
++        let saved=persist::serialize(&engine);
++        assert!(engine.fill_drum_tail("0 38 96 24 111"));
++        assert_eq!(persist::serialize(&engine),saved,"repeat is idempotent");
++    }
++    #[test]
++    fn drum_fill_is_one_saved_undoable_edit_and_short_loops_stay_short() {
++        let mut engine=setup();let mut output=Vec::new();let before=engine.undo_snapshot();
++        apply_batch(&mut engine,"usnap 27;dfill 0 38 192 48 87;ucommit 27",&mut output);
++        let saved=persist::serialize(&engine);let mut restored=Engine::new(48000,12000);
++        assert!(persist::load(&mut restored,&saved));
++        assert_eq!(persist::serialize(&restored),saved);
++        apply_batch(&mut engine,"uswap 27 28",&mut output);assert_eq!(engine.undo_snapshot(),before);
++        engine.tracks[0].active_mut().length_steps=2;
++        assert!(engine.fill_drum_tail("0 38 384 24 100"));
++        let clip=engine.tracks[0].active();
++        assert_eq!(clip.length_steps,2);
++        assert!(clip.notes.iter().any(|note|note.pitch==38&&note.tick==384));
++        assert!(clip.notes.iter().any(|note|note.pitch==38&&note.tick==408));
++    }
++    #[test]
++    fn drum_fill_rejects_invalid_running_pending_recording_and_full_clips_atomically() {
++        let mut engine=setup();let before=persist::serialize(&engine);
++        for message in ["", "0 38 96 24 100 extra", "16 38 96 24 100", "-1 38 96 24 100", "0 128 96 24 100", "0 38 95 24 100", "0 38 96 1 100", "0 38 96 24 0", "0 38 96 24 128"] {
++            assert!(!engine.fill_drum_tail(message));assert_eq!(persist::serialize(&engine),before);
++        }
++        engine.play();assert!(!engine.fill_drum_tail("0 38 96 24 100"));
++        let mut output=Vec::new();engine.stop(&mut output);
++        engine.recording=true;assert!(!engine.fill_drum_tail("0 38 96 24 100"));engine.recording=false;
++        engine.set_track_drum(0,false);assert!(!engine.fill_drum_tail("0 38 96 24 100"));engine.set_track_drum(0,true);
++        let note=engine.tracks[0].active().notes[0].clone();
++        engine.tracks[0].active_mut().notes=vec![note;MAX_NOTES];
++        let before=persist::serialize(&engine);
++        assert!(!engine.fill_drum_tail("0 42 384 24 100"));assert_eq!(persist::serialize(&engine),before);
++        engine.tracks[0].active_mut().clear();assert!(!engine.fill_drum_tail("0 38 96 24 100"));
++    }
++}
+diff --git a/engine/crates/seq-core/src/command.rs b/engine/crates/seq-core/src/command.rs
+index b9fcb6e1..b619b935 100644
+--- a/engine/crates/seq-core/src/command.rs
++++ b/engine/crates/seq-core/src/command.rs
+@@ -67,7 +67,7 @@ fn clears_capture(verb: &str) -> bool {
+         | "gtog" | "tog" | "addp" | "del" | "evel" | "elen" | "enudge" | "emove" | "etrn" | "slen"
+         | "eprob" | "econd" | "einv"
+         // clip shape and clip-level edits
+-        | "clen" | "cscl" | "ctr" | "cq" | "cfill" | "mload" | "dbl" | "loop" | "ltog"
++        | "clen" | "cscl" | "ctr" | "cq" | "cfill" | "dfill" | "mload" | "dbl" | "loop" | "ltog"
+         | "cpy" | "cpyclr" | "pst"
+         // whole-clip and session gestures
+         | "clipcopy" | "clipdel" | "clipdelat" | "clipdup" | "clippaste"
+@@ -107,7 +107,7 @@ pub fn is_undoable_edit(verb: &str) -> bool {
+         "gtog" | "tog" | "addp" | "del" | "evel" | "elen" | "enudge" | "emove" | "etrn" | "slen"
+         | "eprob" | "econd" | "einv"
+         // clip shape and clip-level edits
+-        | "clen" | "cscl" | "ctr" | "cq" | "cfill" | "mload" | "dbl" | "loop" | "ltog" | "pst"
++        | "clen" | "cscl" | "ctr" | "cq" | "cfill" | "dfill" | "mload" | "dbl" | "loop" | "ltog" | "pst"
+         // whole-clip gestures
+         | "clipdel" | "clipdelat" | "clipdup" | "clippaste"
+         // automation edits
+@@ -401,6 +401,7 @@ fn apply_op(engine: &mut Engine, op: &str, out: &mut Vec<OutEvent>) {
+         }
+         // cfill <track> <grid ticks, 0 = fill only>. One undoable clip edit.
+         "mload" => engine.motif_load(op, out),
++        "dfill" => { engine.fill_drum_tail(op.strip_prefix("dfill ").unwrap_or("")); }
+         "cfill" => {
+             if let (Some(track), Some(grid)) = (next(), next()) {
+                 if track >= 0 && matches!(grid, 0 | 24 | 48 | 96 | 192 | 384) {
+diff --git a/src/seq/clip-page-vm.ts b/src/seq/clip-page-vm.ts
+index 57f0cd76..7d89dc80 100644
+--- a/src/seq/clip-page-vm.ts
++++ b/src/seq/clip-page-vm.ts
+@@ -7,7 +7,7 @@ import { clipInputInfo, offLayoutNotes, offLayoutText } from './input-info.js';
+ 
+ import type { ViewModel } from '../types/viewmodel.js';
+ import { paramCell as cell } from './param-vm.js';
+-import { clipPageState, CLIP_EDIT_GRIDS, CLIP_EDIT_ACTIONS } from './clip-page.js';
++import { clipPageState, CLIP_EDIT_GRIDS, CLIP_EDIT_ACTIONS, DRUM_FILL_LABELS } from './clip-page.js';
+ import { seqState } from './state.js';
+ import { appState, trackIsDrum } from '../app/state.js';
+ import { MAX_STEPS } from './constants.js';
+@@ -57,18 +57,20 @@ export function buildClipPageVM(): ViewModel {
+         options: CLIP_EDIT_GRIDS, enumIndex: clipPageState.editGrid,
+         displayValue: CLIP_EDIT_GRIDS[clipPageState.editGrid], normalizedValue: clipPageState.editGrid / 4 });
+     const editAction = cell({ shortName: 'EDIT', fullName: 'Clip Edit (click wheel)', type: 'enum',
+-        options: CLIP_EDIT_ACTIONS, enumIndex: clipPageState.editAction,
+-        displayValue: clipPageState.editAction ? 'Q+Fill' : 'Fill', normalizedValue: clipPageState.editAction });
++        options: isDrum ? DRUM_FILL_LABELS : CLIP_EDIT_ACTIONS, enumIndex: isDrum ? clipPageState.drumSpan : clipPageState.editAction,
++        displayValue: isDrum ? DRUM_FILL_LABELS[clipPageState.drumSpan] : clipPageState.editAction ? 'Q+Fill' : 'Fill', normalizedValue: isDrum ? clipPageState.drumSpan / 2 : clipPageState.editAction });
+     const applyHint = cell({ shortName: 'APPLY', fullName: 'Press wheel to apply', renderStyle: 'preset',
+-        displayValue: isDrum ? 'n/a' : 'Click', normalizedValue: 0 });
++        displayValue: 'Click', normalizedValue: 0 });
+     const info = isDrum ? null : clipInputInfo();
+     const kind = info ? ({fixed: 'Fixed', mapped: 'Mapped', rendered: 'Render', mixed: 'Mixed'}[info.kind] ?? '') : '';
+     const detail = !info ? '' : info.kind === 'mapped' ? info.source + ' > ' + info.target
+         : info.kind === 'fixed' ? 'Keeps pitches' : info.kind === 'rendered' ? 'Rendered pitches' : 'Mixed sources';
+-    const inputInfo = info ? cell({ shortName: 'INPUT', fullName: 'Recorded Input', renderStyle: 'preset',
++    const inputInfo = isDrum ? cell({ shortName:'DRUM', fullName:'Selected Drum / Press wheel to fill', type:'string',
++        displayValue:seqState.watchLane >= 0 ? 'Note '+seqState.watchLane : 'Select pad', readOnly:true, normalizedValue:0 }) : info ? cell({ shortName: 'INPUT', fullName: 'Recorded Input', renderStyle: 'preset',
+         displayValue: kind, readOnly: true, normalizedValue: 0 }) : applyHint;
+     const hidden = offLayoutNotes();
+-    const offPad = hidden.length ? cell({ shortName: 'OFFPAD', fullName: 'Playing off layout', renderStyle: 'preset',
++    const offPad = isDrum ? cell({ shortName:'VEL', fullName:'Fill Velocity', renderStyle:'preset',
++        displayValue:String(clipPageState.drumVelocity), normalizedValue:clipPageState.drumVelocity / 127 }) : hidden.length ? cell({ shortName: 'OFFPAD', fullName: 'Playing off layout', renderStyle: 'preset',
+         displayValue: String(hidden.length), readOnly: true, normalizedValue: 0 }) : null;
+     const cells = [scale, length, transpose, quant, editGrid, editAction, inputInfo, offPad];
+     const tk = clipPageState.touchedKnob;
+@@ -78,12 +80,12 @@ export function buildClipPageVM(): ViewModel {
+         const value = tk === 0 ? scaleToastText(sIdx)
+             : tk === 1 ? len + ' steps'
+             : tk === 6 && info ? detail
+-            : tk === 7 ? offLayoutText(hidden)
++            : tk === 7 && !isDrum ? offLayoutText(hidden)
+             : tk >= 4 ? cells[tk]!.displayValue
+             : tk === 3 ? q + '%'
+             : isDrum ? 'n/a on drums'
+             : (tr >= 0 ? '+' + tr : String(tr)) + ' ct';
+-        toast = { fullName: tk === 7 || (tk === 6 && info) ? "" : cells[tk]!.fullName, value, browseHint: false };
++        toast = { fullName: (tk === 7 && !isDrum) || (tk === 6 && info) ? "" : cells[tk]!.fullName, value, browseHint: false };
+     }
+ 
+     const overlay = clipPageState.scaleOverlay
+diff --git a/src/seq/clip-page.ts b/src/seq/clip-page.ts
+index 15cb9794..f60a6412 100644
+--- a/src/seq/clip-page.ts
++++ b/src/seq/clip-page.ts
+@@ -19,6 +19,8 @@ import { QUANT_VALUES, quantIndexForPct } from './quant.js';
+ export const CLIP_EDIT_GRIDS = ['1/16', '1/8', '1/4', '1/2', '1 Bar'];
+ export const CLIP_EDIT_TICKS = [24, 48, 96, 192, 384];
+ export const CLIP_EDIT_ACTIONS = ['Fill Gaps', 'Quantize + Fill'];
++export const DRUM_FILL_LABELS = ['Last Beat', 'Last 2 Beats', 'Last Bar'];
++export const DRUM_FILL_SPANS = [96, 192, 384];
+ 
+ const TRANSPOSE_MIN = -36, TRANSPOSE_MAX = 36;
+ 
+@@ -36,6 +38,8 @@ const gestureKey = (k: number, track: number) => 'clip:' + track + ':' + k;
+ export const clipPageState = {
+     editGrid: 1,
+     editAction: 1,
++    drumSpan: 0,
++    drumVelocity: 100,
+     touchedKnob: -1,                    // 0..3 drives the top toast; -1 none
+     scaleOverlay: false,                // SCALE list open (knob 0 held)
+     scaleSel: SCALE_DEFAULT_IDX,        // highlighted scale while the list is open
+@@ -95,7 +99,10 @@ export function clipPageKnob(k: number, delta: number, track: number): void {
+         return;
+     }
+     if (k === 4) { clipPageState.editGrid = Math.max(0, Math.min(4, clipPageState.editGrid + n)); return; }
+-    if (k === 5) { clipPageJog(n); return; }
++    if (k === 5) { clipPageJog(n, track); return; }
++    if (k === 7 && trackIsDrum(track)) {
++        clipPageState.drumVelocity = Math.max(1, Math.min(127, clipPageState.drumVelocity + n)); return;
++    }
+     if (KNOB_VERBS[k]) beginGesture(gestureKey(k, track), KNOB_VERBS[k], trackLabel(track));
+     if (k === 1) {
+         const next = Math.max(1, Math.min(MAX_STEPS, seqState.lenSteps + n));
+@@ -119,16 +126,29 @@ export function resetClipPage(): void {
+     clipPageState.scaleSel = SCALE_DEFAULT_IDX;
+     clipPageState.editGrid = 1;
+     clipPageState.editAction = 1;
++    clipPageState.drumSpan = 0;
++    clipPageState.drumVelocity = 100;
+ }
+ 
+ /** The wheel selects the explicit one-shot edit, and its click applies it. */
+-export function clipPageJog(delta: number): void {
++export function clipPageJog(delta: number, track = appState.activeTrack.index): void {
++    if (trackIsDrum(track)) {
++        clipPageState.drumSpan = Math.max(0, Math.min(2, clipPageState.drumSpan + delta)); return;
++    }
+     clipPageState.editAction = Math.max(0, Math.min(1, clipPageState.editAction + delta));
+ }
+ 
+ export function clipPageClick(track: number): void {
+     if (seqState.recording) { seqToast('Stop recording first'); return; }
+-    if (trackIsDrum(track)) { seqToast('Fill Gaps: melodic clips'); return; }
++    if (trackIsDrum(track)) {
++        if (seqState.playing) { seqToast('Stop to edit drum fill'); return; }
++        const pitch = seqState.watchLane;
++        if (!Number.isInteger(pitch) || pitch < 0 || pitch > 127) { seqToast('Select a drum pad first'); return; }
++        if (!seqState.lenSteps) { seqToast('Create a drum clip first'); return; }
++        undoableEdit('DRUM FILL', trackLabel(track), () => seqCmd(
++            'dfill '+track+' '+pitch+' '+DRUM_FILL_SPANS[clipPageState.drumSpan]+' '+CLIP_EDIT_TICKS[clipPageState.editGrid]+' '+clipPageState.drumVelocity));
++        seqToast('Drum fill requested'); return;
++    }
+     const grid = clipPageState.editAction ? CLIP_EDIT_TICKS[clipPageState.editGrid] : 0;
+     undoableEdit(clipPageState.editAction ? 'QUANT + FILL' : 'FILL GAPS', trackLabel(track),
+         () => seqCmd('cfill ' + track + ' ' + grid));
+diff --git a/src/seq/constants.ts b/src/seq/constants.ts
+index 21f9dddf..cd2824d1 100644
+--- a/src/seq/constants.ts
++++ b/src/seq/constants.ts
+@@ -36,7 +36,7 @@ export const MAIN_PAGE_STEPS: Record<number, number> = { 4: 0, 6: 0, 8: 0 };
+  * build-dsp.sh fails the build when they diverge. The UI re-issues the DSP
+  * load until ping returns this exact version (fixes the fire-and-forget
+  * load race and stale engines after redeploy). */
+-export const ENGINE_VERSION = '0.71.0-section-participation1';
++export const ENGINE_VERSION = '0.71.0-drum-fill1';
+ export const ENGINE_DSP_PATH = '/data/UserData/schwung/modules/tools/movy/dsp.so';
+ 
+ /* Where the engine finds schwung's chain host, and where it may keep its own
+diff --git a/src/undo/verbs.ts b/src/undo/verbs.ts
+index 5c877344..991fb7ac 100644
+--- a/src/undo/verbs.ts
++++ b/src/undo/verbs.ts
+@@ -14,7 +14,7 @@ export const UNDOABLE_VERBS: string[] = [
+     'gtog', 'tog', 'addp', 'del', 'evel', 'elen', 'enudge', 'emove', 'etrn', 'slen',
+     'eprob', 'econd', 'einv',
+     // clip shape and clip-level edits
+-    'clen', 'cscl', 'ctr', 'cq', 'cfill', 'mload', 'dbl', 'loop', 'ltog',
++    'clen', 'cscl', 'ctr', 'cq', 'cfill', 'dfill', 'mload', 'dbl', 'loop', 'ltog',
+     'pst',
+     // whole-clip gestures
+     'clipdel', 'clipdelat', 'clipdup', 'clippaste',

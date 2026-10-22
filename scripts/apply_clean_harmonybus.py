@@ -623,6 +623,8 @@ def main() -> int:
     patch_section_shaping(root)
     from patch_section_participation import patch_section_participation
     patch_section_participation(root)
+    from patch_drum_fill import patch_drum_fill
+    patch_drum_fill(root)
     print("HarmonyBus clean integration applied")
     return 0
 
