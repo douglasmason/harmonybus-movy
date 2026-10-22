@@ -87,7 +87,7 @@ export function overviewGet(base:number,key:string):string|null {
     const label='T'+(source.track+1)+'C'+(source.slot+1);
     if(!source.active)return label+' inactive';
     if(!Number.isFinite(source.phase_ticks)||!Number.isFinite(source.length_ticks)||source.length_ticks<=0)return label+' --';
-    const fitted=(field==='pitch'&&state.alignment===2)||(field==='expression'&&state.expression_fit===true);
+    const fitted=(field==='pitch'&&state.alignment===2)||(field==='expression'&&state.expression_fit===true)||(field==='instrument'&&state.instrument_fit===true);
     const phase=fitted&&Number.isFinite(source.selection_phase_ticks)?source.selection_phase_ticks:source.phase_ticks;
     return label+' '+Math.round(100*phase/source.length_ticks)+'%'+(fitted?' fit':'');
 }

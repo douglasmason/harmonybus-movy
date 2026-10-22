@@ -420,3 +420,37 @@ now includes fitted expression. No physical deployment or latency claim.
 
 Integrated concurrent Clip Participation 228 (e49a5fb), preserving its follower
 rests and live-note ownership. Final verification uses the combined source tree.
+
+## Movy 230: fit instrument automation with the existing value owner
+
+Refreshed published Movy229 / HB289. source_automation_tick already runs before
+track iteration, matches exact destination synth labels, reads effective_at and
+owns changes through track.auto_cur. Reuse these paths. For instrument_fit only,
+replace the donor step in the existing AutomationPhase watermark with the actor's
+proportionally mapped source step, plus the actor cycle. HB Render keeps its donor
+phase. Including the mapped step allows a long source to advance inside one actor
+step, without adding another value cache. Reads remain bounded by existing lanes
+and locks; there is no interpolation, new scheduler or persistent raw pointer.
+
+The fitted position uses the shared pre-track source_positions snapshot. Source
+availability remains independently checked. Actor loop/rate/relaunch controls
+mapping; donor relaunch phase is irrelevant to Fit. Existing edit/route/launch
+invalidation still forces re-evaluation, while auto_cur suppresses duplicate CCs.
+Recording/Off/Own and source failure retain the old restoration rules. Mute and
+stop restore destination bases, and gate/pressure owners are untouched.
+
+Route field 21 is optional instrument_fit 0/1. Field20 retains expression_fit;
+canonical messages stay19/20 unless instrument Fit is selected. Validation rejects
+other values atomically. The existing Source Automation panel has room for the
+new independent control; its native preview shares fitted phase diagnostics.
+No additional panel or parameter state is needed.
+
+Seven native regressions exercise pre-note order in both track orders, fitted
+updates inside actor steps and rests, unequal rates, HB-phase independence,
+availability/recording/Off/Own, relaunch/nonzero loops, command edits/auditions,
+base restoration/releases and legacy/save/undo/extensions. The production chain
+fixture checks the probe's actual cutoff at its second attack (91 Timeline versus
+72 fitted), paired releases and stop base restoration. The existing instrument
+benchmark includes Fit. Browser typecheck, logic and shared-controller tests run
+locally; native/full-chain and ARM gates run in CI because the refreshed local
+runtime lacks Rust. No physical device deployment or latency claim.

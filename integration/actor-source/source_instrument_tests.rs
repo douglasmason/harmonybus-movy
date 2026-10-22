@@ -152,12 +152,12 @@ mod source_instrument_tests {
     #[ignore = "isolated release-mode timing measurement, not a hardware audio assertion"]
     fn source_routing_benchmark_instrument() {
         use std::time::Instant;
-        for enabled in [false,true] {
-            let mut engine=setup(0);engine.source_routes[3].instrument=if enabled {Some(crate::source_route::ClipRef{track:0,slot:0})} else {None};
+        for (enabled,fitted) in [(false,false),(true,false),(true,true)] {
+            let mut engine=setup(0);engine.source_routes[3].instrument_fit=fitted;engine.source_routes[3].instrument=if enabled {Some(crate::source_route::ClipRef{track:0,slot:0})} else {None};
             let mut output=Vec::with_capacity(4096);
             let started=Instant::now();let mut count=0usize;
             for _ in 0..100_000 {engine.advance_block(250,&mut output);count+=output.len();output.clear();}
-            println!("instrument-routing enabled={enabled} ticks=100000 events={count} elapsed_us={}",started.elapsed().as_micros());
+            println!("instrument-routing enabled={enabled} fitted={fitted} ticks=100000 events={count} elapsed_us={}",started.elapsed().as_micros());
         }
     }
 
