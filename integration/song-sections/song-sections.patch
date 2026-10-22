@@ -152,7 +152,7 @@ index a6b9f746..e5839a52 100644
      fn output_capture_cancels_on_input_stop_and_deadline() {
          let _lock=crate::midi_out::test_guard();
 diff --git a/engine/crates/seq-core/src/command.rs b/engine/crates/seq-core/src/command.rs
-index 156746b7..6cf59ea0 100644
+index 156746b7..b9fcb6e1 100644
 --- a/engine/crates/seq-core/src/command.rs
 +++ b/engine/crates/seq-core/src/command.rs
 @@ -113,7 +113,7 @@ pub fn is_undoable_edit(verb: &str) -> bool {
@@ -175,8 +175,8 @@ index 156746b7..6cf59ea0 100644
 +        }
 +        "songsectionclear" => {
 +            if engine.song_sections_editable() {
-+                if let Some(index) = next().and_then(|v| usize::try_from(v).ok()) {
-+                    engine.song_sections.remove(&index);
++                if let Some(index) = it.next().and_then(|v| v.parse::<usize>().ok()) {
++                    if it.next().is_none() { engine.song_sections.remove(&index); }
 +                }
 +            }
 +        }
@@ -184,7 +184,7 @@ index 156746b7..6cf59ea0 100644
              if let Some(s) = next() {
                  engine.song_start(s.max(0) as usize);
 diff --git a/engine/crates/seq-core/src/engine.rs b/engine/crates/seq-core/src/engine.rs
-index 3319bd78..28ecedb5 100644
+index 3319bd78..6f4b92a5 100644
 --- a/engine/crates/seq-core/src/engine.rs
 +++ b/engine/crates/seq-core/src/engine.rs
 @@ -81,6 +81,10 @@ struct Gate {
@@ -208,7 +208,7 @@ index 3319bd78..28ecedb5 100644
              song: Vec::new(),
              song_pos: 0,
              song_start_bar: None,
-@@ -733,6 +740,21 @@ impl Engine {
+@@ -733,6 +740,22 @@ impl Engine {
      /// to its playing clip's loop start. Leaves playing_slot selections
      /// untouched (used by both Play and Session launch).
      fn start_transport(&mut self) {
@@ -218,7 +218,8 @@ index 3319bd78..28ecedb5 100644
 +        // Cancel only an already-armed song successor, never a pending first
 +        // scene/manual launch or recording queue unrelated to that successor.
 +        if self.song_armed {
-+            for track in &mut self.tracks {
++            for (index, track) in self.tracks.iter_mut().enumerate() {
++                if self.pending_rec && index == self.rec_track { continue; }
 +                track.queued_slot = None;
 +                track.pending_stop = false;
 +                track.pending_select = None;
@@ -230,7 +231,7 @@ index 3319bd78..28ecedb5 100644
          for actor in 0..NUM_TRACKS { self.variation_seeds[actor] = self.variations[actor].seed; }
          self.source_cursors.fill(Default::default());
          self.source_automation_seen.fill(None);
-@@ -766,11 +788,22 @@ impl Engine {
+@@ -766,11 +789,22 @@ impl Engine {
              self.song_start_bar = None;
              self.song_armed = false;
              self.song_armed_launch = None;
@@ -256,7 +257,7 @@ index 3319bd78..28ecedb5 100644
              }
              self.capture.clear();
              self.start_transport();
-@@ -933,10 +966,14 @@ impl Engine {
+@@ -933,10 +967,14 @@ impl Engine {
      /// a run of identical presses folds here rather than being stored folded.
      pub fn song_entry_at(&self, i: usize) -> Option<(usize, u32)> {
          let scene = *self.song.get(i)? as usize;
@@ -275,7 +276,7 @@ index 3319bd78..28ecedb5 100644
          Some((scene, reps))
      }
  
-@@ -960,6 +997,9 @@ impl Engine {
+@@ -960,6 +998,9 @@ impl Engine {
      /// stops.
      pub fn clear_song(&mut self) {
          self.song.clear();
@@ -285,7 +286,7 @@ index 3319bd78..28ecedb5 100644
          self.song_pos = 0;
          self.song_start_bar = None;
          self.song_armed = false;
-@@ -1001,7 +1041,9 @@ impl Engine {
+@@ -1001,7 +1042,9 @@ impl Engine {
              let cur = self.song_entry_at(self.song_pos).map(|(s, _)| s);
              let next = self.song_next_pos(self.song_pos);
              let nxt = self.song_entry_at(next).map(|(s, _)| s);
@@ -296,7 +297,7 @@ index 3319bd78..28ecedb5 100644
                  self.song_armed = false;
                  self.song_armed_launch = None;
              }
-@@ -1036,18 +1078,19 @@ impl Engine {
+@@ -1036,18 +1079,19 @@ impl Engine {
  
          // Advance first. The launch armed a bar ago resolved on this boundary,
          // before we ran, so the entry that was current is now behind us.
@@ -319,7 +320,7 @@ index 3319bd78..28ecedb5 100644
                  self.song_start_bar = Some(bar);
                  self.song_armed = false;
                  self.song_armed_launch = None;
-@@ -1071,18 +1114,18 @@ impl Engine {
+@@ -1071,18 +1115,18 @@ impl Engine {
          if self.song_armed {
              return;
          }
@@ -341,7 +342,7 @@ index 3319bd78..28ecedb5 100644
          if bar.saturating_sub(start) as u32 + 1 < total {
              return;
          }
-@@ -1094,8 +1137,10 @@ impl Engine {
+@@ -1094,8 +1138,10 @@ impl Engine {
               * one-entry song wrapping onto itself. Re-launching would restart
               * every clip and reset each track's `cycle`, so an A:B trig
               * condition would never reach B. */
@@ -354,7 +355,7 @@ index 3319bd78..28ecedb5 100644
                  self.song_armed_launch = Some(next_scene);
              } else {
                  self.song_armed_launch = None;
-@@ -2767,6 +2812,10 @@ impl Engine {
+@@ -2767,6 +2813,10 @@ impl Engine {
      /// `link_enabled` is restored to its **live** value, not the snapshot's:
      /// the transport link is not a musical edit and is excluded from undo.
      pub fn undo_restore(&mut self, blob: &str) -> bool {
@@ -365,7 +366,7 @@ index 3319bd78..28ecedb5 100644
          let live_key_playback=self.key_playback.clone();
          let live_link = self.link_enabled;
          let live_attachment = self.host_transport_attached;
-@@ -2797,6 +2846,26 @@ impl Engine {
+@@ -2797,6 +2847,26 @@ impl Engine {
                  t.pos_tick %= len;
              }
          }
@@ -392,7 +393,7 @@ index 3319bd78..28ecedb5 100644
          /* The UI's autosave only writes when the engine reports dirty; without
           * this an undo is silently dropped at the next save. */
          self.dirty = true;
-@@ -2832,7 +2901,7 @@ impl Engine {
+@@ -2832,7 +2902,7 @@ impl Engine {
          let htp = self.held_trig();
          let hlmax = self.held_max_gate();
          format!(
@@ -401,7 +402,7 @@ index 3319bd78..28ecedb5 100644
              self.playing as u8,
              self.master_tick,
              self.clock.bpm_x100(),
-@@ -2874,6 +2943,7 @@ impl Engine {
+@@ -2874,6 +2944,7 @@ impl Engine {
              self.capture.pending(self.watch_track as u8),
              self.capture_gen,
              self.song_state(),
@@ -409,7 +410,7 @@ index 3319bd78..28ecedb5 100644
          )
      }
  
-@@ -8000,3 +8070,7 @@ impl Engine {
+@@ -8000,3 +8071,7 @@ impl Engine {
          assert_eq!(engine.variations,[Default::default();NUM_TRACKS]);
      }
  }
@@ -602,10 +603,10 @@ index 00000000..fa282eb6
 +}
 diff --git a/engine/crates/seq-core/src/song_sections_tests.rs b/engine/crates/seq-core/src/song_sections_tests.rs
 new file mode 100644
-index 00000000..10e7dbca
+index 00000000..156cdd7d
 --- /dev/null
 +++ b/engine/crates/seq-core/src/song_sections_tests.rs
-@@ -0,0 +1,255 @@
+@@ -0,0 +1,267 @@
 +#[cfg(test)]
 +mod song_section_tests {
 +    use super::*;
@@ -766,6 +767,8 @@ index 00000000..10e7dbca
 +        engine.pending_play = false;
 +        apply_batch(&mut engine, "songsection 0 bars 8;songsection 0 track 4 1", &mut Vec::new());
 +        let config = engine.song_sections.clone();
++        apply_batch(&mut engine, "songsectionclear 0 junk", &mut Vec::new());
++        assert_eq!(engine.song_sections, config);
 +        engine.play();
 +        apply_batch(&mut engine, "songsection 0 bars 2;songsectionclear 0", &mut Vec::new());
 +        assert_eq!(engine.song_sections, config);
@@ -835,9 +838,19 @@ index 00000000..10e7dbca
 +        assert_eq!(engine.song_pos, 1);
 +        assert_eq!(engine.tracks[0].queued_slot, Some(2));
 +        let epoch = engine.song_epoch;
++        // A first take can own a different queue while the song is armed.
++        engine.pending_rec = true;
++        engine.rec_track = 3;
++        engine.tracks[3].clips[5].length_steps = 16;
++        engine.tracks[3].queued_slot = Some(5);
++        engine.tracks[3].pending_stop = false;
++        engine.tracks[3].pending_select = None;
 +        engine.on_external_realtime(0xFA, &mut Vec::new());
 +        assert_ne!(engine.song_epoch, epoch);
++        assert_eq!(engine.tracks[3].queued_slot, Some(5));
 +        through(&mut engine, 1);
++        assert_eq!(engine.tracks[3].playing_slot, Some(5));
++        assert!(engine.recording);
 +        assert_eq!(engine.song_pos, 1);
 +        assert_eq!(engine.song_start_bar, Some(0));
 +        assert_eq!(engine.tracks[0].playing_slot, Some(1));
