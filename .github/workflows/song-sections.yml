@@ -8,11 +8,19 @@ on:
       - scripts/apply_clean_harmonybus.py
       - docs/song-sections.md
       - .github/workflows/song-sections.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - integration/song-sections/**
+      - scripts/patch_song_sections.py
+      - scripts/apply_clean_harmonybus.py
+      - docs/song-sections.md
+      - .github/workflows/song-sections.yml
   workflow_dispatch:
 permissions:
   contents: write
 concurrency:
-  group: song-sections-${{ github.ref }}
+  group: song-sections-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
   SOURCE_VERSION: 0.34.1-hbclean.222
