@@ -30,7 +30,7 @@ concurrency:
   group: source-weaving-${{ github.ref }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.219
+  SOURCE_VERSION: 0.34.1-hbclean.220
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -101,7 +101,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: source-weaving-219
+          name: source-weaving-220
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -111,7 +111,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Grid Hold Sources" --notes-file docs/source-weaving.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Recorded Gesture Sources" --notes-file docs/source-weaving.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -124,7 +124,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.218':
+          if metadata['version'] != '0.34.1-hbclean.219':
               raise SystemExit('Installer moved concurrently; leave it unchanged for review')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')

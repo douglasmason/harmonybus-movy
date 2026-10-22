@@ -275,3 +275,41 @@ Concurrent Movy 218 stock-host Field sources and HB 0.2.289 are preserved.
 The implementation uses the existing Grid mask, gesture and HB sequence/live
 hold owners. It adds no musical cache or copied material. Timed-gesture routing,
 Fit to Window and the lookahead revision audit remain unfinished.
+
+## Recorded gesture sources (Movy 220)
+
+Each actor's **Clip Gestures** panel provides **Gesture Source / Clip** and a
+read-only donor phase. This borrows recorded Repeat, Reverse, Time Shift and
+Speed intervals (`operation_intervals`), independently of per-note Actions and
+Grid hold lanes. It replaces only the recorded clip-gesture fallback. Live and
+automatic gestures, Grid readers and the existing Clip Weave request keep their
+current scheduler priority. No operation assignments or harmony state are copied.
+
+The interval's active range and recorded age follow the donor's own loop phase,
+sampled before the master tick's track iteration. Repeat/Speed use that age;
+Reverse/Time Shift act on the actor's current position. The recorded origin's
+tick offset from the donor loop start wraps into the actor's loop. Unequal loops
+remain independent: offsets are not proportionally stretched (Fit to Window is
+not implemented). Each actor scheduler tick samples the window, so unequal rates
+can skip or repeat donor phases. This does not add donor-clock attacks to a
+slower actor, or reschedule the actor's transport.
+
+The reader acts on the actor's clip, while the existing Pitch Source selector
+still supplies accepted pitches in Sequential/Timeline order. With a foreign
+Rhythm Source, that source's scheduler still supplies attacks and gate duration;
+the actor's own gesture reader does not supersede it. Existing automation and
+recorded context still resolve before emitted notes.
+
+Source changes, donor relaunches and edits are read on the next master snapshot.
+Missing/stopped/muted donors fall back to the actor's recorded gestures. An
+available donor without an active interval suppresses the actor's recorded
+gesture fallback. Recording the actor, Own or Source Weaving Off restores the
+actor's reader. Existing notes retain their release/pressure and rhythm-clock
+owners across changes; actor/transport stop uses the existing release path.
+There is no borrowed held state to clear or copy into live gesture slots.
+
+Routes persist and participate in native/UI undo. Old 7/9/11/13/15/17-field routes
+load Gesture Source = Own. Donor reads are raw, non-recursive and bounded to the
+existing 4096-interval limit. Only playing-slot/phase scheduling metadata is
+snapshotted; no musical cache is introduced. The older source-cache scaffold
+remains inactive and harmonic lookahead hashing remains unchanged.

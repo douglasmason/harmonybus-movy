@@ -155,7 +155,7 @@ const sourceRoutes=new Map();
 globalThis.host_module_get_param=key=>key.startsWith('source_route_')?(sourceRoutes.get(Number(key.slice(13)))??`${key.slice(13)} 0 -1 -1 -1 -1 0`):nativeGet(key);
 globalThis.host_module_set_param_blocking=(key,value,timeout)=>{
  if(key==='cmd')for(const command of value.split(';'))if(command.startsWith('source ')){
-  const fields=command.slice(7).split(' ').map(Number);assert.equal(fields.length,17);sourceRoutes.set(fields[0],fields.join(' '));
+  const fields=command.slice(7).split(' ').map(Number);assert.equal(fields.length,19);sourceRoutes.set(fields[0],fields.join(' '));
  }
  return nativeSet?.(key,value,timeout);
 };
@@ -199,6 +199,12 @@ for(const group of [0,3]){
  assert.equal(sourceRoutes.get(actor)?.split(' ')[15],'0');
  page.knobTurn(3,4);flush(page);
  assert.equal(sourceRoutes.get(actor)?.split(' ')[16],'1');
+ const gesturePage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_source_3_gesture_track'));
+ assert(gesturePage>=0);page.goToPage(gesturePage);flush(page);
+ page.knobTurn(0,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[17],'0');
+ page.knobTurn(1,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[18],'1');
  sourceRoutes.set(actor,`${actor} 0 -1 -1 -1 -1 0`);flush(page);
  assert.equal(page.performanceGet('joint_source_3_pitch_track'),'Own','external state edits read back');
 }
