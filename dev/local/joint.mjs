@@ -12,6 +12,7 @@ function showView(name){
  for(const panel of document.querySelectorAll('.view-panel'))panel.hidden=panel.id!=='view-'+name;
 }
 for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>showView(button.dataset.view);
+document.querySelector('#save-state').onclick=()=>showView('session');
 for(const id of ['record','play','stop'])document.querySelector('#'+id).disabled=true;
 const clipCards=Array.from({length:4},()=>{const card=document.createElement('div');card.className='clip-card';document.querySelector('#clip-status').append(card);return card;});
 let monitor=new AudioMonitor();
@@ -169,6 +170,9 @@ const timer=setInterval(()=>{
  const transport=Object.fromEntries(String(cache.get('status')??'').split(' ').map(field=>field.split('=')));
  seqState.playing=transport.play==='1';seqState.recording=transport.rec==='1';seqState.countingIn=transport.cin==='1';
  song.update();
+ const saveStatus=document.querySelector('#session-status').textContent,saveIndicator=document.querySelector('#save-state');
+ saveIndicator.hidden=!sessions;saveIndicator.title=saveStatus||'Open session files';
+ saveIndicator.textContent=/retained|failed|exceeds|mismatch/i.test(saveStatus)?'Save/open needs attention':saveStatus.startsWith('Saved')?'Saved on device':saveStatus.startsWith('Session restored')?'Restored':saveStatus==='Working…'?'Saving / opening…':'Session files';
  const recordCommand=joint.jointRecordCommand(),recordParts=recordCommand?.split(' ').map(Number)??[];
  const mask=recordParts[1]??0,overwrite=recordParts[2]??0;
  const clips=Array.from({length:4},(_,actor)=>{const track=appState.focusGroup*4+actor;return selectedClip(globalThis.host_module_get_param('motif_clip_info_'+track),track);});
