@@ -1,0 +1,75 @@
+diff --git a/engine/crates/seq-core/src/engine.rs b/engine/crates/seq-core/src/engine.rs
+index c5221907..94e51f7e 100644
+--- a/engine/crates/seq-core/src/engine.rs
++++ b/engine/crates/seq-core/src/engine.rs
+@@ -3724,6 +3724,52 @@ mod tests {
+         assert_eq!(e.tracks[0].active().notes.last().unwrap().pitch, 38);
+     }
+ 
++    #[test]
++    fn drum_samples_ignore_saved_melodic_identity_and_stale_key() {
++        use crate::follower_input::InputKey;
++        for pitch in 0..128u8 {
++            for rendered in [false, true] {
++                let mut e = engine();
++                // A module switch can precede the next UI context refresh.
++                e.follower_input_context("fic1,2,2,1");
++                e.set_track_drum(0, true);
++                let mut actions = [0; crate::recorded_actions::LANES + 1];
++                actions[crate::recorded_actions::LANES] = 8; // old +36 piano alias
++                let clip = e.tracks[0].active_mut();
++                clip.set_loop(0, 16);
++                clip.toggle_step(0, &[(pitch, 101)]);
++                clip.transpose = 12;
++                let note = &mut clip.notes[0];
++                note.actions = Some(actions);
++                note.input_key = InputKey::new(0, 1);
++                note.rendered = rendered;
++                note.pressure = vec![(0, 61), (2, 73)];
++                e.play();
++                let out = run_ticks(&mut e, 4 + TICKS_PER_STEP as u64 * 2);
++                let attacks: Vec<_> = out.iter().filter_map(|event| match event {
++                    OutEvent::NoteOn { pitch, vel, .. } | OutEvent::RenderedOn { pitch, vel, .. } => Some((*pitch, *vel)),
++                    _ => None,
++                }).collect();
++                let releases: Vec<_> = out.iter().filter_map(|event| match event {
++                    OutEvent::NoteOff { pitch, .. } | OutEvent::RenderedOff { pitch, .. } => Some(*pitch),
++                    _ => None,
++                }).collect();
++                let pressure: Vec<_> = out.iter().filter_map(|event| match event {
++                    OutEvent::PolyPressure { pitch, value, .. } => Some((*pitch, *value)),
++                    _ => None,
++                }).collect();
++                assert_eq!(attacks, vec![(pitch, 101)], "sample {pitch}, rendered {rendered}");
++                assert_eq!(releases, vec![pitch]);
++                assert_eq!(pressure, vec![(pitch, 61), (pitch, 73)]);
++                // Interpretation changes, never the user's saved clip metadata.
++                let note = &e.tracks[0].active().notes[0];
++                assert_eq!(note.pitch, pitch);
++                assert_eq!(note.actions, Some(actions));
++                assert_eq!(note.input_key, InputKey::new(0, 1));
++            }
++        }
++    }
++
+     #[test]
+     fn melodic_track_still_transposes_after_drum_guard() {
+         let mut e = engine();
+@@ -6891,8 +6937,15 @@ impl Engine {
+                             }
+                         } else {n.pitch};
+                         let normal_emit = (input_pitch as i32 + self.clip_transpose(source_track, slot)).clamp(0, 127) as u8;
+-                        let (emit_pitch, emitted_actions) = crate::recorded_actions::piano_emit(
+-                            n.pitch, normal_emit, n.actions, n.input_key, self.follower_inputs[ti], self.clip_transpose(source_track, slot));
++                        // Drum notes address samples, including clips copied from a
++                        // melodic track with saved key/approach metadata. Do not let
++                        // that metadata choose a different sample or gate pitch.
++                        let (emit_pitch, emitted_actions) = if self.track_is_drum(ti) {
++                            (n.pitch, n.actions)
++                        } else {
++                            crate::recorded_actions::piano_emit(n.pitch, normal_emit, n.actions,
++                                n.input_key, self.follower_inputs[ti], self.clip_transpose(source_track, slot))
++                        };
+                         if !n.rendered && self.follower_inputs[ti].is_some() {
+                             let (degree,target)=match (n.input_key,self.follower_inputs[ti]) {
+                                 (Some(source),Some(target)) if self.clip_transpose(source_track,slot)==source.transpose as i32=>source.role(n.pitch,target),
