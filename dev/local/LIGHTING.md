@@ -141,3 +141,12 @@ pitch mode retains its horizontal pitch mapping and uses the home's vertical sid
 Settings travel with the existing browser profile and `ui.lighting` session data;
 older profiles receive the original defaults. Labels describe output channels
 1–4, not exact track ownership; tracks sharing a channel share a visual identity.
+
+### Playing-surface monitor
+
+A compact four-fixture square beside the clip cards displays the same RGB frame
+as the full Lights panel while pads remain available. Its held-note count,
+blackout and waiting labels come from that same projection. Tap it to open Lights.
+The existing 40 ms presentation update drives both views; no extra engine reads,
+subscriptions or clocks are added. The full canvas skips drawing while its panel
+is hidden. The monitor retains fixture order 1/2 above 4/3.

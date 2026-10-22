@@ -2,7 +2,9 @@ import {Lighting,fixturePositions,clamp,defaultSettings,defaultSamples} from './
 import {lightingProfile,loadLightingProfile,saveLightingProfile} from './lighting-profile.mjs';
 
 /** Mount a transport-neutral preview. All state consumed here is read-only. */
-export function mountLighting(container){
+export function mountLighting(container,monitor=null){
+ const monitorFixtures=monitor?[...monitor.querySelectorAll('[data-fixture]')]:[];
+ const monitorState=monitor?.querySelector('#light-monitor-state');
  const model=new Lighting();let group=0,selected=0,dimension=0,lastFrame=null;
  let storage;try{storage=globalThis.localStorage;}catch{}
  const saved=loadLightingProfile(storage);
@@ -112,7 +114,13 @@ export function mountLighting(container){
   const prefix=`ch${group*4+3}:midi_fx1:`;
   for(const key of ['field_view','field_outputs_view2','shared_context_snapshot','harmony_snapshot'])demand.set(prefix+key,Date.now());
   const frame=model.render(now);lastFrame=frame;
-  if(container.firstElementChild.open)draw(frame);
+  if(container.firstElementChild.open&&!container.closest('[hidden]'))draw(frame);
+  if(monitor&&!monitor.closest('[hidden]')){
+   for(const light of monitorFixtures){const fixture=frame.fixtures[Number(light.dataset.fixture)];light.style.backgroundColor=`rgb(${fixture.rgb.join(',')})`;}
+   const state=model.settings.blackout?'Blackout':!frame.fresh?'Waiting':`${frame.held} held`;
+   monitorState.textContent=state;
+   monitor.setAttribute('aria-label',`Open lighting controls · ${state}`);
+  }
   select('state').textContent=model.settings.blackout?'Blackout':!frame.fresh?'Waiting for current field data':`${frame.playing?'Bar '+frame.bar:'Live play · transport stopped'} · ${frame.held} held ${frame.rewinding?'· field rewind':''}`;
   select('harmony').textContent=frame.palette.label;
   select('section').textContent=frame.sectionLabel+(frame.cue?` · ${frame.cue==='phrase'?'rotation':frame.cue}`:'');
