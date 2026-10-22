@@ -2,6 +2,7 @@ import {defaultSettings,defaultSamples} from './lighting.mjs';
 
 export const lightingStorageKey='harmonybus.lighting.v1';
 const choices={source:['terrain','lanes'],palette:['blend','scale','chord'],position:['degree','pitch','voice'],hueTurns:[1,2,3,4],phraseBars:[0,4,8,16],sectionCue:['off','arrival','rotate']};
+for(let voice=0;voice<4;voice++)choices[`voiceHome${voice}`]=[0,1,2,3];
 /** Validate the complete profile before replacing any active controls or samples. */
 export function lightingProfile(value){
  if(!value||value.schema!==1||!value.settings||typeof value.settings!=='object'||Array.isArray(value.settings))return null;
