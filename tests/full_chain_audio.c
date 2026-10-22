@@ -359,6 +359,20 @@ static void test_source_weaving(void){
     set("cmd","stop");render(32);
     api->get_param(instance,"ch3:synth:cutoff",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==19);
     assert(energy>0&&sent_on==1&&sent_off==1);
+    /* Fit instrument locks into the actor window before its second attack.
+       The probe records the actual instrument value at note-on. */
+    for(int fitted=0;fitted<=1;fitted++){
+        set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 2 0 0\ntk 3 0 0\ncl 0 0 32 0 \ncl 2 0 16 0 0:48:36:100:0;96:48:36:100:4\ncl 3 0 16 0 0:48:60:100:0\n");
+        snprintf(parameter,sizeof(parameter),"source 3 1 -1 -1 2 0 0 -1 -1 0 0 -1 -1 -1 -1 -1 -1 -1 -1 0 %d",fitted);set("cmd",parameter);
+        set("cmd","alabel 0 5 synth:cutoff;abase 0 5 33;aset 0 5 0 91;aset 0 5 8 72;alabel 3 1 synth:cutoff;abase 3 1 19;aset 3 1 0 44");render(16);
+        sent_on=sent_off=0;set("cmd","play");energy=render(200);
+        api->get_param(instance,"ch3:synth:cutoff",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==(fitted?72:91));
+        api->get_param(instance,"ch3:synth:attack_cutoff",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==(fitted?72:91));
+        set("cmd","stop");render(32);
+        api->get_param(instance,"ch3:synth:cutoff",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==19);
+        assert(energy>0&&sent_on==2&&sent_off==2);
+    }
+    puts("instrument fit: actual cutoff precedes attacks, Timeline stays independent, stop restores base");
     /* Independent HB rendering lane reaches the real HB note renderer. */
     set("state","movy1\nbpm 12000\nlink 0\ntk 1 0 0\ntk 2 0 0\ntk 3 0 0\ncl 1 0 16 0 \ncl 2 0 16 0 0:48:36:100:0\ncl 3 0 16 0 0:48:60:100:0\nsr 3 1 -1 -1 2 0 0 -1 -1 -1 -1 1 0\n");
     render(16);

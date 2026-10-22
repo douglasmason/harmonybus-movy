@@ -422,3 +422,34 @@ Timeline and keep their nineteen-field encoding. Only enabled expression Fit
 adds a twentieth field; those routes require this release or newer. Woven
 conductor prediction remains conservatively suspended with independent donors.
 Precise forecasts and fitted automation/operation timelines remain unfinished.
+
+## Instrument automation alignment (Movy 230)
+
+**Source Automation → Instrument Alignment** offers **Timeline** (default) and
+**Fit to Window** independently of pitch, expression and HB Render automation.
+Fit maps the actor's loop progress into the instrument donor's loop, then uses
+the existing stepped parameter-lock reader. A two-bar cutoff pattern can therefore
+span a one-bar actor clip. Source Preview marks the fitted Instrument phase.
+
+Values resolve before notes on each master tick, including during rests and when
+the actor runs slower than its donor. Existing value-change suppression prevents
+repeated parameter writes. Fit follows actor speed, phase and relaunch; the donor
+still must be playing and unmuted, but its own speed/relaunch phase does not control
+the fitted read. Timeline retains the donor's independent clock. Both modes use
+exact synth target-label matching, existing lock carry/note-reset rules and bases.
+Fit samples the existing steps without interpolation; compression can skip short
+regions, and expansion can hold a value longer. It does not replay every crossed
+lock or add a new clock.
+
+Source/mode changes and edits resolve through existing invalidation before later
+attacks. Unavailable donors or unmatched targets restore the actor's own timeline;
+a matching donor lane with no locks supplies its donor base. Own, Source Weaving
+Off and actor recording restore own automation. Actor mute/stop and transport stop
+restore the actor's base. Sounding notes retain their pressure and release owners.
+Instrument fitting does not stretch notes, pressure curves, HB automation or held
+operations, and does not overwrite lane assignments or stored parameter bases.
+
+Native/UI undo and saves retain this mode. Old routes default to Timeline;
+new instrument Fit adds an optional twenty-first field and requires this release
+or newer. Routes using only older modes keep their prior encoding. Independent
+sources still suspend learned conductor forecasts under the existing safeguard.
