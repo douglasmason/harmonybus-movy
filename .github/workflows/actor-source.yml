@@ -111,6 +111,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Another integration may change the shared apply script after this
+          # version shipped. Do not republish it or move its older installer.
+          if gh release view "v$SOURCE_VERSION" >/dev/null 2>&1; then
+            echo 'This Source Weaving version is already published; installer unchanged'
+            exit 0
+          fi
           gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Recorded Gesture Sources" --notes-file docs/source-weaving.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz

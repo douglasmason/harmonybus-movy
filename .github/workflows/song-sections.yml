@@ -1,10 +1,16 @@
 name: Song Sections verification and package
 on:
   push:
-    branches: [feature/song-sections-20261022]
+    branches: [feature/song-sections-20261022, main]
+    paths:
+      - integration/song-sections/**
+      - scripts/patch_song_sections.py
+      - scripts/apply_clean_harmonybus.py
+      - docs/song-sections.md
+      - .github/workflows/song-sections.yml
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: song-sections-${{ github.ref }}
   cancel-in-progress: true
@@ -86,3 +92,40 @@ jobs:
             harmonybus-movy-module.tar.gz
             SHA256SUMS
             source-benchmark.txt
+      - name: Publish verified main package and advance installer last
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo 'Main moved concurrently; installer unchanged'; exit 1; }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          metadata: dict = json.loads(Path('release.json').read_text())
+          if metadata['version'] != '0.34.1-hbclean.221':
+              raise SystemExit('Expected Field 221 before Song Sections; installer unchanged')
+          PY
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Song Sections" --notes-file docs/song-sections.md
+          mkdir verified-upload
+          gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
+          (cd verified-upload && sha256sum -c ../SHA256SUMS)
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo 'Main moved concurrently; installer unchanged'; exit 1; }
+          git switch -C installer-pointer origin/main
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          path: Path = Path('release.json')
+          metadata: dict = json.loads(path.read_text())
+          if metadata['version'] != '0.34.1-hbclean.221':
+              raise SystemExit('Installer moved concurrently; leave it unchanged')
+          version: str = os.environ['SOURCE_VERSION']
+          path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add release.json
+          git commit -m "Publish verified Song Sections $SOURCE_VERSION [skip ci]"
+          git push origin HEAD:main
