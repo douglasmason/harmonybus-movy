@@ -105,6 +105,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if gh release view "v$SOURCE_VERSION" >/dev/null 2>&1; then
+            echo 'This Song Sections version is already published; installer unchanged'
+            exit 0
+          fi
           git fetch origin main
           test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo 'Main moved concurrently; installer unchanged'; exit 1; }
           python3 - <<'PY'
