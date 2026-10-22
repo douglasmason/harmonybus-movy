@@ -2,12 +2,14 @@
 import { seqCmdFlush, engineReady } from './engine.js';
 import { beginEdit, CLOSE } from '../undo/group.js';
 import { seqEdit } from '../undo/record.js';
-const fields=['enabled','pitch_track','pitch_slot','rhythm_track','rhythm_slot','alignment','expression_track','expression_slot','instrument_track','instrument_slot','hb_render_track','hb_render_slot','note_ops_track','note_ops_slot'];
-const names=['Source Weaving','Pitch Source','Pitch Clip','Rhythm Source','Rhythm Clip','Alignment','Expression Source','Expression Clip','Instrument Source','Instrument Clip','HB Render Source','HB Render Clip','Note Ops Source','Note Ops Clip'];
+const fields=['enabled','pitch_track','pitch_slot','rhythm_track','rhythm_slot','alignment','expression_track','expression_slot','instrument_track','instrument_slot','hb_render_track','hb_render_slot','note_ops_track','note_ops_slot','grid_holds_track','grid_holds_slot'];
+const names=['Source Weaving','Pitch Source','Pitch Clip','Rhythm Source','Rhythm Clip','Alignment','Expression Source','Expression Clip','Instrument Source','Instrument Clip','HB Render Source','HB Render Clip','Note Ops Source','Note Ops Clip','Grid Holds Source','Grid Holds Clip'];
 const choices=[['Off','On'],['Own',...Array.from({length:16},(_,index)=>String(index+1))],
     Array.from({length:8},(_,index)=>String(index+1)),
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
     Array.from({length:8},(_,index)=>String(index+1)),['Sequential','Timeline'],
+    ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
+    Array.from({length:8},(_,index)=>String(index+1)),
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
     Array.from({length:8},(_,index)=>String(index+1)),
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
@@ -30,13 +32,14 @@ function read(actor:number):number[] {
     if(values.length===9)values.push(-1,-1);
     if(values.length===11)values.push(-1,-1);
     if(values.length===13)values.push(-1,-1);
-    return values.length===15&&values.every(Number.isFinite)?values:[actor,0,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1];
+    if(values.length===15)values.push(-1,-1);
+    return values.length===17&&values.every(Number.isFinite)?values:[actor,0,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1];
 }
 export function sourcePanelGet(base:number,key:string):string|null {
     const target=identity(base,key);if(!target)return null;
     const values=read(target.actor);const field=target.field;
     const raw=values[field+1];
-    const index=field===1||field===3||field===6||field===8||field===10||field===12?raw+1:field===2||field===4||field===7||field===9||field===11||field===13?Math.max(0,raw):raw;
+    const index=field===1||field===3||field===6||field===8||field===10||field===12||field===14?raw+1:field===2||field===4||field===7||field===9||field===11||field===13||field===15?Math.max(0,raw):raw;
     return choices[field][index]??choices[field][0];
 }
 export function sourcePanelSet(base:number,key:string,value:string):boolean {
@@ -44,8 +47,8 @@ export function sourcePanelSet(base:number,key:string,value:string):boolean {
     const selected=choices[target.field].indexOf(value);if(selected<0)return true;
     if(!engineReady())return true;
     const values=read(target.actor);const field=target.field;
-    if(field===1||field===3||field===6||field===8||field===10||field===12){values[field+1]=selected-1;values[field+2]=selected===0?-1:Math.max(0,values[field+2]);}
-    else if(field===2||field===4||field===7||field===9||field===11||field===13){if(values[field]===-1)return true;values[field+1]=selected;}
+    if(field===1||field===3||field===6||field===8||field===10||field===12||field===14){values[field+1]=selected-1;values[field+2]=selected===0?-1:Math.max(0,values[field+2]);}
+    else if(field===2||field===4||field===7||field===9||field===11||field===13||field===15){if(values[field]===-1)return true;values[field+1]=selected;}
     else values[field+1]=selected;
     beginEdit({key:'source-'+target.actor+'-'+field,verb:'Source Weaving',target:'Track '+(target.actor+1),close:CLOSE.IDLE,seq:true});
     seqEdit('source '+values.join(' '));seqCmdFlush();return true;

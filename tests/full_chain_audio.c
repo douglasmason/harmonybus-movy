@@ -311,6 +311,19 @@ static void test_source_weaving(void){
     fprintf(stderr,"borrowed note operations: mask=%u\n",rendered_mask);assert(sent_on==1&&rendered_mask==(1u<<2));
     set("cmd","mute 0 1");energy+=render(240);set("cmd","stop");render(32);
     assert(energy>0&&sent_on==2&&sent_off==2&&rendered_mask==((1u<<2)|1));
+    /* Borrow raw Grid holds through the same HB sequence/live hold owners. */
+    set("ch3:midi_fx1:motion_operation_1","Transpose");set("ch3:midi_fx1:motion_control_1","2");
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 2 0 0\ntk 3 0 0\ncl 0 0 16 0 \ncl 2 0 16 0 0:48:36:100:0;96:48:36:100:4\ncl 3 0 16 0 0:48:60:100:0\ngg 0 0 0 192 0\nsr 3 1 -1 -1 2 0 0 -1 -1 -1 -1 -1 -1 -1 -1 0 0\n");
+    render(16);sent_on=sent_off=0;rendered_mask=0;
+    set("cmd","play");energy=render(16);
+    assert(sent_on==1&&rendered_mask==(1u<<2));
+    set("ch3:midi_fx1:motion_hold_1","On");
+    set("cmd","mute 0 1");render(16);
+    api->get_param(instance,"ch3:midi_fx1:motion_sequence_mask",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==0);
+    api->get_param(instance,"ch3:midi_fx1:motion_hold_1",parameter_view,sizeof(parameter_view));assert(!strcmp(parameter_view,"On"));
+    set("ch3:midi_fx1:motion_hold_1","Off");energy+=render(224);set("cmd","stop");render(32);
+    assert(energy>0&&sent_on==2&&sent_off==2&&rendered_mask==((1u<<2)|1));
+    set("ch3:midi_fx1:motion_operation_1","Off");
     /* Existing conductor-chord generation consumes the woven trigger directly.
        Root Only and Triad exercise bass and comp without another harmony state. */
     set("ch0:midi_fx1:role","Conductor");set("ch0:midi_fx1:chord_mode","Off");

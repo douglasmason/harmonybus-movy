@@ -30,7 +30,7 @@ concurrency:
   group: source-weaving-${{ github.ref }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.217
+  SOURCE_VERSION: 0.34.1-hbclean.219
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -48,7 +48,7 @@ jobs:
           git clone https://github.com/DimaDake/schwung-movy.git movy
           git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
           git clone https://github.com/douglasmason/harmonybus.git harmonybus
-          git -C harmonybus checkout a360d2f4a0331e6778a128638c39252865b195b8
+          git -C harmonybus checkout b907f48b0d6d24598c4b903e4d2e59e9b759ec38
           git clone https://github.com/charlesvestal/schwung.git schwung
           git -C schwung checkout a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
           python3 scripts/apply_clean_harmonybus.py movy
@@ -65,6 +65,7 @@ jobs:
           # Legacy app-loop fails unchanged on the pre-routing hbclean.209 baseline.
           # Dedicated Joint/session and full logic suites cover the current UI.
           node browser-test/device-scripts.mjs
+          node ../tests/field_lfo_ui.mjs .
       - name: Native sequencer, DSP and full production chain
         run: |
           cargo test --manifest-path movy/engine/Cargo.toml -p seq-core -p movy-dsp
@@ -100,7 +101,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: source-weaving-217
+          name: source-weaving-219
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -110,7 +111,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Recorded Note Operation Sources" --notes-file docs/source-weaving.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Grid Hold Sources" --notes-file docs/source-weaving.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -123,7 +124,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.216':
+          if metadata['version'] != '0.34.1-hbclean.218':
               raise SystemExit('Installer moved concurrently; leave it unchanged for review')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
