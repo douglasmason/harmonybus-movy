@@ -4,8 +4,9 @@ import {dirname,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {WebSocketServer} from 'ws';
 import {Processor} from './processor.mjs';
+import {observation,eventObservation} from './observations.mjs';
 const root=dirname(fileURLToPath(import.meta.url));
-import {trackKey,jointAction,routingKeys,prepareMetadata} from './protocol-policy.mjs';
+import {trackKey,jointAction,routingKeys,prepareMetadata,engineReadKey,validateEngineCommand} from './protocol-policy.mjs';
 /** Limited development API; no autosave reads or arbitrary filesystem/loader commands. */
 export async function startServer({port=7701,host='127.0.0.1',realtime=true}={}) {
   const metadata=JSON.parse(await readFile(resolve(root,'build/modules/midi_fx/harmonybus/module.json'),'utf8'));
@@ -14,7 +15,9 @@ export async function startServer({port=7701,host='127.0.0.1',realtime=true}={})
   const processor=new Processor(resolve(root,'build'));
   await processor.request('snapshot');
   const clients=new Set();let busy=false;let stopped=false;let recent=[];let eventSequence=0;let frameRemainder=0;
-  processor.onResult=result=>{for(const packet of result.events)recent.push({sequence:++eventSequence,beat:result.beat,packet});recent=recent.slice(-256)};
+  let snapshotSequence=0;
+  const observe=result=>observation(result.value,{epoch:1,sequence:++snapshotSequence,sampleFrame:Math.round(result.beat*44100/2)});
+  processor.onResult=(result,command)=>{for(const packet of result.events)recent.push({...eventObservation(packet,{epoch:1,sequence:++eventSequence,sampleFrame:Math.round(result.beat*44100/2),...command}),beat:result.beat});recent=recent.slice(-256)};
   let serial=Promise.resolve();let queued=0;
   const enqueue=action=>{if(queued>=128)return Promise.reject(new Error('Command queue full'));queued++;const result=serial.then(action).finally(()=>queued--);serial=result.catch(()=>{});return result};
   const held=new Map(),physical=new Map(),touches=new Map();let surfaceSerial=0;let controller=null;const clientSerial=new Map();
@@ -87,9 +90,13 @@ export async function startServer({port=7701,host='127.0.0.1',realtime=true}={})
       const notes=physical.get(socket)??new Set();physical.set(socket,notes);
       if(data[0]===144&&data[2])notes.add(data[1]);else if(data[0]===128||data[0]===144)notes.delete(data[1]);
       await processor.request('midi',data.join(','));
+    } else if(message.type==='dev_engine_edit') {
+      if(controller&&controller!==socket)throw new Error('Another browser owns the controls');
+      controller=socket;await processor.request('set','cmd',validateEngineCommand(message.value));
     } else if(message.type==='dev_watch') {
       if(!Array.isArray(message.keys)||message.keys.length>64||message.keys.some(key=>{
-        const match=typeof key==='string'&&trackKey.exec(key);
+        if(typeof key!=='string')return true;if(engineReadKey.test(key))return false;
+        const match=trackKey.exec(key);
         return !match||!readable.has(match[2]);
       }))throw new Error('Invalid parameter watch');
       watches.set(socket,[...new Set(message.keys)]);
@@ -100,7 +107,7 @@ export async function startServer({port=7701,host='127.0.0.1',realtime=true}={})
     else if(!['subscribe_tool','refetch_tool','subscribe','get_hierarchy'].includes(message.type))throw new Error('Unsupported message');
     const result=await processor.request('snapshot');
     Object.assign(result.value,(await processor.request('read_many',(watches.get(socket)??[]).join(','))).value);
-    return {type:'param_update',slot:0,params:result.value,beat:result.beat,events:recent,requestId:message.id};
+    return {type:'param_update',slot:0,params:result.value,beat:result.beat,events:recent,observation:observe(result),requestId:message.id};
   }
   const files={'/joint':['joint.html','text/html'],'/joint.js':['build/joint.js','text/javascript'],'/field':['build/field.html','text/html'],'/field-web.js':['build/field-web.js','text/javascript'],'/movy':['build/movy.html','text/html'],'/movy.js':['build/movy.js','text/javascript'],'/':['index.html','text/html'],'/panel.js':['build/panel.js','text/javascript'],'/static/schwung-remote-api.js':['build/schwung-remote-api.js','text/javascript']};
   const server=http.createServer(async(request,response)=>{
@@ -129,7 +136,7 @@ export async function startServer({port=7701,host='127.0.0.1',realtime=true}={})
       const result=await processor.request('snapshot');
       const keys=[...new Set([...watches.values()].flat())];
       for(let offset=0;offset<keys.length;offset+=64)Object.assign(result.value,(await processor.request('read_many',keys.slice(offset,offset+64).join(','))).value);
-      const message=JSON.stringify({type:'param_update',slot:0,params:result.value,beat:result.beat,events:recent});
+      const message=JSON.stringify({type:'param_update',slot:0,params:result.value,beat:result.beat,events:recent,observation:observe(result)});
       for(const socket of clients)if(socket.readyState===1&&socket.bufferedAmount<65536)socket.send(message);
     }).catch(error=>console.error(error.message)).finally(()=>busy=false);
   },20);

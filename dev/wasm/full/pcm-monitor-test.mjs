@@ -14,7 +14,7 @@ test('music session is selected before audio startup and restored on disable or 
  }
  try{
   for(const [key,value] of Object.entries({navigator:{audioSession:session},isSecureContext:true,AudioContext:Context,AudioWorkletNode:class{constructor(){return node;}},MessageChannel:class{constructor(){this.port1={};this.port2={};}}}))Object.defineProperty(globalThis,key,{value,configurable:true});
-  const monitor=new PcmMonitor({postMessage:message=>messages.push(message)});monitor.moduleSource='';monitor.onStatus=value=>statuses.push(value);
+  const monitor=new PcmMonitor({postMessage:message=>messages.push(message)});monitor.moduleSource='// fixture';monitor.onStatus=value=>statuses.push(value);
   assert(await monitor.enable());assert.equal(session.type,'playback');
   node.port.onmessage({data:{type:'stats',rendered:1024,peak:.2}});
   assert.match(statuses.at(-1),/sound generated/);

@@ -26,6 +26,7 @@ import subprocess
 import json
 import base64
 from patch_loop_bridge import patch_loop_bridge
+from patch_actor_source import patch_actor_source
 from patch_visual_beat import patch_visual_beat
 from patch_pressure_recording import patch_pressure_recording
 from patch_arp_pressure import patch_arp_pressure
@@ -43,6 +44,8 @@ from patch_responsive_persistence import patch_responsive_persistence
 from patch_recorded_operations import patch_recorded_operations
 from patch_render_velocity import patch_render_velocity
 from patch_durable_data import patch_durable_data
+from patch_stock_field import patch_stock_field
+from patch_field_lfo import patch_field_lfo
 from pathlib import Path
 
 
@@ -607,6 +610,13 @@ def main() -> int:
     patch_clip_weave(root)
     from patch_field_play import patch_field_play
     patch_field_play(root)
+    patch_actor_source(root)
+    from patch_source_routing import patch_source_routing
+    patch_source_routing(root)
+    from patch_variation import patch_variation
+    patch_variation(root)
+    patch_stock_field(root)
+    patch_field_lfo(root)
     print("HarmonyBus clean integration applied")
     return 0
 

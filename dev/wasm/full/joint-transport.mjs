@@ -17,16 +17,16 @@ export async function openBrowserConnection(){
   socket.onclose?.();
  }
  function visibility(){worker.postMessage({type:'visibility',hidden:document.hidden});}
- function inspect(type,key){
+ function inspect(type,key,value){
   if(closed)return Promise.reject(new Error('Browser engine closed'));
-  return new Promise((resolve,reject)=>{const id=++serial;pending.set(id,{resolve,reject});worker.postMessage({type,key,id});});
+  return new Promise((resolve,reject)=>{const id=++serial;pending.set(id,{resolve,reject});worker.postMessage({type,key,value,id});});
  }
  const ready=new Promise((resolve,reject)=>{
   worker.onerror=event=>{reject(new Error(event.message));socket.onerror?.(event);close();};
   worker.onmessage=({data})=>{
    if(data.type==='ready'){socket.readyState=1;resolve(data.metadata);}
    else if(data.type==='fatal'){const error=new Error(data.message);reject(error);socket.onerror?.(error);close();}
-   else if(data.type==='reply'){const item=pending.get(data.id);pending.delete(data.id);item?.resolve(data.value);}
+   else if(data.type==='reply'){const item=pending.get(data.id);pending.delete(data.id);if(data.error)item?.reject(new Error(data.error));else item?.resolve(data.value);}
    else if(data.type==='update'||data.type==='event'){
     if(data.value.type==='audio_error')audio.disable();
     socket.onmessage?.({data:JSON.stringify(data.value)});
@@ -41,5 +41,6 @@ export async function openBrowserConnection(){
  // Asynchronous, read-only development inspection across the worker boundary.
  globalThis.__wasmRead=key=>inspect('read',key);
  globalThis.__wasmStats=()=>inspect('stats');
- return {metadata,socket,audio,label:'Browser Joint Play connected · WebAssembly Worker'};
+ const sessions={save:ui=>inspect('session-save',null,ui),open:session=>inspect('session-open',null,session)};
+ return {metadata,socket,audio,sessions,label:'Browser Joint Play connected · WebAssembly Worker'};
 }

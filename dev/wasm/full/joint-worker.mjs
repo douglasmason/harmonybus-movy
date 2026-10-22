@@ -20,6 +20,10 @@ self.onmessage=({data})=>{
   else if(data.type==='audio-start')service.attachAudio(data.port);
   else if(data.type==='audio-stop')service.detachAudio();
   else if(data.type==='audio-mix')service.mix(data.actor,data.level);
+  else if(data.type==='session-save'||data.type==='session-open'){
+   try{postMessage({type:'reply',id:data.id,value:await (data.type==='session-save'?service.save(data.value):service.open(data.value))});}
+   catch(error){postMessage({type:'reply',id:data.id,error:error.message});}
+  }
   else if(data.type==='send')service.socket.send(data.data);
   else if(data.type==='visibility')service.visibility(data.hidden);
   else if(data.type==='read'||data.type==='stats')postMessage({type:'reply',id:data.id,value:data.type==='read'?service.read(data.key):service.stats()});

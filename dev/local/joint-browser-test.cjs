@@ -34,7 +34,7 @@ const {chromium}=require('playwright');
   assert(requests.slice(recordStart).some(args=>args[0]==='set'&&args[1]==='cmd'&&args[2]===expectedRecord),'Record uses the production actor masks');
   await page.locator('#stop').click();
   await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Stopped');
-  await page.locator('summary').filter({hasText:'Audio monitor'}).click();
+  if(!await page.locator('#audio').isVisible())await page.locator('summary').filter({hasText:'Audio monitor'}).click();
   await page.locator('#audio').click();
   await page.waitForFunction(()=>__joint.monitor.enabled);
   const root=page.getByRole('button',{name:'Pad 1',exact:true});

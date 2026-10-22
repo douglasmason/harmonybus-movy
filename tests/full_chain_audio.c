@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 static int sent_on,sent_off,rejected;
+static int source_velocity_check;
 static int capture_edges,edge_count,edges[128];
 static int move_play_presses,move_play_releases;
 static unsigned rendered_mask;
@@ -23,7 +24,7 @@ static int send_packet(const uint8_t *packet,int length){
         assert(edge_count<128);
         edges[edge_count++]=(packet[1]&0xf0)==0x90&&packet[3]?1:0;
     }
-    if((packet[1]&0xf0)==0x90&&packet[3]){sent_on++;rendered_mask|=1u<<(packet[2]%12);}
+    if((packet[1]&0xf0)==0x90&&packet[3]){if(source_velocity_check)assert(packet[3]==source_velocity_check);sent_on++;rendered_mask|=1u<<(packet[2]%12);}
     if((packet[1]&0xf0)==0x80||((packet[1]&0xf0)==0x90&&!packet[3]))sent_off++;
     return 4;
 }
@@ -47,6 +48,38 @@ static long render(int blocks){
         for(int sample=0;sample<256;sample++)energy+=abs(output[sample]);
     }
     return energy;
+}
+static float field_get(const char *key){char text[128]={0};int n=api->get_param(instance,key,text,sizeof(text));assert(n>0);return strtof(text,0);}
+static void test_field_lfos(void){
+    set("cmd","stop");render(16);
+    assert(field_get("ch0:lfo1:field_source_version")==1);
+    set("ch0:midi_fx1:field_glide","0");
+    set("ch0:midi_fx1:field_outputs","fo1,10000,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1");
+    set("ch0:synth:cutoff","20");
+    set("ch0:lfo1:target","synth");set("ch0:lfo1:target_param","cutoff");
+    set("ch0:lfo1:depth","0.5");set("ch0:lfo1:polarity","1");set("ch0:lfo1:enabled","1");set("ch0:lfo1:shape","6");render(16);
+    assert(field_get("ch0:lfo1:shape")==6);assert(field_get("ch0:synth:cutoff")==20);
+    assert(field_get("ch0:synth:cutoff:effective")>=51&&field_get("ch0:synth:cutoff:effective")<=52);
+    set("ch0:midi_fx1:bypassed","1");render(16);assert(field_get("ch0:synth:cutoff:effective")==20);
+    set("ch0:midi_fx1:bypassed","0");render(16);assert(field_get("ch0:synth:cutoff:effective")>50);
+    /* Both slots can address one parameter; clearing one preserves the other. */
+    set("ch0:lfo2:shape","7");set("ch0:lfo2:target","synth");set("ch0:lfo2:target_param","cutoff");
+    set("ch0:lfo2:depth","0.25");set("ch0:lfo2:polarity","1");set("ch0:lfo2:enabled","1");render(16);
+    assert(field_get("ch0:synth:cutoff:effective")>=35&&field_get("ch0:synth:cutoff:effective")<=36);
+    set("ch0:lfo1:enabled","0");render(16);assert(field_get("ch0:synth:cutoff:effective")>=4&&field_get("ch0:synth:cutoff:effective")<=5);
+    set("ch0:lfo2:enabled","0");render(16);assert(field_get("ch0:synth:cutoff:effective")==20);
+    char saved[131072];assert(api->get_param(instance,"ch0:midi_fx1:state",saved,sizeof(saved))>0);
+    set("ch0:lfo1:shape","0");set("ch0:lfo2:shape","0");set("ch0:midi_fx1:state",saved);render(16);
+    assert(field_get("ch0:lfo1:shape")==6&&field_get("ch0:lfo2:shape")==7);
+    set("ch0:lfo1:enabled","1");render(16);
+    assert(api->get_param(instance,"ch0:midi_fx1:state",saved,sizeof(saved))>0);
+    set("ch0:midi_fx1:module","none");render(16);assert(field_get("ch0:synth:cutoff:effective")==20);
+    set("ch0:midi_fx1:module","harmonybus");render(16);set("ch0:midi_fx1:state",saved);render(16);
+    assert(field_get("ch0:lfo1:shape")==6&&field_get("ch0:synth:cutoff:effective")>50);
+    set("ch0:lfo1:enabled","0");
+    set("ch0:lfo1:shape","0");set("ch0:lfo2:shape","0");render(16);
+    assert(field_get("ch0:lfo1:shape")==0&&field_get("ch0:synth:cutoff:effective")==20);
+    puts("Field LFOs: real Movy source selection, two routes, bypass/resume, save/restore and stock waveform return pass");
 }
 static void test_shared_context(void){
     char state[65536],view[2048];
@@ -203,6 +236,109 @@ static void test_diagnostic_tone(void){
     assert(state==2&&bad==0&&max_error==0&&internal_checked==checked&&frames==total);
     set("cmd","aprof_off");
     printf("tone integration: %llu stereo samples match the independent ABI-output oracle\n",(unsigned long long)checked);
+}
+
+
+static void test_source_weaving(void){
+    char parameter[128];
+    set("cmd","stop");render(16);
+    set("ch0:midi_fx1:performance_reset","1");
+    set("ch0:midi_fx1:master_transpose","C");
+    for(int track=0;track<16;track++){
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:role",track);set(parameter,"Off");
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:render_channel",track);set(parameter,"Off");
+        snprintf(parameter,sizeof(parameter),"ch%d:mix",track);set(parameter,"1,0,1,0,0");
+    }
+    set("ch3:midi_fx1:role","Follower");set("ch3:midi_fx1:render_channel","4");
+    set("ch3:midi_fx1:content_map","Free");set("ch3:midi_fx1:travel_map","None");
+    set("ch3:midi_fx1:chord_mode","Off");set("ch3:midi_fx1:arp_playback","Together");
+    set("ch3:midi_fx1:follower_root_policy","Explicit");set("ch3:midi_fx1:follower_explicit_root","C");
+    set("ch3:mix","1,0,0,0,0");
+    set("state","movy1\nbpm 12000\nlink 0\ntk 1 0 0\ntk 2 0 0\ntk 3 0 0\ncl 1 0 16 0 0:48:60:100:0;0:48:64:80:0;192:48:67:90:8\ncl 2 0 16 0 0:24:36:100:0;96:24:36:100:4\ncl 3 0 16 0 0:24:30:100:0\nsr 3 1 1 0 2 0 0\n");
+    render(16);sent_on=sent_off=0;rendered_mask=0;
+    set("cmd","play");long energy=render(240);set("cmd","stop");render(32);
+    fprintf(stderr,"source melody: pcm=%ld on=%d off=%d mask=%u\n",energy,sent_on,sent_off,rendered_mask);
+    assert(energy>0&&sent_on==3&&sent_off==3&&rendered_mask==((1u<<0)|(1u<<4)|(1u<<7)));
+    /* Independent raw expression donor through the actual MIDI/HB/audio chain. */
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 1 0 0\ntk 2 0 0\ntk 3 0 0\ncl 0 0 16 0 0:48:90:42:0\ncl 1 0 16 0 0:48:60:100:0;0:48:64:80:0;192:48:67:90:8\ncl 2 0 16 0 0:24:36:100:0;96:24:36:100:4\ncl 3 0 16 0 0:24:30:100:0\nsr 3 1 1 0 2 0 0 0 0\n");
+    render(16);sent_on=sent_off=0;rendered_mask=0;source_velocity_check=42;
+    set("cmd","play");energy=render(240);set("cmd","stop");render(32);
+    source_velocity_check=0;
+    assert(energy>0&&sent_on==3&&sent_off==3&&rendered_mask==((1u<<0)|(1u<<4)|(1u<<7)));
+    /* Parameter target matching reaches the production chain before note-on. */
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 2 0 0\ntk 3 0 0\ncl 0 0 16 0 \ncl 2 0 16 0 0:48:36:100:0\ncl 3 0 16 0 0:48:60:100:0\nsr 3 1 -1 -1 2 0 0 -1 -1 0 0\n");
+    render(16);
+    set("ch0:knob_6_set","synth:cutoff");set("ch3:knob_2_set","synth:cutoff");
+    char parameter_view[8192];
+    api->get_param(instance,"ch3:chain_params",parameter_view,sizeof(parameter_view));
+    set("cmd","alabel 0 5 synth:cutoff;abase 0 5 33;aset 0 5 0 91;alabel 3 1 synth:cutoff;abase 3 1 19;aset 3 1 0 44");render(16);
+    sent_on=sent_off=0;set("cmd","play");energy=render(16);
+    api->get_param(instance,"ch3:synth:cutoff",parameter_view,sizeof(parameter_view));
+    fprintf(stderr,"instrument borrowed cutoff=%s\n",parameter_view);assert(atoi(parameter_view)==91);
+    api->get_param(instance,"ch3:synth:attack_cutoff",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==91);
+    set("cmd","mute 0 1");render(16);
+    api->get_param(instance,"ch3:synth:cutoff",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==44);
+    set("cmd","stop");render(32);
+    api->get_param(instance,"ch3:synth:cutoff",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==19);
+    assert(energy>0&&sent_on==1&&sent_off==1);
+    /* Independent HB rendering lane reaches the real HB note renderer. */
+    set("state","movy1\nbpm 12000\nlink 0\ntk 1 0 0\ntk 2 0 0\ntk 3 0 0\ncl 1 0 16 0 \ncl 2 0 16 0 0:48:36:100:0\ncl 3 0 16 0 0:48:60:100:0\nsr 3 1 -1 -1 2 0 0 -1 -1 -1 -1 1 0\n");
+    render(16);
+    set("ch1:knob_7_set","midi_fx1:render_velocity_percent");set("ch3:knob_3_set","midi_fx1:render_velocity_percent");
+    api->get_param(instance,"ch3:chain_params",parameter_view,sizeof(parameter_view));
+    set("cmd","alabel 1 6 midi_fx1:render_velocity_percent;abase 1 6 32;aset 1 6 0 127;alabel 3 2 midi_fx1:render_velocity_percent;abase 3 2 127;aset 3 2 0 0");render(16);
+    sent_on=sent_off=0;source_velocity_check=127;
+    set("cmd","play");energy=render(16);source_velocity_check=0;
+    api->get_param(instance,"ch3:midi_fx1:render_velocity_percent",parameter_view,sizeof(parameter_view));
+    fprintf(stderr,"HB borrowed render velocity=%s\n",parameter_view);assert(atoi(parameter_view)==400);
+    set("cmd","mute 1 1");render(16);
+    api->get_param(instance,"ch3:midi_fx1:render_velocity_percent",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==0);
+    set("cmd","stop");render(32);
+    api->get_param(instance,"ch3:midi_fx1:render_velocity_percent",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==400);
+    assert(energy>0&&sent_on==1&&sent_off==1);
+    set("ch3:midi_fx1:render_velocity_percent","100");
+    /* Raw recorded operations use HB's ordinary onset and release owner. */
+    char operation_state[4096];
+    int used=snprintf(operation_state,sizeof(operation_state),"movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 2 0 0\ntk 3 0 0\ncl 0 0 16 0 0:48:90:20:0\ncl 2 0 16 0 0:48:36:100:0;96:48:36:100:4\ncl 3 0 16 0 0:48:60:100:0\nsr 3 1 -1 -1 2 0 0 -1 -1 -1 -1 -1 -1 0 0\nra 0 0 0 0");
+    for(int lane=0;lane<52;lane++){
+        unsigned long long word=lane==51?0:(1ULL<<63);
+        if(lane==0)word|=(16ULL<<32)|2000; /* Recorded Transpose +2 semitones. */
+        used+=snprintf(operation_state+used,sizeof(operation_state)-(size_t)used,",%llu",word);
+    }
+    snprintf(operation_state+used,sizeof(operation_state)-(size_t)used,"\n");
+    set("state",operation_state);render(16);sent_on=sent_off=0;rendered_mask=0;
+    set("cmd","play");energy=render(16);
+    fprintf(stderr,"borrowed note operations: mask=%u\n",rendered_mask);assert(sent_on==1&&rendered_mask==(1u<<2));
+    set("cmd","mute 0 1");energy+=render(240);set("cmd","stop");render(32);
+    assert(energy>0&&sent_on==2&&sent_off==2&&rendered_mask==((1u<<2)|1));
+    /* Borrow raw Grid holds through the same HB sequence/live hold owners. */
+    set("ch3:midi_fx1:motion_operation_1","Transpose");set("ch3:midi_fx1:motion_control_1","2");
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 2 0 0\ntk 3 0 0\ncl 0 0 16 0 \ncl 2 0 16 0 0:48:36:100:0;96:48:36:100:4\ncl 3 0 16 0 0:48:60:100:0\ngg 0 0 0 192 0\nsr 3 1 -1 -1 2 0 0 -1 -1 -1 -1 -1 -1 -1 -1 0 0\n");
+    render(16);sent_on=sent_off=0;rendered_mask=0;
+    set("cmd","play");energy=render(16);
+    assert(sent_on==1&&rendered_mask==(1u<<2));
+    set("ch3:midi_fx1:motion_hold_1","On");
+    set("cmd","mute 0 1");render(16);
+    api->get_param(instance,"ch3:midi_fx1:motion_sequence_mask",parameter_view,sizeof(parameter_view));assert(atoi(parameter_view)==0);
+    api->get_param(instance,"ch3:midi_fx1:motion_hold_1",parameter_view,sizeof(parameter_view));assert(!strcmp(parameter_view,"On"));
+    set("ch3:midi_fx1:motion_hold_1","Off");energy+=render(224);set("cmd","stop");render(32);
+    assert(energy>0&&sent_on==2&&sent_off==2&&rendered_mask==((1u<<2)|1));
+    set("ch3:midi_fx1:motion_operation_1","Off");
+    /* Existing conductor-chord generation consumes the woven trigger directly.
+       Root Only and Triad exercise bass and comp without another harmony state. */
+    set("ch0:midi_fx1:role","Conductor");set("ch0:midi_fx1:chord_mode","Off");
+    set("ch3:midi_fx1:chord_mode","Conductor Chord");
+    set("ch3:midi_fx1:chord_inversion","Root");
+    for(int comp=0;comp<2;comp++){
+        set("ch3:midi_fx1:chord_form",comp?"Triad":"Root Only");
+        set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 2 0 0\ntk 3 0 0\ncl 0 0 16 0 0:384:60:100:0;0:384:64:100:0;0:384:67:100:0\ncl 2 0 16 0 0:24:36:100:0;96:24:36:100:4\ncl 3 0 16 0 0:24:60:100:0\nsr 3 1 -1 -1 2 0 0\n");
+        render(16);sent_on=sent_off=0;rendered_mask=0;
+        set("cmd","play");energy=render(240);set("cmd","stop");render(32);
+        fprintf(stderr,"source %s: pcm=%ld on=%d off=%d mask=%u\n",comp?"comp":"bass",energy,sent_on,sent_off,rendered_mask);
+        assert(energy>0&&sent_on==(comp?6:2)&&sent_off==sent_on);
+        assert(rendered_mask==(comp?((1u<<0)|(1u<<4)|(1u<<7)):(1u<<0)));
+    }
+    puts("source weaving: actual Movy/chain/HB melody, conductor root and comp with paired releases pass");
 }
 
 int main(int argc,char **argv){
@@ -366,6 +502,8 @@ int main(int argc,char **argv){
     printf("audio callback profile (desktop fixture, microseconds): %s\n",profile);
     set("cmd","aprof_off");
     api->get_param(instance,"status",status,sizeof(status));assert(strstr(status," aprof=0,")&&strstr(status," rprof=0,"));
+    test_source_weaving();
     test_diagnostic_tone();
+    test_field_lfos();
     api->destroy_instance(instance);return 0;
 }

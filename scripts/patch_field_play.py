@@ -140,4 +140,4 @@ mod field_tests {
     # A changed DSP contract must not be mistaken for an already running build.
     for relative in ('src/seq/constants.ts', 'engine/crates/movy-dsp/src/lib.rs'):
         path = root / relative
-        path.write_text(path.read_text().replace('0.71.0-hb200', '0.71.0-hb207-field3'))
+        path.write_text(path.read_text().replace('0.71.0-hb200', '0.71.0-hb209-field5'))

@@ -1,6 +1,7 @@
 import './build/joint-env.mjs';
 import {openJointConnection} from './joint-connection.mjs';
 import {AudioMonitor} from './audio-monitor.mjs';
+import {engineReadKey} from './protocol-policy.mjs';
 let monitor=new AudioMonitor();
 const audioButton=document.querySelector('#audio');audioButton.disabled=true;
 const disableAudio=()=>{monitor.disable();audioButton.textContent='Enable audio';audioButton.setAttribute('aria-pressed','false');};
@@ -13,14 +14,24 @@ for(const [actor,name] of ['Root','Bass','Comp','Melody'].entries()){
  label.append(volume,mute,document.createTextNode(' Mute'));document.querySelector('#audio-mix').append(label);
 }
 const status=document.querySelector('#status');
-const {metadata,socket,label,audio}=await openJointConnection();
+const {metadata,socket,label,audio,sessions}=await openJointConnection();
 if(audio){monitor=audio;audio.onStatus=text=>{document.querySelector('#audio-status').textContent=text;};audio.onDisable=()=>{audioButton.textContent='Enable audio';audioButton.setAttribute('aria-pressed','false');};document.querySelector('#audio-status').textContent='NuSaw · compiled Schwung synth audio';}
 audioButton.disabled=false;
+if(audio){
+ document.querySelector('#audio-test').hidden=false;document.querySelector('#audio-diagnostics').hidden=false;
+ audio.onDiagnostic=value=>{document.querySelector('#audio-report').textContent=JSON.stringify(value,null,2);};
+ document.querySelector('#audio-test').onclick=async()=>{try{await audio.testSpeaker();audioButton.textContent='Disable audio';audioButton.setAttribute('aria-pressed','true');}catch(error){document.querySelector('#audio-status').textContent=error.message;}};
+ document.querySelector('#audio-copy').onclick=async()=>{try{await navigator.clipboard.writeText(document.querySelector('#audio-report').textContent);}catch{document.querySelector('#audio-status').textContent='Select and copy the diagnostics text, or take a screenshot.';}};
+}
 const cache=new Map(),demand=new Map();let connected=false;
 
 const send=message=>{if(socket.readyState===1)socket.send(JSON.stringify(message));};
 let routingCells=[];
 const write=(key,value)=>{if(key==='joint_map')routingCells=value==='off'?[]:value.split(';').map(cell=>cell.split(',').map(Number));send({type:'set_param',key,value:String(value)});return connected;};
+globalThis.host_browser_engine_ready=()=>connected;
+globalThis.host_module_get_param=key=>{if(!engineReadKey.test(key))return null;demand.set(key,Date.now());return cache.get(key)??null;};
+globalThis.host_module_set_param=(key,value)=>{if(key!=='cmd')return false;send({type:'dev_engine_edit',value});return connected;};
+globalThis.host_module_set_param_blocking=globalThis.host_module_set_param;
 await new Promise((resolve,reject)=>{
   socket.onopen=()=>send({type:'subscribe_tool'});
   socket.onerror=()=>reject(new Error('Native connection failed'));
@@ -156,3 +167,12 @@ const timer=setInterval(()=>{
 },40);
 // Read-only inspection for browser tests; all input still uses production handlers.
 globalThis.__joint={joint,page:jointPage,monitor};
+
+// The same production Joint snapshot/restore methods used by the hardware UI.
+if(sessions){
+ const {mountSessions}=await import('./session-ui.mjs');
+ await mountSessions({sessions,captureUI:()=>({joint:joint.jointSnapshot(),focusGroup:appState.focusGroup,levels:monitor.levels,muted:monitor.muted}),
+ restoreUI:ui=>{joint.restoreJoint(ui?.joint);appState.focusGroup=Number.isInteger(ui?.focusGroup)&&ui.focusGroup>=0&&ui.focusGroup<4?ui.focusGroup:0;
+  for(let actor=0;actor<4;actor++){const level=ui?.levels?.[actor]??.6,muted=ui?.muted?.[actor]??false;monitor.levels[actor]=level;monitor.muted[actor]=muted;document.querySelectorAll('#audio-mix input[type=range]')[actor].value=String(level);document.querySelectorAll('#audio-mix input[type=checkbox]')[actor].checked=muted;}
+ },disableAudio,isStopped:()=>/(?:^| )play=0/.test(cache.get('status')??''),release:()=>document.querySelector('#release').click()});
+}

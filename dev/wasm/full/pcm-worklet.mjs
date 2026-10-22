@@ -2,7 +2,7 @@
 class PcmSink extends AudioWorkletProcessor {
  constructor(){
   super();this.stream=null;this.epoch=0;this.queue=[];this.offset=0;this.frames=0;this.pending=false;
-  this.stats={rendered:0,underruns:0,peak:0};this.quanta=0;
+  this.stats={rendered:0,underruns:0,peak:0,received:0,enginePeak:0};this.quanta=0;
   this.port.onmessage=({data})=>{
    if(data.type!=='connect')return;
    this.stream=data.port;
@@ -12,7 +12,8 @@ class PcmSink extends AudioWorkletProcessor {
     }else if(message.type==='pcm'&&message.epoch===this.epoch){
      this.pending=false;
      if(message.pcm.length!==2048||this.frames+1024>2048)return;
-     this.queue.push(message.pcm);this.frames+=1024;
+     this.queue.push(message.pcm);this.frames+=1024;this.stats.received+=1024;
+     this.stats.enginePeak=message.peak??0;
     }
    };this.stream.start();
   };

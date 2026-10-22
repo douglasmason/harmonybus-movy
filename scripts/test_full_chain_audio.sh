@@ -27,7 +27,7 @@ cc -O1 -shared -fPIC -include sys/mman.h -include unistd.h \
 cp "$HB_SOURCE/modules/harmonybus/module.json" "$FIXTURE_ROOT/midi_fx/harmonybus/module.json"
 cc -O1 -shared -fPIC -I"$SCHWUNG_SOURCE/src" "$INTEGRATION_ROOT/tests/audio_probe.c" -o "$FIXTURE_ROOT/sound_generators/probe/dsp.so"
 cat > "$FIXTURE_ROOT/sound_generators/probe/module.json" <<'JSON'
-{"id":"probe","name":"PCM Probe","version":"1.0.0","api_version":2,"capabilities":{"chain_params":[],"component_type":"sound_generator"}}
+{"id":"probe","name":"PCM Probe","version":"1.0.0","api_version":2,"capabilities":{"chain_params":[{"key":"cutoff","name":"Cutoff","type":"int","min":0,"max":127,"default":0}],"component_type":"sound_generator"}}
 JSON
 cc -O1 -I"$SCHWUNG_SOURCE/src" "$INTEGRATION_ROOT/tests/full_chain_audio.c" -ldl -o "$FIXTURE_ROOT/full-chain-test"
 cargo build --manifest-path "$MOVY_SOURCE/engine/Cargo.toml" -p movy-dsp

@@ -10,6 +10,13 @@ export async function buildJoint({root,source,schwung,esbuild}) {
   await esbuild.build({entryPoints:[resolve(root,'joint.mjs')],bundle:true,format:'esm',platform:'browser',
     external:['/wasm/*'],outfile:resolve(root,'build/joint.js'),alias:{movy:resolve(source,'src')},
     plugins:[{name:'schwung-shared-pages',setup(build){
+      // Only adapt the device boot-ready predicate. The Worker/native owner has
+      // already loaded and verified the engine; the UI must not dlopen hardware paths.
+      build.onLoad({filter:/\/seq\/engine\.ts$/},async args=>{
+        const text=await readFile(args.path,'utf8'),anchor="return bootState === 'ok';";
+        if(text.split(anchor).length!==2)throw new Error('Engine readiness adapter anchor changed');
+        return {contents:text.replace(anchor,"return globalThis.host_browser_engine_ready?.() === true;"),loader:'ts'};
+      });
       build.onResolve({filter:/^\/data\/UserData\/schwung\/shared\//},args=>({path:resolve(schwung,'src/shared',args.path.split('/shared/')[1])}));
     }}]});
 }

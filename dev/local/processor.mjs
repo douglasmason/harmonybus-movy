@@ -12,14 +12,14 @@ export class Processor {
     this.process.on('exit',code=>fail(new Error(`Processor exited (${code}): ${this.lastLog??''}`)));
     createInterface({input:this.process.stdout}).on('line',line=>{
       const request=this.pending.shift();
-      try {const result=JSON.parse(line);if(result.overflow)throw new Error('Native MIDI capture overflow');this.onResult(result);request?.resolve(result)} catch(error){request?.reject(error)}
+      try {const result=JSON.parse(line);if(result.overflow)throw new Error('Native MIDI capture overflow');this.onResult(result,request?.command);request?.resolve(result)} catch(error){request?.reject(error)}
     });
   }
   request(operation,...arguments_) {
     if(this.dead)return Promise.reject(new Error('Processor unavailable'));
     if(this.pending.length>=128)return Promise.reject(new Error('Processor command queue full'));
     if([operation,...arguments_].some(value=>/[\t\r\n]/.test(String(value))))return Promise.reject(new Error('Invalid command separator'));
-    return new Promise((resolve,reject)=>{this.pending.push({resolve,reject});this.process.stdin.write([operation,...arguments_].join('\t')+'\n')});
+    return new Promise((resolve,reject)=>{this.pending.push({resolve,reject,command:{operation,key:arguments_[0]}});this.process.stdin.write([operation,...arguments_].join('\t')+'\n')});
   }
   close(){this.process.stdin.end()}
 }

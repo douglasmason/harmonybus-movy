@@ -24,6 +24,7 @@ int full_count(void){return count;}
 int full_overflow(void){return overflow;}
 uint32_t full_event(int index){return index>=0&&index<count?events[index]:0;}
 void full_set(const char *key,const char *value){api->set_param(instance,key,value);}
+void full_destroy(void){if(instance){api->destroy_instance(instance);instance=NULL;}}
 const char *full_get(const char *key){static char value[1048576];value[0]=0;int length=api->get_param(instance,key,value,sizeof(value));return length<0||length>=sizeof(value)?NULL:value;}
 /* Fixed 128-frame production blocks, interleaved stereo; bounded audio batch. */
 const int16_t *full_render(int blocks){

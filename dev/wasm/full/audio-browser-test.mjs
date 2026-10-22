@@ -9,7 +9,7 @@ try{
  page.on('pageerror',error=>errors.push(error.message));
  await page.goto(`http://127.0.0.1:${server.address().port}/joint?engine=wasm`);
  await page.waitForFunction(()=>globalThis.__joint?.page().ready);
- await page.locator('details').first().locator('summary').click();
+ if(!await page.locator('#audio').isVisible())await page.locator('details').first().locator('summary').click();
  await page.locator('#audio').click();
  await page.waitForFunction(()=>__joint.monitor.enabled&&__joint.monitor.stats.rendered>0);
  assert.equal(await page.evaluate(()=>__joint.monitor.context.sampleRate),44100);
@@ -33,7 +33,11 @@ try{
  await page.waitForFunction(()=>{const samples=new Float32Array(2048);__joint.monitor.analyser.getFloatTimeDomainData(samples);return samples.some(value=>Math.abs(value)>.001);});
  await page.keyboard.up('Space');await page.locator('#stop').click();
  await page.waitForFunction(()=>{const monitor=__joint.monitor;const samples=new Float32Array(monitor.analyser.fftSize);monitor.analyser.getFloatTimeDomainData(samples);return samples.every(value=>Math.abs(value)<.0001);});
+ await page.locator('#record').click();await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Recording');
+ await pad.focus();await page.keyboard.down('Space');await page.waitForTimeout(300);await page.keyboard.up('Space');await page.locator('#stop').click();
+ await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('Saved on this device'));
  await page.locator('#play').click();await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Playing');
+ await page.waitForFunction(()=>{const samples=new Float32Array(2048);__joint.monitor.analyser.getFloatTimeDomainData(samples);return samples.some(value=>Math.abs(value)>.001);});
  await page.evaluate(()=>__joint.monitor.context.suspend());
  await page.waitForFunction(async()=>!(await __wasmStats()).audioClock);
  await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Stopped');

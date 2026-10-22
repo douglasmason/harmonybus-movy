@@ -6,7 +6,9 @@ export const files=new Map([['/','index.html'],['/engine.mjs','engine.mjs'],['/b
 for(const [route,file] of [
  ['/joint','../local/joint.html'],['/joint.js','../local/build/joint.js'],
  ['/local/protocol-policy.mjs','../local/protocol-policy.mjs'],
- ...['engine.mjs','joint-transport.mjs','joint-service.mjs','joint-worker.mjs','pcm-monitor.mjs','pcm-worklet.mjs'].map(name=>['/wasm/full/'+name,'full/'+name]),
+ ['/local/observations.mjs','../local/observations.mjs'],
+ ['/local/build/session-codecs.mjs','../local/build/session-codecs.mjs'],
+ ...['engine.mjs','joint-transport.mjs','joint-service.mjs','joint-worker.mjs','pcm-monitor.mjs','pcm-worklet.mjs','session.mjs'].map(name=>['/wasm/full/'+name,'full/'+name]),
  ...['engine.mjs','engine.wasm','modules/midi_fx/harmonybus/module.json','NuSaw-LICENSE.txt'].map(name=>['/wasm/build/full/'+name,'build/full/'+name])
 ])files.set(route,file);
 export function serve(port=7702,siteRoot=null) {

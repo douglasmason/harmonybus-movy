@@ -9,7 +9,7 @@ on:
       - 'tests/full_chain_audio.c'
       - '.github/workflows/local-processor.yml'
   push:
-    branches: [dev/local-current-20261021]
+    branches: [dev/local-current-20261021, dev/browser-audio-sessions-20261022]
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,6 +22,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Pin Rust toolchain
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup default 1.99.1
       - name: Build production processor and compare native/API behavior
         run: bash dev/local/setup.sh
       - name: Install test browser
@@ -42,11 +46,12 @@ jobs:
           bash dev/wasm/prepare.sh
           node --test dev/wasm/test.mjs
           node dev/wasm/browser-test.mjs
-          node --test dev/wasm/full/test.mjs dev/wasm/full/pcm-worklet-test.mjs dev/wasm/full/pcm-monitor-test.mjs
+          node --test dev/wasm/full/test.mjs dev/wasm/full/pcm-worklet-test.mjs dev/wasm/full/pcm-monitor-test.mjs dev/wasm/full/session-test.mjs dev/wasm/full/service-test.mjs
           node dev/wasm/full/browser-test.mjs
           node dev/wasm/package.mjs
           WASM_PACKAGED=1 node dev/wasm/full/browser-test.mjs
           WASM_PACKAGED=1 node dev/wasm/full/audio-browser-test.mjs
+          WASM_PACKAGED=1 node dev/wasm/full/session-browser-test.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: browser-joint-static

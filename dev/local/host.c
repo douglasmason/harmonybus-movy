@@ -46,7 +46,7 @@ static void param(const char *key) {
     if(length<0 || length>=(int)sizeof(value)) printf("null"); else quote(value);
 }
 static void snapshot(void) {
-    const char *keys[]={"role","version","travel_map","master_transpose","harmony_snapshot","follower_snapshot","shared_context_snapshot","pad_view","field_outputs_view2"};
+    const char *keys[]={"role","version","travel_map","master_transpose","harmony_snapshot","harmony_source_snapshot","follower_snapshot","shared_context_snapshot","pad_view","field_outputs_view2"};
     putchar('{');
     for(int track=0;track<4;track++) for(size_t index=0;index<sizeof(keys)/sizeof(*keys);index++) {
         char key[128];snprintf(key,sizeof(key),"ch%d:midi_fx1:%s",track,keys[index]);

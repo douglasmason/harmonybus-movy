@@ -27,5 +27,5 @@ export async function createFullEngine(options={}) {
   }else throw new Error('Unsupported operation');
   return {value,events:events(),...(pcm?{pcm}:{})};
  }
- return {request};
+ return {request,dispose:()=>module._full_destroy()};
 }
