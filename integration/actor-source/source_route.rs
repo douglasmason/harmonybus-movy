@@ -7,7 +7,7 @@ pub struct ClipRef { pub track: usize, pub slot: usize }
 #[repr(u8)]
 pub enum Alignment { #[default] Sequential=0, Timeline=1, FitWindow=2 }
 
-/// Map one actor loop into the pitch loop without changing either clock.
+/// Map one actor loop into a source loop without changing either clock.
 /// Integer flooring keeps the result inside the half-open source window.
 pub fn fitted_phase(position:u32, actor_start:u32, actor_length:u32,
     source_start:u32, source_length:u32)->u32 {
@@ -21,6 +21,7 @@ pub struct Route {
     pub rhythm: Option<ClipRef>,
     pub alignment: Alignment,
     pub expression: Option<ClipRef>,
+    pub expression_fit: bool,
     pub instrument: Option<ClipRef>,
     pub hb_render: Option<ClipRef>,
     pub note_ops: Option<ClipRef>,
@@ -38,12 +39,14 @@ impl Route {
     }
 
     /// `actor enabled pitch-track pitch-slot rhythm-track rhythm-slot alignment [expression-track expression-slot [instrument-track instrument-slot [hb-render-track hb-render-slot [note-ops-track note-ops-slot [grid-holds-track grid-holds-slot [gesture-track gesture-slot]]]]]]`.
-    /// Alignment: 0 Sequential, 1 Timeline, 2 Fit to Window (pitch only).
+    /// An optional twentieth field selects expression Fit (0 Timeline, 1 Fit).
+    /// Pitch alignment: 0 Sequential, 1 Timeline, 2 Fit to Window.
     /// Legacy seven/nine/eleven/thirteen/fifteen/seventeen-field routes retain Own for omitted dimensions.
     /// A -1 track with -1 slot means that actor's own playing clip.
     pub fn parse(message: &str) -> Option<(usize, Self)> {
         let values: Vec<i32> = message.split_whitespace().map(str::parse).collect::<Result<_,_>>().ok()?;
-        if values.len()!=7 && values.len()!=9 && values.len()!=11 && values.len()!=13 && values.len()!=15 && values.len()!=17 && values.len()!=19 {return None;}
+        if values.len()!=7 && values.len()!=9 && values.len()!=11 && values.len()!=13 && values.len()!=15 && values.len()!=17 && values.len()!=19 && values.len()!=20 {return None;}
+        if values.len()==20 && !(0..=1).contains(&values[19]) {return None;}
         let [actor,enabled,pitch_track,pitch_slot,rhythm_track,rhythm_slot,timeline] = &values[..7] else { return None; };
         if !(0..NUM_TRACKS as i32).contains(actor) || !(0..=1).contains(enabled) || !(0..=2).contains(timeline) { return None; }
         fn reference(track: i32, slot: i32) -> Option<Option<ClipRef>> {
@@ -55,11 +58,12 @@ impl Route {
             pitch:reference(*pitch_track,*pitch_slot)?, rhythm:reference(*rhythm_track,*rhythm_slot)?,
             alignment:match timeline {0=>Alignment::Sequential,1=>Alignment::Timeline,_=>Alignment::FitWindow},
             expression:if values.len()>=9 {reference(values[7],values[8])?} else {None},
+            expression_fit:values.get(19)==Some(&1),
             instrument:if values.len()>=11 {reference(values[9],values[10])?} else {None},
             hb_render:if values.len()>=13 {reference(values[11],values[12])?} else {None},
             note_ops:if values.len()>=15 {reference(values[13],values[14])?} else {None},
             grid_holds:if values.len()>=17 {reference(values[15],values[16])?} else {None},
-            gestures:if values.len()==19 {reference(values[17],values[18])?} else {None} }))
+            gestures:if values.len()>=19 {reference(values[17],values[18])?} else {None} }))
     }
     pub fn message(self, actor: usize) -> String {
         let pitch=self.pitch.map_or((-1,-1),|source|(source.track as i32,source.slot as i32));
@@ -70,7 +74,10 @@ impl Route {
         let note_ops=self.note_ops.map_or((-1,-1),|source|(source.track as i32,source.slot as i32));
         let grid_holds=self.grid_holds.map_or((-1,-1),|source|(source.track as i32,source.slot as i32));
         let gestures=self.gestures.map_or((-1,-1),|source|(source.track as i32,source.slot as i32));
-        format!("{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}",actor,self.enabled as u8,pitch.0,pitch.1,rhythm.0,rhythm.1,self.alignment as u8,expression.0,expression.1,instrument.0,instrument.1,hb_render.0,hb_render.1,note_ops.0,note_ops.1,grid_holds.0,grid_holds.1,gestures.0,gestures.1)
+        let mut message=format!("{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}",actor,self.enabled as u8,pitch.0,pitch.1,rhythm.0,rhythm.1,self.alignment as u8,expression.0,expression.1,instrument.0,instrument.1,hb_render.0,hb_render.1,note_ops.0,note_ops.1,grid_holds.0,grid_holds.1,gestures.0,gestures.1);
+        // Preserve the older route encoding unless the new mode is selected.
+        if self.expression_fit {message.push_str(" 1");}
+        message
     }
 }
 #[derive(Clone, Copy, Debug, Default)]

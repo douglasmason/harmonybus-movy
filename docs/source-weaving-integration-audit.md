@@ -382,3 +382,41 @@ empty actors, raw edits, save/undo, recording and legacy modes. Production audio
 compares Timeline and Fit with identical rhythm material and paired releases.
 The existing explicit scheduler benchmark also runs both phase-based modes.
 No hardware deployment or latency claim.
+
+## Movy 229: expression alignment without another reader or owner
+
+Built initially from published Movy 226 / HB289, with concurrent Field and
+Participation work checked separately before integration. Reuse fitted_phase and
+factor the existing source_phase_note into a phase wrapper and source_note_at.
+Only the explicit expression donor lookup receives fitted actor phase; pitch
+alignment, Sequential cursor resets, source availability and all emission paths
+stay authoritative. Bounded raw note reads still happen only at accepted attacks.
+There is no expression timeline cache, copied clip or separate pressure owner.
+
+A default-false expression_fit flag appends an optional twentieth route field.
+Canonical output remains nineteen fields unless Fit is selected. Parsing accepts
+only 0/1 for the extension and preserves gesture fields in both lengths. Save,
+undo and UI commands use existing route ownership. Diagnostics add expression_fit
+and reuse selection_phase_ticks for the fitted expression readout. The Source
+Expression panel shares the same native source/clip keys as existing shortcuts.
+
+Pressure curves are immutable per-note copies already retained by existing gates.
+Fit changes the expression note selected at attack, not pressure point timing.
+Held notes survive mode/source changes; rhythm-clock timing and termination remain
+unchanged. A donor restart does not restart fitted actor progress; an actor
+restart does. Missing/stopped/muted donors block new attacks; available empty
+expression is neutral. Recording/Off bypasses routing. No operations or parameter
+values are written back. Older modes/saves stay unchanged; new Fit routes require
+the new reader. Woven forecast eligibility remains the 225 conservative rule.
+
+Six native regressions cover independent modes, both track orders and donor rates,
+actor/donor relaunch, nonzero windows, source loss, neutral empty material, retained
+pressure/release ownership, edits, pitch-cursor continuity, save/undo/recording,
+legacy parsing and gesture preservation. Shared-controller tests cover alignment,
+readback and fitted phase display. The production audio fixture compares 40/40
+Timeline velocities with 40/80 fitted velocities under the same Sequential pitch
+and rhythm material, including paired releases. The explicit scheduler benchmark
+now includes fitted expression. No physical deployment or latency claim.
+
+Integrated concurrent Clip Participation 228 (e49a5fb), preserving its follower
+rests and live-note ownership. Final verification uses the combined source tree.
