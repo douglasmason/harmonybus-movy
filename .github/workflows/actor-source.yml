@@ -72,6 +72,7 @@ jobs:
           # Dedicated Joint/session and full logic suites cover the current UI.
           node browser-test/device-scripts.mjs
           node ../tests/field_lfo_ui.mjs .
+          node ../tests/field_routes_ui.mjs .
       - name: Native sequencer, DSP and full production chain
         run: |
           cargo test --manifest-path movy/engine/Cargo.toml -p seq-core -p movy-dsp

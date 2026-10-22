@@ -346,5 +346,5 @@ learning time because its earlier tests intentionally exercise dynamic HB state.
 
 This establishes honest suspension, not accurate multi-source forecasts. Keep
 revision hashing and its 223 coverage; other live/automatic/stochastic rendering
-eligibility remains distinct. Preserve concurrent Song Section shaping 224 before
-publication and rerun the combined release gates.
+eligibility remains distinct. Integrated published Song Section shaping 224 (main a339c51) without conflicts;
+the combined release gates include its audio fixtures and the Field route UI checks.
