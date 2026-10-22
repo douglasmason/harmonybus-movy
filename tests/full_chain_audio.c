@@ -10,6 +10,7 @@
 #include <string.h>
 static int sent_on,sent_off,rejected;
 static int source_velocity_check;
+static int drum_output_check;
 static int capture_source_velocity,source_velocity_count,source_velocities[16];
 static int capture_edges,edge_count,edges[128];
 static int move_play_presses,move_play_releases;
@@ -21,6 +22,10 @@ static double position(void){return beat;}
 static int clock_status(void){return 0;}
 static int send_packet(const uint8_t *packet,int length){
     if(length!=4){rejected++;return 0;}
+    if(drum_output_check&&((packet[1]&0xf0)==0x90||(packet[1]&0xf0)==0x80)){
+        assert((packet[1]&15)==0);assert(packet[2]==38);
+        if((packet[1]&0xf0)==0x90&&packet[3])assert(packet[3]==101);
+    }
     if(capture_source_velocity&&(packet[1]&0xf0)==0x90&&packet[3]){
         assert(source_velocity_count<16);source_velocities[source_velocity_count++]=packet[3];
     }
@@ -465,6 +470,20 @@ static void test_source_weaving(void){
     puts("source weaving: actual Movy/chain/HB melody, conductor root and comp with paired releases pass");
 }
 
+static void test_drum_fill_output(void){
+    set("cmd","stop");render(32);set("chtracks","0");
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 16 0 \n");
+    set("cmd","tdrum 0 1;dfill 0 38 96 24 101");render(2);
+    sent_on=sent_off=rejected=0;drum_output_check=1;
+    set("cmd","play");render(680);set("cmd","stop");render(8);
+    assert(sent_on==4&&sent_off==4&&rejected==0);
+    sent_on=sent_off=0;set("cmd","play");render(560);
+    assert(sent_on>0&&sent_on<4);set("cmd","stop");render(8);
+    assert(sent_on==sent_off);
+    drum_output_check=0;
+    puts("Drum fill: production stock-track output uses MIDI channel 1, exact sample pitch and paired releases including early stop");
+}
+
 int main(int argc,char **argv){
     assert(argc==4);
     void *handle=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL);
@@ -629,5 +648,6 @@ int main(int argc,char **argv){
     test_source_weaving();
     test_diagnostic_tone();
     test_field_lfos();
+    test_drum_fill_output();
     api->destroy_instance(instance);return 0;
 }
