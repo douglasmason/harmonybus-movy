@@ -52,7 +52,7 @@ def patch_session_selector(root: Path) -> None:
     path.write_text(source)
     path = root / 'src/app/tick.ts'
     source = "import { renderInputModeSelector } from '../seq/router-buttons.js';\n" + path.read_text()
-    source = replace_once(source, '        /* Quantize panel:', '        renderInputModeSelector();\n        /* Quantize panel:')
+    source = replace_once(source, '        /* Track-volume slider', '        renderInputModeSelector();\n        /* Track-volume slider')
     path.write_text(source)
     path = root / 'src/app/input-reset.ts'
     source = "import { resetInputModeSelector } from '../seq/router-buttons.js';\n" + path.read_text()
