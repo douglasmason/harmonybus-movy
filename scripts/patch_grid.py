@@ -83,7 +83,7 @@ def patch_grid(root: Path) -> None:
     source = source.replace("'Motif Play', 'Joint Play'][next]", "'Motif Play', 'Joint Play', 'Grid Sequencer'][next]")
     path.write_text(source)
     path = root / 'src/app/tick.ts'
-    source = "import { gridActive, paintGrid, renderGrid } from '../seq/grid.js';\n"+path.read_text()
+    source = "import { gridActive, gridTouchPage, paintGrid, renderGrid } from '../seq/grid.js';\n"+path.read_text()
     source = source.replace('    if(jointActive()){paintJointPads();return;}','    if(gridActive()){paintGrid();return;}\n    if(jointActive()){paintJointPads();return;}')
     source = source.replace('        } else if (jointActive()) {','        } else if (gridActive()) {\n            renderGrid();\n        } else if (jointActive()) {')
     path.write_text(source)
