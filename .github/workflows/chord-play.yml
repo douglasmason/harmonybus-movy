@@ -1,7 +1,7 @@
 name: Chord Play verification and package
 on:
   push:
-    branches: [main, work/grid-overview-20261024]
+    branches: [main, work/grid-directions]
     paths:
       - integration/chord-play/**
       - integration/grid/**
@@ -35,7 +35,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.237
+  SOURCE_VERSION: 0.34.1-hbclean.238
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -113,7 +113,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: grid-overview-237
+          name: grid-directions-238
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -133,7 +133,7 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.236':
+          if metadata['version'] != '0.34.1-hbclean.237':
               raise SystemExit('Expected Movy 235 before Chord Play; installer unchanged')
           PY
           gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Grid sequence overview" --notes-file docs/chord-play.md
@@ -149,7 +149,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.236':
+          if metadata['version'] != '0.34.1-hbclean.237':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')

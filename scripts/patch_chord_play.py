@@ -34,6 +34,7 @@ def patch_chord_play(root: Path) -> None:
     source = replace_once(source, '        if(model)schwungCachedFor(track,model.getComponentKey())?.pollOperationFeedback();', '        const visiblePage=settingsActive()?settingsPage():chordActive()?chordPage():gridActive()?gridTouchPage():model?schwungCachedFor(track,model.getComponentKey()):null;\n        visiblePage?.pollOperationFeedback();')
     source = replace_once(source, '    tickField();', '    tickSettings();\n    tickChord();\n    tickField();')
     source = replace_once(source, '        } else if (fieldActive()) {', '        } else if (settingsActive()) {\n            renderSettings();\n        } else if (chordActive()) {\n            renderChord();\n        } else if (fieldActive()) {')
+    source = replace_once(source, 'const isFullScreenView = isBrowseView ||', 'const isFullScreenView = gridActive() || isBrowseView ||')
     path.write_text(source)
     path = root / 'src/seq/leds.ts'
     source = "import { paintChordSteps } from './chord-play.js';\n" + path.read_text()

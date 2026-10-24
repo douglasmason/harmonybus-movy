@@ -30,6 +30,7 @@ const freshRows=():number[]=>[60,62,64,65,67,69,71,72,...Array.from({length:16},
 let rows=Array.from({length:16},freshRows);
 let enabled=false,overview=true;
 let timeline:number[]=[];
+let occupied:number[]=[];
 let lastWindow='';
 export const gridOverview=():boolean=>overview;
 export const gridTouchPage=():SchwungPage|null=>overview||noteFocus?null:gridPage();
@@ -58,13 +59,14 @@ export function setGridEnabled(value:boolean):void {
 }
 export function gridSnapshot():number[][]{return rows.map(row=>row.slice());}
 export function restoreGrid(value:unknown):void {
-    setGridEnabled(false);overview=true;timeline=[];lastWindow='';rows=Array.from({length:16},freshRows);pages.clear();events=[[],[]];queries.clear();eventTrack=-1;lastPayload='';
+    setGridEnabled(false);overview=true;timeline=[];occupied=[];lastWindow='';rows=Array.from({length:16},freshRows);pages.clear();events=[[],[]];queries.clear();eventTrack=-1;lastPayload='';
     for(const view of Object.values(gridViews)){view.lane=0;view.page=0;view.division=0;view.follow=true;}
     if(Array.isArray(value))value.slice(0,16).forEach((row,track)=>{if(Array.isArray(row))row.slice(0,32).forEach((assignment,index)=>{if(Number.isInteger(assignment)&&assignment>=0&&assignment<144)rows[track][index]=assignment;});});
 }
 export function gridAccept(payload:string,track:number):void {
     if(lastPayload===payload&&eventTrack===track)return;
     lastPayload=payload;eventTrack=track;
+    occupied=Array.from(payload.split('/').find(section=>section.startsWith('3@'))?.slice(2)??'',Number);
     timeline=[];
     const summary=payload.split('/').find(section=>section.startsWith('2@'))?.slice(2).split(':');
     if(summary&&summary.length===3&&/^[0-3]{64}$/.test(summary[2]))timeline=Array.from(summary[2],Number);
@@ -244,7 +246,7 @@ function renderOverview():void {
     }
     const loopStart=seqState.loopStart*24,length=Math.max(16,seqState.lenSteps)*24;
     const position=(tick:number):number=>30+Math.round(Math.max(0,Math.min(1,(tick-loopStart)/length))*95);
-    fontPrint(1,40,'N',1);fontPrint(1,47,'Op',1);
+    fontPrint(1,40,'N'+gridHiddenDirections(false),1);fontPrint(1,47,'Op'+gridHiddenDirections(true),1);
     if(eventTrack===watchedTrack())for(let index=0;index<64;index++){
         const x=30+Math.floor(index*96/64),width=Math.ceil(96/64);
         if(timeline[index]&1)fill_rect(x,40,width,4,1);
@@ -255,4 +257,20 @@ function renderOverview():void {
     fill_rect(left,54,Math.max(1,right-left+1),1,1);fill_rect(left,52,1,3,1);fill_rect(right,52,1,3,1);
     if(seqState.playing)fill_rect(position(seqState.posTick),39,1,13,1);
     fontPrint(1,58,'Clip '+(length/384)+' bars / Jog: settings',1);
+}
+
+/** Directions refer to row-bank scrolling, even with custom row assignments. */
+export function gridHiddenDirections(operations:boolean):string {
+    if(eventTrack!==watchedTrack())return '';
+    const view=gridWindow('move'),assignments=rows[watchedTrack()];
+    const visible=new Set(assignments.slice(view.lane,view.lane+4));
+    let above=false,below=false,unassigned=false;
+    for(let assignment=operations?128:0;assignment<(operations?144:128);assignment++){
+        if(!occupied[assignment]||visible.has(assignment))continue;
+        const indices=assignments.flatMap((value,index)=>value===assignment?[index]:[]);
+        if(!indices.length)unassigned=true;
+        above ||= indices.some(index=>index<view.lane);
+        below ||= indices.some(index=>index>=view.lane+4);
+    }
+    return (above?'^':'')+(below?'v':'')+(unassigned?'!':'');
 }
