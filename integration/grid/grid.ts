@@ -1,3 +1,4 @@
+import { returnPreviousInputView } from './router-buttons.js';
 import { sharedPanel } from './shared-panel.js';
 const followPanel=sharedPanel();
 /** Shared grid viewport/controller. Musical state remains in the sequencer. */
@@ -193,6 +194,7 @@ export function gridMidi(data:number[]):boolean {
         else{const page=gridPage();if(page.pageIndex+delta<0)overview=true;else page.changePage(delta);}
         appState.dirty=true;return true;
     }
+    if(overview&&type===176&&key===51){if(value)returnPreviousInputView();return true;}
     if(overview){if(type===176&&key===MoveMainButton&&value){overview=false;gridPage().goToPage(0);appState.dirty=true;}return (type===176&&[51,MoveMainButton,71,72,73,74,75,76,77,78].includes(key))||((type===128||type===144)&&key<8);}
     const page=gridPage();
     if(type===176&&key>=71&&key<=78){page.knobTurn(key-71,value<64?value:value-128);appState.dirty=true;return true;}

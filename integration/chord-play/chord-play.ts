@@ -1,3 +1,4 @@
+import { returnPreviousInputView } from './router-buttons.js';
 import { sharedPanel } from './shared-panel.js';
 const followPanel=sharedPanel();
 /** Chord slots choose conductor harmony; the comp actor owns rhythm and sound. */
@@ -226,7 +227,7 @@ export function chordMidi(data:number[],panels=true):boolean{
     if(key===14){current.changePage(value<64?value:value-128);appState.dirty=true;return true;}
     if(key>=71&&key<=78){current.knobTurn(key-71,value<64?value:value-128);appState.dirty=true;return true;}
     if(key===MoveMainButton){if(value)current.click(appState.shiftHeld);return true;}
-    if(key===51){if(value&&current.back()?.action==='exit')setChordEnabled(false);return true;}
+    if(key===51){if(value&&current.back()?.action==='exit')returnPreviousInputView();return true;}
     if(key===86){if(value)recToggle(setup.conductor);return true;}
     return false;
 }

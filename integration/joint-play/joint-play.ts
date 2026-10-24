@@ -1,3 +1,4 @@
+import { returnPreviousInputView } from './router-buttons.js';
 /** Session's multi-track instrument. Tracks own sound and harmony; this module
  * owns only role allocation, gestures, geometry and cached preview requests. */
 import { appState } from '../app/state.js';
@@ -190,7 +191,7 @@ export function jointMidi(data:number[]): boolean {
         // DSP already dispatched and recorded this physical gesture.
         return true;
     }
-    if(status===0xb0&&key===51&&value){if(jointPage().back()?.action==='exit')setJointEnabled(false);return true;}
+    if(status===0xb0&&key===51&&value){if(jointPage().back()?.action==='exit')returnPreviousInputView();return true;}
     if(status===0xb0&&key===14){const delta=value<64?value:value-128;if(delta)jointPage().changePage(delta);appState.dirty=true;return true;}
     if(status===0xb0&&key===MoveMainButton){if(value)jointPage().click(appState.shiftHeld);appState.dirty=true;return true;}
     if(status===0xb0&&key===86){if(value)recToggle(baseTrack());return true;}

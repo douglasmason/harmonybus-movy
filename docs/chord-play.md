@@ -46,3 +46,7 @@ Long HB panel lists now use category-scoped navigation. Core mode setup, banks a
 Chord Play groups Conductor, Comp and Melody; Joint Play groups its actors; Normal/Motif Play group deeper mapping, harmony, chord/arp and rhythm controls. HB Settings starts with routing essentials and groups defaults, display, shared routing and diagnostics; its musical scale/chord controls remain in the play modes. Grid and Field retain their existing short navigation. Existing knob-touch editing, peeks, and parameter controllers remain authoritative.
 
 Category headers now clear their complete seven-pixel band before drawing the title and local panel count, replacing the surrounding app header rather than overprinting it. Pixel regressions cover Normal Play outer chrome and Chord Play routing captions.
+
+A quick double-tap of Session opens Clips directly (second press within 350 ms after the first short tap releases). Single tap still opens the selector immediately. A slower second tap cancels it. Jogging or choosing/cancelling in the selector cancels double-tap eligibility; held buttons and repeated press messages do not count as two taps. Shift+Session remains available.
+
+At the top level, Back returns to the previous input view instead of disabling the mode into Normal Play. Selecting a track from Clips makes Clips the return destination. Inner pickers, categories and Grid note/operation editors still close first. Navigation history is shared across tracks.

@@ -9,22 +9,23 @@ def patch_session_selector(root: Path) -> None:
     (root / 'src/seq/shared-panel.ts').write_text((assets / 'shared-panel.ts').read_text())
     path: Path = root / 'src/seq/router-buttons.ts'
     source: str = path.read_text()
-    source = "import { beginTrackSwitch, type TrackSnapshot } from '../track/switch.js';\nimport { renderBrowseView } from '../renderer/browse-view.js';\n" + source
+    source = "import { beginTrackSwitch, followModulePanel, type TrackSnapshot } from '../track/switch.js';\nimport { renderBrowseView } from '../renderer/browse-view.js';\n" + source
     source = source.replace('return settingsOpen() ? 7 : seqState.sessionMode ? 0 :', 'return seqState.sessionMode ? 0 : settingsOpen() ? 7 :')
     source = source.replace("import { momentaryDown, momentaryUp } from './momentary.js';\n", '')
     start: int = source.index('function advanceSessionMode(')
     end: int = source.index('    if(next===7)', start)
-    source = source[:start] + '''function selectInputMode(next: number): void {
+    source = source[:start] + '''function selectInputMode(next: number, remember=true): void {
     if(next===sessionPlayMode()){inputModeChoice=-1;return;}
     if(motifEditing()){seqToast('Finish motif edit first');return;}
     if(next===2&&schwungActiveFor(appState.activeTrack.index,'midi_fx1')?.moduleId!=='harmonybus'){seqToast('Motif Play requires HB');return;}
     if(next===3&&(!jointAvailable()||!schwungLibAvailable())){seqToast('Joint Play unavailable');return;}
+    if(remember)rememberInputView();
     inputModeChoice=-1;
     if(next===0){
         const mode=sessionPlayMode();
         clipsPanel=mode===1||mode===2?beginTrackSwitch().modulePanel:null;
         if(paramPageActive())appState.currentView=closeParamPage();
-        releaseAllLive();captureClear();seqState.sessionMode=true;
+        releaseAllLive();captureClear();seqState.sessionMode=true;inputViewHistory.length=0;
         seqToast('Clips');return;
     }
     if(next!==7){
@@ -40,10 +41,14 @@ def patch_session_selector(root: Path) -> None:
     if(d1===CC_NOTE_SESSION){
         if(d2>0){
             if(sessionSelectorHeld)return true;
-            sessionSelectorHeld=true;
-            if(shiftHeld){selectInputMode(0);appState.dirty=true;}
-            else toggleInputModeSelector();
-        }else{sessionSelectorHeld=false;sessionButtonDown(false);}
+            sessionSelectorHeld=true;sessionPressAt=Date.now();
+            if(shiftHeld||(inputModeSelectorOpen()&&sessionPressAt-sessionTapReleased>=0&&sessionPressAt-sessionTapReleased<=350)){
+                sessionTapReleased=-Infinity;selectInputMode(0);appState.dirty=true;
+            }else toggleInputModeSelector();
+        }else{
+            if(sessionSelectorHeld)sessionTapReleased=inputModeSelectorOpen()&&Date.now()-sessionPressAt<=350?Date.now():-Infinity;
+            sessionSelectorHeld=false;sessionButtonDown(false);
+        }
         return true;
     }
 
@@ -69,8 +74,10 @@ def patch_session_selector(root: Path) -> None:
     source = replace_once(source, 'export function resetHeldInput(notifyEngine: boolean): void {', 'export function resetHeldInput(notifyEngine: boolean): void {\n    resetInputModeSelector();')
     path.write_text(source)
     path = root / 'src/track/switch.ts'
-    source = "import { clipsReturnPanel } from '../seq/router-buttons.js';\n" + path.read_text()
+    source = "import { clipsReturnPanel, rememberClipsReturn } from '../seq/router-buttons.js';\n" + path.read_text()
+    source = replace_once(source, 'function followModulePanel(track:', 'export function followModulePanel(track:')
     source = replace_once(source, 'followModulePanel(track, prev.modulePanel)', 'followModulePanel(track, prev.modulePanel ?? (prev.session ? clipsReturnPanel() : null))')
+    source = replace_once(source, '    appState.trackView[prev.track] = prev.view;', '    if(prev.session)rememberClipsReturn(prev.view);\n    appState.trackView[prev.track] = prev.view;')
     path.write_text(source)
     patch_selector_tests(root)
 

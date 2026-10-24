@@ -47,3 +47,22 @@ try {
  }
 }finally{globalThis.clear_screen=oldClear;globalThis.fill_rect=oldFill;}
 console.log('Category header pixels: outer app labels and route values are fully replaced');
+// Route Back through the real MIDI dispatcher from a normal HB track panel.
+const {appState,VIEW_KNOBS,VIEW_CHAIN}=await import('../dist/esm/app/state.js');
+const {seqState}=await import('../dist/esm/seq/state.js');
+const {setGridEnabled}=await import('../dist/esm/seq/grid.js');
+const {rememberClipsReturn}=await import('../dist/esm/seq/router-buttons.js');
+setGridEnabled(false);selectTrack(0);seqState.sessionMode=false;appState.currentView=VIEW_KNOBS;
+appState.trackChainIndex[0]=appState.trackModels[0].findIndex(model=>model.getComponentKey()==='midi_fx1');
+schwungPageFor(0,'midi_fx1').goToPage(0);rememberClipsReturn(VIEW_CHAIN);
+globalThis.onMidiMessageInternal([176,51,127]);globalThis.onMidiMessageInternal([176,51,0]);
+assert(seqState.sessionMode,'Normal Play top-level Back returns to the originating Clips view');
+console.log('Actual Back dispatcher returns a normal HB track panel to Clips');
+seqState.sessionMode=false;appState.currentView=VIEW_KNOBS;
+const normal=schwungPageFor(0,'midi_fx1');normal.goToPage(normal.ctl.pages.findIndex(candidate=>candidate.keys?.includes('chord_mode')));
+const previousPanel=normal.ctl.page.name;
+const buttons=await import('../dist/esm/seq/router-buttons.js');const {seqHandleMidi}=await import('../dist/esm/seq/router.js');
+buttons.resetInputModeSelector();seqHandleMidi([176,50,127],false);seqHandleMidi([176,50,0],false);
+seqHandleMidi([176,14,5-buttons.inputModeSelectorChoice()],false);seqHandleMidi([176,MoveMainButton,127],false);seqHandleMidi([176,MoveMainButton,0],false);
+assert.equal(buttons.sessionPlayMode(),5);buttons.returnPreviousInputView();
+assert.equal(buttons.sessionPlayMode(),1);assert.equal(schwungPageFor(0,'midi_fx1').ctl.page.name,previousPanel,'Back restores the previous equivalent HB panel');
