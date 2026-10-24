@@ -1,6 +1,7 @@
 """Install Chord Play and the shared HB Settings destination."""
 from pathlib import Path
 from patch_responsive_persistence import replace_once
+from patch_session_selector import patch_session_selector
 
 
 def patch_chord_play(root: Path) -> None:
@@ -82,6 +83,7 @@ def patch_chord_play(root: Path) -> None:
         path.write_text(path.read_text().replace('0.71.0-drum-fill1','0.71.0-chord-play2'))
     path = root / 'browser-test/hb-joint-panels.mjs'
     path.write_text(path.read_text().replace('[1,2,3,4,5,0,1,2,3,4,5,0]', '[1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0]').replace('six-mode Session cycle','eight-mode Session cycle'))
+    patch_session_selector(root)
     patch_native(root)
 
 
