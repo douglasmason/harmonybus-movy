@@ -30,7 +30,8 @@ def patch_chord_play(root: Path) -> None:
     path.write_text(source)
     path = root / 'src/app/tick.ts'
     source = "import { chordActive, chordPage, tickChord, renderChord } from '../seq/chord-play.js';\nimport { settingsActive, settingsPage, tickSettings, renderSettings } from '../seq/hb-settings.js';\n" + path.read_text()
-    source = replace_once(source, 'const touchPage = activeModel ?', 'const touchPage = settingsActive() ? settingsPage() : chordActive() ? chordPage() : activeModel ?')
+    source = replace_once(source, 'const touchPage = activeModel ?', 'const touchPage = settingsActive() ? settingsPage() : chordActive() ? chordPage() : gridActive() ? gridTouchPage() : activeModel ?')
+    source = replace_once(source, '        if(model)schwungCachedFor(track,model.getComponentKey())?.pollOperationFeedback();', '        const visiblePage=settingsActive()?settingsPage():chordActive()?chordPage():gridActive()?gridTouchPage():model?schwungCachedFor(track,model.getComponentKey()):null;\n        visiblePage?.pollOperationFeedback();')
     source = replace_once(source, '    tickField();', '    tickSettings();\n    tickChord();\n    tickField();')
     source = replace_once(source, '        } else if (fieldActive()) {', '        } else if (settingsActive()) {\n            renderSettings();\n        } else if (chordActive()) {\n            renderChord();\n        } else if (fieldActive()) {')
     path.write_text(source)

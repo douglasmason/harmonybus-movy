@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {installEnv} from './env.mjs';
-installEnv();await import('../dist/esm/app/globals.js');
+const env=installEnv();await import('../dist/esm/app/globals.js');
 const grid=await import('../dist/esm/seq/grid.js');
 const {appState}=await import('../dist/esm/app/state.js');
 const {seqState}=await import('../dist/esm/seq/state.js');
@@ -23,7 +23,16 @@ installMockEngine();seqEngineTick();setFlag('chtracks',1);seqState.reportedTrack
 let now=10000;Date.now=()=>now;
 grid.restoreGrid(null);grid.setGridEnabled(true);assert.equal(padsPlayNotes(),false,'grid never forwards cell edits to the synth');
 assert(schwungLibAvailable());const page=grid.gridPage();for(let tick=0;tick<5;tick++){now+=100;page.tick();}
-assert.equal(page.keyAt(0),'grid_row_0','shared panel owns row assignment');assert.equal(page.keyAt(7),'grid_follow');
+assert(grid.gridOverview());assert.equal(grid.gridTouchPage(),null,'overview never polls a hidden settings page');
+assert.equal(page.keyAt(0),'grid_div');assert.equal(page.keyAt(3),'grid_follow');
+page.goToPage(1);assert.equal(page.keyAt(0),'grid_row_0');page.goToPage(0);
+assert(!page.ctl.pages.some(panel=>panel.keys?.includes('diagnostics')));
+grid.gridMidi([176,14,1]);assert.equal(grid.gridTouchPage(),page);
+grid.gridMidi([176,14,127]);assert(grid.gridOverview());
+seqState.loopStart=0;seqState.lenSteps=16;seqState.playing=false;
+assert.equal(grid.gridWindowLabel(),'B1 1/2');grid.gridNavigate('move',1,0);assert.equal(grid.gridWindowLabel(),'B1 2/2');
+grid.gridNavigate('move',1,0);assert.equal(grid.gridWindowLabel(),'B1 2/2','last window clamps to loop');
+grid.gridViews.move.follow=true;
 seqState.playing=true;seqState.posTick=9*24;seqState.lenSteps=32;
 assert.equal(grid.gridWindow('move').page,1);grid.gridNavigate('move',-1,0);assert.equal(grid.gridViews.move.follow,false);assert.equal(grid.gridWindow('move').page,0);
 assert.equal(grid.gridWindow('launchpad').page,1,'external viewport follows independently');
@@ -35,3 +44,26 @@ grid.restoreGrid(null);grid.setGridEnabled(true);seqState.playing=false;
 grid.gridPad('move',0,true,100,4,8,true);grid.gridPad('move',0,false,0);assert(anyStepHeld(),'pitch focus reuses step editor');
 grid.setGridEnabled(false);assert(!anyStepHeld(),'leaving releases focused step range');assert.equal(padsPlayNotes(),true);
 console.log('grid shared panels, independent surfaces, and note ownership passed');
+
+seqState.loopStart=16;seqState.lenSteps=32;seqState.playing=false;grid.gridViews.move.page=0;assert.equal(grid.gridWindowLabel(),'B2 1/2');
+grid.gridViews.move.division=2;grid.gridViews.move.page=0;assert.equal(grid.gridWindowLabel(),'B1-2');
+grid.gridViews.move.division=0;grid.setGridEnabled(true);seqState.playing=true;seqState.posTick=384;grid.gridTick();appState.dirty=false;seqState.posTick=408;grid.gridTick();assert(appState.dirty,'playhead redraws even when event payload is unchanged');
+grid.gridAccept('0@384:24:60/1@/2@384:768:'+('3'.repeat(64)),0);grid.renderGrid();
+console.log('Grid overview, two windows per bar, clip bounds, shared panel ownership and moving playhead pass');
+
+// Exercise the real app's background feedback owner, with a hidden HB page present.
+env.setParams({midi_fx1_module:'harmonybus','midi_fx1:ui_hierarchy':JSON.stringify(module.capabilities.ui_hierarchy),'midi_fx1:chain_params':JSON.stringify(module.capabilities.chain_params)});
+setFlag('setcommit',0);globalThis.init();for(let count=0;count<30;count++){now+=100;globalThis.tick();}
+const {VIEW_CHAIN}=await import('../dist/esm/app/state.js');
+const {schwungPageFor}=await import('../dist/esm/renderer/schwung-grid.js');
+appState.currentView=VIEW_CHAIN;seqState.sessionMode=false;
+const modelIndex=appState.trackModels[0].findIndex(model=>model.getComponentKey()==='midi_fx1');
+appState.trackChainIndex[0]=modelIndex;appState.activeTrack.index=0;
+const hidden=schwungPageFor(0,'midi_fx1');let hiddenPolls=0;hidden.pollOperationFeedback=()=>{hiddenPolls++;};
+grid.restoreGrid(null);grid.setGridEnabled(true);
+for(let count=0;count<3;count++){now+=100;globalThis.tick();}
+assert.equal(hiddenPolls,0,'Grid overview must not poll the underlying HB panel');
+grid.gridMidi([176,14,1]);const visible=grid.gridPage();let visiblePolls=0;const poll=visible.pollOperationFeedback;visible.pollOperationFeedback=()=>{visiblePolls++;poll();};
+for(let count=0;count<3;count++){now+=100;globalThis.tick();}
+assert.equal(hiddenPolls,0);assert(visiblePolls>0,'Grid settings own feedback in the actual app tick');
+console.log('Real app: Grid owns knob feedback; hidden HB panel cannot repaint it');

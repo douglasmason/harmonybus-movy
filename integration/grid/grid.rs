@@ -56,7 +56,7 @@ impl Engine {
     }
     pub fn grid_status(&self)->String {
         let clip=self.tracks[self.watch_track].active();
-        self.grid_views.iter().enumerate().map(|(surface,view)|{
+        let windows=self.grid_views.iter().enumerate().map(|(surface,view)|{
             let mut events=Vec::new();
             for assignment in view.rows {if assignment>143{continue;}
                 for column in 0..8 {
@@ -66,7 +66,21 @@ impl Engine {
                 }
             }
             format!("{}@{}",surface,events.join(","))
-        }).collect::<Vec<_>>().join("/")
+        }).collect::<Vec<_>>().join("/");
+        // Fixed-size summary of input content, independent of either surface's window.
+        let start=clip.loop_start_ticks();let length=clip.length_ticks().max(1);
+        let mut bins=[0u8;64];
+        for note in &clip.notes {
+            if !note.rendered&&note.tick>=start&&note.tick<start+length {
+                bins[((note.tick-start)*64/length) as usize]|=1;
+            }
+        }
+        for gate in &clip.grid_gates {
+            let begin=gate.start.max(start);let end=gate.end.min(start+length);
+            if begin<end {for index in (begin-start)*64/length..=((end-1-start)*64/length) {bins[index as usize]|=2;}}
+        }
+        let summary:String=bins.iter().map(|value|char::from(b'0'+value)).collect();
+        format!("{}/2@{}:{}:{}",windows,start,length,summary)
     }
 
 }
@@ -109,6 +123,21 @@ impl Engine {
         let mut engine=Engine::new(44100,12000);engine.grid_toggle(0,0,24,128,100);
         engine.grid_views[0]=View{start:0,division:24,rows:[128;8]};
         let status=engine.grid_status();assert!(status.starts_with("0@0:24:128"));assert!(status.len()<200);
-        engine.grid_views[0].start=192;assert_eq!(engine.grid_status(),"0@/1@");
+        engine.grid_views[0].start=192;assert!(engine.grid_status().starts_with("0@/1@/2@0:384:2222"));
+    }
+    #[test] fn overview_covers_loop_and_excludes_rendered_notes(){
+        let mut engine=Engine::new(44100,12000);
+        let clip=engine.tracks[0].active_mut();
+        clip.loop_start_steps=16;clip.length_steps=32;
+        clip.add_note_raw(16,384,24,60,100);
+        clip.add_note_raw(47,1151,1,62,100);
+        clip.add_note_raw(20,480,24,64,100);
+        clip.notes.last_mut().unwrap().rendered=true;
+        clip.grid_gates.push(Gate{start:300,end:396,lane:0});
+        clip.grid_gates.push(Gate{start:1100,end:1200,lane:1});
+        let status=engine.grid_status();let summary=status.split("/2@").nth(1).unwrap();
+        let bins=summary.strip_prefix("384:768:").unwrap();
+        assert_eq!(bins.len(),64);assert!(bins.starts_with('3'));assert!(bins.ends_with('3'));
+        assert_eq!(&bins[8..9],"0");
     }
 }
