@@ -1,3 +1,4 @@
+import { returnPreviousInputView } from './router-buttons.js';
 import { sharedPanel } from './shared-panel.js';
 const followPanel=sharedPanel();
 import { routesOpen, setFieldRoutesOpen, resetFieldRoutes, tickFieldRoutes, selectedFieldRoute, stepFieldRoute, fieldRoutesSnapshot, fieldRouteStatus, fieldRouteFreshness } from './field-routes.js';
@@ -189,7 +190,7 @@ export function fieldMidi(data:number[]):boolean{
     if((type===144||type===128)&&key<8){fieldPage().knobTouch(key,type===144&&value>0);return true;}
     if(type===176&&key===14){fieldPage().changePage(value<64?value:value-128);appState.dirty=true;return true;}
     if(type===176&&key===MoveMainButton){if(value)fieldPage().click(appState.shiftHeld);appState.dirty=true;return true;}
-    if(type===176&&key===51){if(value&&fieldPage().back()?.action==='exit')setFieldEnabled(false);return true;}
+    if(type===176&&key===51){if(value&&fieldPage().back()?.action==='exit')returnPreviousInputView();return true;}
     return false;
 }
 /** Remote UI uses the same event contract. Polling this snapshot is read-only. */

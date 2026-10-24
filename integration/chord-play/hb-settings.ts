@@ -1,3 +1,4 @@
+import { returnPreviousInputView } from './router-buttons.js';
 import { sharedPanel } from './shared-panel.js';
 const followPanel=sharedPanel();
 /** Session destination layered over the current performance owner. */
@@ -52,7 +53,7 @@ export function settingsMidi(data:number[]):boolean{
     if(key===14){current.changePage(value<64?value:value-128);appState.dirty=true;return true;}
     if(key>=71&&key<=78){current.knobTurn(key-71,value<64?value:value-128);appState.dirty=true;return true;}
     if(key===MoveMainButton){if(value)current.click(appState.shiftHeld);appState.dirty=true;return true;}
-    if(key===51){if(value&&current.back()?.action==='exit')setSettingsOpen(false);return true;}
+    if(key===51){if(value&&current.back()?.action==='exit')returnPreviousInputView();return true;}
     return false;
 }
 export function renderSettings():void{const current=settingsPage();clear_screen();drawHeader(current.pageTitle,'Track '+(owner+1));drawBankBar(current.pageIndex,current.pageCount);current.render('HB Settings');}

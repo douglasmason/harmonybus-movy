@@ -35,3 +35,8 @@ def patch_panel_navigation(root: Path) -> None:
     source = source.replace("assert(!has(page,'motion_lane'),'Motif Play excludes operation editing')", "assert(has(page,'motion_lane'),'Motif Play keeps operation editing directly accessible')")
     path.write_text(source)
     (root / 'browser-test/hb-panel-navigation.mjs').write_text((assets / 'hb-panel-navigation.mjs').read_text())
+
+    path = root / 'src/midi/router.ts'
+    source = "import { returnPreviousInputView } from '../seq/router-buttons.js';\n" + path.read_text()
+    source = replace_once(source, 'if (!intent) return;         /* a layer came down; that was the press */', "if (!intent) return;         /* a layer came down; that was the press */\n                if(intent.action==='exit'&&spb.moduleId==='harmonybus'&&returnPreviousInputView())return;")
+    path.write_text(source)

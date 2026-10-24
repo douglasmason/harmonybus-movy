@@ -47,7 +47,7 @@ export function panelNavigation(ctl:any,enabled:()=>boolean,modeName:()=>string)
         click():boolean {if(!available()||modal())return false;if(menu){category=groups()[choice]??'Core';menu=false;const first=indices()[0];if(first!==undefined)jump(first,{remember:false});}else open();appState.dirty=true;return true;},
         back():boolean {if(!available()||modal())return false;if(menu){menu=false;category='Core';jump(indices().slice(-1)[0]??0,{remember:false});}else if(category!=='Core')open();else return false;appState.dirty=true;return true;},
         renderMenu():boolean {if(!available()||!menu)return false;renderBrowseView(groups().map(name=>({name:(name===category?'* ':'  ')+name})),choice,mode()+' > Settings','Back: core  Click: enter');return true;},
-        renderTrail():void {if(!available()||menu||modal()||ctl.state.touched>=0)return;const pages=indices(),position=Math.max(0,pages.indexOf(ctl.pageIndex));drawHeader(ctl.page.level==='root'?mode():ctl.pageLabel(),(position+1)+'/'+pages.length);fill_rect(0,8,128,2,0);drawBankBar(position,pages.length);fill_rect(0,57,128,7,0);fontPrint(1,58,mode()+' > '+category,1);},
+        renderTrail():void {if(!available()||menu||modal()||ctl.state.touched>=0)return;const pages=indices(),position=Math.max(0,pages.indexOf(ctl.pageIndex));fill_rect(0,0,128,7,0);drawHeader(ctl.page.level==='root'?mode():ctl.pageLabel(),(position+1)+'/'+pages.length);fill_rect(0,8,128,2,0);drawBankBar(position,pages.length);fill_rect(0,57,128,7,0);fontPrint(1,58,mode()+' > '+category,1);},
         state:()=>({mode:mode(),category,menu,choice,groups:groups(),indices:indices()})
     };
     ctl.hbNavigation=navigation;

@@ -7,7 +7,7 @@ const {selectTrack}=await import('../dist/esm/track/focus.js');
 selectTrack(0);appState.currentView=VIEW_KNOBS;appState.shiftHeld=false;appState.focusGroup=0;
 joint.setJointEnabled(false);setFlag('hbsteprow',0);seqState.sessionMode=true;
 const cc=(key,value)=>seqHandleMidi([176,key,value],false);
-const sessionTap=()=>{cc(CC_NOTE_SESSION,127);cc(CC_NOTE_SESSION,0);};
+const sessionTap=()=>{now+=450;cc(CC_NOTE_SESSION,127);cc(CC_NOTE_SESSION,0);};
 for(const expected of [1,2,3,4,5,6,7,0]){
  const previous=buttons.sessionPlayMode(),beforeWrites=writes.length;
  let reads=0;const originals=[];
@@ -56,3 +56,23 @@ restoreTrackState(clipSnapshot);assert.equal(buttons.sessionPlayMode(),0,'track 
 }
 buttons.seqHandleButtonCc(CC_NOTE_SESSION,127,true);buttons.seqHandleButtonCc(CC_NOTE_SESSION,0,false);
 console.log('Session selector: zero browse reads/writes, direct destinations, shared mode across Clips/track changes, cancel, same-mode no reload and direct Clips shortcut pass');
+
+// Double tap is edge-based: single tap is immediate, held/repeated downs do not count.
+const enterChordForTap=()=>{buttons.resetInputModeSelector();sessionTap();const delta=6-buttons.inputModeSelectorChoice();if(delta)cc(14,delta<0?128+delta:delta);cc(MoveMainButton,127);cc(MoveMainButton,0);};
+enterChordForTap();sessionTap();assert(buttons.inputModeSelectorOpen());assert.equal(buttons.sessionPlayMode(),6);
+now+=350;cc(CC_NOTE_SESSION,127);cc(CC_NOTE_SESSION,0);assert.equal(buttons.sessionPlayMode(),0,'quick double tap enters Clips');assert(!buttons.inputModeSelectorOpen());
+enterChordForTap();cc(CC_NOTE_SESSION,127);now+=100;cc(CC_NOTE_SESSION,127);assert.equal(buttons.sessionPlayMode(),6,'repeated down is not a second tap');
+now+=400;cc(CC_NOTE_SESSION,0);now+=100;cc(CC_NOTE_SESSION,127);cc(CC_NOTE_SESSION,0);assert.equal(buttons.sessionPlayMode(),6,'long hold cannot arm a double tap');
+enterChordForTap();sessionTap();now+=351;cc(CC_NOTE_SESSION,127);cc(CC_NOTE_SESSION,0);assert.equal(buttons.sessionPlayMode(),6,'slow second tap cancels the selector');
+enterChordForTap();sessionTap();now+=100;cc(14,1);cc(CC_NOTE_SESSION,127);cc(CC_NOTE_SESSION,0);assert.equal(buttons.sessionPlayMode(),6,'browsing cancels double-tap eligibility');
+buttons.resetInputModeSelector();
+console.log('Session double tap: immediate single tap, Clips shortcut, hold/repeat guards and browse cancellation pass');
+
+// Back unwinds modes; selecting a track from Clips establishes Clips as the return view.
+const chooseMode=mode=>{sessionTap();const delta=mode-buttons.inputModeSelectorChoice();if(delta)cc(14,delta<0?128+delta:delta);cc(MoveMainButton,127);cc(MoveMainButton,0);};
+buttons.seqHandleButtonCc(CC_NOTE_SESSION,127,true);buttons.seqHandleButtonCc(CC_NOTE_SESSION,0,false);
+chooseMode(6);chooseMode(7);assert(buttons.returnPreviousInputView());assert.equal(buttons.sessionPlayMode(),6);
+assert(buttons.returnPreviousInputView());assert.equal(buttons.sessionPlayMode(),0);
+const fromClips=beginTrackSwitch();switchToTrack(4,fromClips);assert.equal(buttons.sessionPlayMode(),6);
+assert(buttons.returnPreviousInputView());assert.equal(buttons.sessionPlayMode(),0,'track opened from Clips returns to Clips');
+console.log('Back history: settings to previous mode and track view to Clips pass');
