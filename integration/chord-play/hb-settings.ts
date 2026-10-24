@@ -21,8 +21,9 @@ export function setSettingsOpen(value:boolean,returnToSession=seqState.sessionMo
 }
 export function settingsHierarchy(hierarchy:any):any{
     const levels=hierarchy.levels;
-    const order=['global_transpose','follower_root','track_scales','grid_timing','next_harm','role_defaults','conductor_chord_defaults','follower_chord_defaults','conductor_scale_defaults','follower_scale_defaults','chord_defaults_status','pad_display','shared_context','follower_this','diagnostics'];
-    levels.root={...levels.root,name:'HB Settings',params:[...(levels.root.knobs??[]).map((key:string)=>({key})),...order.filter(key=>levels[key]).map(level=>({level}))]};
+    const order=['follower_root','next_harm','grid_timing','role_defaults','conductor_chord_defaults','follower_chord_defaults','conductor_scale_defaults','follower_scale_defaults','chord_defaults_status','pad_display','shared_context','follower_this','diagnostics'];
+    const routing=['version','track_role','render_channel','receive_channel'];
+    levels.root={...levels.root,name:'HB Settings',knobs:routing,params:[...routing.map((key:string)=>({key})),...order.filter(key=>levels[key]).map(level=>({level}))]};
     const retained=new Set<string>();
     const retain=(key:string):void=>{if(retained.has(key)||!levels[key])return;retained.add(key);for(const item of levels[key].params??[])if(item.level)retain(item.level);};
     retain('root');for(const key of Object.keys(levels))if(!retained.has(key))delete levels[key];

@@ -2,6 +2,7 @@
 from pathlib import Path
 from patch_responsive_persistence import replace_once
 from patch_session_selector import patch_session_selector
+from patch_panel_navigation import patch_panel_navigation
 
 
 def patch_chord_play(root: Path) -> None:
@@ -86,6 +87,7 @@ def patch_chord_play(root: Path) -> None:
     path = root / 'browser-test/hb-joint-panels.mjs'
     path.write_text(path.read_text().replace('[1,2,3,4,5,0,1,2,3,4,5,0]', '[1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0]').replace('six-mode Session cycle','eight-mode Session cycle'))
     patch_session_selector(root)
+    patch_panel_navigation(root)
     patch_native(root)
 
 
