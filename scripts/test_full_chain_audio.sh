@@ -34,6 +34,7 @@ JSON
 CHORD_PLAY_TEST_FLAGS=()
 if test -f "$HB_SOURCE/src/chord_selection.h"; then
   CHORD_PLAY_TEST_FLAGS=(-DHB_TEST_CHORD_PLAY)
+  if grep -q 'key->count=hb_cp_voice_semantic' "$HB_SOURCE/src/chord_selection_input.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CHORD_OUTPUT); fi
   if grep -q HB_SELECTION_INTENT_TAG "$HB_SOURCE/src/chord_selection.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CHORD_INTENT); fi
 else
   echo 'Pinned HB predates Chord Play; running the existing production-chain regressions'

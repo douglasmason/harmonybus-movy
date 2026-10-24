@@ -93,9 +93,17 @@ def patch_chord_play(root: Path) -> None:
     # Different pad owners have independent caches. Unknown is not LED-off.
     path = root / 'src/app/tick.ts'
     source = path.read_text().replace('chromaticCache.fill(0)', 'chromaticCache.fill(255)').replace('drumCache.fill(0)', 'drumCache.fill(255)')
+    source = "import { inputModeLedRevision } from '../seq/led-cache.js';\n" + source
+    source = replace_once(source, 'export function tick(): void {', 'let paintedModeRevision=0;\nexport function tick(): void {\n    if(paintedModeRevision!==inputModeLedRevision){paintedModeRevision=inputModeLedRevision;invalidateLedCachesOnResume();}')
     path.write_text(source)
     path = root / 'src/seq/led-cache.ts'
     source = path.read_text()
+    source += '''\n/** Request a complete repaint without importing the app tick into input routing. */
+export let inputModeLedRevision=0;
+export function invalidateInputModeLeds():void {
+    inputModeLedRevision++;seqLedsInvalidate();melodicPadColorCache.fill(255);
+}
+'''
     source = replace_once(source, '    lastNoteLed.set(note, color);', '    lastAnimLed.delete(note);\n    lastNoteLed.set(note, color);')
     source = replace_once(source, '    if (button) lastButtonLed.delete(note);', '    if (button) lastButtonLed.delete(note); else lastNoteLed.delete(note);')
     path.write_text(source)

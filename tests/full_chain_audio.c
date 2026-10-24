@@ -517,6 +517,7 @@ static void test_chord_play(void){
     if(!(length>0&&strstr(saved,"\nra ")))fprintf(stderr,"chord state (%d): %.4000s\n",length,saved);
     assert(length>0&&strstr(saved,"\nra "));
     set("chord_select","off");set("chord_route","off");
+#ifdef HB_TEST_CHORD_OUTPUT
     /* The conductor's configured output is independent of melody triggering. */
     set("ch0:midi_fx1:render_channel","3");set("ch0:midi_fx1:chord_mode","Off");
     set("ch0:midi_fx1:chord_form","Triad");set("ch0:midi_fx1:arp_playback","Together");
@@ -525,6 +526,7 @@ static void test_chord_play(void){
     assert(routed_channel_on[2]>=3&&routed_channel_on[3]==0);
     set("chord_select","off");render(32);
     set("ch0:midi_fx1:render_channel","Off");
+#endif
 
 #ifdef HB_TEST_CHORD_INTENT
     set("ch0:midi_fx1:follower_root_policy","Explicit");set("ch0:midi_fx1:follower_explicit_root","C");set("ch0:midi_fx1:follower_scale","Major");
