@@ -19,4 +19,22 @@
         engine.tracks[0].clips[0].double_loop();assert!(engine.tracks[0].clips[0].notes.iter().all(|note|note.actions==Some(actions)));
         }
     }
+    #[test] fn selections_only_write_after_record_and_replace_conductor_interval(){
+        let mut engine=Engine::new(48000,12000);engine.link_enabled=false;
+        engine.tracks[0].clips[0].set_loop(0,4);engine.tracks[0].playing_slot=Some(0);engine.playing=true;
+        engine.tracks[0].clips[0].add_note_raw(0,0,24,60,90);
+        let mut actions=[0;crate::recorded_actions::LANES+1];actions[0]=0xc858001f00000000u64|0x91|(0xab5<<12);
+        let message=format!("ra4,{}",crate::recorded_actions::payload(70,actions));
+        engine.recorded_action(0,&message);engine.live_note_on(0,70,100);engine.live_note_off(0,70);
+        assert_eq!(engine.tracks[0].clips[0].notes.len(),1);
+        assert_eq!(engine.tracks[0].clips[0].notes[0].pitch,60);
+        assert!(!engine.recording&&!engine.pending_rec);
+        engine.toggle_joint_record(9,1);
+        let mut output=Vec::new();engine.joint_erase_tick(0,0,&mut output);
+        assert!(engine.tracks[0].clips[0].notes.is_empty());
+        engine.recorded_action(0,&message);engine.live_note_on(0,70,100);
+        for _ in 0..24{engine.step_tick(0,&mut output);}engine.live_note_off(0,70);
+        assert_eq!(engine.tracks[0].clips[0].notes.len(),1);
+        assert_eq!(engine.tracks[0].clips[0].notes[0].actions,Some(actions));
+    }
 }

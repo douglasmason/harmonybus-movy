@@ -498,7 +498,11 @@ static void test_chord_play(void){
     char mapping[256];int used=snprintf(mapping,sizeof(mapping),"3");
     for(int pad=0;pad<32;pad++)used+=snprintf(mapping+used,sizeof(mapping)-used,",60");set("padmap",mapping);
     render(32);sent_on=sent_off=0;memset(routed_channel_on,0,sizeof(routed_channel_on));
+    char unarmed_before[65536],unarmed_after[65536];
+    api->get_param(instance,"state",unarmed_before,sizeof(unarmed_before));
     set("chord_select","0,10,1,0,1,0,1,12");render(16);
+    api->get_param(instance,"state",unarmed_after,sizeof(unarmed_after));
+    assert(!strcmp(unarmed_before,unarmed_after)); /* Selection never arms or edits a clip. */
     assert(sent_on==0); /* Conductor selection does not trigger bass or comp. */
     char context[2048];api->get_param(instance,"ch2:midi_fx1:harmony_source_snapshot",context,sizeof(context));
     assert(strstr(context,"\"root\":10"));
@@ -513,6 +517,17 @@ static void test_chord_play(void){
     if(!(length>0&&strstr(saved,"\nra ")))fprintf(stderr,"chord state (%d): %.4000s\n",length,saved);
     assert(length>0&&strstr(saved,"\nra "));
     set("chord_select","off");set("chord_route","off");
+#ifdef HB_TEST_CHORD_OUTPUT
+    /* The conductor's configured output is independent of melody triggering. */
+    set("ch0:midi_fx1:render_channel","3");set("ch0:midi_fx1:chord_mode","Off");
+    set("ch0:midi_fx1:chord_form","Triad");set("ch0:midi_fx1:arp_playback","Together");
+    memset(routed_channel_on,0,sizeof(routed_channel_on));
+    set("chord_select","0,10,1,0,1,0,1,12");render(32);
+    assert(routed_channel_on[2]>=3&&routed_channel_on[3]==0);
+    set("chord_select","off");render(32);
+    set("ch0:midi_fx1:render_channel","Off");
+#endif
+
 #ifdef HB_TEST_CHORD_INTENT
     set("ch0:midi_fx1:follower_root_policy","Explicit");set("ch0:midi_fx1:follower_explicit_root","C");set("ch0:midi_fx1:follower_scale","Major");
     sent_on=0;set("chord_select","0,0,0,3,3,0,1,12,3,4");render(32);

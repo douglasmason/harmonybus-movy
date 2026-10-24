@@ -9,7 +9,7 @@ def patch_session_selector(root: Path) -> None:
     (root / 'src/seq/shared-panel.ts').write_text((assets / 'shared-panel.ts').read_text())
     path: Path = root / 'src/seq/router-buttons.ts'
     source: str = path.read_text()
-    source = "import { beginTrackSwitch, followModulePanel, type TrackSnapshot } from '../track/switch.js';\nimport { renderBrowseView } from '../renderer/browse-view.js';\n" + source
+    source = "import { invalidateInputModeLeds } from './led-cache.js';\nimport { beginTrackSwitch, followModulePanel, type TrackSnapshot } from '../track/switch.js';\nimport { renderBrowseView } from '../renderer/browse-view.js';\n" + source
     source = source.replace('return settingsOpen() ? 7 : seqState.sessionMode ? 0 :', 'return seqState.sessionMode ? 0 : settingsOpen() ? 7 :')
     source = source.replace("import { momentaryDown, momentaryUp } from './momentary.js';\n", '')
     start: int = source.index('function advanceSessionMode(')
@@ -21,6 +21,7 @@ def patch_session_selector(root: Path) -> None:
     if(next===3&&(!jointAvailable()||!schwungLibAvailable())){seqToast('Joint Play unavailable');return;}
     if(remember)rememberInputView();
     inputModeChoice=-1;
+    invalidateInputModeLeds();
     if(next===0){
         const mode=sessionPlayMode();
         clipsPanel=mode===1||mode===2?beginTrackSwitch().modulePanel:null;
