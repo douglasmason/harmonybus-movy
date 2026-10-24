@@ -1,52 +1,11 @@
-# Chord Play: functional intent, colors and HB Settings
+# Chord output and mode feedback — Movy 0.34.1-hbclean.241
 
-Chord Play separates selecting harmony from playing accompaniment. Choose the melody or bass track, then use Session to enter Chord Play. The main pads keep playing that track. The default conductor is **Movy Track 1**; the default comp actor is **Movy Track 3**, whose MIDI channel 3 output plays **original Schwung Track 3**. These are separate destinations.
+Chord selections now use HarmonyBus 0.2.293 and the conductor’s configured Render channel. With Movy track 1 routed to MIDI channel 3, chord-bank knob touches and step buttons play the selected harmony into original Schwung’s chord/pad track. Conductor chord, voicing, arp, and rhythm panels are available in Chord Play’s Conductor category. A separately triggered Comp actor remains available; Render Off keeps conductor selections silent.
 
-The Setup page selects the conductor, comp and playing tracks, and chooses **Follow Melody** or **Comp Clip** as the comp actor's input. The selected tracks must be distinct and must have HarmonyBus configured for their roles. Entering from a conductor or comp track selects Track 4 (or the next available distinct track) for the main pads.
+Selecting harmony does not arm recording or edit the conductor clip. Record explicitly starts the existing take: the conductor replaces the elapsed interval, while melody retains its existing recording behavior. Rendered chord voices are not recorded a second time.
 
-Two complete eight-knob banks map to the sixteen step buttons. Touch a knob or press a step to select its chord; releasing it leaves the harmony selected. Turn a literal bank knob to assign its root/quality; turn a functional bank knob to choose its target degree. The **Chord Definition** page edits the selected slot's root, quality, form, bass and scale context. Slot edits affect future selections. They do not alter a selection already recorded in a clip.
+Input-mode changes invalidate instrument, step, and knob LED caches. Ordinary and animated step painters invalidate each other’s cached colors, and chord-bank knob LEDs are protected from generic parameter meters. Accepted-harmony feedback polls at 16 ms intervals for the first 100 ms after selection, then returns to the normal 250 ms idle interval.
 
-The **Chord Intent** page assigns Literal, Scale Degree, Secondary ii/V/IV/VI, Leading vii, Tritone V, or Borrowed bIII/iv/bVI/bVII, with a target degree I–VII of the reference key. These use the existing HB approach resolver. The resolved chord is shown alongside its diatonic/chromatic status. Choosing functional intent starts with Auto quality and Harmony Rules; Chord Definition can override quality, form, bass or local scale. Existing saved slots retain their literal definitions.
+Session single-tap opens the mode selector; double-tap within 350 ms opens Clips. Back retains the previous-view behavior.
 
-**Color By** is available in Setup and Chord Intent:
-
-| View | Hue | Scale indication |
-| --- | --- | --- |
-| Quality + Scale (default) | Major gold, minor blue, dominant pink, diminished red, augmented orange, suspended green; power/other neutral | Moderate for diatonic, stronger same hue for chromatic |
-| Intent + Scale | Scale-degree green, secondary ii/V/IV/VI and leading vii purple, tritone cyan, borrowed yellow, literal neutral | The same binary brightness distinction |
-| Scale Only | Neutral or amber | Neutral for diatonic, amber for chromatic |
-
-White marks the actual current conductor harmony, including playback. Disabled slots are dark. Matching knobs use the same colors as their step buttons; no animation is enabled by default. Chromatic means any intended chord tone, including an extension, falls outside the reference parent **before** the slot's local scale accommodation. For example, ii/V (Am7) and V/V (D7) share the secondary-family hue in C major, but D7 is stronger because of F#. Brightness does not count scale alterations.
-
-Scale Context has four choices:
-
-- **Parent:** retain the current parent collection.
-- **Minimum Change:** adapt the current parent only where the chord requires it. In C major, Bb gives C Mixolydian, Bb7 gives C Mixolydian b6, Eb gives C Dorian, and Ab gives C harmonic minor.
-- **Explicit:** use the slot's tonic and scale.
-- **Harmony Rules:** use the existing HB harmonic approach rules, accommodated to the selected chord. This is the starting policy for functional slots.
-
-Comp Chords, Forms, Arp, mapping, rhythm and operations panels edit the comp track directly. Melody panels edit the selected playing track. These are views of the existing track settings; they do not create another copy of voicing or arp configuration. The melody operation banks retain their existing touch/hold/latch behavior. Conductor key controls use the conductor's existing key context.
-
-Selecting harmony emits no comp attack. Follow Melody uses the melody's attacks; Comp Clip uses the comp track's existing clip. The comp actor's arp, latch and rhythm generator process that input normally. Use their existing controls to establish a repeating pattern. Harmony changes preserve the running arp phase. With retrigger off, a sounding arp note completes its gate and the next attack uses the selected chord. Ordinary sustained chords keep the existing retrigger policy. There is no implicit strike-on-change setting.
-
-Record in Chord Play captures the conductor and playing track together, replacing the conductor take and overdubbing the playing track. Harmony snapshots contain the exact chord, scale, tonic and bass, plus functional intent and destination when assigned, stored as root-relative data with the conductor note. Existing save, loop duplication, playback and opening-preview paths retain that information. The comp rhythm stays separate. Slot definitions and routing choices are saved with the set; input modes and held controls are transient.
-
-**Session opens an Input Mode selector** containing Clips, Normal Play, Motif Play, Joint Play, Grid Sequencer, Field Play, Chord Play and **HB Settings**. Turn the jog wheel to highlight a mode; click to enter it. Back or Session again cancels. The current mode is marked with an asterisk. Browsing leaves the current performance and held notes running; it performs no mode metadata reads or routing writes. Confirmation enters only the chosen mode, and choosing the current mode does not reload it. Session no longer temporarily peeks into Clips on press. A newly entered mode may still need its initial settings-page load. Shift+Session goes directly to Clips. Input mode and panel selection are shared across tracks: selecting another track shows its values in the equivalent panel. Clips covers the current mode; selecting a track reveals that same mode and panel again. There is no separate last input mode for each track. HB Settings is selected from the input-mode list and opens over the current performance without changing its routing. Back closes Settings after closing any picker or peek. Settings contains routing, defaults, timing, scale policies, pad display, context sources and diagnostics. Play modes retain their relevant performance controls. Motif Play continues to use its two full assignment banks and additional controls/settings pages; neither mode has a three-panel limit.
-
-No hardware flashing is part of this release. Device verification should check physical knob touch/release, step LEDs, simultaneous pad melody, recording/replay, and original Schwung Track 3 output with the user's sound configuration.
-
-Grid Sequencer opens on a read-only Sequence Overview. The four rows show the current pad window; the N and Op strips summarize input note attacks and operation holds across the whole loop. Bar ticks, a window bracket and the playback cursor place the window within the clip. The default resolution is 1/16: eight columns are half a 4/4 bar, labelled B1 1/2, B1 2/2, B2 1/2, etc. Left/right moves the window and turns Follow off; up/down moves its row assignments. Launchpad keeps its independent eight-row window.
-
-Jog right (or click) opens Grid Window controls, then Row Assignments, Operation, Timing and Conditions. Jog left from the first settings panel returns to the overview. Settings-panel segments remain separate from the bar/window label. A held pad still opens the existing note or operation editor. Grid feedback now comes from the visible Grid panel in both app polling paths; hidden HB panels no longer compete for its knob LEDs. The overview leaves the knobs dark.
-
-Grid activity labels show ^ for occupied rows above the visible bank, v below, or both. An ! marks input events not assigned to any Grid row; use Row Assignments to expose them. These are whole-loop indicators, matching the activity strips, and respect custom row order. The generic loop strip is suppressed in Grid to preserve its own caption and timeline.
-
-Long HB panel lists now use category-scoped navigation. Core mode setup, banks and operator panels remain directly on the jog. Jog past the final core panel, or click the jog with no knob held, to open the category selector. Choose a category with jog/click; the jog then stays within its panels. Back returns to categories, then Core. The footer shows the mode > category trail, while the header names the current panel and its position within that category. Track switching preserves the category and equivalent panel, including the category-list view. Menu browsing does not load candidate pages or edit the panel underneath it.
-
-Chord Play groups Conductor, Comp and Melody; Joint Play groups its actors; Normal/Motif Play group deeper mapping, harmony, chord/arp and rhythm controls. HB Settings starts with routing essentials and groups defaults, display, shared routing and diagnostics; its musical scale/chord controls remain in the play modes. Grid and Field retain their existing short navigation. Existing knob-touch editing, peeks, and parameter controllers remain authoritative.
-
-Category headers now clear their complete seven-pixel band before drawing the title and local panel count, replacing the surrounding app header rather than overprinting it. Pixel regressions cover Normal Play outer chrome and Chord Play routing captions.
-
-A quick double-tap of Session opens Clips directly (second press within 350 ms after the first short tap releases). Single tap still opens the selector immediately. A slower second tap cancels it. Jogging or choosing/cancelling in the selector cancels double-tap eligibility; held buttons and repeated press messages do not count as two taps. Shift+Session remains available.
-
-At the top level, Back returns to the previous input view instead of disabling the mode into Normal Play. Selecting a track from Clips makes Clips the return destination. Inner pickers, categories and Grid note/operation editors still close first. Navigation history is shared across tracks.
+Validation covers real conductor MIDI output, no recording without Record, conductor replacement, mode cache reset, alternating LED owners, browser/controller suites, native sequencer/DSP suites, and ARM packaging.

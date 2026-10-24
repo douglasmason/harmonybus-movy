@@ -38,14 +38,14 @@ assert(!page.ctl.pages.some(item=>item.keys?.includes('monitor_status')),'Chord 
 assert(!page.ctl.pages.some(item=>item.keys?.includes('render_channel')),'Chord Play excludes global routing');
 const flush=()=>{for(let tick=0;tick<4;tick++){now+=100;page.tick();}};
 const find=key=>{const index=page.ctl.pages.findIndex(item=>item.keys?.includes(key));assert(index>=0,key);page.goToPage(index);flush();};
-find('cp_slot_0');assert.deepEqual(Array.from({length:8},(_,index)=>page.keyAt(index)),Array.from({length:8},(_,index)=>'cp_slot_'+index));
+find('cp_slot_0');assert.equal(chord.chordKnobLEDMask(),255,'bank owns all knob LED channels');assert.deepEqual(Array.from({length:8},(_,index)=>page.keyAt(index)),Array.from({length:8},(_,index)=>'cp_slot_'+index));
 chord.chordMidi([144,0,100]);assert.equal(engine.params.chord_select,'0,0,1,0,1,0,1,12');
 chord.chordMidi([128,0,0]);assert.equal(engine.params.chord_select,'0,0,1,0,1,0,1,12','release retains harmony');
 find('cp_slot_8');assert.equal(page.keyAt(7),'cp_slot_15');
 chord.chordMidi([144,23,100]);assert.equal(engine.params.chord_select,'0,10,1,0,1,0,1,12');
 chord.chordMidi([128,23,0]);
 assert.equal(appState.activeTrack.index,3);assert.equal(chord.chordRecordCommand(),'jrec 9 1');
-find('cp_track_2_chord_quality');const before=writes.length;
+find('cp_track_2_chord_quality');assert.equal(chord.chordKnobLEDMask(),0,'actor settings use ordinary parameter meters');const before=writes.length;
 const quality=Array.from({length:8},(_,index)=>page.keyAt(index)).indexOf('cp_track_2_chord_quality');page.knobTurn(quality,4);flush();
 assert(writes.slice(before).some(([track,key])=>track===2&&key==='midi_fx1:chord_quality'));
 assert(!writes.slice(before).some(([track,key])=>track!==2&&key==='midi_fx1:chord_quality'));
@@ -93,3 +93,15 @@ const persistence=chord.chordSnapshot();chord.restoreChord(persistence);assert.d
 const legacy=structuredClone(persistence);delete legacy.colorView;for(const slot of legacy.slots){delete slot.intent;delete slot.target;delete slot.enabled;}
 chord.restoreChord(legacy);assert.equal(chord.chordSnapshot().colorView,0);assert(chord.chordSnapshot().slots.every(slot=>slot.intent===0&&slot.target===0&&slot.enabled===1));
 console.log('Chord colors: native quality/intent families, binary chromatic brightness, actual harmony, matching knobs, bounded reads, disabled slots and legacy migration pass');
+
+// A regular step painter must recover after Chord Play's animated-address writer.
+{
+ const leds=await import('../dist/esm/seq/led-cache.js');
+ leds.seqLedsInvalidate();leds.ledFrameReset();
+ const plain=[];globalThis.setLED=(note,color)=>plain.push([note,color]);
+ leds.cachedSetLED(16,123);leds.cachedSetAnimLED(16,0,0,0);leds.cachedSetLED(16,123);
+ assert.deepEqual(plain,[[16,123],[16,123]],'returning painter restores a step even when its own old cache matches');
+ const previous=ledPackets.length;leds.cachedSetAnimLED(16,0,0,0);
+ assert.equal(ledPackets.length,previous+1,'animation cache also observes ordinary writes');
+}
+console.log('Mode LED owners: regular and animated caches invalidate each other');

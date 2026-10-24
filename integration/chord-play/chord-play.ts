@@ -31,13 +31,13 @@ type Slot={root:number;quality:number;form:number;policy:number;tonic:number;sca
 type Setup={conductor:number;comp:number;source:number;selected:number;colorView:number;slots:Slot[]};
 const fresh=():Setup=>({conductor:0,comp:2,source:0,selected:0,colorView:0,slots:Array.from({length:16},(_,index)=>({root:[0,2,4,5,7,9,11,10,0,3,5,8,10,2,7,0][index],quality:[1,2,2,1,1,2,3,1,5,1,2,1,6,6,6,1][index],form:0,policy:1,tonic:0,scale:1,bass:12,intent:0,target:0,enabled:1}))});
 let setup=fresh(),enabled=false,page:SchwungPage|null=null,pageTrack=-1,activeSlot=-1,route='';
-let bankStatus:ChordBankStatus|null=null,bankWire='',bankOwner=-1,bankPollAt=-Infinity,bankKnobs=false,bankPageDirty=false;
+let bankStatus:ChordBankStatus|null=null,bankWire='',bankOwner=-1,bankPollAt=-Infinity,bankKnobs=false,bankPageDirty=false,bankUrgentUntil=-Infinity;
 const slotPayload=(slot:Slot):string=>[slot.root,slot.quality,slot.form,slot.policy,slot.tonic,slot.scale,slot.bass,slot.intent,slot.target].join(',');
-function resetBank():void{bankStatus=null;bankWire='';bankOwner=-1;bankPollAt=-Infinity;bankPageDirty=false;}
+function resetBank():void{bankStatus=null;bankWire='';bankOwner=-1;bankPollAt=-Infinity;bankUrgentUntil=-Infinity;bankPageDirty=false;}
 function refreshBank():void{
     const now=Date.now(),wire=setup.slots.map(slotPayload).join(';'),owner=setup.conductor;
     const changed=wire!==bankWire||owner!==bankOwner;
-    if(!changed&&now>=bankPollAt&&now-bankPollAt<250)return;
+    if(!changed&&now>=bankPollAt&&now-bankPollAt<(now<bankUrgentUntil?16:250))return;
     bankPollAt=now;const port=portFor(owner);
     if(changed){port.setParam('midi_fx1:hb_chord_bank',wire);bankWire=wire;bankOwner=owner;}
     const raw=port.getParam('midi_fx1:hb_chord_bank_snapshot');if(raw==='--'){bankStatus=null;activeSlot=-1;return;}
@@ -86,11 +86,12 @@ export function selectChordSlot(index:number):void{
     if(!chordActive()||!engineReady()||!Number.isInteger(index)||index<0||index>=16)return;
     const slot=setup.slots[index];if(!slot.enabled)return;setup.selected=index;activeSlot=index;
     send('chord_select',[setup.conductor,slot.root,slot.quality,slot.form,slot.policy,slot.tonic,slot.scale,slot.bass,...(slot.intent?[slot.intent,slot.target]:[])].join(','));
+    bankPollAt=-Infinity;bankUrgentUntil=Date.now()+100; // Refresh accepted harmony on the next frame, not after the idle poll interval.
     markUiStateDirty();appState.dirty=true;
 }
 const enumeration=(key:string,name:string,options:string[])=>({key,name,type:'enum',options,options_as_string:true,default:options[0]});
 const actorPanels=():[string,number,string[]][]=>[
-    ['Conductor',setup.conductor,['global_transpose','explicit_key','secondary_scale']],
+    ['Conductor',setup.conductor,['global_transpose','explicit_key','secondary_scale','chord_player','chord_forms','arp_player','rhythm_generate','rhythm_edit']],
     ['Comp',setup.comp,['chord_player','chord_forms','arp_player','follower_source','follower_play','rhythm_generate','rhythm_edit','motif_global','motion_operation','motion_timing','motion_conditions']],
     ['Melody',appState.activeTrack.index,['follower_source','follower_play','track_scales','chord_player','arp_player','follower_touch','operations_9_16','motion_operation','motion_timing','motion_conditions']]
 ];
@@ -230,6 +231,12 @@ export function chordMidi(data:number[],panels=true):boolean{
     if(key===51){if(value&&current.back()?.action==='exit')returnPreviousInputView();return true;}
     if(key===86){if(value)recToggle(setup.conductor);return true;}
     return false;
+}
+/** Bank LEDs belong to the chord painter, not the generic parameter meter. */
+export function chordKnobLEDMask():number{
+    if(!chordActive()||settingsActive()||!page)return 0;
+    let mask=0;for(let knob=0;knob<8;knob++)if(/^cp_slot_/.test(page.keyAt(knob)??''))mask|=1<<knob;
+    return mask;
 }
 export function paintChordSteps():boolean{
     if(!chordActive())return false;

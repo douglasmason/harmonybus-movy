@@ -8,6 +8,7 @@ selectTrack(0);appState.currentView=VIEW_KNOBS;appState.shiftHeld=false;appState
 joint.setJointEnabled(false);setFlag('hbsteprow',0);seqState.sessionMode=true;
 const cc=(key,value)=>seqHandleMidi([176,key,value],false);
 const sessionTap=()=>{now+=450;cc(CC_NOTE_SESSION,127);cc(CC_NOTE_SESSION,0);};
+const {melodicPadColorCache}=await import('../dist/esm/seq/led-cache.js');
 for(const expected of [1,2,3,4,5,6,7,0]){
  const previous=buttons.sessionPlayMode(),beforeWrites=writes.length;
  let reads=0;const originals=[];
@@ -21,7 +22,9 @@ for(const expected of [1,2,3,4,5,6,7,0]){
  for(const [port,get] of originals)port.getParam=get;
  cc(51,127);cc(51,0);assert(!buttons.inputModeSelectorOpen());assert.equal(buttons.sessionPlayMode(),previous);
  sessionTap();const delta=expected-buttons.inputModeSelectorChoice();if(delta)cc(14,delta<0?128+delta:delta);
+ melodicPadColorCache.fill(0);appState.initLedsDone=true;
  cc(MoveMainButton,127);cc(MoveMainButton,0);
+ assert(!appState.initLedsDone);assert(melodicPadColorCache.every(color=>color===255),'each mode change invalidates even cached off pads');
  assert.equal(buttons.sessionPlayMode(),expected,'confirmation enters the selected mode directly');
  assert(!buttons.inputModeSelectorOpen());
  const unchanged=writes.length;sessionTap();cc(MoveMainButton,127);cc(MoveMainButton,0);

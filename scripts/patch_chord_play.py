@@ -30,12 +30,13 @@ def patch_chord_play(root: Path) -> None:
     source = replace_once(source, '    if (fieldMidi(data))', '    if (settingsMidi(data)) return true;\n    if (chordMidi(data,!settingsActive())) return true;\n    if (fieldMidi(data))')
     path.write_text(source)
     path = root / 'src/app/tick.ts'
-    source = "import { chordActive, chordPage, tickChord, renderChord } from '../seq/chord-play.js';\nimport { settingsActive, settingsPage, tickSettings, renderSettings } from '../seq/hb-settings.js';\n" + path.read_text()
+    source = "import { chordActive, chordPage, tickChord, renderChord, chordKnobLEDMask } from '../seq/chord-play.js';\nimport { settingsActive, settingsPage, tickSettings, renderSettings } from '../seq/hb-settings.js';\n" + path.read_text()
     source = replace_once(source, 'const touchPage = activeModel ?', 'const touchPage = settingsActive() ? settingsPage() : chordActive() ? chordPage() : gridActive() ? gridTouchPage() : activeModel ?')
     source = replace_once(source, '        if(model)schwungCachedFor(track,model.getComponentKey())?.pollOperationFeedback();', '        const visiblePage=settingsActive()?settingsPage():chordActive()?chordPage():gridActive()?gridTouchPage():model?schwungCachedFor(track,model.getComponentKey()):null;\n        visiblePage?.pollOperationFeedback();')
     source = replace_once(source, '    tickField();', '    tickSettings();\n    tickChord();\n    tickField();')
     source = replace_once(source, '        } else if (fieldActive()) {', '        } else if (settingsActive()) {\n            renderSettings();\n        } else if (chordActive()) {\n            renderChord();\n        } else if (fieldActive()) {')
     source = replace_once(source, 'const isFullScreenView = isBrowseView ||', 'const isFullScreenView = gridActive() || isBrowseView ||')
+    source = source.replace('touchPage?.knobLEDMask??0', '(touchPage?.knobLEDMask??0)|chordKnobLEDMask()')
     path.write_text(source)
     path = root / 'src/seq/leds.ts'
     source = "import { paintChordSteps } from './chord-play.js';\n" + path.read_text()
@@ -89,6 +90,16 @@ def patch_chord_play(root: Path) -> None:
     patch_session_selector(root)
     patch_panel_navigation(root)
     patch_native(root)
+    # Different pad owners have independent caches. Unknown is not LED-off.
+    path = root / 'src/app/tick.ts'
+    source = path.read_text().replace('chromaticCache.fill(0)', 'chromaticCache.fill(255)').replace('drumCache.fill(0)', 'drumCache.fill(255)')
+    path.write_text(source)
+    path = root / 'src/seq/led-cache.ts'
+    source = path.read_text()
+    source = replace_once(source, '    lastNoteLed.set(note, color);', '    lastAnimLed.delete(note);\n    lastNoteLed.set(note, color);')
+    source = replace_once(source, '    if (button) lastButtonLed.delete(note);', '    if (button) lastButtonLed.delete(note); else lastNoteLed.delete(note);')
+    path.write_text(source)
+
 
 
 def patch_native(root: Path) -> None:
