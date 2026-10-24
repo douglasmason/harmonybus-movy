@@ -3,6 +3,8 @@ on:
   push:
     branches: [main, work/chord-output-fix]
     paths:
+      - integration/clips-view/**
+      - scripts/patch_clips_view.py
       - integration/chord-play/**
       - integration/grid/**
       - scripts/patch_grid.py
@@ -18,6 +20,8 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - integration/clips-view/**
+      - scripts/patch_clips_view.py
       - integration/chord-play/**
       - integration/grid/**
       - scripts/patch_grid.py
@@ -66,7 +70,7 @@ jobs:
           npm run typecheck
           npm run build:browser
           node browser-test/logic.mjs
-          for suite in hb-panel-navigation hb-chord-play hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
+          for suite in hb-clips-view hb-panel-navigation hb-chord-play hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
             node "browser-test/$suite.mjs"
           done
           # Legacy app-loop fails unchanged on the pre-routing hbclean.209 baseline.

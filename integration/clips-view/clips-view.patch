@@ -1,0 +1,457 @@
+diff --git a/browser-test/hb-clips-view.mjs b/browser-test/hb-clips-view.mjs
+new file mode 100644
+index 00000000..79553ccb
+--- /dev/null
++++ b/browser-test/hb-clips-view.mjs
+@@ -0,0 +1,84 @@
++import assert from 'node:assert/strict';
++import {installEnv} from './env.mjs';
++installEnv(); await import('../dist/esm/app/globals.js');
++const {installMockEngine}=await import('./mock-engine.mjs');
++const engine=installMockEngine();
++const {seqEngineTick,seqCmdFlush}=await import('../dist/esm/seq/engine.js');seqEngineTick();
++const {appState,VIEW_KNOBS,VIEW_BROWSE}=await import('../dist/esm/app/state.js');
++const {seqState}=await import('../dist/esm/seq/state.js');
++const layout=await import('../dist/esm/seq/clips-layout.js');
++const view=await import('../dist/esm/seq/clips-view.js');
++const {seqHandleMidi}=await import('../dist/esm/seq/router.js');
++const {sessionPad,sessionDeleteButton,sessionPaintGrid}=await import('../dist/esm/seq/session.js');
++const {serializeUiState,applyUiState}=await import('../dist/esm/seq/ui-state.js');
++const input=packet=>seqHandleMidi(packet,false);
++const down=slot=>input([144,slot,100]);const up=slot=>input([128,slot,0]);
++const cc=(key,value=127)=>input([176,key,value]);
++seqState.sessionMode=true;appState.currentView=VIEW_KNOBS;appState.focusGroup=2;
++layout.restoreClips(null);assert.deepEqual([3,2,1,0].map(layout.clipsRowTrack),[8,9,10,11]);
++assert.equal(view.clipsMidi([144,7,100]),false,'Normal transfers touch to Master');
++assert.equal(layout.clipsPage,2);view.clipsMidi([128,7,0]);
++layout.restoreClips({topRow:2,knobRow:1,drumTracks:[4,4,8,12]});
++assert.equal(layout.clipsKnobTrack(),0);
++const before=engine.ops.length;
++down(2);seqCmdFlush();assert.equal(engine.ops.at(-1),'launch 0 2');
++assert.equal(appState.focusGroup,2,'global conductor does not steal visible bank');
++assert.equal(appState.activeTrack.index,0,'launch retains stock selected-track behavior');
++down(2);seqCmdFlush();assert.equal(engine.ops.length,before+1,'repeat touch cannot relaunch until release');up(2);
++sessionPad(92,68);seqCmdFlush();assert.equal(engine.ops.at(-1),'launch 8 0');
++assert.equal(appState.focusGroup,2);
++const queuedBefore=engine.ops.length;
++cc(63);cc(63);assert.equal(appState.focusGroup,3);cc(62);assert.equal(appState.focusGroup,2);
++seqCmdFlush();assert.equal(engine.ops.length,queuedBefore,'bank navigation emits no transport or scene edits');
++cc(14,1);assert.equal(layout.clipsPage,1);
++down(0);seqCmdFlush();assert.equal(engine.ops.length,queuedBefore,'settings touch never launches');
++cc(71,127);assert.equal(layout.clipsSnapshot().topRow,1);
++cc(51);assert.equal(layout.clipsPage,0);down(0);seqCmdFlush();assert.equal(engine.ops.length,queuedBefore,'touch held through Back is disarmed');
++up(0);down(0);seqCmdFlush();assert.equal(engine.ops.at(-1),'launch 0 0');up(0);
++cc(14,1);cc(14,1);assert.equal(layout.clipsPage,2);assert.equal(appState.masterChainIndex,0);
++assert.equal(view.clipsMidi([176,14,1]),false,'Master owns its normal forward navigation');
++assert.equal(view.clipsMidi([176,71,1]),false,'Master owns parameter turns');
++assert.equal(view.clipsMidi([144,1,100]),false,'Master owns its touches');
++cc(51);assert.equal(layout.clipsPage,0);down(1);seqCmdFlush();assert.equal(engine.ops.at(-1),'launch 0 0','Master touch held into Clips cannot launch');up(1);down(1);seqCmdFlush();assert.equal(engine.ops.at(-1),'launch 0 1');
++seqState.sessionMode=false;assert(up(1),'owned release consumed after leaving Clips');seqState.sessionMode=true;
++cc(14,1);cc(14,1);cc(14,127);assert.equal(layout.clipsPage,1,'jog left from first Master slot reaches setup');
++cc(78,1);assert.equal(layout.clipsPage,1,'unused settings knobs consumed');
++appState.currentView=VIEW_BROWSE;assert.equal(view.clipsMidi([176,14,1]),false,'module browser retains jog');appState.currentView=VIEW_KNOBS;
++layout.restoreClips({topRow:1,knobRow:2,drumTracks:[4,4,12,12]});
++assert.equal(layout.clipsRowTrack(3),0);assert.equal(layout.clipsKnobTrack(),12);
++const saved=layout.clipsSnapshot();const blob=serializeUiState();layout.restoreClips(null);applyUiState(blob);assert.deepEqual(layout.clipsSnapshot(),saved,'existing Set UI serializer roundtrip');
++layout.restoreClips({topRow:99,knobRow:-1,drumTracks:[0,NaN,15,12]});assert.deepEqual(layout.clipsSnapshot(),{topRow:0,knobRow:0,drumTracks:[4,4,8,12]});
++layout.restoreClips(saved);appState.focusGroup=2;
++sessionDeleteButton(true);sessionPad(93,68);seqCmdFlush();assert(engine.ops.includes('clipdelat 0 1'),'Delete addresses actual displayed track');sessionDeleteButton(false);
++const leds=[];sessionPaintGrid((...packet)=>leds.push(packet),68);assert.equal(leds.length,32);
++seqState.session[12]={exist:255,playing:1,queued:4,selected:2};
++assert.equal(view.clipsSlotStatus(12,1),'P');assert.equal(view.clipsSlotStatus(12,4),'Q');assert.equal(view.clipsSlotStatus(12,2),'S');
++const {fontWidth}=await import('../dist/esm/font/index.js');
++for(const text of ['Jog > Setup > Master','Jog > Master / Back','Jog left: Clips Setup'])assert(fontWidth(text)<=124, text);
++// Draw the actual production screen into a framebuffer for inspection.
++const {PNG}=await import('pngjs');const {writeFileSync,mkdirSync}=await import('node:fs');mkdirSync('artifacts',{recursive:true});
++const pixels=new Uint8Array(128*64);
++globalThis.clear_screen=()=>pixels.fill(0);
++globalThis.fill_rect=(x,y,width,height,color)=>{for(let row=Math.max(0,y);row<Math.min(64,y+height);row++)for(let col=Math.max(0,x);col<Math.min(128,x+width);col++)pixels[row*128+col]=color?255:0;};
++for(const [page,name] of [[0,'clips-performance'],[1,'clips-settings']]){
++ layout.setClipsPage(page);view.renderClips();const png=new PNG({width:512,height:256});
++ for(let row=0;row<256;row++)for(let col=0;col<512;col++){const offset=(row*512+col)*4,value=pixels[Math.floor(row/4)*128+Math.floor(col/4)];png.data[offset]=png.data[offset+1]=png.data[offset+2]=value;png.data[offset+3]=255;}
++ writeFileSync(`artifacts/${name}.png`,PNG.sync.write(png));
++}
++console.log('Clips: shared launch/delete, stable banks, touch ownership, Master navigation, persistence and screen bounds pass');
++// Exercise the outer hardware dispatcher and real app render branch too.
++const {setFlag}=await import('../dist/esm/seq/flags.js');
++setFlag('setcommit',0);globalThis.init();
++for(let count=0;count<35;count++)globalThis.tick();
++seqState.sessionMode=true;appState.currentView=VIEW_KNOBS;appState.focusGroup=1;
++layout.restoreClips({topRow:2,knobRow:1,drumTracks:[4,4,8,12]});
++globalThis.onMidiMessageInternal([176,63,127]);assert.equal(appState.focusGroup,2);
++globalThis.onMidiMessageInternal([144,4,100]);seqCmdFlush();assert.equal(engine.ops.at(-1),'launch 0 4');
++globalThis.onMidiMessageInternal([128,4,0]);
++globalThis.onMidiMessageInternal([176,14,1]);assert.equal(layout.clipsPage,1);
++globalThis.onMidiMessageInternal([176,72,1]);assert.equal(layout.clipsSnapshot().knobRow,2);
++appState.dirty=true;globalThis.tick();
++assert(pixels.some(value=>value),'real app renders Clips panel');
++globalThis.onMidiMessageInternal([176,14,1]);assert.equal(layout.clipsPage,2);
++globalThis.onMidiMessageInternal([176,14,127]);assert.equal(layout.clipsPage,1);
++console.log('Clips hardware dispatcher: bank, launch, setup editing, render and Master return pass');
+diff --git a/build/browser.mjs b/build/browser.mjs
+index 1c206d57..f11deab0 100644
+--- a/build/browser.mjs
++++ b/build/browser.mjs
+@@ -17,6 +17,8 @@ rmSync(resolve(root, 'dist/esm'), { recursive: true, force: true });
+ 
+ await esbuild.build({
+     entryPoints: [
++        resolve(root, 'src/seq/clips-layout.ts'),
++        resolve(root, 'src/seq/clips-view.ts'),
+         resolve(root, 'src/seq/chord-play.ts'),
+         resolve(root, 'src/seq/hb-settings.ts'),
+         resolve(root, 'src/seq/field-routes.ts'),
+diff --git a/src/app/tick.ts b/src/app/tick.ts
+index d57ad37e..384cca37 100644
+--- a/src/app/tick.ts
++++ b/src/app/tick.ts
+@@ -1,3 +1,5 @@
++import { clipsPanelActive, renderClips, renderClipsKnobs } from '../seq/clips-view.js';
++import { fontPrint as clipsFontPrint } from '../font/index.js';
+ import { inputModeLedRevision } from '../seq/led-cache.js';
+ import { renderInputModeSelector } from '../seq/router-buttons.js';
+ import { chordActive, chordPage, tickChord, renderChord, chordKnobLEDMask } from '../seq/chord-play.js';
+@@ -854,6 +856,9 @@ function tickBody(): void {
+             // still lit from the page underneath would be inviting a turn this
+             // page consumes and ignores.
+             updateSingleKnobLED(-1, 0);
++        } else if (clipsPanelActive()) {
++            renderClips();
++            renderClipsKnobs();
+         } else if (seqState.sessionMode) {
+             const vm = masterModel!.getViewModel();
+             if (appState.masterDetail) {
+@@ -862,6 +867,7 @@ function tickBody(): void {
+                 renderKnobsView(vm, jogHintVisible(), appState.activeTrack.index);
+             } else {
+                 renderChainView(vm, mIdx, jogHintVisible(), 'MASTER', MASTER_FX_SLOTS[mIdx]?.label, MASTER_FX_SLOTS);
++                if(mIdx === 0) { fill_rect(0,58,128,6,0); clipsFontPrint(2,58,'Jog left: Clips Setup',1); }
+             }
+             jogToastShown = jogHintVisible();
+             updateKnobLEDs(vm,[VIEW_KNOBS,VIEW_CHAIN].includes(appState.currentView)&&!stepPageState.selected?(touchPage?.knobLEDMask??0)|chordKnobLEDMask():0);
+diff --git a/src/renderer/knob-leds.ts b/src/renderer/knob-leds.ts
+index afd6de54..2cecfc33 100644
+--- a/src/renderer/knob-leds.ts
++++ b/src/renderer/knob-leds.ts
+@@ -81,3 +81,14 @@ export function updateSingleKnobLED(knob: number, nv: number): void {
+         setButtonLED(MoveKnob1 + k, color, true);
+     }
+ }
++
++/** Paint a performance row through the same budget and cache as parameter pages. */
++export function updatePerformanceKnobLEDs(colors: readonly number[]): void {
++    for (let knob = 0; knob < 8; knob++) {
++        const color = colors[knob] ?? 0;
++        if (lastKnobColor[knob] === color || !ledBudgetTake(2)) continue;
++        lastKnobColor[knob] = color;
++        setLED(knob, color, true);
++        setButtonLED(MoveKnob1 + knob, color, true);
++    }
++}
+diff --git a/src/seq/clips-layout.ts b/src/seq/clips-layout.ts
+new file mode 100644
+index 00000000..73d20be3
+--- /dev/null
++++ b/src/seq/clips-layout.ts
+@@ -0,0 +1,51 @@
++/** Presentation only: no chain-role, transport or scene mutations. */
++import { appState } from '../app/state.js';
++import { markUiStateDirty } from './ui-dirty.js';
++
++export interface ClipsLayout {
++    topRow: number; // 0: native bank, 1: conductor, 2: drums
++    knobRow: number; // 0: normal, 1: conductor, 2: drums
++    drumTracks: number[];
++}
++const defaults = (): ClipsLayout => ({ topRow: 0, knobRow: 0, drumTracks: [4, 4, 8, 12] });
++let layout: ClipsLayout = defaults();
++export let clipsPage = 0; // performance, settings, existing Master pipeline
++export function enterClips(): void { clipsPage = 0; appState.masterDetail = false; }
++export function setClipsPage(page: number): void {
++    clipsPage = Math.max(0, Math.min(2, page));
++    appState.dirty = true;
++}
++export function clipsSnapshot(): ClipsLayout { return { ...layout, drumTracks: [...layout.drumTracks] }; }
++export function restoreClips(value: unknown): void {
++    layout = defaults();
++    if (value && typeof value === 'object') {
++        const saved = value as Partial<ClipsLayout>;
++        for (const key of ['topRow', 'knobRow'] as const)
++            if (Number.isInteger(saved[key]) && saved[key]! >= 0 && saved[key]! <= 2) layout[key] = saved[key]!;
++        if (Array.isArray(saved.drumTracks)) saved.drumTracks.slice(0, 4).forEach((track, bank) => {
++            if ([4, 8, 12].includes(track)) layout.drumTracks[bank] = track;
++        });
++    }
++    enterClips();
++}
++export function clipsRoleTrack(role: number, bank = appState.focusGroup): number {
++    return role === 1 ? 0 : role === 2 ? layout.drumTracks[bank] : -1;
++}
++export function clipsRowTrack(rowFromBottom: number): number {
++    const bankRow = 3 - rowFromBottom;
++    return bankRow === 0 && layout.topRow ? clipsRoleTrack(layout.topRow) : appState.focusGroup * 4 + bankRow;
++}
++export function clipsKnobTrack(): number { return clipsRoleTrack(layout.knobRow); }
++export function turnClipsSetting(knob: number, delta: number): void {
++    if (!delta || knob < 0 || knob > 2) return;
++    const direction = Math.sign(delta);
++    if (knob < 2) {
++        const key = knob === 0 ? 'topRow' : 'knobRow';
++        layout[key] = Math.max(0, Math.min(2, layout[key] + direction));
++    } else {
++        const tracks = [4, 8, 12];
++        const bank = appState.focusGroup;
++        layout.drumTracks[bank] = tracks[Math.max(0, Math.min(2, tracks.indexOf(layout.drumTracks[bank]) + direction))];
++    }
++    markUiStateDirty(); appState.dirty = true;
++}
+diff --git a/src/seq/clips-view.ts b/src/seq/clips-view.ts
+new file mode 100644
+index 00000000..8da43da9
+--- /dev/null
++++ b/src/seq/clips-view.ts
+@@ -0,0 +1,121 @@
++/** A fifth clip row on knob touches, using the ordinary session launch owner. */
++import { appState, VIEW_CHAIN, VIEW_KNOBS } from '../app/state.js';
++import { focusGroupStep } from '../track/focus.js';
++import { fontPrint } from '../font/index.js';
++import { drawHeader, fitHeaderText } from '../renderer/header.js';
++import { updatePerformanceKnobLEDs } from '../renderer/knob-leds.js';
++import { seqState } from './state.js';
++import { sessionLaunchCell, sessionCellColor } from './session.js';
++import { momentaryGesture } from './momentary.js';
++import { loopHeld } from './loop-mode.js';
++import { clipsPage, setClipsPage, clipsSnapshot, clipsKnobTrack, clipsRowTrack, turnClipsSetting } from './clips-layout.js';
++
++const heldKnobs = new Set<number>();
++const ownedKnobs = new Set<number>();
++export function clipsSurfaceActive(): boolean {
++    return seqState.sessionMode && [VIEW_CHAIN, VIEW_KNOBS].includes(appState.currentView);
++}
++export function clipsPanelActive(): boolean { return clipsSurfaceActive() && clipsPage < 2; }
++export function clipsMidi(data: number[]): boolean {
++    const status = data[0] & 240, key = data[1], value = data[2];
++    const touchDown = status === 144 && value > 0;
++    const touchUp = status === 128 || (status === 144 && value === 0);
++    if (key >= 0 && key < 8 && (touchDown || touchUp)) {
++        const wasHeld = heldKnobs.has(key);
++        if (touchUp) {
++            heldKnobs.delete(key);
++            if (ownedKnobs.delete(key)) return true;
++            return clipsPanelActive() && clipsPage === 1;
++        }
++        heldKnobs.add(key);
++        if (!clipsPanelActive()) return false;
++        if (clipsPage === 1 || clipsKnobTrack() >= 0) {
++            ownedKnobs.add(key);
++            if (clipsPage === 0 && !wasHeld) {
++                momentaryGesture();
++                sessionLaunchCell(clipsKnobTrack(), key);
++            }
++            appState.dirty = true;
++            return true;
++        }
++        // Normal keeps the existing Master controls and reveals their values.
++        setClipsPage(2);
++    }
++    if (!clipsSurfaceActive() || status !== 176) return false;
++    if (key === 62 || key === 63) {
++        if (value && focusGroupStep(key === 63 ? 1 : -1)) appState.dirty = true;
++        return true;
++    }
++    if (key >= 71 && key <= 78 && clipsPage < 2) {
++        if (clipsPage === 1) turnClipsSetting(key - 71, value < 64 ? value : value - 128);
++        if (clipsPage === 1 || clipsKnobTrack() >= 0) return true;
++        setClipsPage(2);
++        return false;
++    }
++    if (key === 14 && !loopHeld() && value !== 0) {
++        const direction = value < 64 ? 1 : -1;
++        if (clipsPage < 2) {
++            setClipsPage(clipsPage + direction);
++            if (clipsPage === 2) { appState.masterChainIndex = 0; appState.masterDetail = false; }
++            return true;
++        }
++        if (direction < 0 && !appState.masterDetail && appState.masterChainIndex === 0) {
++            setClipsPage(1); return true;
++        }
++    }
++    if (key === MoveMainButton && clipsPage < 2) {
++        if (value) setClipsPage(clipsPage === 0 ? 1 : 0);
++        return true;
++    }
++    if (key === 51) {
++        if (clipsPage === 1 || (clipsPage === 2 && !appState.masterDetail)) {
++            if (value) setClipsPage(0);
++            return true;
++        }
++    }
++    return false;
++}
++
++/** Engine status only; no reads from hosted chains during drawing. */
++export function clipsSlotStatus(track: number, slot: number): string {
++    const state = seqState.session[track];
++    return state.queued === slot ? 'Q' : state.playing === slot ? 'P'
++        : state.selected === slot ? 'S' : (state.exist & (1 << slot)) ? '+' : '-';
++}
++export function renderClipsKnobs(): void {
++    const track = clipsKnobTrack();
++    const colors = Array.from({length: 8}, (_, slot) => {
++        if (clipsPage === 1) return slot < 3 ? 120 : 0;
++        if (track < 0) return 0;
++        const state = seqState.session[track];
++        return state.queued === slot ? 120 : sessionCellColor({track,
++            exists: !!(state.exist & (1 << slot)), isSel: state.selected === slot,
++            isPlaying: state.playing === slot, isQueued: false, muted: seqState.muted[track]}).base;
++    });
++    updatePerformanceKnobLEDs(colors);
++}
++export function renderClips(): void {
++    const layout = clipsSnapshot();
++    const bank = appState.focusGroup;
++    clear_screen();
++    drawHeader(clipsPage === 1 ? 'Clips Setup' : 'Clips', `Bank ${bank + 1}/4${seqState.recording ? ' REC' : ''}`);
++    const line = (y: number, text: string): void => fontPrint(2, y, fitHeaderText(text, 124), 1);
++    if (clipsPage === 1) {
++        line(12, '1 Row: ' + ['Bank', 'Conductor', 'Drums'][layout.topRow]);
++        line(22, '2 Touch: ' + ['Normal', 'Conductor', 'Drums'][layout.knobRow]);
++        line(32, '3 Drum track: ' + (layout.drumTracks[bank] + 1));
++        line(43, 'Launch: bar / stopped now');
++        line(51, 'Tap playing: relaunch');
++        line(58, 'Jog > Master / Back');
++    } else {
++        line(12, 'Pads: ' + [3, 2, 1, 0].map(row => clipsRowTrack(row) + 1).join('/'));
++        const track = clipsKnobTrack();
++        line(22, track < 0 ? 'Knobs: Master controls' : `${layout.knobRow === 1 ? 'Conductor' : 'Drums'} ${track + 1} - Touch clips`);
++        if (track >= 0) for (let slot = 0; slot < 8; slot++) {
++            fontPrint(slot * 16 + 2, 33, String(slot + 1), 1);
++            fontPrint(slot * 16 + 2, 42, clipsSlotStatus(track, slot), 1);
++        }
++        line(50, 'L/R: Bank | P:Play Q:Queue');
++        line(58, 'Jog > Setup > Master');
++    }
++}
+diff --git a/src/seq/router-buttons.ts b/src/seq/router-buttons.ts
+index 8f2b87d1..6adffb06 100644
+--- a/src/seq/router-buttons.ts
++++ b/src/seq/router-buttons.ts
+@@ -1,3 +1,4 @@
++import { enterClips } from './clips-layout.js';
+ import { invalidateInputModeLeds } from './led-cache.js';
+ import { beginTrackSwitch, followModulePanel, type TrackSnapshot } from '../track/switch.js';
+ import { renderBrowseView } from '../renderer/browse-view.js';
+@@ -51,7 +52,7 @@ function selectInputMode(next: number, remember=true): void {
+         const mode=sessionPlayMode();
+         clipsPanel=mode===1||mode===2?beginTrackSwitch().modulePanel:null;
+         if(paramPageActive())appState.currentView=closeParamPage();
+-        releaseAllLive();captureClear();seqState.sessionMode=true;inputViewHistory.length=0;
++        releaseAllLive();captureClear();seqState.sessionMode=true;enterClips();inputViewHistory.length=0;
+         seqToast('Clips');return;
+     }
+     if(next!==7){
+diff --git a/src/seq/router.ts b/src/seq/router.ts
+index f0f284a9..439a5e8e 100644
+--- a/src/seq/router.ts
++++ b/src/seq/router.ts
+@@ -1,3 +1,4 @@
++import { clipsMidi } from './clips-view.js';
+ import { chordMidi } from './chord-play.js';
+ import { settingsMidi, settingsActive } from './hb-settings.js';
+ import { fieldMidi } from './field-play.js';
+@@ -57,6 +58,7 @@ export function seqHandleMidi(data: number[], shiftHeld: boolean): boolean {
+ 
+     if(statusType===0xB0&&d1===50)return seqHandleButtonCc(d1,d2,shiftHeld);
+     if(inputModeSelectorMidi(data))return true;
++    if (clipsMidi(data)) return true;
+     if (settingsMidi(data)) return true;
+     if (chordMidi(data,!settingsActive())) return true;
+     if (fieldMidi(data)) return true;
+diff --git a/src/seq/session.ts b/src/seq/session.ts
+index 2f5e30d5..1a8615d8 100644
+--- a/src/seq/session.ts
++++ b/src/seq/session.ts
+@@ -13,6 +13,7 @@
+  * The engine owns clip state; this module emits commands and paints the grid
+  * LEDs from the `session` mirror, pulsing queued/stopping/selected cells. */
+ 
++import { clipsRowTrack } from './clips-layout.js';
+ import { C_BLACK, C_DARKGREY, C_WHITE, trackColor, trackColorDim, ANIM_NONE, ANIM_PULSE, ANIM_PULSE_FAST, ANIM_PULSE_SLOW } from './colors.js';
+ import { undoableEdit } from '../undo/edit.js';
+ import { clipTarget } from '../undo/label.js';
+@@ -20,7 +21,7 @@ import { seqCmd, requestLabelSync } from './engine.js';
+ import { seqToast } from './render.js';
+ import { seqState } from './state.js';
+ import { appState } from '../app/state.js';
+-import { focusedTrack, selectTrack } from '../track/focus.js';
++import { selectTrack } from '../track/focus.js';
+ import { dupActive, onUnit as dupOnUnit } from './duplicate.js';
+ 
+ const COLS = 8;
+@@ -37,7 +38,7 @@ let deleteHeld = false;
+  * buttons while the clip grid kept showing (and launching, and DELETING) the
+  * first four tracks' clips. */
+ function rowTrack(rowFromBottom: number): number {
+-    return focusedTrack(ROWS - 1 - rowFromBottom); // top row = the group's first track
++    return clipsRowTrack(rowFromBottom); // presentation resolves the top role without changing track ownership
+ }
+ 
+ function padToCell(padNote: number, padMin: number): { track: number; slot: number } | null {
+@@ -65,7 +66,12 @@ export function sessionDeleteButton(down: boolean): void {
+ export function sessionPad(padNote: number, padMin: number): void {
+     const cell = padToCell(padNote, padMin);
+     if (!cell) return;
+-    const { track, slot } = cell;
++    sessionLaunchCell(cell.track, cell.slot);
++}
++
++/** Shared launch/edit gesture for pad and capacitive clip rows. */
++export function sessionLaunchCell(track: number, slot: number): void {
++    if (!Number.isInteger(track) || track < 0 || track >= 16 || !Number.isInteger(slot) || slot < 0 || slot >= 8) return;
+ 
+     if (deleteHeld) {
+         undoableEdit('DELETE CLIP', clipTarget(track, slot),
+@@ -88,7 +94,10 @@ export function sessionPad(padNote: number, padMin: number): void {
+      * launching a clip must not throw you out of the grid you are launching
+      * from. The grid only shows the focused quartet, so the focus cannot move
+      * out from under the pad that was pressed. */
++    const visibleBank = appState.focusGroup;
+     selectTrack(track);
++    // A global conductor or borrowed drum row must not pull the visible bank away.
++    appState.focusGroup = visibleBank;
+     appState.dirty = true;
+     seqCmd(`launch ${track} ${slot}`);
+ }
+diff --git a/src/seq/ui-state.ts b/src/seq/ui-state.ts
+index 6b2931d2..b38687ea 100644
+--- a/src/seq/ui-state.ts
++++ b/src/seq/ui-state.ts
+@@ -1,3 +1,4 @@
++import { clipsSnapshot, restoreClips } from './clips-layout.js';
+ import { chordSnapshot, restoreChord } from './chord-play.js';
+ import { gridSnapshot, restoreGrid } from './grid.js';
+ import { jointSnapshot, restoreJoint } from './joint-play.js';
+@@ -41,6 +42,7 @@ export function serializeUiState(): string {
+         gridRows:gridSnapshot(),
+         jointPlay: jointSnapshot(),
+         chordPlay: chordSnapshot(),
++        clipsLayout: clipsSnapshot(),
+         padTrails: trailSettingsSnapshot(),
+         mutes:  mutesSnapshot(),
+         defaultQuant: seqState.defaultQuant,
+@@ -64,6 +66,7 @@ export function applyUiState(blob: string): void {
+         const o = JSON.parse(blob);
+         restoreGrid(o.gridRows);
+         restoreChord(o.chordPlay);
++        restoreClips(o.clipsLayout);
+         restoreTrailSettings(o.padTrails);
+         restoreJoint(o.jointPlay ?? Array.from({length:4},()=>({bass:1,comp:1})));
+         /* FIRST, ahead of the chains: `restoreChains` routes by `trackKind()`,
+@@ -159,6 +162,7 @@ function freshHarmonyBusChains() {
+ /* Defaults match init(): C tonic, Major, Approach, C3 on every track. */
+ export function resetUiState(): void {
+     restoreChord(null);
++    restoreClips(null);
+     restoreGrid(null);
+     restoreJoint(null);
+     /* A brand-new Set uses the dedicated HarmonyBus source template.
