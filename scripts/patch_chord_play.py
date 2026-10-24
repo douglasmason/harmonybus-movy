@@ -72,7 +72,7 @@ def patch_chord_play(root: Path) -> None:
     path = root / 'browser-test/hb-analysis.mjs'
     source = path.read_text().replace("const page=schwungPageFor(0,'midi_fx1');", "const {setSettingsOpen,settingsPage}=await import('../dist/esm/seq/hb-settings.js');\nsetSettingsOpen(true);let page=settingsPage();")
     source = replace_once(source, "setFlag('hbsteprow',1);page.reload();", "setSettingsOpen(false);page=schwungPageFor(0,'midi_fx1');\nsetFlag('hbsteprow',1);page.reload();")
-    source = replace_once(source, "setFlag('hbsteprow',0);page.reload();", "setSettingsOpen(true);page=settingsPage();\nsetFlag('hbsteprow',0);page.reload();")
+    source = replace_once(source, "setFlag('hbsteprow',0);page.reload();\nconst liveRead=", "setSettingsOpen(true);page=settingsPage();\nsetFlag('hbsteprow',0);page.reload();\nconst liveRead=")
     path.write_text(source)
     path = root / 'browser-test/hb-step-modes.mjs'
     path.write_text(path.read_text().replace("assert(order('render_channel')<order('chord_mode'));", "assert.equal(order('render_channel'),-1,'Routing belongs to HB Settings');").replace("assert(page.ctl.page.keys.includes('version'))", "assert(page.ctl.page.keys.includes('content_map'))").replace("assert(has(page,'monitor_status'),'Steps restores setup and diagnostics');", "assert(!has(page,'monitor_status'),'Diagnostics belong to HB Settings');").replace(".keys.includes('version')", ".keys.includes('content_map')").replace('Diagnostics stay in Steps setup','Diagnostics stay in HB Settings').replace('Note diagnostics stay in Steps setup','Note diagnostics stay in HB Settings'))
