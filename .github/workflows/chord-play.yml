@@ -47,7 +47,7 @@ jobs:
           git clone https://github.com/DimaDake/schwung-movy.git movy
           git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
           git clone https://github.com/douglasmason/harmonybus.git harmonybus
-          git -C harmonybus checkout b9bd26547ec1803e9c0b24d532778dc2aa03a05e
+          git -C harmonybus checkout f375872850f4a973bda90ae929dd17aeecaa1899
           git clone https://github.com/charlesvestal/schwung.git schwung
           git -C schwung checkout a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
           python3 scripts/apply_clean_harmonybus.py movy
