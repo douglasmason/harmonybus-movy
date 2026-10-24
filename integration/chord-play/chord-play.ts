@@ -148,6 +148,8 @@ export function chordHierarchy(hierarchy:any):any{
         }
     }
     levels.root={name:'Chord Play Setup',knobs:['cp_conductor','cp_comp','cp_melody','cp_source','cp_selected'],params:[...['cp_conductor','cp_comp','cp_melody','cp_source','cp_selected'].map(key=>({key})),...links]};
+    const retained=new Set(['root',...links.map(link=>link.level)]);
+    for(const key of Object.keys(levels))if(!retained.has(key))delete levels[key];
     return hierarchy;
 }
 export function chordPage():SchwungPage{

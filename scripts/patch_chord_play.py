@@ -71,6 +71,7 @@ def patch_chord_play(root: Path) -> None:
     path.write_text(path.read_text().replace(".ctl.metaAt(0).type", ".ctl.state.metaIndex.get('version').type"))
     path = root / 'browser-test/hb-analysis.mjs'
     source = path.read_text().replace("const page=schwungPageFor(0,'midi_fx1');", "const {setSettingsOpen,settingsPage}=await import('../dist/esm/seq/hb-settings.js');\nsetSettingsOpen(true);let page=settingsPage();")
+    source = replace_once(source, "    for(const key of ['arp_hold','travel_map','next_anti_buffer_ms']) {", "    for(const key of ['arp_hold','travel_map','next_anti_buffer_ms']) {\n        setSettingsOpen(key==='next_anti_buffer_ms');page=key==='next_anti_buffer_ms'?settingsPage():schwungPageFor(0,'midi_fx1');")
     source = replace_once(source, "setFlag('hbsteprow',1);page.reload();", "setSettingsOpen(false);page=schwungPageFor(0,'midi_fx1');\nsetFlag('hbsteprow',1);page.reload();")
     source = replace_once(source, "setFlag('hbsteprow',0);page.reload();\nconst liveRead=", "setSettingsOpen(true);page=settingsPage();\nsetFlag('hbsteprow',0);page.reload();\nconst liveRead=")
     path.write_text(source)

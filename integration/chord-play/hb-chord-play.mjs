@@ -32,6 +32,8 @@ for(let track=0;track<16;track++){
 setFlag('chtracks',1);selectTrack(3);seqState.sessionMode=false;chord.restoreChord(null);chord.setChordEnabled(true);
 assert(padsPlayNotes(),'main pads remain the selected melody instrument');
 let page=chord.chordPage();assert(page.ready);
+assert(!page.ctl.pages.some(item=>item.keys?.includes('monitor_status')),'Chord Play excludes diagnostics');
+assert(!page.ctl.pages.some(item=>item.keys?.includes('render_channel')),'Chord Play excludes global routing');
 const flush=()=>{for(let tick=0;tick<4;tick++){now+=100;page.tick();}};
 const find=key=>{const index=page.ctl.pages.findIndex(item=>item.keys?.includes(key));assert(index>=0,key);page.goToPage(index);flush();};
 find('cp_slot_0');assert.deepEqual(Array.from({length:8},(_,index)=>page.keyAt(index)),Array.from({length:8},(_,index)=>'cp_slot_'+index));
@@ -54,6 +56,7 @@ chord.setChordEnabled(true);chord.tickChord();assert.equal(engine.params.chord_r
 const routing=engine.params.chord_route;const selected=appState.activeTrack.index;
 settings.setSettingsOpen(true);assert(chord.chordEnabled());assert.equal(appState.activeTrack.index,selected);assert.equal(engine.params.chord_route,routing);assert(padsPlayNotes());
 const settingsPage=settings.settingsPage();assert(settingsPage.ctl.pages.some(item=>item.keys?.includes('monitor_status')));
+assert(!settingsPage.ctl.pages.some(item=>item.keys?.includes('arp_hold')),'HB Settings excludes performance arp controls');
 settings.setSettingsOpen(false);assert(chord.chordEnabled());assert.equal(appState.activeTrack.index,selected);
 seqState.sessionMode=true;settings.setSettingsOpen(true);assert.equal(seqState.sessionMode,false);
 settings.setSettingsOpen(true);settings.setSettingsOpen(false);assert.equal(seqState.sessionMode,true,'repeated open preserves the Clips return destination');
