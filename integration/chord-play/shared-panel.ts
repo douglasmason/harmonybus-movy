@@ -11,6 +11,7 @@ export function sharedPanel(): (page: SchwungPage) => SchwungPage {
                 && JSON.stringify(candidate.keys ?? []) === JSON.stringify(selected?.keys ?? []));
             const named = candidates.findIndex((candidate: any) => candidate.name === selected?.name);
             page.goToPage(exact >= 0 ? exact : named >= 0 ? named : 0);
+            page.ctl.hbNavigation?.restore(previous.ctl.hbNavigation?.state());
         }
         previous = page;
         return page;
