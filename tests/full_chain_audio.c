@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 static int sent_on,sent_off,rejected;
+static unsigned routed_channel_on[16];
 static int source_velocity_check;
 static int drum_output_check;
 static int capture_source_velocity,source_velocity_count,source_velocities[16];
@@ -33,7 +34,7 @@ static int send_packet(const uint8_t *packet,int length){
         assert(edge_count<128);
         edges[edge_count++]=(packet[1]&0xf0)==0x90&&packet[3]?1:0;
     }
-    if((packet[1]&0xf0)==0x90&&packet[3]){if(source_velocity_check)assert(packet[3]==source_velocity_check);sent_on++;rendered_mask|=1u<<(packet[2]%12);}
+    if((packet[1]&0xf0)==0x90&&packet[3]){routed_channel_on[packet[1]&15]++;if(source_velocity_check)assert(packet[3]==source_velocity_check);sent_on++;rendered_mask|=1u<<(packet[2]%12);}
     if((packet[1]&0xf0)==0x80||((packet[1]&0xf0)==0x90&&!packet[3]))sent_off++;
     return 4;
 }
@@ -484,6 +485,38 @@ static void test_drum_fill_output(void){
     puts("Drum fill: production stock-track output uses MIDI channel 1, exact sample pitch and paired releases including early stop");
 }
 
+#ifdef HB_TEST_CHORD_PLAY
+static void test_chord_play(void){
+    set("cmd","stop");set("chtracks","1");
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 16 0 \n");
+    set("ch0:midi_fx1:role","Conductor");set("ch0:midi_fx1:render_channel","Off");
+    set("ch0:midi_fx1:master_transpose","C");set("ch0:midi_fx1:follower_explicit_root","C");set("ch0:midi_fx1:follower_scale","Major");
+    set("ch2:midi_fx1:role","Follower");set("ch2:midi_fx1:render_channel","3");
+    set("ch2:midi_fx1:chord_mode","Conductor Chord");set("ch2:midi_fx1:arp_playback","Together");set("ch2:midi_fx1:retrigger_held","Off");
+    set("ch3:midi_fx1:role","Follower");set("ch3:midi_fx1:render_channel","4");set("ch3:midi_fx1:chord_mode","Off");
+    set("joint_links","0,1,1,-2,-1,0;4,0,0,0,0,0;8,0,0,0,0,0;12,0,0,0,0,0");set("chord_route","3,2,1");
+    char mapping[256];int used=snprintf(mapping,sizeof(mapping),"3");
+    for(int pad=0;pad<32;pad++)used+=snprintf(mapping+used,sizeof(mapping)-used,",60");set("padmap",mapping);
+    render(32);sent_on=sent_off=0;memset(routed_channel_on,0,sizeof(routed_channel_on));
+    set("chord_select","0,10,1,0,1,0,1,12");render(16);
+    assert(sent_on==0); /* Conductor selection does not trigger bass or comp. */
+    char context[2048];api->get_param(instance,"ch2:midi_fx1:harmony_source_snapshot",context,sizeof(context));
+    assert(strstr(context,"\"root\":10"));
+    uint8_t down[]={0x90,68,100},up[]={0x80,68,0};api->on_midi(instance,down,3,0);render(32);
+    assert(routed_channel_on[2]>=3);assert(routed_channel_on[3]>0);
+    unsigned comp_attacks=routed_channel_on[2];set("chord_select","0,3,1,0,1,0,1,12");render(8);
+    assert(routed_channel_on[2]==comp_attacks);
+    api->on_midi(instance,up,3,0);render(32);
+    set("cmd","jrec 9 1");render(800);set("chord_select","0,0,1,0,1,0,1,12");render(64);
+    set("chord_select","0,10,6,0,1,0,1,12");render(64);set("cmd","stop");render(16);
+    static char saved[262144];int length=api->get_param(instance,"state",saved,sizeof(saved));
+    if(!(length>0&&strstr(saved,"\nra ")))fprintf(stderr,"chord state (%d): %.4000s\n",length,saved);
+    assert(length>0&&strstr(saved,"\nra "));
+    set("chord_select","off");set("chord_route","off");
+    puts("Chord Play: real conductor snapshots, no selection attacks, Schwung channel 3 comp, independent melody and native recording pass");
+}
+#endif
+
 int main(int argc,char **argv){
     assert(argc==4);
     void *handle=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL);
@@ -649,5 +682,8 @@ int main(int argc,char **argv){
     test_diagnostic_tone();
     test_field_lfos();
     test_drum_fill_output();
+#ifdef HB_TEST_CHORD_PLAY
+    test_chord_play();
+#endif
     api->destroy_instance(instance);return 0;
 }
