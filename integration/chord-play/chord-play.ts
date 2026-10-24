@@ -31,14 +31,16 @@ type Slot={root:number;quality:number;form:number;policy:number;tonic:number;sca
 type Setup={conductor:number;comp:number;source:number;selected:number;colorView:number;slots:Slot[]};
 const fresh=():Setup=>({conductor:0,comp:2,source:0,selected:0,colorView:0,slots:Array.from({length:16},(_,index)=>({root:[0,2,4,5,7,9,11,10,0,3,5,8,10,2,7,0][index],quality:[1,2,2,1,1,2,3,1,5,1,2,1,6,6,6,1][index],form:0,policy:1,tonic:0,scale:1,bass:12,intent:0,target:0,enabled:1}))});
 let setup=fresh(),enabled=false,page:SchwungPage|null=null,pageTrack=-1,activeSlot=-1,route='';
+let conductorRenders=false;
 let bankStatus:ChordBankStatus|null=null,bankWire='',bankOwner=-1,bankPollAt=-Infinity,bankKnobs=false,bankPageDirty=false,bankUrgentUntil=-Infinity;
 const slotPayload=(slot:Slot):string=>[slot.root,slot.quality,slot.form,slot.policy,slot.tonic,slot.scale,slot.bass,slot.intent,slot.target].join(',');
-function resetBank():void{bankStatus=null;bankWire='';bankOwner=-1;bankPollAt=-Infinity;bankUrgentUntil=-Infinity;bankPageDirty=false;}
+function resetBank():void{conductorRenders=false;bankStatus=null;bankWire='';bankOwner=-1;bankPollAt=-Infinity;bankUrgentUntil=-Infinity;bankPageDirty=false;}
 function refreshBank():void{
     const now=Date.now(),wire=setup.slots.map(slotPayload).join(';'),owner=setup.conductor;
     const changed=wire!==bankWire||owner!==bankOwner;
     if(!changed&&now>=bankPollAt&&now-bankPollAt<(now<bankUrgentUntil?16:250))return;
     bankPollAt=now;const port=portFor(owner);
+    const output=port.getParam('midi_fx1:render_channel');conductorRenders=!!output&&output!=='Off'&&output!=='--';
     if(changed){port.setParam('midi_fx1:hb_chord_bank',wire);bankWire=wire;bankOwner=owner;}
     const raw=port.getParam('midi_fx1:hb_chord_bank_snapshot');if(raw==='--'){bankStatus=null;activeSlot=-1;return;}
     const next=parseChordBank(raw);
@@ -64,7 +66,7 @@ export function restoreChord(value:unknown):void{
     setChordEnabled(false);setup=fresh();
     if(value&&typeof value==='object'){
         const input=value as Partial<Setup>;
-        for(const key of ['conductor','comp','source','selected','colorView'] as const){const number=input[key];if(Number.isInteger(number)&&number!>=0&&number!<=(key==='source'?1:key==='colorView'?2:15))setup[key]=number!;}
+        for(const key of ['conductor','comp','source','selected','colorView'] as const){const number=input[key];if(Number.isInteger(number)&&number!>=0&&number!<=(key==='source'?2:key==='colorView'?2:15))setup[key]=number!;}
         if(setup.comp===setup.conductor)setup.comp=setup.conductor===2?3:2;
         setup.slots=setup.slots.map((slot,index)=>{const saved=input.slots?.[index];if(saved&&typeof saved==='object')for(const key of Object.keys(slot) as (keyof Slot)[]){const number=saved[key],limit=key==='quality'||key==='bass'?12:key==='form'?16:key==='policy'?3:key==='scale'?19:key==='target'?6:key==='enabled'?1:11;if(Number.isInteger(number)&&number>=0&&number<=limit&&(key!=='scale'||number>=1))slot[key]=number;}return slot;});
     }
@@ -97,7 +99,7 @@ const actorPanels=():[string,number,string[]][]=>[
 ];
 function parameters(native:any[]):any[]{
     const scale=native.find(parameter=>parameter.key==='key_center_explicit_scale')?.options??['Major','Natural Minor','Dorian','Phrygian','Lydian','Mixolydian','Locrian'];
-    return [enumeration('cp_conductor','Conductor Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_comp','Comp Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_melody','Playing Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_source','Comp Input',['Follow Melody','Comp Clip']),enumeration('cp_selected','Edit Slot',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_colorView','Color By',['Quality + Scale','Intent + Scale','Scale Only']),enumeration('cp_intent','Chord Intent',chordIntents),enumeration('cp_target','Target Degree',chordDegrees),enumeration('cp_enabled','Slot',['Off','On']),{key:'cp_resolved',name:'Resolved Chord',type:'string',readOnly:true},{key:'cp_relation',name:'Scale Relation',type:'string',readOnly:true},
+    return [enumeration('cp_conductor','Conductor Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_comp','Comp Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_melody','Playing Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_source','Comp Input',['Conductor / Melody','Comp Clip','Follow Melody']),enumeration('cp_selected','Edit Slot',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_colorView','Color By',['Quality + Scale','Intent + Scale','Scale Only']),enumeration('cp_intent','Chord Intent',chordIntents),enumeration('cp_target','Target Degree',chordDegrees),enumeration('cp_enabled','Slot',['Off','On']),{key:'cp_resolved',name:'Resolved Chord',type:'string',readOnly:true},{key:'cp_relation',name:'Scale Relation',type:'string',readOnly:true},
         enumeration('cp_root','Literal Root',notes),enumeration('cp_quality','Quality',qualities),enumeration('cp_form','Form',forms),enumeration('cp_policy','Scale Context',['Parent','Minimum Change','Explicit','Harmony Rules']),enumeration('cp_tonic','Scale Tonic',notes),enumeration('cp_scale','Scale',scale),enumeration('cp_bass','Bass',['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B','Root']),
         ...setup.slots.map((slot,index)=>enumeration('cp_slot_'+index,String(index+1),slot.intent?chordDegrees.map((_,degree)=>intentLabel(slot.intent,degree)):notes.flatMap(root=>qualities.map(quality=>root+' '+quality))))];
 }
@@ -191,9 +193,10 @@ export function tickChord():void{
     if(!chordActive())return;
     const melody=appState.activeTrack.index;
     if(melody===setup.comp||melody===setup.conductor){setChordEnabled(false);seqToast('Choose distinct tracks');return;}
-    const next=[melody,setup.comp,setup.source===0?1:0].join(',');
-    if(next!==route){send('chord_route',next);route=next;}
     refreshBank();
+    const followMelody=setup.source===2||(setup.source===0&&!conductorRenders);
+    const next=[melody,setup.comp,followMelody?1:0].join(',');
+    if(next!==route){send('chord_route',next);route=next;}
     if(bankPageDirty&&!touches.size&&!controls.size){const index=page?.pageIndex??0;page=null;chordPage().goToPage(index);bankPageDirty=false;}
     if(page&&bankStatus)for(let index=0;index<16;index++){const meta=page.ctl.state.metaIndex.get('cp_slot_'+index);if(meta){meta.label=meta.name=(index+1)+' '+bankStatus.slots[index].name;meta.short_name=meta.name;}}
     if(!settingsActive()){

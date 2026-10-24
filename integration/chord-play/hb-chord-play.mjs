@@ -105,3 +105,15 @@ console.log('Chord colors: native quality/intent families, binary chromatic brig
  assert.equal(ledPackets.length,previous+1,'animation cache also observes ordinary writes');
 }
 console.log('Mode LED owners: regular and animated caches invalidate each other');
+
+// The normal route must not double-trigger the same Schwung chord instrument.
+chord.restoreChord(null);selectTrack(3);seqState.sessionMode=false;chord.setChordEnabled(true);
+portFor(0).setParam('midi_fx1:render_channel','3');now+=250;chord.tickChord();
+assert.equal(engine.params.chord_route,'3,2,0','conductor output owns comp triggers by default');
+portFor(0).setParam('midi_fx1:render_channel','Off');now+=250;chord.tickChord();
+assert.equal(engine.params.chord_route,'3,2,1','silent conductor retains melody-triggered comp');
+const routePort=chord.chordPanelPort(3);routePort.getParam('midi_fx1:chain_params');
+routePort.setParam('midi_fx1:cp_source','Follow Melody');
+portFor(0).setParam('midi_fx1:render_channel','3');now+=250;chord.tickChord();
+assert.equal(engine.params.chord_route,'3,2,1','explicit extra melody trigger remains available');
+console.log('Conductor output route avoids duplicate comp attacks; explicit extra triggers remain available');

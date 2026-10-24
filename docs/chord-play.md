@@ -1,6 +1,6 @@
 # Chord output and mode feedback — Movy 0.34.1-hbclean.241
 
-Chord selections now use HarmonyBus 0.2.293 and the conductor’s configured Render channel. With Movy track 1 routed to MIDI channel 3, chord-bank knob touches and step buttons play the selected harmony into original Schwung’s chord/pad track. Conductor chord, voicing, arp, and rhythm panels are available in Chord Play’s Conductor category. A separately triggered Comp actor remains available; Render Off keeps conductor selections silent.
+Chord selections now use HarmonyBus 0.2.293 and the conductor’s configured Render channel. With Movy track 1 routed to MIDI channel 3, chord-bank knob touches and step buttons play the selected harmony into original Schwung’s chord/pad track. Conductor chord, voicing, arp, and rhythm panels are available in Chord Play’s Conductor category. The default Comp Input uses conductor output when enabled, avoiding duplicate melody-triggered chords on the same destination. With Render Off it follows the melody instead. Comp Clip and explicit Follow Melody remain available.
 
 Selecting harmony does not arm recording or edit the conductor clip. Record explicitly starts the existing take: the conductor replaces the elapsed interval, while melody retains its existing recording behavior. Rendered chord voices are not recorded a second time.
 
