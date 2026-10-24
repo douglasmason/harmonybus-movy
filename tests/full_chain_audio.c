@@ -513,6 +513,23 @@ static void test_chord_play(void){
     if(!(length>0&&strstr(saved,"\nra ")))fprintf(stderr,"chord state (%d): %.4000s\n",length,saved);
     assert(length>0&&strstr(saved,"\nra "));
     set("chord_select","off");set("chord_route","off");
+#ifdef HB_TEST_CHORD_INTENT
+    set("ch0:midi_fx1:follower_root_policy","Explicit");set("ch0:midi_fx1:follower_explicit_root","C");set("ch0:midi_fx1:follower_scale","Major");
+    sent_on=0;set("chord_select","0,0,0,3,3,0,1,12,3,4");render(32);
+    api->get_param(instance,"ch2:midi_fx1:harmony_source_snapshot",context,sizeof(context));
+    assert(strstr(context,"\"root\":2")&&sent_on==0);
+    set("cmd","jrec 9 1");render(800);set("chord_select","0,0,0,3,3,0,1,12,3,4");render(64);set("cmd","stop");render(16);
+    length=api->get_param(instance,"state",saved,sizeof(saved));assert(length>0);
+    int has_intent=0;const char *action=saved;
+    while((action=strstr(action,"\nra 0 "))){
+        unsigned long long word=0;
+        if(sscanf(action,"\nra %*u %*u %*u %*u,%llu",&word)==1&&
+           (word&0xffffc01f00000000ULL)==0xc859001f00000000ULL&&((word>>37)&15)==2&&((word>>41)&15)==5)has_intent=1;
+        action++;
+    }
+    assert(has_intent);
+    set("chord_select","off");puts("Functional Chord Play: native resolved source pitch, secondary V/V and immutable intent recording pass");
+#endif
     puts("Chord Play: real conductor snapshots, no selection attacks, Schwung channel 3 comp, independent melody and native recording pass");
 }
 #endif

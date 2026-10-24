@@ -9,4 +9,13 @@
             let mut bad=actions;bad[0]=bad_word;assert!(parse(&format!("ra4,{}",payload(70,bad))).is_none());
         }
     }
+    #[test] fn functional_snapshots_keep_intent_and_reject_reserved_bits(){
+        let mut actions=[0;LANES+1];actions[0]=0xc859001f00000000|0x491|(0xab5<<12)|(2<<37)|(5<<41);
+        assert!(chord_selection(&actions));
+        assert_eq!(parse(&format!("ra4,{}",payload(62,actions))),Some((62,actions)));
+        for word in [actions[0]|(1<<46),(actions[0]&!(15<<41))|(15<<41),actions[0]&!(15<<37)] {
+            let mut bad=actions;bad[0]=word;assert!(!chord_selection(&bad));
+            assert!(parse(&format!("ra4,{}",payload(62,bad))).is_none());
+        }
+    }
 }
