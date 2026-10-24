@@ -29,6 +29,14 @@ cc -O1 -shared -fPIC -I"$SCHWUNG_SOURCE/src" "$INTEGRATION_ROOT/tests/audio_prob
 cat > "$FIXTURE_ROOT/sound_generators/probe/module.json" <<'JSON'
 {"id":"probe","name":"PCM Probe","version":"1.0.0","api_version":2,"capabilities":{"chain_params":[{"key":"cutoff","name":"Cutoff","type":"int","min":0,"max":127,"default":0}],"component_type":"sound_generator"}}
 JSON
-cc -O1 -I"$SCHWUNG_SOURCE/src" "$INTEGRATION_ROOT/tests/full_chain_audio.c" -ldl -o "$FIXTURE_ROOT/full-chain-test"
+# Older feature workflows deliberately retain their original HB source pin.
+# The Chord Play workflow requires this header, so its new coverage cannot skip.
+CHORD_PLAY_TEST_FLAGS=()
+if test -f "$HB_SOURCE/src/chord_selection.h"; then
+  CHORD_PLAY_TEST_FLAGS=(-DHB_TEST_CHORD_PLAY)
+else
+  echo 'Pinned HB predates Chord Play; running the existing production-chain regressions'
+fi
+cc -O1 "${CHORD_PLAY_TEST_FLAGS[@]}" -I"$SCHWUNG_SOURCE/src" "$INTEGRATION_ROOT/tests/full_chain_audio.c" -ldl -o "$FIXTURE_ROOT/full-chain-test"
 cargo build --manifest-path "$MOVY_SOURCE/engine/Cargo.toml" -p movy-dsp
 "$FIXTURE_ROOT/full-chain-test" "$MOVY_SOURCE/engine/target/debug/libmovy_dsp.so" "$FIXTURE_ROOT" restored

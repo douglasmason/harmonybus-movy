@@ -485,6 +485,7 @@ static void test_drum_fill_output(void){
     puts("Drum fill: production stock-track output uses MIDI channel 1, exact sample pitch and paired releases including early stop");
 }
 
+#ifdef HB_TEST_CHORD_PLAY
 static void test_chord_play(void){
     set("cmd","stop");set("chtracks","1");
     set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 16 0 \n");
@@ -514,6 +515,7 @@ static void test_chord_play(void){
     set("chord_select","off");set("chord_route","off");
     puts("Chord Play: real conductor snapshots, no selection attacks, Schwung channel 3 comp, independent melody and native recording pass");
 }
+#endif
 
 int main(int argc,char **argv){
     assert(argc==4);
@@ -680,6 +682,8 @@ int main(int argc,char **argv){
     test_diagnostic_tone();
     test_field_lfos();
     test_drum_fill_output();
+#ifdef HB_TEST_CHORD_PLAY
     test_chord_play();
+#endif
     api->destroy_instance(instance);return 0;
 }
