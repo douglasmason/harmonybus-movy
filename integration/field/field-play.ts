@@ -1,3 +1,5 @@
+import { sharedPanel } from './shared-panel.js';
+const followPanel=sharedPanel();
 import { routesOpen, setFieldRoutesOpen, resetFieldRoutes, tickFieldRoutes, selectedFieldRoute, stepFieldRoute, fieldRoutesSnapshot, fieldRouteStatus, fieldRouteFreshness } from './field-routes.js';
 import { selectTrack } from '../track/focus.js';
 import { LFO_CHAIN_INDEX } from '../chain/config.js';
@@ -40,7 +42,7 @@ function fieldPage():SchwungPage{
         if(hierarchy.levels.field)hierarchy.levels.root={...hierarchy.levels.field,name:'Field Play'};
         return hierarchy;
     }});
-    return page;
+    return followPanel(page);
 }
 /** Last-pressed wins; releasing it restores another held gesture or baseline. */
 export function fieldPad(source:string,index:number,down:boolean,width=8,height=4,clear=appState.shiftHeld):boolean{

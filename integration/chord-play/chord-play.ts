@@ -1,3 +1,5 @@
+import { sharedPanel } from './shared-panel.js';
+const followPanel=sharedPanel();
 /** Chord slots choose conductor harmony; the comp actor owns rhythm and sound. */
 import { appState } from '../app/state.js';
 import { selectTrack } from '../track/focus.js';
@@ -181,7 +183,7 @@ export function chordHierarchy(hierarchy:any):any{
 export function chordPage():SchwungPage{
     const track=appState.activeTrack.index;
     if(!page||pageTrack!==track){releaseChordTouches();pageTrack=track;page=createSchwungPage(chordPanelPort(track),'midi_fx1',{harmonyMode:3,hierarchy:chordHierarchy});}
-    return page;
+    return followPanel(page);
 }
 export function tickChord():void{
     if(!chordActive())return;
