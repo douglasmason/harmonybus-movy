@@ -67,3 +67,11 @@ grid.gridMidi([176,14,1]);const visible=grid.gridPage();let visiblePolls=0;const
 for(let count=0;count<3;count++){now+=100;globalThis.tick();}
 assert.equal(hiddenPolls,0);assert(visiblePolls>0,'Grid settings own feedback in the actual app tick');
 console.log('Real app: Grid owns knob feedback; hidden HB panel cannot repaint it');
+// Hidden-event directions follow row order and distinguish unassigned content.
+grid.restoreGrid(null);grid.setGridEnabled(true);seqState.reportedTrack=0;
+const occupancy=Array(144).fill('0');occupancy[60]='1';occupancy[128]='1';
+grid.gridViews.move.lane=4;grid.gridAccept('0@/1@/3@'+occupancy.join(''),0);
+assert.equal(grid.gridHiddenDirections(false),'^');assert.equal(grid.gridHiddenDirections(true),'v');
+occupancy[55]='1';grid.gridAccept('0@/1@/3@'+occupancy.join(''),0);assert.equal(grid.gridHiddenDirections(false),'^v');
+occupancy[61]='1';grid.gridAccept('0@/1@/3@'+occupancy.join(''),0);assert.equal(grid.gridHiddenDirections(false),'^v!');
+grid.gridViews.move.lane=0;assert.equal(grid.gridHiddenDirections(false),'v!','visible notes are not counted as hidden');
