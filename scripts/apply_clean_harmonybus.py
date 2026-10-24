@@ -625,6 +625,8 @@ def main() -> int:
     patch_section_participation(root)
     from patch_drum_fill import patch_drum_fill
     patch_drum_fill(root)
+    from patch_chord_play import patch_chord_play
+    patch_chord_play(root)
     print("HarmonyBus clean integration applied")
     return 0
 
