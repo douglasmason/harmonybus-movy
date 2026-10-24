@@ -7,7 +7,7 @@ def patch_chord_play(root: Path) -> None:
     """Connect panel owners, persisted definitions and existing native recording."""
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/chord-play'
     (root / 'browser-test/hb-chord-play.mjs').write_text((assets / 'hb-chord-play.mjs').read_text())
-    for name in ('chord-play.ts', 'hb-settings.ts'):
+    for name in ('chord-play.ts', 'chord-colors.ts', 'hb-settings.ts'):
         (root / 'src/seq' / name).write_text((assets / name).read_text())
     path: Path = root / 'src/seq/router-buttons.ts'
     source: str = "import { chordEnabled, setChordEnabled } from './chord-play.js';\nimport { settingsOpen, setSettingsOpen } from './hb-settings.js';\n" + path.read_text()
@@ -79,7 +79,7 @@ def patch_chord_play(root: Path) -> None:
     path.write_text(path.read_text().replace("assert(order('render_channel')<order('chord_mode'));", "assert.equal(order('render_channel'),-1,'Routing belongs to HB Settings');").replace("assert(page.ctl.page.keys.includes('version'))", "assert(page.ctl.page.keys.includes('content_map'))").replace("assert(has(page,'monitor_status'),'Steps restores setup and diagnostics');", "assert(!has(page,'monitor_status'),'Diagnostics belong to HB Settings');").replace(".keys.includes('version')", ".keys.includes('content_map')").replace('Diagnostics stay in Steps setup','Diagnostics stay in HB Settings').replace('Note diagnostics stay in Steps setup','Note diagnostics stay in HB Settings'))
     for relative in ('src/seq/constants.ts', 'engine/crates/movy-dsp/src/lib.rs'):
         path = root / relative
-        path.write_text(path.read_text().replace('0.71.0-drum-fill1','0.71.0-chord-play1'))
+        path.write_text(path.read_text().replace('0.71.0-drum-fill1','0.71.0-chord-play2'))
     path = root / 'browser-test/hb-joint-panels.mjs'
     path.write_text(path.read_text().replace('[1,2,3,4,5,0,1,2,3,4,5,0]', '[1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0]').replace('six-mode Session cycle','eight-mode Session cycle'))
     patch_native(root)
@@ -94,7 +94,8 @@ def patch_native(root: Path) -> None:
     source = replace_once(source, 'pub fn parse(message:', '''/// Reserved silent harmony descriptor. It is never an executable operation.
 pub fn chord_selection(actions:&Actions)->bool {
     let word=actions[0];
-    word&0xffffffff00000000==0xc858001f00000000 && word&1!=0 && (word&4095).count_ones()>=2 &&
+    let intent=word&0xffffc01f00000000==0xc859001f00000000 && (1..=10).contains(&((word>>37)&15)) && (word>>41)&15<12;
+    (word&0xffffffff00000000==0xc858001f00000000||intent) && word&1!=0 && (word&4095).count_ones()>=2 &&
         (word>>12)&4095!=0 && (word>>24)&15<12 && (word>>28)&15<12 && actions[1..].iter().all(|word|*word==0)
 }
 pub fn parse(message:''')
@@ -138,9 +139,10 @@ pub fn parse(message:''')
                     self.abort_idle_input();
                     self.chains.set_param(selection.track,"midi_fx1:hb_movy_input_chord",&selection.payload);
                     if self.chains.get_param(selection.track,"midi_fx1:hb_chord_prepared").as_deref()==Some("1"){
+                        let pitch=self.chains.get_param(selection.track,"midi_fx1:hb_chord_note").and_then(|text|text.parse::<u8>().ok()).filter(|pitch|*pitch<128).unwrap_or(selection.pitch);
                         self.release_chord_selection();
-                        self.input_event(surface_route::Event{track:selection.track,pitch:selection.pitch,status:0x90,value:100,approach:None,full_velocity:false},false);
-                        self.chord_note=Some((selection.track,selection.pitch));
+                        self.input_event(surface_route::Event{track:selection.track,pitch,status:0x90,value:100,approach:None,full_velocity:false},false);
+                        self.chord_note=Some((selection.track,pitch));
                     }
                 }
             }

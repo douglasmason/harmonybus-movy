@@ -15,13 +15,15 @@ const settings=await import('../dist/esm/seq/hb-settings.js');
 const {padsPlayNotes}=await import('../dist/esm/seq/router-pads.js');
 const {hbStepHierarchy}=await import('../dist/esm/renderer/hb-step-panels.js');
 const metadata=JSON.parse(readFileSync(process.env.HB_MODULE,'utf8'));
-const writes=[];
+const writes=[];let bankFrame='',bankReads=0;
+const ledPackets=[];globalThis.move_midi_internal_send=packet=>{ledPackets.push([...packet]);return true;};
 let now=10000;Date.now=()=>now;
 for(let track=0;track<16;track++){
  const port=portFor(track),values=new Map(metadata.capabilities.chain_params.map(meta=>[meta.key,String(meta.default??meta.options?.[0]??'0')]));
  port.getParam=key=>{
   if(key==='midi_fx1_module')return 'harmonybus';
   const bare=key.replace(/:(base|modulated)$/,'').split(':').at(-1);
+  if(bare==='hb_chord_bank_snapshot'){bankReads++;return bankFrame;}
   if(bare==='chain_params')return JSON.stringify(metadata.capabilities.chain_params);
   if(bare==='ui_hierarchy')return JSON.stringify(metadata.capabilities.ui_hierarchy);
   return values.get(bare)??'';
@@ -64,3 +66,30 @@ settings.setSettingsOpen(true,false);settings.setSettingsOpen(false);assert.equa
 for(const mode of [0,1,2]){const hierarchy=hbStepHierarchy(structuredClone(metadata.capabilities.ui_hierarchy),mode);assert.equal(hierarchy.levels.diagnostics.visible_if.movyStepVisible,false);assert(!hierarchy.levels.root.knobs.includes('version'));}
 chord.setChordEnabled(false);assert.equal(engine.params.chord_select,'off');assert.equal(engine.params.chord_route,'off');
 console.log('Chord Play: two full banks, silent conductor commands, fixed track aliases, persistence, settings overlay and curated pages pass');
+
+// Native classifications drive hue/brightness. The UI must not infer harmony.
+const {ledFrameReset}=await import('../dist/esm/seq/led-cache.js');
+const saved=chord.chordSnapshot();saved.colorView=0;saved.slots[2].intent=2;saved.slots[2].target=4;saved.slots[3].intent=3;saved.slots[3].target=4;
+const rows=Array.from({length:16},()=>[0,145,2741,7,0,0,1,0,'C']);
+rows[1]=[10,1060,1717,7,0,10,1,1,'Bb'];
+rows[2]=[9,657,2773,8,7,9,2,0,'Am7'];rows[3]=[2,581,2773,2,7,2,3,1,'D7'];
+const frame=active=>'cb1|2741|'+active.join(',')+'|'+rows.map(row=>row.join(',')).join('|');
+bankFrame=frame([-1,0,0,0,0,0]);chord.restoreChord(saved);chord.setChordEnabled(true);chord.tickChord();
+assert.equal(chord.chordSlotColor(0),77);assert.equal(chord.chordSlotColor(1),7,'chromatic major uses the stronger same-hue color');
+assert.equal(chord.chordSlotColor(2),97);assert.equal(chord.chordSlotColor(3),26,'dominant quality is independent of scale membership');
+let colorPort=chord.chordPanelPort(3);colorPort.getParam('midi_fx1:chain_params');colorPort.setParam('midi_fx1:cp_colorView','Intent + Scale');
+assert.equal(chord.chordSlotColor(2),109);assert.equal(chord.chordSlotColor(3),23,'ii/V and V/V share an intent hue, with binary scale brightness');
+now+=250;bankFrame=frame(rows[3].slice(0,6));chord.tickChord();assert.equal(chord.chordSlotColor(3),120,'actual current harmony is white, never recording red');
+page=chord.chordPage();find('cp_slot_0');chord.tickChord();
+const readsBefore=bankReads,writesBefore=writes.length;ledPackets.length=0;ledFrameReset();chord.paintChordSteps();
+for(let frameIndex=0;frameIndex<5;frameIndex++){ledFrameReset();chord.paintChordSteps();chord.tickChord();}
+assert.equal(bankReads,readsBefore,'painting and fast ticks perform no extra snapshot reads');assert.equal(writes.length,writesBefore,'unchanged banks are not resent');
+for(const address of [19,3,74])assert(ledPackets.some(packet=>packet[2]===address&&packet[3]===120),'step and both knob addresses share white selection');
+colorPort.setParam('midi_fx1:cp_selected','3');colorPort.setParam('midi_fx1:cp_enabled','Off');
+const previousCommand=engine.params.chord_select;chord.selectChordSlot(2);assert.equal(engine.params.chord_select,previousCommand);assert.equal(chord.chordSlotColor(2),0);
+colorPort.setParam('midi_fx1:cp_selected','4');colorPort.setParam('midi_fx1:cp_intent','Secondary V');colorPort.setParam('midi_fx1:cp_target','V');
+chord.selectChordSlot(3);assert(engine.params.chord_select.endsWith(',3,4'));
+const persistence=chord.chordSnapshot();chord.restoreChord(persistence);assert.deepEqual(chord.chordSnapshot(),persistence);
+const legacy=structuredClone(persistence);delete legacy.colorView;for(const slot of legacy.slots){delete slot.intent;delete slot.target;delete slot.enabled;}
+chord.restoreChord(legacy);assert.equal(chord.chordSnapshot().colorView,0);assert(chord.chordSnapshot().slots.every(slot=>slot.intent===0&&slot.target===0&&slot.enabled===1));
+console.log('Chord colors: native quality/intent families, binary chromatic brightness, actual harmony, matching knobs, bounded reads, disabled slots and legacy migration pass');
