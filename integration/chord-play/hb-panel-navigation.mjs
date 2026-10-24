@@ -28,3 +28,22 @@ assert(settings.ctl.hbNavigation.state().groups.includes('Diagnostics'));
 const missing=page.ctl.pages.findIndex(candidate=>candidate.level==='cp_Melody_track_scales');page.goToPage(missing);
 assert.equal(navigation.state().category,'Melody','direct panel jumps select their category too');
 console.log('Panel categories: core boundary, restricted jog, read-free menus, inert knobs, back trail and track continuity pass');
+// Render through Movy's outer chrome, not just the isolated parameter page.
+const {renderKnobsView}=await import('../dist/esm/renderer/knob-view.js');
+const {drawHeader}=await import('../dist/esm/renderer/header.js');
+const {schwungPageFor}=await import('../dist/esm/renderer/schwung-grid.js');
+const pixels=new Uint8Array(128*64),oldClear=globalThis.clear_screen,oldFill=globalThis.fill_rect;
+globalThis.clear_screen=()=>pixels.fill(0);
+globalThis.fill_rect=(x,y,width,height,color)=>{for(let row=Math.max(0,y);row<Math.min(64,y+height);row++)for(let column=Math.max(0,x);column<Math.min(128,x+width);column++)pixels[row*128+column]=color?1:0;};
+try {
+ for(const current of [schwungPageFor(0,'midi_fx1'),chordPage()]){
+  current.goToPage(0);current.ctl.state.touched=-1;current.ctl.state.peek=null;
+  clear_screen();current.render('HarmonyBus');const expected=pixels.slice(0,128*7);
+  const vm={moduleName:'HarmonyBus',bankName:'T4',bankIndex:0,bankCount:30,rows:[],toast:null,overlay:null};
+  renderKnobsView(vm,false,3,()=>current.render('HarmonyBus'));
+  assert.deepEqual(pixels.slice(0,128*7),expected,'category title replaces the complete Normal Play outer header');
+  clear_screen();drawHeader('Chord Play','C1 P3 M8');current.render('Chord Play');
+  assert.deepEqual(pixels.slice(0,128*7),expected,'category count replaces the complete Chord Play route header');
+ }
+}finally{globalThis.clear_screen=oldClear;globalThis.fill_rect=oldFill;}
+console.log('Category header pixels: outer app labels and route values are fully replaced');
