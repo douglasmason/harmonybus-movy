@@ -31,7 +31,28 @@ for(const expected of [1,2,3,4,5,6,7,0]){
 }
 sessionTap();cc(14,127);assert.equal(buttons.inputModeSelectorChoice(),0,'list clamps at the first mode');
 buttons.resetInputModeSelector();assert(!buttons.inputModeSelectorOpen());
+sessionTap();cc(14,6);cc(MoveMainButton,127);cc(MoveMainButton,0);assert.equal(buttons.sessionPlayMode(),6);
 buttons.seqHandleButtonCc(CC_NOTE_SESSION,127,true);buttons.seqHandleButtonCc(CC_NOTE_SESSION,0,false);
-assert.equal(buttons.sessionPlayMode(),7,'Shift Session retains the Settings shortcut');
+assert.equal(buttons.sessionPlayMode(),0,'Shift Session enters Clips directly');
+assert(!buttons.inputModeSelectorOpen());
+const {beginTrackSwitch,switchToTrack,restoreTrackState}=await import('../dist/esm/track/switch.js');
+const clipSnapshot=beginTrackSwitch();switchToTrack(4,clipSnapshot);
+assert.equal(buttons.sessionPlayMode(),6,'Clips reveals the same shared Chord Play mode on another track');
+restoreTrackState(clipSnapshot);assert.equal(buttons.sessionPlayMode(),0,'track peek returns to Clips');
+{
+ const chordNavigation=await import('../dist/esm/seq/chord-play.js');
+ const gridNavigation=await import('../dist/esm/seq/grid.js');
+ const settingsNavigation=await import('../dist/esm/seq/hb-settings.js');
+ for(const getPage of [chordNavigation.chordPage,gridNavigation.gridPage,settingsNavigation.settingsPage]){
+  selectTrack(0);const first=getPage();assert(first.pageCount>2);first.goToPage(2);
+  const title=first.ctl.page.name,keys=first.ctl.page.keys;
+  selectTrack(4);const second=getPage();assert.equal(second.ctl.page.name,title);assert.deepEqual(second.ctl.page.keys,keys);
+  second.goToPage(1);const nextTitle=second.ctl.page.name;
+  selectTrack(0);assert.equal(getPage().ctl.page.name,nextTitle,'returning tracks follows the current shared panel');
+ }
+ appState.focusGroup=0;const first=panels.jointPage();first.goToPage(2);const title=first.ctl.page.name;
+ appState.focusGroup=1;assert.equal(panels.jointPage().ctl.page.name,title,'Joint quartet changes follow the shared panel');
+ appState.focusGroup=0;panels.jointPage().goToPage(0);
+}
 buttons.seqHandleButtonCc(CC_NOTE_SESSION,127,true);buttons.seqHandleButtonCc(CC_NOTE_SESSION,0,false);
-console.log('Session selector: zero browse reads/writes, all eight direct entries, cancel, current-mode no-op, release ownership and Settings shortcut pass');
+console.log('Session selector: zero browse reads/writes, direct destinations, shared mode across Clips/track changes, cancel, same-mode no reload and direct Clips shortcut pass');

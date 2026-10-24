@@ -1,3 +1,5 @@
+import { sharedPanel } from './shared-panel.js';
+const followPanel=sharedPanel();
 /** Shared grid viewport/controller. Musical state remains in the sequencer. */
 import { editRangeDown, editStepUp, beginStepAutomation, endStepAutomation, editStepPageKnob } from './step-edit.js';
 import { setStepPageSelected, setStepTouchedKnob } from './step-page.js';
@@ -135,7 +137,7 @@ function gridSet(key:string,value:string):void {
     if(key==='grid_follow')view.follow=value==='On';appState.dirty=true;
 }
 export function gridPage():SchwungPage {
-    const track=watchedTrack();let page=pages.get(track);if(page)return page;
+    const track=watchedTrack();let page=pages.get(track);if(page)return followPanel(page);
     const native=portFor(track);
     const getParam=(key:string):string|null=>{
         const bare=key.replace(/:(base|modulated)$/,'').split(':').pop()??'';
@@ -149,7 +151,7 @@ export function gridPage():SchwungPage {
     page=createSchwungPage(port,'midi_fx1',{hierarchy:hierarchy=>{
         const root=hierarchy.levels.root;root.name='Grid Sequencer';root.knobs=parameters.map(parameter=>parameter.key);
         root.params=[...parameters,...(root.params??[]).filter((entry:any)=>entry.level)];return hierarchy;
-    }});pages.set(track,page);page.reload();return page;
+    }});pages.set(track,page);return followPanel(page);
 }
 export function gridMidi(data:number[]):boolean {
     const type=data[0]&240,key=data[1],value=data[2],down=type===144&&value>0;

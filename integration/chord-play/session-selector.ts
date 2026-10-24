@@ -2,6 +2,8 @@
 const inputModeNames=['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings'];
 let inputModeChoice=-1,sessionSelectorHeld=false;
 const selectorReleases=new Set<number>();
+let clipsPanel:TrackSnapshot['modulePanel']=null;
+export function clipsReturnPanel():TrackSnapshot['modulePanel']{return clipsPanel;}
 export const inputModeSelectorOpen=():boolean=>inputModeChoice>=0;
 export const inputModeSelectorChoice=():number=>inputModeChoice;
 export function resetInputModeSelector():void{inputModeChoice=-1;sessionSelectorHeld=false;selectorReleases.clear();appState.dirty=true;}

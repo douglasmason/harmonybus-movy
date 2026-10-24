@@ -1,3 +1,5 @@
+import { sharedPanel } from './shared-panel.js';
+const followPanel=sharedPanel();
 /** Joint parameters are metadata and track I/O; Schwung owns all panel behavior. */
 import { createSchwungPage, type SchwungPage } from '../renderer/schwung-page.js';
 import { releasePerformanceTouch } from '../renderer/performance-touch.js';
@@ -113,7 +115,7 @@ export function jointPage():SchwungPage {
     const track=appState.focusGroup*4+3;
     let page=pages.get(track);
     if(!page){page=createSchwungPage(panelPort(track),'midi_fx1',{harmonyMode:2,hierarchy:jointHierarchy});pages.set(track,page);}
-    return page;
+    return followPanel(page);
 }
 export function jointPanelTouch(slot:number,down:boolean):boolean {
     if(!down){const owner=touches.get(slot);if(!owner)return false;owner.knobTouch(slot,false);touches.delete(slot);return true;}

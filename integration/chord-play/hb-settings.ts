@@ -1,3 +1,5 @@
+import { sharedPanel } from './shared-panel.js';
+const followPanel=sharedPanel();
 /** Session destination layered over the current performance owner. */
 import { appState } from '../app/state.js';
 import { seqState } from './state.js';
@@ -27,7 +29,8 @@ export function settingsHierarchy(hierarchy:any):any{
     return hierarchy;
 }
 export function settingsPage():SchwungPage{
-    if(!page)page=createSchwungPage(portFor(owner),'midi_fx1',{harmonyMode:3,hierarchy:settingsHierarchy});return page;
+    if(owner!==appState.activeTrack.index){owner=appState.activeTrack.index;page=null;}
+    if(!page)page=createSchwungPage(portFor(owner),'midi_fx1',{harmonyMode:3,hierarchy:settingsHierarchy});return followPanel(page);
 }
 export function tickSettings():void{
     if(!settingsActive())return;
