@@ -16,6 +16,7 @@ import { trackColor } from './colors.js';
 import { muteHeld } from './router-buttons.js';
 import { seqToast } from './render.js';
 import { recToggle } from '../undo/rec-pass.js';
+import { settingsActive } from './hb-settings.js';
 
 const send=(key:string,value:string):void=>{if(engineReady())fieldEngineSet(key,value);};
 const notes=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
@@ -160,7 +161,11 @@ export function tickChord():void{
     if(melody===setup.comp||melody===setup.conductor){setChordEnabled(false);seqToast('Choose distinct tracks');return;}
     const next=[melody,setup.comp,setup.source===0?1:0].join(',');
     if(next!==route){send('chord_route',next);route=next;}
-    chordPage().tick();
+    if(!settingsActive()){
+        const current=chordPage(),values=()=>JSON.stringify((current.ctl.page?.keys??[]).map((key:string)=>current.ctl.state.values[key]));
+        const before=values();if(current.needsTouchPaint)appState.dirty=true;
+        current.tick();if(values()!==before)appState.dirty=true;
+    }
 }
 export function chordRecordCommand():string|null{return chordActive()?'jrec '+((1<<setup.conductor)|(1<<appState.activeTrack.index))+' '+(1<<setup.conductor):null;}
 export function chordMidi(data:number[],panels=true):boolean{

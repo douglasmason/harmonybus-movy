@@ -13,7 +13,7 @@ def patch_chord_play(root: Path) -> None:
     source: str = "import { chordEnabled, setChordEnabled } from './chord-play.js';\nimport { settingsOpen, setSettingsOpen } from './hb-settings.js';\n" + path.read_text()
     source = replace_once(source, 'return seqState.sessionMode ? 0 :', 'return settingsOpen() ? 7 : seqState.sessionMode ? 0 : chordEnabled() ? 6 :')
     source = replace_once(source, '(previous + 1) % 6', '(previous + 1) % 8')
-    source = replace_once(source, '    setGridEnabled(next === 4);', "    if(next===7){setSettingsOpen(true);seqToast('HB Settings');return;}\n    setSettingsOpen(false);setChordEnabled(next===6);\n    setGridEnabled(next === 4);")
+    source = replace_once(source, '    setGridEnabled(next === 4);', "    if(next===7){setSettingsOpen(true,false);seqToast('HB Settings');return;}\n    setSettingsOpen(false);setChordEnabled(next===6);\n    setGridEnabled(next === 4);")
     source = replace_once(source, "'Field Play'][next]", "'Field Play', 'Chord Play', 'HB Settings'][next]")
     source = replace_once(source, '    if (d1 === CC_NOTE_SESSION) {', '''    if (d1 === CC_NOTE_SESSION && (shiftHeld || settingsShortcut)) {
         if(d2>0){settingsShortcut=true;setSettingsOpen(!settingsOpen());}
@@ -28,7 +28,8 @@ def patch_chord_play(root: Path) -> None:
     source = replace_once(source, '    if (fieldMidi(data))', '    if (settingsMidi(data)) return true;\n    if (chordMidi(data,!settingsActive())) return true;\n    if (fieldMidi(data))')
     path.write_text(source)
     path = root / 'src/app/tick.ts'
-    source = "import { chordActive, tickChord, renderChord } from '../seq/chord-play.js';\nimport { settingsActive, tickSettings, renderSettings } from '../seq/hb-settings.js';\n" + path.read_text()
+    source = "import { chordActive, chordPage, tickChord, renderChord } from '../seq/chord-play.js';\nimport { settingsActive, settingsPage, tickSettings, renderSettings } from '../seq/hb-settings.js';\n" + path.read_text()
+    source = replace_once(source, 'const touchPage = activeModel ?', 'const touchPage = settingsActive() ? settingsPage() : chordActive() ? chordPage() : activeModel ?')
     source = replace_once(source, '    tickField();', '    tickSettings();\n    tickChord();\n    tickField();')
     source = replace_once(source, '        } else if (fieldActive()) {', '        } else if (settingsActive()) {\n            renderSettings();\n        } else if (chordActive()) {\n            renderChord();\n        } else if (fieldActive()) {')
     path.write_text(source)
@@ -66,6 +67,13 @@ def patch_chord_play(root: Path) -> None:
     path.write_text(source)
     path = root / 'browser-test/hb-track-navigation.mjs'
     path.write_text(path.read_text().replace('render_channel','render_velocity_percent'))
+    path = root / 'browser-test/hb-startup-host.mjs'
+    path.write_text(path.read_text().replace(".ctl.metaAt(0).type", ".ctl.state.metaIndex.get('version').type"))
+    path = root / 'browser-test/hb-analysis.mjs'
+    source = path.read_text().replace("const page=schwungPageFor(0,'midi_fx1');", "const {setSettingsOpen,settingsPage}=await import('../dist/esm/seq/hb-settings.js');\nsetSettingsOpen(true);let page=settingsPage();")
+    source = replace_once(source, "setFlag('hbsteprow',1);page.reload();", "setSettingsOpen(false);page=schwungPageFor(0,'midi_fx1');\nsetFlag('hbsteprow',1);page.reload();")
+    source = replace_once(source, "setFlag('hbsteprow',0);page.reload();", "setSettingsOpen(true);page=settingsPage();\nsetFlag('hbsteprow',0);page.reload();")
+    path.write_text(source)
     path = root / 'browser-test/hb-step-modes.mjs'
     path.write_text(path.read_text().replace("assert(order('render_channel')<order('chord_mode'));", "assert.equal(order('render_channel'),-1,'Routing belongs to HB Settings');").replace("assert(page.ctl.page.keys.includes('version'))", "assert(page.ctl.page.keys.includes('content_map'))").replace("assert(has(page,'monitor_status'),'Steps restores setup and diagnostics');", "assert(!has(page,'monitor_status'),'Diagnostics belong to HB Settings');").replace(".keys.includes('version')", ".keys.includes('content_map')").replace('Diagnostics stay in Steps setup','Diagnostics stay in HB Settings').replace('Note diagnostics stay in Steps setup','Note diagnostics stay in HB Settings'))
     for relative in ('src/seq/constants.ts', 'engine/crates/movy-dsp/src/lib.rs'):

@@ -55,6 +55,9 @@ const routing=engine.params.chord_route;const selected=appState.activeTrack.inde
 settings.setSettingsOpen(true);assert(chord.chordEnabled());assert.equal(appState.activeTrack.index,selected);assert.equal(engine.params.chord_route,routing);assert(padsPlayNotes());
 const settingsPage=settings.settingsPage();assert(settingsPage.ctl.pages.some(item=>item.keys?.includes('monitor_status')));
 settings.setSettingsOpen(false);assert(chord.chordEnabled());assert.equal(appState.activeTrack.index,selected);
+seqState.sessionMode=true;settings.setSettingsOpen(true);assert.equal(seqState.sessionMode,false);
+settings.setSettingsOpen(true);settings.setSettingsOpen(false);assert.equal(seqState.sessionMode,true,'repeated open preserves the Clips return destination');
+settings.setSettingsOpen(true,false);settings.setSettingsOpen(false);assert.equal(seqState.sessionMode,false,'Session-cycle Settings returns to the underlying performance mode');
 for(const mode of [0,1,2]){const hierarchy=hbStepHierarchy(structuredClone(metadata.capabilities.ui_hierarchy),mode);assert.equal(hierarchy.levels.diagnostics.visible_if.movyStepVisible,false);assert(!hierarchy.levels.root.knobs.includes('version'));}
 chord.setChordEnabled(false);assert.equal(engine.params.chord_select,'off');assert.equal(engine.params.chord_route,'off');
 console.log('Chord Play: two full banks, silent conductor commands, fixed track aliases, persistence, settings overlay and curated pages pass');
