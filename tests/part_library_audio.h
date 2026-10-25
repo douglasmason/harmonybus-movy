@@ -85,4 +85,26 @@ static void test_part_library(void){
     assert(api->get_param(instance,"part_info_1",info,sizeof(info))>0&&strstr(info,"|-12|60|"));
     set("chord_select","off");render(16);
     puts("Bass library: both mappings, changing harmony, exclusive clip routing, scaled velocity, paired releases and user recall pass");
+
+#ifdef HB_TEST_CLIP_FILL
+    set("state","movy1\nbpm 12000\nlink 0\ntk 1 0 0\ncl 1 0 16 0 \n");
+    load_part_track(1,"bass","0");load_part_track(2,"stock","1");render(2);
+    char fill_preview[8192],fill_target[128],fill_signature[64],fill_command[1024],fill_result[256];
+    assert(api->get_param(instance,"fill_preview_1_0_2_0_1_0",fill_preview,sizeof(fill_preview))>0);
+    assert(sscanf(fill_preview,"%63[^|]",fill_signature)==1);
+    assert(api->get_param(instance,"fill_target_1_0",fill_target,sizeof(fill_target))>0);
+    snprintf(fill_command,sizeof(fill_command),"clipfill 1 0 %s 1_0_2_0_1_0 %s %s own",fill_target,fill_signature,part_baseline);
+    set("cmd",fill_command);render(2);
+    assert(api->get_param(instance,"part_result",fill_result,sizeof(fill_result))>0);
+    if(strncmp(fill_result,"Filled",6))fprintf(stderr,"clip fill: %s\n",fill_result);
+    assert(!strncmp(fill_result,"Filled",6));
+    set("cmd","mute 2 1;play");render(156);
+    set("chord_select","0,2,1,0,1,0,1,12");render(8);
+    sent_on=sent_off=0;rendered_mask=0;memset(routed_channel_on,0,sizeof(routed_channel_on));
+    render(850);set("cmd","stop");render(16);
+    assert(sent_on>=4&&sent_on==sent_off&&rendered_mask==((1u<<2)|(1u<<9)));
+    assert(routed_channel_on[1]==(unsigned)sent_on);
+    set("chord_select","off");render(16);
+    puts("Clip Fill: composed bass pitches and comp rhythm render through production HarmonyBus with mapped harmony and paired releases");
+#endif
 }

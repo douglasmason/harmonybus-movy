@@ -40,6 +40,7 @@ else
   echo 'Pinned HB predates Chord Play; running the existing production-chain regressions'
 fi
 if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/part_load.rs" && grep -q 'key->count=hb_cp_voice_semantic' "$HB_SOURCE/src/chord_selection_input.h" 2>/dev/null; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_PART_LIBRARY); fi
+if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/clip_fill.rs"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CLIP_FILL); fi
 cc -O1 "${CHORD_PLAY_TEST_FLAGS[@]}" -I"$SCHWUNG_SOURCE/src" "$INTEGRATION_ROOT/tests/full_chain_audio.c" -ldl -o "$FIXTURE_ROOT/full-chain-test"
 cargo build --manifest-path "$MOVY_SOURCE/engine/Cargo.toml" -p movy-dsp
 "$FIXTURE_ROOT/full-chain-test" "$MOVY_SOURCE/engine/target/debug/libmovy_dsp.so" "$FIXTURE_ROOT" restored
