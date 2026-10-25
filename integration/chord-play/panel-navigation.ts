@@ -11,6 +11,9 @@ export function panelNavigation(ctl:any,enabled:()=>boolean,modeName:()=>string)
     function group(page:any):string {
         const level=String(page.level??''),name=String(page.name??'');
         if(/Grid|Field/.test(mode()))return 'Core';
+        if(/^cp_Conductor_(follower_touch|operations_9_16|motion_operation|motif_play|motif_global|motif_load|motif_targets|rhythm_generate)/.test(level))return 'Core';
+        if(/^cp_(comp_library|bass_library)/.test(level))return 'Libraries';
+        if(level==='cp_setup')return 'Setup';
         if(/^cp_(Conductor|Comp|Melody)_/.test(level))return level.split('_')[1];
         if(level==='joint_comp_weave')return 'Comp';
         if(/^joint_(actor|rhythm|weave|conditions)_/.test(level))return ['Root','Bass','Comp','Melody'][Number(level.split('_').slice(-1)[0])]??'Actors';
@@ -34,7 +37,7 @@ export function panelNavigation(ctl:any,enabled:()=>boolean,modeName:()=>string)
     function open():void {returnIndex=ctl.pageIndex;const names=groups();choice=Math.max(0,names.indexOf(category));menu=true;appState.dirty=true;}
     ctl.onJog=(delta:number,options:any={})=>{
         if(!available()||modal())return jog(delta,options);
-        if(menu){if(delta<0)close();else if(delta>0)choice=(choice+1)%groups().length;appState.dirty=true;return ctl.pageIndex;}
+        if(menu){if(delta<0){if(choice===0)close();else choice--;}else if(delta>0)choice=Math.min(groups().length-1,choice+1);appState.dirty=true;return ctl.pageIndex;}
         const pages=indices(),position=pages.indexOf(ctl.pageIndex),next=position+Math.sign(delta);
         if(next>=pages.length&&category==='Core'){open();return ctl.pageIndex;}
         if(next>=0&&next<pages.length)jump(pages[next],{remember:false});
