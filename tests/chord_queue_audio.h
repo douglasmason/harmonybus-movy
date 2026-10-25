@@ -70,7 +70,10 @@ static void test_chord_queue(void){
     sent_on=sent_off=0;render(16);assert(!sent_on);
     capture_register=1;register_low=128;register_high=-1;
     set("chord_queue","commit");render(8);assert(register_low==72&&register_high==79);
-    register_low=128;register_high=-1;set("cmd","play");render(200);assert(register_low==55&&register_high==62);
+    set("cmd","play");render(8); /* Start restores the held seed before advancing. */
+    register_low=128;register_high=-1;render(200);
+    if(register_low!=55||register_high!=62)fprintf(stderr,"queued G range %d..%d\n",register_low,register_high);
+    assert(register_low==55&&register_high==62);
     set("cmd","stop");render(16);assert(sent_on==sent_off);capture_register=0;
     set("cmd","jrec 1 1");render(8);
     set("chord_queue","0,0,1,2,1,0,1,12,0,0,5");render(200);
