@@ -79,7 +79,12 @@ static void test_chord_queue(void){
     set("chord_queue","0,0,1,2,1,0,1,12,0,0,5");render(200);
     api->get_param(instance,"state",saved,sizeof(saved));assert(!strstr(saved,"\nra 0 "));
     set("chord_queue","commit");render(250);set("cmd","stop");render(16);
-    api->get_param(instance,"state",saved,sizeof(saved));assert(strstr(saved,"c858401f"));
+    api->get_param(instance,"state",saved,sizeof(saved));const char *recorded=strstr(saved,"\nra 0 ");
+    unsigned long long descriptor=0;assert(recorded&&sscanf(recorded,"\nra 0 %*d %*d %*u,%llu",&descriptor)==1);
+    assert(descriptor&(1ULL<<46));assert((descriptor&0xffffbfff00000000ULL)==0xc858001f00000000ULL);
+    set("state",saved);render(8);capture_register=1;register_low=128;register_high=-1;
+    set("cmd","play");render(600);assert(register_low==72&&register_high==79);
+    set("cmd","stop");render(16);capture_register=0;
     set("ch0:midi_fx1:chord_queue_depth","2");
     puts("Queued Chord Play: stopped preload survives start, scheduled MIDI, empty hold, refill, balanced releases and activation recording pass");
 }
