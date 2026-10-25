@@ -1,5 +1,7 @@
 # Joint Play
 
+Movy 0.34.1-hbclean.251 adds [Conductor Input: Chord Knobs and sequential chord entry](joint-chords.md). Pads remains the default.
+
 Joint Play makes the Move pad grid an instrument for one selected four-track unit. The track owns its HarmonyBus settings, instrument, harmonic pad feedback and native track color. No separate actor palette or duplicate instrument settings are introduced.
 
 ## Entry and navigation

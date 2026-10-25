@@ -554,6 +554,9 @@ static void test_chord_play(void){
 
 #ifdef HB_TEST_CHORD_QUEUE
 #include "chord_queue_audio.h"
+#ifdef HB_TEST_JOINT_CHORDS
+#include "joint_chords_audio.h"
+#endif
 #endif
 #ifdef HB_TEST_PART_LIBRARY
 #include "part_library_audio.h"
@@ -735,6 +738,9 @@ int main(int argc,char **argv){
     test_chord_play();
 #ifdef HB_TEST_CHORD_QUEUE
     test_chord_queue();
+#ifdef HB_TEST_JOINT_CHORDS
+    test_joint_chords();
+#endif
 #endif
 #endif
 #ifdef HB_TEST_PART_LIBRARY
