@@ -133,3 +133,61 @@ console.log('Global reset, home/parallel/blues banks and universal Harmony Off p
 
 assert.equal(page.ctl.pages.filter(panel=>panel.keys?.includes('cp_selected')).length,1,'only one Edit Chord selector');
 assert(!page.ctl.pages[0].keys.includes('cp_selected'),'Setup contains routing and defaults only');
+
+// Performance context follows native state, with no guessed harmony or new clock.
+const statusPort=chord.chordPanelPort(4);statusPort.getParam('midi_fx1:chain_params');
+portFor(0).setParam('midi_fx1:hb_chord_active','1');
+portFor(0).setParam('midi_fx1:next_harmony','G7/B');
+portFor(4).setParam('midi_fx1:final_harmony','F/A');
+portFor(4).setParam('midi_fx1:sounding_key','C Major');
+seqState.playing=false;now+=250;
+const status=field=>statusPort.getParam('midi_fx1:cp_status_'+field);
+const untouched=writes.length;
+assert.equal(status('effective'),'F:A','uses the melody actor effective harmony, including native lookahead');
+assert.equal(status('override'),'On');assert.equal(status('next'),'--','stopped transport never presents a cached next chord');
+assert.equal(status('handoff'),'Off button');
+seqState.playing=true;
+assert.equal(status('next'),'G7:B','transport changes invalidate the status cache immediately');
+assert.equal(status('handoff'),'Next event');
+let statusReads=0;const owner=portFor(0),readMany=owner.getMany;
+owner.getMany=(...args)=>{statusReads++;return readMany(...args);};
+for(let repeat=0;repeat<10;repeat++)for(const field of ['effective','override','next','handoff','key'])status(field);
+assert.equal(statusReads,0,'all fields share the bounded status refresh');
+now+=100;status('next');assert.equal(statusReads,1);owner.getMany=readMany;
+assert.equal(writes.length,untouched,'overview reads never change routing, recording or musical state');
+assert.equal(statusPort.setParam('midi_fx1:cp_status_effective','C'),false,'overview cannot edit native state');
+portFor(0).setParam('midi_fx1:hb_chord_active','0');now+=100;
+assert.equal(status('override'),'Off');assert.equal(status('handoff'),'--','native expiry clears the live handoff display');
+const {fontWidth}=await import('../dist/esm/font/index.js');
+for(const [slot,label] of [[0,'Home 9:Parallel'],[7,'Parallel 9:Blues'],[14,'Blues 9:Home']]){
+ find('cp_slot_'+slot);page.ctl.state.touched=-1;page.ctl.state.peek=null;
+ const trail=chord.chordContextTrail();assert.equal(trail,'1:'+label+' OFF8/16');assert(fontWidth(trail)<=126,'complete bank mapping fits the physical screen');
+ chord.chordMidi([144,24,100]);chord.chordMidi([128,24,0]);
+ assert.equal(chord.chordSnapshot().selected,(slot+7)%21,'displayed second bank agrees with the actual step action');
+}
+chord.selectChordSlot(8);now+=250;chord.tickChord();
+for(const key of ['cp_selected','cp_policy']){
+ find(key);page.ctl.state.touched=-1;page.ctl.state.peek=null;
+ assert.match(chord.chordContextTrail(),/^Chord>Core P2 /,'editor and scale context retain the same selected chord identity');
+ page.ctl.state.touched=0;assert.equal(chord.chordContextTrail(),null,'context never overwrites a touched control overlay');page.ctl.state.touched=-1;
+}
+find('cp_status_effective');assert.equal(page.ctl.hbNavigation.state().category,'Core');assert.equal(page.keyAt(7),'cp_off');
+console.log('Performance context: native effective/next, stopped suppression, live expiry, bounded reads, step mappings and shared edit identity pass');
+
+// Exercise the complete renderer: context must not corrupt the category bar or overlays.
+const pixels=new Uint8Array(128*64),oldClear=globalThis.clear_screen,oldFill=globalThis.fill_rect;
+globalThis.clear_screen=()=>pixels.fill(0);
+globalThis.fill_rect=(x,y,width,height,color)=>{for(let row=Math.max(0,y);row<Math.min(64,y+height);row++)for(let column=Math.max(0,x);column<Math.min(128,x+width);column++)pixels[row*128+column]=color?1:0;};
+try {
+ find('cp_slot_7');page.ctl.state.touched=-1;page.ctl.state.peek=null;
+ chord.renderChord();const bankPixels=pixels.slice(),trail=chord.chordContextTrail();
+ clear_screen();const {fontPrint}=await import('../dist/esm/font/index.js');fontPrint(1,58,trail,1);
+ assert.deepEqual(bankPixels.slice(57*128),pixels.slice(57*128),'physical footer contains the complete step mapping');
+ find('cp_policy');page.ctl.state.touched=-1;page.ctl.state.peek=null;
+ chord.renderChord();const editorPixels=pixels.slice();
+ page.knobTouch(0,true);chord.renderChord();assert.equal(chord.chordContextTrail(),null);
+ assert.deepEqual(pixels.slice(8*128,10*128),editorPixels.slice(8*128,10*128),'context preserves the category bar on touch');
+ page.knobTouch(0,false);page.ctl.state.peek=null;page.ctl.state.touched=-1;
+ page.click();assert(page.ctl.hbNavigation.isMenu());assert.equal(chord.chordContextTrail(),null,'category picker retains its own footer');
+}finally{globalThis.clear_screen=oldClear;globalThis.fill_rect=oldFill;}
+console.log('Performance context framebuffer: complete footer, touch overlays and category picker pass');
