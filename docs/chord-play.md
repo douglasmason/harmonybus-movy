@@ -1,5 +1,7 @@
 # Chord banks and performance context
 
+Movy 0.34.1-hbclean.251 adds [hold-Record chord step entry and Joint conductor knobs](joint-chords.md).
+
 The first panel exposes Immediate/Queued mode, Chord Grid, Anticipation, current
 and next chord, queue count, and Harmony Off. Chord banks and operations precede
 extended libraries and setup. See [Queued Chord Play](chord-queue.md) for queue

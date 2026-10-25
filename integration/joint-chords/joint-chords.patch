@@ -1,0 +1,1304 @@
+diff --git a/engine/crates/movy-dsp/src/chord_queue.rs b/engine/crates/movy-dsp/src/chord_queue.rs
+--- a/engine/crates/movy-dsp/src/chord_queue.rs
++++ b/engine/crates/movy-dsp/src/chord_queue.rs
+@@ -4,8 +4,9 @@
+         self.release_chord_selection();
+         self.engine.record_chord_activation(track, &mut self.out);
+         self.drain_out();
+-        self.input_event(surface_route::Event{track,pitch,status:0x90,value:100,approach:None,full_velocity:false},false);
+-        self.chord_note=Some((track,pitch));
++        let derive=self.chord_joint==Some(track);
++        self.input_event(surface_route::Event{track,pitch,status:0x90,value:100,approach:None,full_velocity:false},derive);
++        self.chord_note=Some((track,pitch,derive));
+     }
+     fn clear_chord_queue(&mut self) {
+         if let Some(track)=self.chord_queue.take(){self.chains.set_param(track,"midi_fx1:hb_chord_queue","off");}
+diff --git a/engine/crates/movy-dsp/src/lib.rs b/engine/crates/movy-dsp/src/lib.rs
+--- a/engine/crates/movy-dsp/src/lib.rs
++++ b/engine/crates/movy-dsp/src/lib.rs
+@@ -132,7 +132,7 @@
+ }
+ 
+ const DEFAULT_BPM_X100: u32 = 12000;
+-const ENGINE_VERSION: &str = "0.75.0-chord-queue1";
++const ENGINE_VERSION: &str = "0.76.0-joint-chords1";
+ 
+ /// Tracks backed by schwung's own shadow slots by default. Their notes go out as
+ /// MIDI on the matching channel; everything above this index is a chain movy
+@@ -174,7 +174,8 @@
+     field_frames: usize,
+     joint: joint_route::JointRoute,
+     joint_links: joint_links::JointLinks,
+-    chord_note: Option<(usize,u8)>,
++    chord_note: Option<(usize,u8,bool)>,
++    chord_joint: Option<usize>,
+     drum_output: drum_output::Output,
+     chord_playback: [bool;2048],
+     surface: surface_route::SurfaceRoute,
+@@ -217,6 +218,7 @@
+             joint: joint_route::JointRoute::new(),
+             joint_links: joint_links::JointLinks::new(),
+             chord_note: None,
++            chord_joint: None,
+             drum_output: drum_output::Output::default(),
+             chord_playback: [false;2048],
+             surface: surface_route::SurfaceRoute::new(),
+@@ -241,7 +243,7 @@
+     }
+     fn surface_event(&mut self,event:surface_route::Event){self.input_event(event,true);}
+     fn release_chord_selection(&mut self){
+-        if let Some((track,pitch))=self.chord_note.take(){self.input_event(surface_route::Event{track,pitch,status:0x80,value:0,approach:None,full_velocity:false},false);}
++        if let Some((track,pitch,derive))=self.chord_note.take(){self.input_event(surface_route::Event{track,pitch,status:0x80,value:0,approach:None,full_velocity:false},derive);}
+     }
+     fn input_event(&mut self, event: surface_route::Event, derive:bool) {
+         let track = event.track;
+@@ -327,6 +329,10 @@
+             "joint_map" => {self.joint.set_map(val);}
+             "joint_release" => {
+                 for event in self.joint.release_all().into_iter().flatten() {self.surface_event(event);}
++            }
++            "chord_joint" => {
++                let next=if val=="off" {None} else {val.parse::<usize>().ok().filter(|track|*track<16)};
++                if next!=self.chord_joint {self.clear_chord_queue();self.release_chord_selection();self.chord_joint=next;}
+             }
+             "chord_queue" => {
+                 if val=="off" {self.clear_chord_queue();}
+@@ -707,6 +713,7 @@
+             }
+             "capinfo" => Some(self.engine.capture_info()),
+             "alabels" => Some(self.engine.auto_labels()),
++            "chord_step_input" => Some(self.engine.chord_step_input_status()),
+             "ping" => Some(format!("pong {ENGINE_VERSION}")),
+             // Serialize for autosave; reading it clears the dirty flag (the UI
+             // is about to persist exactly this snapshot).
+@@ -831,7 +838,7 @@
+                             self.chains.hb_playback_done(c);
+                         }
+                     }
+-                    if !self.chord_playback[track as usize*128+pitch as usize] {self.joint_follow(surface_route::Event{track:track as usize,pitch,status:0x90,value:vel,approach:None,full_velocity:false},true);}
++                    if !self.chord_playback[track as usize*128+pitch as usize] || self.chord_joint==Some(track as usize) {self.joint_follow(surface_route::Event{track:track as usize,pitch,status:0x90,value:vel,approach:None,full_velocity:false},true);}
+                 }
+                 OutEvent::NoteOff { track, pitch } | OutEvent::RenderedOff { track,pitch } => {
+                     let Some(pitch)=self.joint_links.playback_pitch(track as usize,pitch,false) else {continue;};
+@@ -849,7 +856,7 @@
+                             self.chains.hb_playback_done(c);
+                         }
+                     }
+-                    if !self.chord_playback[track as usize*128+pitch as usize] {self.joint_follow(surface_route::Event{track:track as usize,pitch,status:0x80,value:0,approach:None,full_velocity:false},true);}
++                    self.joint_follow(surface_route::Event{track:track as usize,pitch,status:0x80,value:0,approach:None,full_velocity:false},true);
+                 }
+                 OutEvent::PolyPressure { track,pitch,value } => {
+                     let Some(pitch)=self.joint_links.playback_pressure(track as usize,pitch) else {continue;};
+@@ -980,9 +987,10 @@
+         self.chains.hb_conductor_block(message.as_c_str());
+         // HB expires the live override at the next recorded harmony boundary.
+         // Close only its recording gate; the native player already owns note-offs.
+-        if let Some((track,pitch))=self.chord_note {
++        if let Some((track,pitch,derive))=self.chord_note {
+             if self.chains.get_param(track,"midi_fx1:hb_chord_active").as_deref()==Some("0") {
+                 self.chord_note=None;self.engine.live_note_off(track,pitch);
++                if derive {self.joint_follow(surface_route::Event{track,pitch,status:0x80,value:0,approach:None,full_velocity:false},false);}
+             }
+         }
+         self.chains.thread_profile.done(thread_profile::PREPARE, thread_stage_start, "prepare");
+diff --git a/engine/crates/seq-core/src/chord_step.rs b/engine/crates/seq-core/src/chord_step.rs
+new file mode 100644
+--- /dev/null
++++ b/engine/crates/seq-core/src/chord_step.rs
+@@ -0,0 +1,58 @@
++// Step entry stores the same immutable descriptor captured by live recording.
++impl Engine {
++    pub fn chord_step_input_status(&self)->String {
++        self.chord_step_input.map_or_else(||"--".into(),|(serial,track,pitch,_)|format!("{serial},{track},{pitch}"))
++    }
++    pub fn chord_step_add(&mut self,track:usize,slot:usize,step:u32,serial:u32){
++        if self.playing||self.recording||self.count_in_left>0||self.pending_rec||step>=256||track>=self.tracks.len(){return;}
++        let Some((captured,owner,pitch,actions))=self.chord_step_input else{return;};
++        if serial!=captured||track!=owner||self.tracks[track].active_clip!=slot{return;}
++        let clip=self.tracks[track].active_mut();
++        let stored=(pitch as i16-clip.transpose as i16).clamp(0,127) as u8;
++        clip.delete_range(step as u16,step as u16,None);
++        clip.add_pitch_range(step as u16,step as u16,stored,100,false);
++        if let Some(note)=clip.notes.iter_mut().find(|note|note.step==step as u16&&note.pitch==stored){note.actions=Some(actions);note.input_key=None;note.rendered=false;}
++    }
++}
++
++#[cfg(test)]mod chord_step_tests {
++    use super::*;
++    use crate::{command::apply_batch,persist,recorded_actions};
++    fn capture(engine:&mut Engine,track:usize,pitch:u8)->u32 {
++        let mut actions=[0;recorded_actions::LANES+1];actions[0]=0xc858001f00000000|0x91|(0xab5<<12);
++        engine.recorded_action(track,&format!("ra4,{}",recorded_actions::payload(pitch,actions)));
++        engine.chord_step_input.unwrap().0
++    }
++    #[test]fn semantic_chord_step_tie_rest_and_save_roundtrip(){
++        let mut engine=Engine::new(48000,12000);let mut out=Vec::new();
++        apply_batch(&mut engine,"addp 3 0 0 72 90;addp 0 0 0 65 80;addp 0 2 2 67 80",&mut out);
++        let melody=engine.tracks[3].active().clone();let serial=capture(&mut engine,0,60);
++        // This consumes the normal recording cache, exactly as the host input path does.
++        engine.live_note_on(0,60,100);assert!(engine.record_actions[0][60].is_none());
++        apply_batch(&mut engine,&format!("cadd 0 0 0 {serial};slen 0 0 0 60 48;del 0 2 2 -1"),&mut out);
++        let clip=engine.tracks[0].active();assert_eq!(clip.notes.len(),1);
++        let note=&clip.notes[0];assert_eq!((note.step,note.pitch,note.gate),(0,60,48));
++        assert!(recorded_actions::chord_selection(&note.actions.unwrap()));assert!(!note.rendered);assert!(note.input_key.is_none());
++        assert_eq!(engine.tracks[3].active().notes.len(),melody.notes.len());assert_eq!(engine.tracks[3].active().notes[0].pitch,72);
++        let saved=persist::serialize(&engine);let mut restored=Engine::new(48000,12000);assert!(persist::load(&mut restored,&saved));
++        assert_eq!(restored.tracks[0].active().notes[0].actions,engine.tracks[0].active().notes[0].actions);
++        assert_eq!(restored.tracks[0].active().notes[0].gate,48);assert!(restored.chord_step_input.is_none());
++    }
++    #[test]fn invalid_and_stale_chord_entry_never_clears_the_step(){
++        let mut engine=Engine::new(48000,12000);let mut out=Vec::new();
++        apply_batch(&mut engine,"addp 0 0 0 65 80",&mut out);let serial=capture(&mut engine,0,60);
++        for command in [format!("cadd 0 0 0 {}",serial+1),format!("cadd 1 0 0 {serial}"),format!("cadd 0 1 0 {serial}"),format!("cadd 0 0 256 {serial}"),"cadd 0 0 0".into()] {
++            apply_batch(&mut engine,&command,&mut out);assert_eq!(engine.tracks[0].active().notes[0].pitch,65);
++        }
++        engine.playing=true;apply_batch(&mut engine,&format!("cadd 0 0 0 {serial}"),&mut out);assert_eq!(engine.tracks[0].active().notes[0].pitch,65);
++        engine.playing=false;engine.recording=true;apply_batch(&mut engine,&format!("cadd 0 0 0 {serial}"),&mut out);assert_eq!(engine.tracks[0].active().notes[0].pitch,65);
++    }
++    #[test]fn chord_step_undo_restores_full_descriptor_and_previous_notes(){
++        let mut engine=Engine::new(48000,12000);let mut out=Vec::new();
++        apply_batch(&mut engine,"addp 0 0 0 65 80;usnap 99",&mut out);let serial=capture(&mut engine,0,60);
++        apply_batch(&mut engine,&format!("cadd 0 0 0 {serial};ucommit 99"),&mut out);
++        assert!(engine.tracks[0].active().notes[0].actions.is_some());
++        apply_batch(&mut engine,"uswap 99 100",&mut out);assert_eq!(engine.tracks[0].active().notes[0].pitch,65);
++        apply_batch(&mut engine,"uswap 100 99",&mut out);assert_eq!(engine.tracks[0].active().notes[0].pitch,60);assert!(engine.tracks[0].active().notes[0].actions.is_some());
++    }
++}
+diff --git a/engine/crates/seq-core/src/command.rs b/engine/crates/seq-core/src/command.rs
+--- a/engine/crates/seq-core/src/command.rs
++++ b/engine/crates/seq-core/src/command.rs
+@@ -69,7 +69,7 @@
+         // arming / recording
+         "rec" | "jrec"
+         // step entry and note editing
+-        | "gtog" | "tog" | "addp" | "del" | "evel" | "elen" | "enudge" | "emove" | "etrn" | "slen"
++        | "gtog" | "tog" | "addp" | "cadd" | "del" | "evel" | "elen" | "enudge" | "emove" | "etrn" | "slen"
+         | "eprob" | "econd" | "einv"
+         // clip shape and clip-level edits
+         | "clen" | "cscl" | "ctr" | "cq" | "cfill" | "dfill" | "mload" | "clipfill" | "pload" | "pshape" | "dbl" | "loop" | "ltog"
+@@ -109,7 +109,7 @@
+     matches!(
+         verb,
+         // step entry and note editing
+-        "gtog" | "tog" | "addp" | "del" | "evel" | "elen" | "enudge" | "emove" | "etrn" | "slen"
++        "gtog" | "tog" | "addp" | "cadd" | "del" | "evel" | "elen" | "enudge" | "emove" | "etrn" | "slen"
+         | "eprob" | "econd" | "einv"
+         // clip shape and clip-level edits
+         | "clen" | "cscl" | "ctr" | "cq" | "cfill" | "dfill" | "mload" | "clipfill" | "pload" | "pshape" | "dbl" | "loop" | "ltog" | "pst"
+@@ -546,6 +546,10 @@
+             }
+         }
+         "cpyclr" => engine.clear_clipboard(),
++        "cadd" => {
++            let values:Vec<u32>=it.map(str::parse).collect::<Result<_,_>>().unwrap_or_default();
++            if let [track,slot,step,serial]=values.as_slice(){engine.chord_step_add(*track as usize,*slot as usize,*step,*serial);}
++        }
+         // addp <t> <s0> <s1> <pitch> <vel> — add a pitch to every step in the
+         // range that lacks it (Loop Mode: hold a bar + press a pad).
+         "addp" => {
+diff --git a/engine/crates/seq-core/src/engine.rs b/engine/crates/seq-core/src/engine.rs
+--- a/engine/crates/seq-core/src/engine.rs
++++ b/engine/crates/seq-core/src/engine.rs
+@@ -125,6 +125,7 @@
+     pub shared_recording: Option<usize>,
+     pub shared_reset_needed: bool,
+     pub humanize: crate::humanize::Humanize,
++    pub(crate) chord_step_input: Option<(u32,usize,u8,crate::recorded_actions::Actions)>,
+     pub record_actions: Vec<[Option<crate::recorded_actions::Actions>;128]>,
+     pub follower_inputs: [Option<crate::follower_input::InputKey>;16],
+     pub clock: Clock,
+@@ -350,6 +351,10 @@
+     pub fn recorded_action(&mut self,track:usize,message:&str){
+         let Some((pitch,actions))=crate::recorded_actions::parse(message) else{return;};
+         if track>=self.tracks.len(){return;}
++        if !self.playing && crate::recorded_actions::chord_selection(&actions){
++            let serial=self.chord_step_input.map_or(1,|entry|entry.0.wrapping_add(1).max(1));
++            self.chord_step_input=Some((serial,track,pitch,actions));
++        }
+         if let Some(note)=self.rec_pending.iter_mut().chain(self.rec_tail.iter_mut())
+             .find(|note|note.track==track&&note.pitch==pitch&&!note.rendered&&note.actions.is_none()){
+             note.actions=Some(actions);
+@@ -419,6 +424,7 @@
+             grid_masks:[0;16],grid_view:false,grid_performance:vec![Default::default();16],grid_configs:vec![[None;16];16],grid_views:[crate::grid::View::default();2],
+             key_playback: std::array::from_fn(|_|crate::shared_context::KeyPlayback::default()),
+             shared_seen: [[None;3];16],shared_tick_seen:[u64::MAX;16],shared_recording:None,shared_reset_needed:false,
++            chord_step_input: None,
+             record_actions: vec![[None;128];16],
+             hb_rhythm: vec![Default::default(); NUM_TRACKS],
+             hb_rhythm_active: vec![Default::default(); NUM_TRACKS],
+@@ -8929,3 +8935,5 @@
+         }
+     }
+ }
++
++include!("chord_step.rs");
+diff --git a/engine/crates/seq-core/src/motif_load.rs b/engine/crates/seq-core/src/motif_load.rs
+--- a/engine/crates/seq-core/src/motif_load.rs
++++ b/engine/crates/seq-core/src/motif_load.rs
+@@ -62,7 +62,7 @@
+                     actions:Some(actions),input_key:Some(key),rendered:false,pressure:Vec::new(),suppress:false,fired:false});
+             }
+         }
+-        if previous_end!=duration||notes.is_empty(){return Err("Empty or incomplete motif")}
++        if previous_end!=duration{return Err("Incomplete motif")}
+         if notes.len()+if mode==0{0}else{old.notes.len()}>MAX_NOTES{return Err("Clip note capacity exceeded")}
+         // Stage the whole result before releasing notes or touching the clip.
+         let mut clip=old.clone();
+@@ -109,3 +109,18 @@
+         e.motif_load(&cmd,&mut out);assert_eq!(e.tracks[0].active().notes.len(),6);
+     }
+ }
++
++#[cfg(test)]mod null_motif_tests {
++    use super::*;
++    #[test]fn explicit_rest_is_a_silent_clip_and_is_undoable(){
++        let mut engine=Engine::new(48000,12000);let mut out=Vec::new();
++        crate::command::apply_batch(&mut engine,"addp 0 0 0 60 100;usnap 71",&mut out);
++        let info=engine.motif_clip_info(0);let fields:Vec<_>=info.split(',').collect();
++        let command=format!("mload 0 0 {} 0 384 0 1 0,384:{}",fields[1],vec!["0";52].join(","));
++        engine.motif_load(&command,&mut out);assert!(engine.motif_load_result.starts_with("Written"));
++        assert!(engine.tracks[0].active().notes.is_empty());assert_eq!(engine.tracks[0].active().length_steps,16);assert!(engine.tracks[0].active().exists());
++        let saved=crate::persist::serialize(&engine);let mut restored=Engine::new(48000,12000);assert!(crate::persist::load(&mut restored,&saved));
++        assert!(restored.tracks[0].active().notes.is_empty());assert_eq!(restored.tracks[0].active().length_steps,16);
++        crate::command::apply_batch(&mut engine,"uswap 71 72",&mut out);assert_eq!(engine.tracks[0].active().notes[0].pitch,60);
++    }
++}
+diff --git a/engine/crates/seq-core/src/persist.rs b/engine/crates/seq-core/src/persist.rs
+--- a/engine/crates/seq-core/src/persist.rs
++++ b/engine/crates/seq-core/src/persist.rs
+@@ -141,6 +141,7 @@
+     if lines.next().map(str::trim) != Some(FORMAT_TAG) {
+         return false;
+     }
++    engine.chord_step_input=None;
+     engine.drum_outputs=0;
+     engine.recipe_bases.fill(None);
+     engine.host_transport_attached = false;
+diff --git a/src/app/tick.ts b/src/app/tick.ts
+--- a/src/app/tick.ts
++++ b/src/app/tick.ts
+@@ -3,6 +3,7 @@
+ import { fontPrint as clipsFontPrint } from '../font/index.js';
+ import { inputModeLedRevision } from '../seq/led-cache.js';
+ import { renderInputModeSelector } from '../seq/router-buttons.js';
++import {jointPage} from '../seq/joint-panels.js';
+ import { chordActive, chordPage, tickChord, renderChord, chordKnobLEDMask } from '../seq/chord-play.js';
+ import { settingsActive, settingsPage, tickSettings, renderSettings } from '../seq/hb-settings.js';
+ import { fieldActive, tickField, paintField, renderField } from '../seq/field-play.js';
+@@ -512,7 +513,7 @@
+        (appState.currentView===VIEW_KNOBS||appState.currentView===VIEW_CHAIN)){
+         const track=appState.activeTrack.index;
+         const model=appState.trackModels[track]?.[appState.trackChainIndex[track]];
+-        const visiblePage=settingsActive()?settingsPage():chordActive()?chordPage():gridActive()?gridTouchPage():model?schwungCachedFor(track,model.getComponentKey()):null;
++        const visiblePage=settingsActive()?settingsPage():chordActive()?chordPage():gridActive()?gridTouchPage():jointActive()?jointPage():model?schwungCachedFor(track,model.getComponentKey()):null;
+         visiblePage?.pollOperationFeedback();
+     }
+     if (paintTouchFrame()) return;
+@@ -682,7 +683,7 @@
+ 
+     const chainIdx    = appState.trackChainIndex[appState.activeTrack.index];
+     const activeModel = appState.trackModels[appState.activeTrack.index]?.[chainIdx];
+-    const touchPage = settingsActive() ? settingsPage() : chordActive() ? chordPage() : gridActive() ? gridTouchPage() : activeModel ? schwungActiveFor(appState.activeTrack.index, activeModel.getComponentKey()) : null;
++    const touchPage = settingsActive() ? settingsPage() : chordActive() ? chordPage() : gridActive() ? gridTouchPage() : jointActive() ? jointPage() : activeModel ? schwungActiveFor(appState.activeTrack.index, activeModel.getComponentKey()) : null;
+ 
+     // Trigger consumption happens in the DSP, without changing a knob value.
+     // Do not wait for unrelated model dirtiness before clearing its LED.
+diff --git a/src/renderer/hb-motif-loader.ts b/src/renderer/hb-motif-loader.ts
+--- a/src/renderer/hb-motif-loader.ts
++++ b/src/renderer/hb-motif-loader.ts
+@@ -9,7 +9,7 @@
+ import { fontPrint } from '../font/index.js';
+ import { APPROACH_MOTIFS, TRIPLE_MOTIFS } from './hb-approach.js';
+ 
+-const choices=[...APPROACH_MOTIFS.slice(0,19).map(name=>name.replace(/^I-/,'').replace(/-(Target|I|i)$/,'')),...TRIPLE_MOTIFS,...Array.from({length:16},(_,i)=>'User '+(i+1))];
++export const MOTIF_LOAD_CHOICES=[...APPROACH_MOTIFS.slice(0,19).map(name=>name.replace(/^I-/,'').replace(/-(Target|I|i)$/,'')),...TRIPLE_MOTIFS,...Array.from({length:16},(_,i)=>'User '+(i+1))];
+ const units=['1/32','1/16T','1/16','1/8T','1/16.','1/8','1/4T','1/8.','1/4','1/4.','1/2','1/2.','1 Bar'];
+ const rhythms=['As Entered','Even','Long-Short','Short-Long','Accelerate','Decelerate'];
+ const placements=['Saved','End','Start','Both','Omit'];
+@@ -17,7 +17,7 @@
+     if(!hierarchy.levels?.root)return;
+     const enumeration=(key:string,name:string,options:string[],value:string)=>({key,name,type:'enum',options_as_string:true,options,default:value});
+     const params=[
+-        enumeration('motif_load_choice','Motif',choices,'ii-V'),
++        enumeration('motif_load_choice','Motif',MOTIF_LOAD_CHOICES,'ii-V'),
+         {key:'motif_load_target',name:'Target Input',type:'int',min:0,max:127,step:1,default:60},
+         enumeration('motif_load_collection','Approach Scale',['Parent','Parallel'],'Parent'),
+         enumeration('motif_load_unit','Unit',units,'1 Bar'),
+@@ -33,12 +33,12 @@
+     if(!hierarchy.levels.root.params.some((p:any)=>p.level==='motif_load'))hierarchy.levels.root.params.push({level:'motif_load'});
+ }
+ interface Preview { generation:number;setId:string|null;owner:PerformancePort;track:number;slot:number;signature:string;duration:number;root:number;scale:number;
+-    isCurrent:()=>boolean;payload:string;labels:string[];choice:string;target:string;notes:number;occupied:boolean;ready:boolean;page:number; }
++    afterWrite?: (track:number,slot:number)=>void;isCurrent:()=>boolean;payload:string;labels:string[];choice:string;target:string;notes:number;occupied:boolean;ready:boolean;page:number; }
+ let review:Preview|null=null;
+ const consumed=new Set<number>();
+ const getEngine=(key:string):string=>String(host_module_get_param(key)??'');
+ const pitchName=(pitch:number):string=>['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'][pitch%12]+(Math.floor(pitch/12)-1);
+-function prepare(port:PerformancePort,isCurrent:()=>boolean=()=>port.performanceTrack===appState.activeTrack.index):void {
++function prepare(port:PerformancePort,isCurrent:()=>boolean=()=>port.performanceTrack===appState.activeTrack.index,afterWrite?:(track:number,slot:number)=>void):void {
+     if(!engineReady()){seqToast('Sequencer not ready');return;}
+     const track=port.performanceTrack;
+     if(track===undefined||!isCurrent()||seqState.recording||seqState.countingIn||seqState.stepAutoMode){seqToast('Finish clip recording/edit');return;}
+@@ -57,7 +57,7 @@
+         notes+=event.split(':')[0].split(',').length-2;events.push(event);
+     }
+     const payload=events.join('|');if(payload.length>40000){seqToast('Motif exceeds transfer limit');return;}
+-    review={isCurrent,generation:engineGeneration(),setId:currentSetUuid(),owner:port,track,slot:Number(clip[0]),signature:clip[1],duration,root,scale,payload,
++    review={afterWrite,isCurrent,generation:engineGeneration(),setId:currentSetUuid(),owner:port,track,slot:Number(clip[0]),signature:clip[1],duration,root,scale,payload,
+         labels:port.performanceGet('motif_load_labels').split(' > '),choice:port.performanceGet('motif_load_choice'),
+         target:pitchName(Number(port.performanceGet('motif_load_target'))),notes,occupied:clip[5]==='1',ready:false,page:0};
+     appState.dirty=true;
+@@ -69,6 +69,11 @@
+     undoableEdit('mload','Motif to clip',()=>seqCmd(command));seqCmdFlush();
+     const result=getEngine('motif_load_result');seqToast(result||'No result — check clip');
+     review=null;markUiStateDirty();appState.dirty=true;
++    if(/^Written/.test(result))preview.afterWrite?.(preview.track,preview.slot);
++}
++/** Reuse the same preview, stale checks, undo and import for performance shortcuts. */
++export function previewMotifLoad(port:PerformancePort,isCurrent:()=>boolean,afterWrite?:(track:number,slot:number)=>void):void {
++    prepare(port,isCurrent,afterWrite);if(review)review.ready=true;
+ }
+ export function motifLoaderActive(port:PerformancePort):boolean {return review?.owner===port;}
+ export function cancelMotifLoader(port:PerformancePort):void {if(review?.owner===port){review=null;consumed.clear();}}
+@@ -102,7 +107,41 @@
+     let text=review.labels.slice(review.page).join(' > ');
+     fontPrint(1,21,text.slice(0,25),1);fontPrint(1,29,text.slice(25,50),1);
+     fontPrint(1,39,'Turn: scroll progression',1);
+-    ['Cancel',review.occupied?'Replace':'Write','Append','Overdub'].forEach((label,index)=>fontPrint(index*32+1,51,label,1));
+-    fontPrint(1,59,'Touch knobs 1-4 to choose',1);
++    ['Cancel',review.afterWrite?'Fill+Go':review.occupied?'Replace':'Write','Append','Overdub'].forEach((label,index)=>fontPrint(index*32+1,51,label,1));
++    fontPrint(1,59,review.afterWrite?'Write, then launch conductor':'Touch knobs 1-4 to choose',1);
+     return true;
+ }
++
++/** Compose exported inputs without interpreting or converting their action words. */
++export function previewMotifSequence(port:PerformancePort,choices:readonly string[],isCurrent:()=>boolean,afterWrite?:(track:number,slot:number)=>void):void {
++    if(!choices.length)return;
++    if(choices.length===1&&!['Rest','Tie'].includes(choices[0])){port.performanceSet('motif_load_choice',choices[0]);previewMotifLoad(port,isCurrent,afterWrite);return;}
++    const oldChoice=port.performanceGet('motif_load_choice');
++    const unitTicks=[12,16,24,32,36,48,64,72,96,144,192,288,384][units.indexOf(port.performanceGet('motif_load_unit'))];
++    if(choices.some(choice=>choice==='Rest'||choice==='Tie')&&!unitTicks){seqToast('Choose a motif unit');return;}
++    let combined:Preview|null=null,duration=0,notes=0;
++    const events:string[]=[],labels:string[]=[];
++    const fail=(message:string):void=>{review=null;seqToast(message);};
++    try {
++        for(const choice of choices){
++            if(choice==='Tie'){
++                const last=events[events.length-1],parts=last?.split(':');
++                const timing=parts?.[0].split(',');
++                if(!timing||timing.length<3){fail('Tie needs preceding notes');return;}
++                timing[1]=String(Number(timing[1])+unitTicks);events[events.length-1]=timing.join(',')+':'+parts![1];duration+=unitTicks;labels.push('Tie');
++            }else if(choice==='Rest'){
++                if(!combined){port.performanceSet('motif_load_choice','V');prepare(port,isCurrent,afterWrite);if(!review)return;combined={...review};}
++                events.push(duration+','+unitTicks+':'+Array(52).fill('0').join(','));duration+=unitTicks;labels.push('Rest');
++            }else{
++                port.performanceSet('motif_load_choice',choice);prepare(port,isCurrent,afterWrite);if(!review)return;
++                const fragment:Preview=review;
++                if(combined&&(fragment.track!==combined.track||fragment.slot!==combined.slot||fragment.signature!==combined.signature||fragment.root!==combined.root||fragment.scale!==combined.scale)){fail('Context changed — try phrase again');return;}
++                combined??={...fragment};
++                events.push(...fragment.payload.split('|').map(event=>event.replace(/^\d+/,tick=>String(Number(tick)+duration))));
++                duration+=fragment.duration;notes+=fragment.notes;labels.push(...fragment.labels);
++            }
++            if(duration>6144||events.length>34||events.join('|').length>40000){fail('Phrase exceeds clip capacity');return;}
++        }
++        if(combined)review={...combined,duration,notes,payload:events.join('|'),labels,choice:choices.join(' > '),page:0,ready:true};
++    }finally{port.performanceSet('motif_load_choice',oldChoice);appState.dirty=true;}
++}
+diff --git a/src/renderer/panel-navigation.ts b/src/renderer/panel-navigation.ts
+--- a/src/renderer/panel-navigation.ts
++++ b/src/renderer/panel-navigation.ts
+@@ -17,6 +17,7 @@
+         if(/^cp_(Conductor|Comp|Melody)_/.test(level))return level.split('_')[1];
+         if(level==='joint_comp_weave')return 'Comp';
+         if(/^joint_(actor|rhythm|weave|conditions)_/.test(level))return ['Root','Bass','Comp','Melody'][Number(level.split('_').slice(-1)[0])]??'Actors';
++        if(level==='joint_setup'||level==='cp_selection'||level==='cp_clips'||level==='cp_motifs')return 'Core';
+         if(level==='root'||/^cp_(bank|edit|intent|bass_edit|scale_controls|comp_library|bass_library|setup|overview)/.test(level)||/^approach_bank_|^harm_play_|^pitch_play$|^secondary$|^follower_touch$|^operations_9_16$|^motion_/.test(level))return 'Core';
+         if(/diagnostic|status|follower_this|next_harm|follower_root/.test(level))return 'Diagnostics';
+         if(/defaults/.test(level))return 'Defaults';
+diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
+--- a/src/seq/chord-play.ts
++++ b/src/seq/chord-play.ts
+@@ -1,4 +1,5 @@
+ import {singleConductor} from './session-roles.js';
++import {conductorPhraseTurn,conductorPhraseTouch,cancelConductorPhrase,conductorContentSnapshot,restoreConductorContent,conductorContentParameters,conductorContentRead,conductorContentWrite,conductorContentColor,activateConductorContent,type ConductorContent} from './conductor-content.js';
+ import { fontPrint, fontWidth } from '../font/index.js';
+ import { preparePart,partModalTouch,partModalActive,cancelPartReview,drawPartReview } from './part-library.js';
+ import {partParameters,partRead,partWrite,partChoiceFor,partKind,partNativeKey} from './part-controls.js';
+@@ -28,6 +29,7 @@
+ import { chordColor, chordIntents, chordDegrees, intentLabel, parseChordBank, matchesHarmony, type ChordBankStatus } from './chord-colors.js';
+ import { muteHeld } from './router-buttons.js';
+ import { seqToast } from './render.js';
++import { chordStepPress, chordStepRelease, chordRecordButton, endChordStepEntry } from './chord-step-entry.js';
+ import { recToggle } from '../undo/rec-pass.js';
+ import { settingsActive } from './hb-settings.js';
+ 
+@@ -47,11 +49,27 @@
+ const fresh=():Setup=>({playMode:0,directRender:null,conductor:0,comp:2,bass:1,bassClip:false,source:0,selected:0,colorView:0,slots:defaultSlots()});
+ let setup=fresh(),enabled=false,page:SchwungPage|null=null,pageTrack=-1,activeSlot=-1,route='';
+ let conductorRenders=false;
++let jointConductor:number|null=null,jointSurface:SchwungPage|null=null;
++const conductorTrack=():number=>jointConductor??setup.conductor;
++const controlsActive=():boolean=>(enabled||jointConductor!==null)&&!seqState.sessionMode;
++/** Compose the existing chord controls into another surface without enabling its routing. */
++export function setJointChordConductor(track:number|null):void {
++    if(track===jointConductor)return;
++    endChordStepEntry();releaseChordTouches();harmonyOff();
++    jointConductor=track;jointSurface=null;resetBank();resetKnobLedCache();
++    send('chord_joint',track===null?'off':String(track));appState.dirty=true;
++}
++export function tickChordSurface(surface:SchwungPage):void {
++    jointSurface=surface;refreshBank();updateChordLabels(surface);
++}
++function updateChordLabels(surface:SchwungPage):void {
++    if(bankStatus)for(let index=0;index<setup.slots.length;index++){const meta=surface.ctl.state.metaIndex.get('cp_slot_'+index);if(meta&&bankStatus.slots[index]){meta.label=meta.name=(index+1)+' '+bankStatus.slots[index].name;meta.short_name=meta.name;}}
++}
+ let bankStatus:ChordBankStatus|null=null,bankWire='',bankOwner=-1,bankPollAt=-Infinity,bankKnobs=false,bankPageDirty=false,bankUrgentUntil=-Infinity;
+ const slotPayload=(slot:Slot):string=>[slot.root,slot.quality,slot.form,slot.policy,slot.tonic,slot.scale,slot.bass,slot.intent,slot.target].join(',');
+ function resetBank():void{statusCache=null;conductorRenders=false;bankStatus=null;bankWire='';bankOwner=-1;bankPollAt=-Infinity;bankUrgentUntil=-Infinity;bankPageDirty=false;}
+ function refreshBank():void{
+-    const now=Date.now(),wire=setup.slots.map(slotPayload).join(';'),owner=setup.conductor;
++    const now=Date.now(),wire=setup.slots.map(slotPayload).join(';'),owner=conductorTrack();
+     const changed=wire!==bankWire||owner!==bankOwner;
+     if(!changed&&now>=bankPollAt&&now-bankPollAt<(now<bankUrgentUntil?16:seqState.playing?50:250))return;
+     bankPollAt=now;const port=portFor(owner);
+@@ -77,9 +95,9 @@
+ }
+ export const chordEnabled=():boolean=>enabled;
+ export const chordActive=():boolean=>enabled&&!seqState.sessionMode;
+-export function chordSnapshot():Setup{return {...setup,slots:setup.slots.map(slot=>({...slot}))};}
++export function chordSnapshot():Setup&{contents:ConductorContent}{return {...setup,contents:conductorContentSnapshot(),slots:setup.slots.map(slot=>({...slot}))};}
+ export function restoreChord(value:unknown):void{
+-    setChordEnabled(false);setup=fresh();
++    setChordEnabled(false);setup=fresh();restoreConductorContent(value&&typeof value==='object'?(value as {contents?:unknown}).contents:null);
+     if(value&&typeof value==='object'){
+         const input=value as Partial<Setup>;
+         if(typeof input.directRender==='string'&&/^(Off|[1-9]|1[0-6])$/.test(input.directRender))setup.directRender=input.directRender;
+@@ -94,35 +112,39 @@
+     page=null;route='';resetBank();
+ }
+ export function releaseChordTouches():void{
+-    cancelPartReview();cancelMotifLoader(performanceOwner(setup.conductor));styleTouch=null;
++    cancelConductorPhrase();
++    for(const key of steps)chordStepRelease(key);
++    cancelPartReview();cancelMotifLoader(performanceOwner(conductorTrack()));styleTouch=null;
+     for(const [slot,owner] of touches)if(!releasePerformanceTouch(slot,true))owner.knobTouch(slot,false);
+     for(const slot of controls)releasePerformanceTouch(slot,true);
+     touches.clear();steps.clear();controls.clear();
+ }
+ export function setChordEnabled(value:boolean):void{
+     if(enabled===value)return;
+-    releaseChordTouches();resetBank();resetKnobLedCache();if(!value&&bankKnobs){for(let knob=0;knob<8;knob++){cachedSetAnimLED(knob,0,0,0);cachedSetAnimLED(71+knob,0,0,0,true);}bankKnobs=false;}send('chord_select','off');enabled=value;activeSlot=-1;route='';
++    endChordStepEntry();releaseChordTouches();resetBank();resetKnobLedCache();if(!value&&bankKnobs){for(let knob=0;knob<8;knob++){cachedSetAnimLED(knob,0,0,0);cachedSetAnimLED(71+knob,0,0,0,true);}bankKnobs=false;}send('chord_select','off');enabled=value;activeSlot=-1;route='';
+     if(value&&[setup.conductor,setup.comp,setup.bass].includes(appState.activeTrack.index))selectTrack(Array.from({length:16},(_,index)=>(index+3)%16).find(track=>![setup.conductor,setup.comp,setup.bass].includes(track))!);
+     if(!value)send('chord_route','off');
+     page=null;appState.dirty=true;
+ }
+-export function selectChordSlot(index:number):void{
+-    if(!chordActive()||!engineReady()||!Number.isInteger(index)||index<0||index>=setup.slots.length)return;
++export function selectChordSlot(index:number,control?:number):void{
++    if(!controlsActive()||!engineReady()||!Number.isInteger(index)||index<0||index>=setup.slots.length)return;
+     const slot=setup.slots[index];if(!slot.enabled)return;setup.selected=index;if(!setup.playMode)activeSlot=index;
+-    send(setup.playMode?'chord_queue':'chord_select',[setup.conductor,slot.root,slot.quality,slot.form,slot.policy,slot.tonic,slot.scale,slot.bass,...(slot.intent?[slot.intent,slot.target]:[])].join(','));
++    const payload=[conductorTrack(),slot.root,slot.quality,slot.form,slot.policy,slot.tonic,slot.scale,slot.bass,...(slot.intent?[slot.intent,slot.target]:[])].join(',');
++    const entered=control!==undefined&&chordStepPress(control,conductorTrack(),payload);
++    if(!entered)send(setup.playMode?'chord_queue':'chord_select',payload);
+     statusCache=null;bankPollAt=-Infinity;bankUrgentUntil=Date.now()+100; // Refresh accepted harmony on the next frame, not after the idle poll interval.
+-    if(setup.playMode)seqToast('Queued '+performanceStatus('queue_count')+' / '+performanceStatus('queue_next'));
++    if(setup.playMode&&!entered)seqToast('Queued '+performanceStatus('queue_count')+' / '+performanceStatus('queue_next'));
+     markUiStateDirty();appState.dirty=true;
+ }
+ const enumeration=(key:string,name:string,options:string[])=>({key,name,type:'enum',options,options_as_string:true,default:options[0]});
+ const actorPanels=():[string,number,string[]][]=>[
+-    ['Conductor',setup.conductor,['follower_touch','operations_9_16','motion_operation','motif_play','motif_global','motif_load','motif_targets','global_transpose','explicit_key','secondary_scale','chord_player','chord_forms','arp_player','rhythm_generate','rhythm_edit']],
++    ['Conductor',conductorTrack(),['follower_touch','operations_9_16','motion_operation','motif_play','motif_global','motif_load','motif_targets','global_transpose','explicit_key','secondary_scale','chord_player','chord_forms','arp_player','rhythm_generate','rhythm_edit']],
+     ['Comp',setup.comp,['chord_player','chord_forms','arp_player','follower_source','follower_play','rhythm_generate','rhythm_edit','motif_global','motion_operation','motion_timing','motion_conditions']],
+     ['Melody',appState.activeTrack.index,['follower_source','follower_play','track_scales','chord_player','arp_player','follower_touch','operations_9_16','motion_operation','motion_timing','motion_conditions']]
+ ];
+ function parameters(native:any[]):any[]{
+     const scale=native.find(parameter=>parameter.key==='key_center_explicit_scale')?.options??['Major','Natural Minor','Dorian','Phrygian','Lydian','Mixolydian','Locrian'];
+-    return [enumeration('cp_play_mode','Chord Selection',['Immediate','Queued']),...['current','next','count'].map(field=>({key:'cp_queue_'+field,name:field==='count'?'Queued Chords':field==='next'?'Queued Next':'Current Chord',type:'string',readOnly:true,access:'read'})),...statusFields.map((field,index)=>({key:'cp_status_'+field,name:statusNames[index],short_name:statusShort[index],type:'string',readOnly:true,access:'read'})),...partParameters(native),...Array.from({length:7},(_,index)=>({key:'cp_blank_'+index,name:' ',type:'string',readOnly:true})),{key:'cp_off',name:'Harmony Off',type:'string',readOnly:true},{key:'cp_reset',name:'Reset Chords',type:'string',readOnly:true},enumeration('cp_conductor','Conductor Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_bass_track','Bass Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_bass_source','Bass Input',['Existing Routing','Bass Clip']),enumeration('cp_comp','Comp Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_melody','Playing Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_source','Comp Input',['Conductor / Melody','Comp Clip','Follow Melody']),enumeration('cp_selected','Edit Chord',Array.from({length:21},(_,index)=>String(index+1))),enumeration('cp_colorView','Color By',['Quality + Scale','Intent + Scale','Scale Only']),enumeration('cp_intent','Chord Intent',chordIntents),enumeration('cp_target','Target Degree',chordDegrees),enumeration('cp_enabled','Chord Enabled',['Off','On']),{key:'cp_resolved',name:'Resolved Chord',type:'string',readOnly:true},{key:'cp_relation',name:'Scale Relation',type:'string',readOnly:true},
++    return [...conductorContentParameters(),enumeration('cp_play_mode','Chord Selection',['Immediate','Queued']),...['current','next','count'].map(field=>({key:'cp_queue_'+field,name:field==='count'?'Queued Chords':field==='next'?'Queued Next':'Current Chord',type:'string',readOnly:true,access:'read'})),...statusFields.map((field,index)=>({key:'cp_status_'+field,name:statusNames[index],short_name:statusShort[index],type:'string',readOnly:true,access:'read'})),...partParameters(native),...Array.from({length:7},(_,index)=>({key:'cp_blank_'+index,name:' ',type:'string',readOnly:true})),{key:'cp_off',name:'Harmony Off',type:'string',readOnly:true},{key:'cp_reset',name:'Reset Chords',type:'string',readOnly:true},enumeration('cp_conductor','Conductor Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_bass_track','Bass Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_bass_source','Bass Input',['Existing Routing','Bass Clip']),enumeration('cp_comp','Comp Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_melody','Playing Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_source','Comp Input',['Conductor / Melody','Comp Clip','Follow Melody']),enumeration('cp_selected','Edit Chord',Array.from({length:21},(_,index)=>String(index+1))),enumeration('cp_colorView','Color By',['Quality + Scale','Intent + Scale','Scale Only']),enumeration('cp_intent','Chord Intent',chordIntents),enumeration('cp_target','Target Degree',chordDegrees),enumeration('cp_enabled','Chord Enabled',['Off','On']),{key:'cp_resolved',name:'Resolved Chord',type:'string',readOnly:true},{key:'cp_relation',name:'Scale Relation',type:'string',readOnly:true},
+         enumeration('cp_root','Literal Root',notes),enumeration('cp_quality','Quality',qualities),enumeration('cp_form','Form',forms),enumeration('cp_policy','Scale Context',['Parent','Minimum Change','Explicit','Harmony Rules']),enumeration('cp_tonic','Scale Tonic',notes),enumeration('cp_scale','Scale',scale),enumeration('cp_bass','Bass',['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B','Root']),
+         ...setup.slots.map((slot,index)=>enumeration('cp_slot_'+index,String(index+1),slot.intent?chordDegrees.map((_,degree)=>intentLabel(slot.intent,degree)):notes.flatMap(root=>qualities.map(quality=>root+' '+quality))))];
+ }
+@@ -146,6 +168,7 @@
+         if(!meta)return native.getParam(key);
+         if(key.endsWith(':modulated'))return '0';
+         const slot=setup.slots[setup.selected];
++        const content=conductorContentRead(bare);if(content!==null)return content;
+         if(bare.startsWith('cp_blank_'))return '';
+         if(bare==='cp_play_mode')return setup.playMode?'Queued':'Immediate';
+         if(bare.startsWith('cp_queue_'))return performanceStatus(bare.slice(3));
+@@ -163,6 +186,7 @@
+     const setParam=(key:string,value:string):boolean=>{
+         const target=alias(key);if(target)return portFor(target.track).setParam(target.key,value);
+         const bare=key.split(':').pop()??'';const partResult=partWrite(bare,value,partOwner(bare));if(partResult!==null)return partResult;
++        const content=conductorContentWrite(bare,value);if(content!==null)return content;
+         const meta=metadata.find(entry=>entry.key===bare);
+         if(!meta)return native.setParam(key,value);
+         if(!meta.options)return false;
+@@ -205,7 +229,9 @@
+     const levels=hierarchy.levels,links:any[]=[];
+     const add=(key:string,name:string,knobs:string[]):void=>{levels[key]={name,knobs,params:knobs.map(key=>({key}))};links.push({level:key});};
+     for(let bank=0;bank<3;bank++)add('cp_bank_'+bank,bankNames[bank]+(bank===2?' Dominants':' Chords'),[...Array.from({length:7},(_,index)=>'cp_slot_'+(bank*7+index)),'cp_off']);
+-    add('cp_scale_controls','Scale Operations',['cp_track_'+setup.conductor+'_key_center','cp_track_'+setup.conductor+'_parallel_mode','cp_track_'+setup.conductor+'_dominant_color']);
++    add('cp_clips','Conductor Clips',Array.from({length:7},(_,index)=>'cp_clip_launch_'+index));
++    add('cp_motifs','Conductor Motifs',Array.from({length:7},(_,index)=>'cp_motif_launch_'+index));
++    add('cp_scale_controls','Scale Operations',['cp_track_'+conductorTrack()+'_key_center','cp_track_'+conductorTrack()+'_parallel_mode','cp_track_'+conductorTrack()+'_dominant_color']);
+     add('cp_edit','Chord Editor',['cp_selected','cp_intent','cp_target','cp_root','cp_quality','cp_form','cp_bass']);
+     add('cp_edit_scale','Chord Scale Context',['cp_policy','cp_tonic','cp_scale','cp_enabled','cp_resolved','cp_relation']);
+     add('cp_overview','Harmony Overview',statusFields.map(field=>'cp_status_'+field));
+@@ -221,7 +247,7 @@
+     add('cp_comp_library','Comp Library',['cp_style','cp_load','cp_save','cp_user','cp_mapping','cp_gate','cp_register']);
+     add('cp_bass_library','Bass Library',['bp_style','bp_velocity','bp_gate','bp_register','bp_mapping','bp_user','bp_save']);
+     add('cp_setup','Chord Play Setup',['cp_conductor','cp_comp','cp_melody','cp_colorView','cp_reset','cp_bass_track','cp_bass_source']);
+-    const rootKeys=['cp_play_mode','cp_track_'+setup.conductor+'_chord_timing','cp_track_'+setup.conductor+'_anticipation','cp_queue_current','cp_queue_next','cp_queue_count','cp_blank_0','cp_off'];
++    const rootKeys=['cp_play_mode','cp_track_'+conductorTrack()+'_chord_timing','cp_track_'+conductorTrack()+'_anticipation','cp_queue_current','cp_queue_next','cp_queue_count','cp_blank_0','cp_off'];
+     levels.root={name:'Chord Play',knobs:rootKeys,params:[...rootKeys.map(key=>({key})),...links]};
+     // Reserve the same physical stop control on every page, retaining displaced settings.
+     for(const link of [...links]){
+@@ -251,7 +277,7 @@
+     const next=[melody,setup.comp,followMelody?1:setup.source===0&&conductorRenders?2:0].join(',')+(setup.bassClip?','+setup.bass:'');
+     if(next!==route){send('chord_route',next);route=next;}
+     if(bankPageDirty&&!touches.size&&!controls.size){const index=page?.pageIndex??0;page=null;chordPage().goToPage(index);bankPageDirty=false;}
+-    if(page&&bankStatus)for(let index=0;index<setup.slots.length;index++){const meta=page.ctl.state.metaIndex.get('cp_slot_'+index);if(meta&&bankStatus.slots[index]){meta.label=meta.name=(index+1)+' '+bankStatus.slots[index].name;meta.short_name=meta.name;}}
++    if(page)updateChordLabels(page);
+     if(!settingsActive()){
+         const current=chordPage(),values=()=>JSON.stringify((current.ctl.page?.keys??[]).map((key:string)=>current.ctl.state.values[key]));
+         const before=values();if(current.needsTouchPaint)appState.dirty=true;
+@@ -259,19 +285,20 @@
+     }
+ }
+ export function chordRecordCommand():string|null{return chordActive()?'jrec '+((1<<setup.conductor)|(1<<appState.activeTrack.index))+' '+(1<<setup.conductor):null;}
+-export function chordMidi(data:number[],panels=true):boolean{
++export function chordMidi(data:number[],panels=true,surface?:SchwungPage):boolean{
+     const status=data[0]&240,key=data[1],value=data[2],down=status===144&&value>0,up=status===128||(status===144&&!value);
++    if(up&&conductorPhraseTouch('',key,false)){steps.delete(key);return true;}
+     if(up&&controls.delete(key)){releasePerformanceTouch(key);return true;}
+     if(up&&touches.has(key)){
+         touches.get(key)!.knobTouch(key,false);touches.delete(key);
+-        if(styleTouch?.key===key){const load=!styleTouch.moved,styleTouchKey=styleTouch.control;styleTouch=null;if(load){reviewStyle(styleTouchKey);partModalTouch(key,true);partModalTouch(key,false);}}
++        if(styleTouch?.key===key){const load=!styleTouch.moved,styleTouchKey=styleTouch.control;styleTouch=null;if(load&&!contentChoice(styleTouchKey)){reviewStyle(styleTouchKey);partModalTouch(key,true);partModalTouch(key,false);}}
+         return true;
+     }
+-    if(up&&steps.delete(key))return true;
+-    if(!chordActive())return false;
+-    const conductorOwner=performanceOwner(setup.conductor),conductorTrack=setup.conductor;
+-    const currentKey=page?.keyAt(key)??'',controlTarget=alias(currentKey);
+-    if((down||up)&&key<8&&motifLoaderTouch(conductorOwner,controlTarget?.track===setup.conductor?controlTarget.key:null,key,down,()=>chordActive()&&setup.conductor===conductorTrack)){
++    if(up&&steps.delete(key)){chordStepRelease(key);return true;}
++    if(surface?!controlsActive():!chordActive())return false;
++    const ownerTrack=conductorTrack(),conductorOwner=performanceOwner(ownerTrack);
++    const currentKey=(surface??page)?.keyAt(key)??'',controlTarget=alias(currentKey);
++    if((down||up)&&key<8&&motifLoaderTouch(conductorOwner,controlTarget?.track===ownerTrack?controlTarget.key:null,key,down,()=>controlsActive()&&conductorTrack()===ownerTrack)){
+         if(key===7&&down)harmonyOff();return true;
+     }
+     if(motifLoaderActive(conductorOwner)){
+@@ -279,9 +306,14 @@
+         else if(status===176&&key===51&&value)cancelMotifLoader(conductorOwner);
+         return true;
+     }
+-    if((down||up)&&key>=16&&key<32&&!seqState.loopMode&&!seqState.trackSelectHold&&!appState.shiftHeld&&!muteHeld()){if(down){steps.add(key);const index=stepSlot(key-16);if(index<0)harmonyOff();else selectChordSlot(index);}return true;}
++    if(!surface&&(down||up)&&key>=16&&key<32&&!seqState.loopMode&&!seqState.trackSelectHold&&!appState.shiftHeld&&!muteHeld()){if(down){steps.add(key);const contentKey=contentStepKey(key-16);if(contentKey){if(contentKey==='cp_off')harmonyOff();else if(!contentTouch(contentKey,key))contentChoice(contentKey);}else{const index=stepSlot(key-16);if(index<0)harmonyOff();else selectChordSlot(index,key);}}return true;}
+     if(!panels)return false;
+-    const current=chordPage();
++    const current=surface??chordPage();
++    if(surface){
++        if(status===176&&key>=71&&key<=78){if(!/^cp_/.test(current.keyAt(key-71)??''))return false;}
++        else if((down||up)&&key<8){if(!/^cp_/.test(current.keyAt(key)??''))return false;}
++        else return false;
++    }
+     if((down||up)&&key<8&&partModalTouch(key,down)){if(key===7&&down)harmonyOff();return true;}
+     if(partModalActive()&&status===176){if(key===51&&value)cancelPartReview();return true;}
+     if((down||up)&&key<8){
+@@ -291,8 +323,9 @@
+             if(down){reviewStyle(current.keyAt(key)!);partModalTouch(key,true);}return true;
+         }
+         if(current.keyAt(key)==='cp_reset'){if(down){steps.add(key);resetChordDefaults();}return true;}
++        if(down&&contentTouch(current.keyAt(key)??'',key))return true;
+         const match=/^cp_slot_(\d+)$/.exec(current.keyAt(key)??'');
+-        if(match){if(down){steps.add(key);selectChordSlot(Number(match[1]));}return true;}
++        if(match){if(down){steps.add(key);selectChordSlot(Number(match[1]),key);}return true;}
+         const target=alias(current.keyAt(key)??'');
+         if(down&&target&&/^motion_control_\d+$/.test(target.key)){controls.add(key);ownPerformanceTouch(key,beginHbLaneTouch(performanceOwner(target.track),Number(target.key.slice(15))-1));return true;}
+         if(down&&target&&['key_center','parallel_mode','dominant_color','key_center_apply'].includes(target.key)){
+@@ -301,37 +334,38 @@
+             else {controls.add(key);ownPerformanceTouch(key,beginControlTouch(owner,target.key));}
+             return true;
+         }
+-        if(down&&/^(cp|bp)_style$/.test(current.keyAt(key)??''))styleTouch={key,control:current.keyAt(key)!,moved:false};
++        if(down&&(/^(cp|bp)_style$/.test(current.keyAt(key)??'')||/^cp_(clip|motif)_launch_/.test(current.keyAt(key)??'')))styleTouch={key,control:current.keyAt(key)!,moved:false};
+         if(down){touches.set(key,current);current.knobTouch(key,true);}return true;
+     }
+     if(status!==176)return false;
+     if(key===14){current.changePage(value<64?value:value-128);appState.dirty=true;return true;}
+     if(key===78)return true;
+-    if(key>=71&&key<=77){if(styleTouch?.key===key-71)styleTouch.moved=true;current.knobTurn(key-71,value<64?value:value-128);appState.dirty=true;return true;}
++    if(key>=71&&key<=77){if(value)conductorPhraseTurn(key-71);if(styleTouch?.key===key-71)styleTouch.moved=true;current.knobTurn(key-71,value<64?value:value-128);appState.dirty=true;return true;}
+     if(key===MoveMainButton){if(value)current.click(appState.shiftHeld);return true;}
+     if(key===51){if(value&&current.back()?.action==='exit')returnPreviousInputView();return true;}
+-    if(key===86){if(value)recToggle(setup.conductor);return true;}
++    if(key===86){chordRecordButton(value>0,conductorTrack());return true;}
+     return false;
+ }
+ /** Bank LEDs belong to the chord painter, not the generic parameter meter. */
+ export function chordKnobLEDMask():number{
+-    if(!chordActive()||settingsActive()||!page)return 0;
+-    let mask=0;for(let knob=0;knob<8;knob++)if(knob===7||/^cp_slot_/.test(page.keyAt(knob)??''))mask|=1<<knob;
++    const current=jointConductor!==null?jointSurface:page;
++    if(!controlsActive()||settingsActive()||!current||current.ctl.hbNavigation?.isMenu())return 0;
++    let mask=0;for(let knob=0;knob<8;knob++)if(current.keyAt(knob)==='cp_off'||/^cp_(slot_|clip_launch_|motif_launch_)/.test(current.keyAt(knob)??''))mask|=1<<knob;
+     return mask;
+ }
+ export function paintChordSteps():boolean{
+-    if(!chordActive())return false;
+-    for(let index=0;index<16;index++){const slot=stepSlot(index),color=slot<0?123:chordSlotColor(slot);cachedSetAnimLED(16+index,color,color,0);}
+-    const current=!settingsActive()?page:null;
+-    const keys=Array.from({length:8},(_,knob)=>current?.keyAt(knob)??null),onBank=keys.some(key=>/^cp_slot_/.test(key??''));
++    if(!controlsActive())return false;
++    if(chordActive())for(let index=0;index<16;index++){const slot=stepSlot(index),contentKey=contentStepKey(index),color=contentKey?(conductorContentColor(contentKey,conductorTrack())??123):slot<0?123:chordSlotColor(slot);cachedSetAnimLED(16+index,color,color,0);}
++    const current=!settingsActive()?(jointConductor!==null?jointSurface:page):null;
++    const keys=Array.from({length:8},(_,knob)=>current?.keyAt(knob)??null),onBank=keys.some(key=>/^cp_(slot_|clip_launch_|motif_launch_)/.test(key??''));
+     if(onBank){
+-        for(let knob=0;knob<8;knob++){const index=knob===7?-1:Number(keys[knob]!.slice(8)),color=index<0?123:chordSlotColor(index);cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);}
++        for(let knob=0;knob<8;knob++){const index=knob===7?-1:Number(keys[knob]!.slice(8)),color=conductorContentColor(keys[knob]??'',conductorTrack())??(index<0?123:chordSlotColor(index));cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);}
+     }else if(bankKnobs){
+         for(let knob=0;knob<8;knob++)if(!current||!(current.knobLEDMask&(1<<knob))){const color=keys[knob]?123:0;cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);}
+     }
+-    cachedSetAnimLED(7,123,123,0);cachedSetAnimLED(78,123,123,0,true);
++    if(current?.keyAt(7)==='cp_off'){cachedSetAnimLED(7,123,123,0);cachedSetAnimLED(78,123,123,0,true);}
+     bankKnobs=onBank;
+-    return true;
++    return chordActive();
+ }
+ /** Context uses the same slot mapping as the step painter and input handler. */
+ function contextVisible(current:SchwungPage):boolean {
+@@ -341,6 +375,7 @@
+ export function chordContextTrail():string|null {
+     const current=chordPage();if(!contextVisible(current))return null;
+     if(current.ctl.page?.level==='root')return setup.playMode?'Queue: '+performanceStatus('queue_count')+' / K8:Off':'Touch chords / K8:Off';
++    if(['cp_clips','cp_motifs'].includes(current.ctl.page?.level??''))return current.ctl.page.level==='cp_clips'?'Turn:clip Tap:launch K8:Off':'Turn:motif Tap:preview K8:Off';
+     if(current.ctl.page?.level==='cp_overview')return 'Chord>Core K8:Off';
+     if((current.ctl.page?.keys??[]).some((key:string)=>/^cp_slot_/.test(key))){
+         const first=bankNames[Math.floor(stepSlot(0)/7)],second=bankNames[Math.floor(stepSlot(8)/7)];
+@@ -373,9 +408,9 @@
+ function performanceStatus(field:string):string {
+     if(field==='editing')return editingChord();
+     if(field==='relation')return !setup.slots[setup.selected].enabled?'Off':bankStatus?(bankStatus.slots[setup.selected]?.chromatic?'Chromatic':'Diatonic'):'--';
+-    const now=Date.now(),identity=setup.conductor+':'+appState.activeTrack.index+':'+seqState.playing+':'+setup.playMode;
++    const now=Date.now(),identity=conductorTrack()+':'+appState.activeTrack.index+':'+seqState.playing+':'+setup.playMode;
+     if(!statusCache||statusCache.identity!==identity||now<statusCache.at||now-statusCache.at>=100){
+-        const conductor=portFor(setup.conductor),melody=portFor(appState.activeTrack.index);
++        const conductor=portFor(conductorTrack()),melody=portFor(appState.activeTrack.index);
+         const [active,next]=conductor.getMany(['midi_fx1:hb_chord_active','midi_fx1:next_harmony'],true);
+         const [effective,key]=melody.getMany(['midi_fx1:final_harmony','midi_fx1:sounding_key'],true);
+         const queue=setup.playMode?(conductor.getParam('midi_fx1:hb_chord_queue_status')??'').split('|'):[];
+@@ -400,6 +435,13 @@
+     const bank=first?Math.floor(Number(first.slice(8))/7):0;
+     return ((bank+Math.floor(index/8))%3)*7+index%8;
+ }
++
++function contentStepKey(index:number):string|null {return ['cp_clips','cp_motifs'].includes(page?.ctl.page?.level??'')?page!.keyAt(index%8):null;}
++function contentTouch(key:string,control:number):boolean {const track=conductorTrack();return conductorPhraseTouch(key,control,true,performanceOwner(track),()=>controlsActive()&&conductorTrack()===track,harmonyOff);}
++function contentChoice(key:string):boolean {
++    const track=conductorTrack();return activateConductorContent(key,performanceOwner(track),()=>controlsActive()&&conductorTrack()===track,harmonyOff);
++}
++export function renderChordReview():boolean{return drawMotifLoader(performanceOwner(conductorTrack()));}
+ 
+ function reviewStyle(key:string):void{
+     const kind=partKind(key),choice=partChoiceFor(kind);
+@@ -447,3 +489,14 @@
+     const bass=setup.bass===0||setup.bass===comp?[1,2,3].find(track=>track!==comp)!:setup.bass;
+     restoreChordRouting(JSON.stringify({conductor:0,comp,bass}));
+ }
++
++export function jointChordHierarchy(hierarchy:any):any {
++    const chord=chordHierarchy(JSON.parse(JSON.stringify(hierarchy))).levels;
++    const levels=hierarchy.levels,setup=levels.root;
++    const names=['cp_bank_1','cp_bank_2','cp_clips','cp_motifs','cp_edit','cp_edit_scale','cp_scale_controls'];
++    levels.joint_setup={...setup,params:(setup.params??[]).filter((item:any)=>item.key)};
++    levels.cp_selection={...chord.root,name:'Chord Selection',params:chord.root.params.filter((item:any)=>item.key)};
++    for(const name of names)levels[name]=chord[name];
++    levels.root={...chord.cp_bank_0,name:'Joint Play',params:[...chord.cp_bank_0.params,...names.map(level=>({level})),{level:'cp_selection'},{level:'joint_setup'},...setup.params.filter((item:any)=>item.level)]};
++    return hierarchy;
++}
+diff --git a/src/seq/chord-step-entry.ts b/src/seq/chord-step-entry.ts
+new file mode 100644
+--- /dev/null
++++ b/src/seq/chord-step-entry.ts
+@@ -0,0 +1,53 @@
++import {stepRecDown,stepRecUp,stepRecPad,stepRecPadRelease,stepRecActive,stepRecEnd,stepRecHead} from './step-rec.js';
++import {stepRecClipOwner,setStepRecClipOwner} from './step-rec-owner.js';
++import {stepRecTarget} from './step-rec-target.js';
++import {seqState,requestLoopWindowAdopt} from './state.js';
++import {engineReady,engineGeneration,fieldEngineSet,seqCmdFlush} from './engine.js';
++import {recToggle} from '../undo/rec-pass.js';
++import {seqToast} from './render.js';
++import {appState} from '../app/state.js';
++
++/** Chord choices are another input to the existing clip step recorder. */
++let destination:{track:number;slot:number;generation:number}|null=null;
++export function endChordStepEntry():void {
++    if(stepRecClipOwner()!==null){stepRecEnd();}
++    destination=null;
++}
++export function chordRecordButton(down:boolean,track:number):void {
++    if(down){
++        if(seqState.playing||seqState.recording||seqState.countingIn){recToggle(track);return;}
++        if(stepRecTarget()){seqToast('Finish motif edit first');return;}
++        if(stepRecActive()||!engineReady())return;
++        seqCmdFlush();
++        const clip=String(host_module_get_param('motif_clip_info_'+track)??'').split(',');
++        const slot=Number(clip[0]),length=Number(clip[2]),start=Number(clip[3]);
++        if(clip.length!==6||![slot,length,start].every(Number.isInteger)||slot<0||length<0||length>256){seqToast('Conductor clip unavailable');return;}
++        destination={track,slot,generation:engineGeneration()};
++        const entered=destination;
++        setStepRecClipOwner(track,()=>!seqState.playing&&engineGeneration()===entered.generation&&Number(String(host_module_get_param('motif_clip_info_'+track)??'').split(',')[0])===entered.slot,()=>fieldEngineSet('chord_select','off'));seqState.lenSteps=length;seqState.loopStart=start;seqState.watchLane=-1;seqState.occ.fill(0);
++        stepRecDown();seqToast('Hold Rec: chords / Right: tie or rest');
++    }else{
++        if(stepRecClipOwner()===null)return;
++        const tap=stepRecUp();destination=null;requestLoopWindowAdopt();
++        if(tap)recToggle(track);
++    }
++}
++export function chordStepPress(control:number,track:number,payload:string):boolean {
++    if(stepRecClipOwner()===null)return false;
++    if(!destination||!stepRecActive()||seqState.playing||track!==destination.track||destination.generation!==engineGeneration()){
++        endChordStepEntry();return true;
++    }
++    seqCmdFlush();
++    if(Number(String(host_module_get_param('motif_clip_info_'+track)??'').split(',')[0])!==destination.slot){endChordStepEntry();seqToast('Clip changed');return true;}
++    const before=String(host_module_get_param('chord_step_input')??'');
++    fieldEngineSet('chord_select',payload);
++    const after=String(host_module_get_param('chord_step_input')??'');
++    const [serial,owner,pitch]=after.split(',').map(Number);
++    if(after===before||owner!==track||![serial,pitch].every(Number.isSafeInteger)||pitch<0||pitch>127){seqToast('Chord unavailable');return true;}
++    stepRecPad(control,pitch,100,(step)=>`cadd ${track} ${destination!.slot} ${step} ${serial}`);
++    seqCmdFlush();appState.dirty=true;seqToast('Chord step '+(stepRecHead()+1));return true;
++}
++export function chordStepRelease(control:number):void {
++    if(stepRecClipOwner()===null)return;
++    stepRecPadRelease(control);appState.dirty=true;
++}
+diff --git a/src/seq/conductor-content.ts b/src/seq/conductor-content.ts
+new file mode 100644
+--- /dev/null
++++ b/src/seq/conductor-content.ts
+@@ -0,0 +1,65 @@
++/** Performance shortcuts to the existing clip launch and motif import owners. */
++import {TouchSequence} from './touch-sequence.js';
++import {launchClip} from './session.js';
++import {seqCmdFlush,engineReady} from './engine.js';
++import {seqState} from './state.js';
++import {stepRecActive} from './step-rec.js';
++import {seqToast} from './render.js';
++import {markUiStateDirty} from './ui-dirty.js';
++import {appState} from '../app/state.js';
++import {MOTIF_LOAD_CHOICES,previewMotifSequence} from '../renderer/hb-motif-loader.js';
++import type {PerformancePort} from '../renderer/hb-performance.js';
++export interface ConductorContent {clips:number[];motifs:number[];}
++const motifChoices=[...MOTIF_LOAD_CHOICES,'Rest','Tie'];
++const phrase=new TouchSequence<string>();
++let phraseOwner:{port:PerformancePort;isCurrent:()=>boolean;release:()=>void}|null=null;
++const fresh=():ConductorContent=>({clips:Array.from({length:7},(_,i)=>i),motifs:[0,1,2,3,4,MOTIF_LOAD_CHOICES.length,MOTIF_LOAD_CHOICES.length+1]});
++let content=fresh();
++const clipChoices=Array.from({length:8},(_,i)=>'Clip '+(i+1));
++const match=(key:string):RegExpExecArray|null=>/^cp_(clip|motif)_launch_([0-6])$/.exec(key);
++export function conductorContentSnapshot():ConductorContent{return {clips:[...content.clips],motifs:[...content.motifs]};}
++export function restoreConductorContent(saved:unknown):void {
++    content=fresh();if(!saved||typeof saved!=='object')return;
++    for(const kind of ['clips','motifs'] as const){const values=(saved as Partial<ConductorContent>)[kind];if(Array.isArray(values))values.slice(0,7).forEach((value,index)=>{if(Number.isInteger(value)&&value>=0&&value<(kind==='clips'?8:motifChoices.length))content[kind][index]=value;});}
++}
++export function conductorContentParameters():any[]{return ['clip','motif'].flatMap(kind=>Array.from({length:7},(_,index)=>({key:`cp_${kind}_launch_${index}`,name:(kind==='clip'?'Clip ':'Motif ')+(index+1),type:'enum',options_as_string:true,options:kind==='clip'?clipChoices:motifChoices,default:(kind==='clip'?clipChoices:motifChoices)[index]})));}
++export function conductorContentRead(key:string):string|null {const found=match(key);if(!found)return null;const [kind,index]=[found[1],Number(found[2])];return kind==='clip'?clipChoices[content.clips[index]]:motifChoices[content.motifs[index]];}
++export function conductorContentWrite(key:string,value:string):boolean|null {
++    const found=match(key);if(!found)return null;
++    const kind=found[1]==='clip'?'clips':'motifs',index=(kind==='clips'?clipChoices:motifChoices).indexOf(value);
++    if(index<0)return false;if(kind==='motifs')phrase.invalidate();content[kind][Number(found[2])]=index;markUiStateDirty();appState.dirty=true;return true;
++}
++export function conductorContentColor(key:string,track:number):number|null {
++    const found=match(key);if(!found)return null;if(found[1]==='motif'){const index=Number(found[2]);return phrase.owns(index)||phrase.owns(16+index)||phrase.owns(24+index)?120:motifChoices[content.motifs[index]]==='Tie'&&!phrase.active?0:123;}
++    const slot=content.clips[Number(found[2])],state=seqState.session[track];
++    return state.queued===slot?7:state.playing===slot?120:state.exist&(1<<slot)?123:1;
++}
++export function activateConductorContent(key:string,owner:PerformancePort,isCurrent:()=>boolean,release:()=>void):boolean {
++    const found=match(key),track=owner.performanceTrack;if(!found||track===undefined)return false;
++    if(!isCurrent()||!engineReady())return true;
++    if(stepRecActive()){seqToast('Finish step entry first');return true;}
++    const go=(slot:number):void=>{release();launchClip(track,slot,false);seqCmdFlush();seqToast('Conductor Clip '+(slot+1));};
++    const index=Number(found[2]);
++    if(found[1]==='clip')go(content.clips[index]);
++    else previewMotifSequence(owner,[motifChoices[content.motifs[index]]],isCurrent,(_track,slot)=>go(slot));
++    return true;
++}
++
++export function conductorPhraseTurn(control:number):void {if(phrase.owns(control))phrase.invalidate();}
++export function cancelConductorPhrase():void {phrase.cancel();phraseOwner=null;}
++export function conductorPhraseTouch(key:string,control:number,down:boolean,owner?:PerformancePort,isCurrent?:()=>boolean,release?:()=>void):boolean {
++    if(!down){
++        if(!phrase.owns(control))return false;
++        const values=phrase.release(control);appState.dirty=true;
++        if(values===null)return true;
++        const context=phraseOwner;phraseOwner=null;
++        if(values.length&&context?.isCurrent())previewMotifSequence(context.port,values,context.isCurrent,(track,slot)=>{context.release();launchClip(track,slot,false);seqCmdFlush();seqToast('Conductor phrase launched');});
++        return true;
++    }
++    const found=match(key);if(!found||found[1]!=='motif')return false;
++    if(!owner||!isCurrent||!release||!isCurrent()||!engineReady())return true;
++    if(stepRecActive()){seqToast('Finish step entry first');return true;}
++    if(!phrase.active)phraseOwner={port:owner,isCurrent,release};
++    const accepted=phrase.begin(control,motifChoices[content.motifs[Number(found[2])]]);
++    seqToast(accepted?'Phrase: '+phrase.length+' / overlap to add':'Phrase limit: 16');appState.dirty=true;return true;
++}
+diff --git a/src/seq/constants.ts b/src/seq/constants.ts
+--- a/src/seq/constants.ts
++++ b/src/seq/constants.ts
+@@ -36,7 +36,7 @@
+  * build-dsp.sh fails the build when they diverge. The UI re-issues the DSP
+  * load until ping returns this exact version (fixes the fire-and-forget
+  * load race and stale engines after redeploy). */
+-export const ENGINE_VERSION = '0.75.0-chord-queue1';
++export const ENGINE_VERSION = '0.76.0-joint-chords1';
+ export const ENGINE_DSP_PATH = '/data/UserData/schwung/modules/tools/movy/dsp.so';
+ 
+ /* Where the engine finds schwung's chain host, and where it may keep its own
+diff --git a/src/seq/joint-panels.ts b/src/seq/joint-panels.ts
+--- a/src/seq/joint-panels.ts
++++ b/src/seq/joint-panels.ts
+@@ -1,3 +1,4 @@
++import {chordPanelPort,jointChordHierarchy} from './chord-play.js';
+ import {actorTrack} from './session-roles.js';
+ import { sectionParameters, sectionHierarchy, sectionPanelGet, sectionPanelSet, resetSectionPanel } from './section-panels.js';
+ import { variationParameters, variationKeys, variationPanelGet, variationPanelSet } from './variation-panels.js';
+@@ -11,13 +12,13 @@
+ import { portFor } from '../track/registry.js';
+ import type { TrackPort } from '../track/port.js';
+ import { appState } from '../app/state.js';
+-import { jointPanelGet, jointPanelSet, jointPadRoles } from './joint-play.js';
++import { jointPanelGet, jointPanelSet, jointPadRoles, jointChordKnobs } from './joint-play.js';
+ 
+-const shortNames:Record<string,string>={joint_blank:'',joint_steps:'Steps',joint_unit:'Unit',joint_bass:'Bass',joint_comp:'Comp',joint_lower:'Lower',joint_upper:'Upper',joint_chromatic_below:'Below',joint_record_root:'Root',joint_record_bass:'Bass',joint_record_comp:'Comp',joint_record_melody:'Melody'};
++const shortNames:Record<string,string>={joint_blank:'',joint_conductor:'Conductor',joint_steps:'Steps',joint_unit:'Unit',joint_bass:'Bass',joint_comp:'Comp',joint_lower:'Lower',joint_upper:'Upper',joint_chromatic_below:'Below',joint_record_root:'Root',joint_record_bass:'Bass',joint_record_comp:'Comp',joint_record_melody:'Melody'};
+ const enumeration=(key:string,name:string,options:string[])=>({key,name,short_name:shortNames[key],type:'enum',options,options_as_string:true,default:options[0]});
+ const setup=[
+     enumeration('joint_unit','Track Unit',['1-4','5-8','9-12','13-16']),
+-    enumeration('joint_blank','',['']),
++    enumeration('joint_conductor','Conductor Input',['Pads','Chord Knobs']),
+     enumeration('joint_bass','Bass Source',['Follow','Clip','Pads']),
+     enumeration('joint_comp','Comp Source',['Follow','Clip','Pads','Clip + Guide']),
+     enumeration('joint_lower','Lower Layout',['2 Octaves','Piano','Chrom Row']),
+@@ -100,11 +101,14 @@
+     return sectionHierarchy(overviewHierarchy(hierarchy));
+ }
+ const pages=new Map<number,SchwungPage>();
++const pageInputs=new Map<number,boolean>();
++let visibleInput:boolean|null=null;
+ const touches=new Map<number,SchwungPage>();
+ function panelPort(track:number):TrackPort {
+-    const native=portFor(track),base=track&~3;
++    const native=portFor(track),chords=jointChordKnobs()?chordPanelPort(track):null,base=track&~3;
+     const recipients=new Map<string,number[]>();
+     const getParam=(key:string):string|null=>{
++        if(key.includes(':cp_'))return chords?.getParam(key)??null;
+         const alias=actorAlias(key);if(alias)return portFor(actorTrack(base,alias.role)).getParam(alias.key);
+         const bare=key.replace(/:(base|modulated)$/,'').split(':').pop()??'';
+         const sectionValue=sectionPanelGet(bare);if(sectionValue!==null)return key.endsWith(':modulated')?'0':sectionValue;
+@@ -113,11 +117,12 @@
+         const sourceValue=sourcePanelGet(base,bare);if(sourceValue!==null)return key.endsWith(':modulated')?'0':sourceValue;
+         const meta=jointParameters.find(parameter=>parameter.key===bare);
+         if(meta)return key.endsWith(':modulated')?'0':meta.options[jointPanelGet(base,bare)]??meta.options[0];
+-        const value=native.getParam(key);
++        const value=key.endsWith(':chain_params')&&chords?chords.getParam(key):native.getParam(key);
+         if(key.endsWith(':chain_params')&&value){try{return JSON.stringify([...JSON.parse(value),...jointParameters,...overviewParameters,...sectionParameters,...actorParameters(JSON.parse(value))]);}catch(_){}}
+         return value;
+     };
+     const setParam=(key:string,value:string):boolean=>{
++        if(key.includes(':cp_'))return chords?.setParam(key,value)??false;
+         const alias=actorAlias(key);if(alias)return portFor(actorTrack(base,alias.role)).setParam(alias.key,value);
+         const bare=key.split(':').pop()??'';
+         if(sectionPanelSet(bare,value))return true;
+@@ -142,24 +147,27 @@
+     };
+     return {track:native.track,bulkReads:native.bulkReads,getParam,setParam,
+         getMany:keys=>{
+-            const remoteKeys=keys.filter(key=>!key.includes(':joint_'));
++            const remoteKeys=keys.filter(key=>!key.includes(':joint_')&&!key.includes(':cp_'));
+             const values=native.getMany(remoteKeys);let index=0;
+-            return keys.map(key=>key.includes(':joint_')?getParam(key):values[index++]??null);
++            return keys.map(key=>(key.includes(':joint_')||key.includes(':cp_'))?getParam(key):values[index++]??null);
+         },
+         setMany:pairs=>{
+-            const local=pairs.filter(([key])=>key.includes(':joint_'));
++            const local=pairs.filter(([key])=>key.includes(':joint_')||key.includes(':cp_'));
+             const scoped=pairs.filter(([key])=>jointScoped(key.split(':').pop()??''));
+-            const remote=pairs.filter(([key])=>!key.includes(':joint_')&&!jointScoped(key.split(':').pop()??''));
++            const remote=pairs.filter(([key])=>!key.includes(':joint_')&&!key.includes(':cp_')&&!jointScoped(key.split(':').pop()??''));
+             return [...local,...scoped].every(([key,value])=>setParam(key,value))&&(!remote.length||native.setMany(remote));
+         },
+-        setParamTimeout:(key,value,timeout)=>(key.includes(':joint_')||jointScoped(key.split(':').pop()??''))?setParam(key,value):native.setParamTimeout(key,value,timeout),
++        setParamTimeout:(key,value,timeout)=>(key.includes(':joint_')||key.includes(':cp_')||jointScoped(key.split(':').pop()??''))?setParam(key,value):native.setParamTimeout(key,value,timeout),
+         sendMidi:(status,note,velocity)=>native.sendMidi(status,note,velocity)};
+ }
+ export function jointPage():SchwungPage {
+     const track=appState.focusGroup*4+3;
+     let page=pages.get(track);
+-    if(!page){page=createSchwungPage(panelPort(track),'midi_fx1',{harmonyMode:2,hierarchy:jointHierarchy});pages.set(track,page);}
+-    return followPanel(page);
++    if(page&&pageInputs.get(track)!==jointChordKnobs()){releaseJointPanelTouches();pages.delete(track);page=undefined;}
++    if(!page){page=createSchwungPage(panelPort(track),'midi_fx1',{harmonyMode:2,hierarchy:value=>{const hierarchy=jointHierarchy(value);return jointChordKnobs()?jointChordHierarchy(hierarchy):hierarchy;}});pages.set(track,page);pageInputs.set(track,jointChordKnobs());}
++    const current=followPanel(page);
++    if(current.ready&&visibleInput!==jointChordKnobs()){visibleInput=jointChordKnobs();current.goToPage(0);}
++    return current;
+ }
+ export function jointPanelTouch(slot:number,down:boolean):boolean {
+     if(!down){const owner=touches.get(slot);if(!owner)return false;owner.knobTouch(slot,false);touches.delete(slot);return true;}
+diff --git a/src/seq/joint-play.ts b/src/seq/joint-play.ts
+--- a/src/seq/joint-play.ts
++++ b/src/seq/joint-play.ts
+@@ -1,3 +1,5 @@
++import {setJointChordConductor,tickChordSurface,chordMidi,chordKnobLEDMask,renderChordReview} from './chord-play.js';
++import {chordRecordButton} from './chord-step-entry.js';
+ import {actorTrack,actorRole,singleConductor} from './session-roles.js';
+ import { returnPreviousInputView } from './router-buttons.js';
+ /** Session's multi-track instrument. Tracks own sound and harmony; this module
+@@ -21,9 +23,9 @@
+ import { trackColor } from './colors.js';
+ import { currentSetUuid } from './set-session.js';
+ 
+-export type JointGroup = { pads: number; overlay: number; secondary: number; bass: number; comp: number; lower: number; upper: number; steps: number; overwrite: number };
++export type JointGroup = { conductor: number; pads: number; overlay: number; secondary: number; bass: number; comp: number; lower: number; upper: number; steps: number; overwrite: number };
+ // Source 0 follows, 1 uses clips/motifs, 2 exposes pads. Layout: octaves/piano/approach.
+-const fresh = (): JointGroup => ({pads:15, overlay:1, secondary:4, bass:0, comp:0, lower:0, upper:2, steps:2, overwrite:5});
++const fresh = (): JointGroup => ({conductor:0,pads:15, overlay:1, secondary:4, bass:0, comp:0, lower:0, upper:2, steps:2, overwrite:5});
+ let groups: JointGroup[] = Array.from({length:4}, fresh);
+ let enabled = false;
+ let belowHeld=false, belowLatch=false;
+@@ -40,12 +42,15 @@
+ 
+ export function jointActive(): boolean {return enabled && !seqState.sessionMode && jointAvailable();}
+ export function jointApproachRowsActive():boolean {return jointPlayableRoles(group()).includes(3)&&!jointPlayableRoles(group()).includes(2)&&group().upper===2;}
+-export function jointPlayableRoles(settings:JointGroup):number[]{return [0,1,2,3].filter(role=>(settings.pads&(1<<role))&&(role===0||role===3||settings[role===1?'bass':'comp']===2));}
+-export function jointPadRoles(base = baseTrack()): number[] {return jointPlayableRoles(groups[base/4]).filter(role=>role!==2);}
++export function jointPlayableRoles(settings:JointGroup):number[]{return [0,1,2,3].filter(role=>(role!==0||settings.conductor!==1)&&(settings.pads&(1<<role))&&(role===0||role===3||settings[role===1?'bass':'comp']===2));}
++export function jointPadRoles(base = baseTrack()): number[] {return jointInputRoles(groups[base/4]).filter(role=>role!==2);}
++function jointInputRoles(settings:JointGroup):number[]{const roles=jointPlayableRoles(settings);return settings.conductor===1?[0,...roles]:roles;}
++export function jointChordKnobs():boolean{return group().conductor===1;}
++function syncChordConductor():void{setJointChordConductor(enabled&&jointChordKnobs()?actorTrack(baseTrack(),0):null);}
+ export function jointStepMode(): number {return group().steps;}
+ export function jointEnabled(): boolean {return enabled;}
+ export function setJointEnabled(value: boolean): void {
+-    enabled = value; geometry = ''; appState.dirty = true;
++    enabled = value;syncChordConductor();geometry = ''; appState.dirty = true;
+     if (!value) { pendingRelease = true; held.clear(); releaseJointPanelTouches(); belowHeld=belowLatch=false; }
+ }
+ function group(): JointGroup {return groups[appState.focusGroup] ?? groups[0];}
+@@ -60,9 +65,9 @@
+     groups = Array.from({length:4}, (_,index)=> {
+         const entry = Array.isArray(value) ? value[index] : null;
+         const settings = fresh();
+-        for (const key of ['pads','overlay','secondary','bass','comp','lower','upper','steps','overwrite'] as const) {
++        for (const key of ['conductor','pads','overlay','secondary','bass','comp','lower','upper','steps','overwrite'] as const) {
+             const candidate = entry?.[key];
+-            if (Number.isInteger(candidate) && candidate >= 0 && candidate <= (key==='overwrite'||key==='pads'?15:key==='secondary'?7:key==='comp'?3:2)) settings[key]=candidate;
++            if (Number.isInteger(candidate) && candidate >= 0 && candidate <= (key==='overwrite'||key==='pads'?15:key==='secondary'?7:key==='comp'?3:key==='conductor'?1:2)) settings[key]=candidate;
+         }
+         settings.overwrite |= 1; return settings;
+     });
+@@ -123,7 +128,8 @@
+         keyboardState.octave[index*4+2]-keyboardState.octave[index*4+3],settings.comp===3?1:0,actorTrack(index*4,0)].join(',')).join(';');
+     if(linked!==linkValue){send('joint_links',linkValue);linked=linkValue;}
+     if(!jointActive()) {if(pushed!=='off'){send('joint_map','off');pushed='off';}return;}
+-    if(schwungLibAvailable())jointPage().tick();
++    syncChordConductor();
++    if(schwungLibAvailable()){const page=jointPage();if(jointChordKnobs())tickChordSurface(page);page.tick();}
+     updateGeometry();
+     const map=cells.map(cell=> {
+         const pitch=cell.target>=0?pianoApproachIdentity(cell.target,cell.row):cell.pitch;
+@@ -177,7 +183,7 @@
+ export function jointRecordCommand(): string | null {
+     if(!jointActive())return null;
+     const settings=group(), base=baseTrack();
+-    const roles=jointPlayableRoles(settings);
++    const roles=jointInputRoles(settings);
+     const mask=roles.reduce((mask,role)=>mask|(1<<actorTrack(base,role)),0);
+     const overwrite=roles.filter(role=>settings.overwrite&(1<<role)).reduce((mask,role)=>mask|(1<<actorTrack(base,role)),0);
+     return 'jrec '+mask+' '+overwrite;
+@@ -191,6 +197,7 @@
+     }
+     if((status===0x80||(status===0x90&&!value))&&key<8&&jointPanelTouch(key,false))return true;
+     if(!jointActive())return false;
++    if(jointChordKnobs()&&chordMidi(data,true,jointPage()))return true;
+     if((status===0x90||status===0x80||status===0xa0)&&key>=68&&key<=99){
+         if(status===0x90&&value)held.set(key-68,cells[key-68]?.track??-1);
+         // DSP already dispatched and recorded this physical gesture.
+@@ -199,7 +206,7 @@
+     if(status===0xb0&&key===51&&value){if(jointPage().back()?.action==='exit')returnPreviousInputView();return true;}
+     if(status===0xb0&&key===14){const delta=value<64?value:value-128;if(delta)jointPage().changePage(delta);appState.dirty=true;return true;}
+     if(status===0xb0&&key===MoveMainButton){if(value)jointPage().click(appState.shiftHeld);appState.dirty=true;return true;}
+-    if(status===0xb0&&key===86){if(value)recToggle(actorTrack(baseTrack(),0));return true;}
++    if(status===0xb0&&key===86){if(jointChordKnobs())chordRecordButton(value>0,actorTrack(baseTrack(),0));else if(value)recToggle(actorTrack(baseTrack(),0));return true;}
+     if((status===0x90||status===0x80)&&key<8){jointPanelTouch(key,status===0x90&&value>0);appState.dirty=true;return true;}
+     if(status===0xb0&&key>=71&&key<=78){const delta=value<64?value:value-128;if(delta)jointPage().knobTurn(key-71,delta);appState.dirty=true;return true;}
+     return false;
+@@ -209,6 +216,7 @@
+ export function jointPanelGet(base:number,key:string):number {
+     const settings=groups[base/4];
+     if(key.startsWith('joint_pads_'))return Number(!!(settings.pads&(1<<Number(key.slice(11)))));
++    if(key==='joint_conductor')return settings.conductor;
+     if(key==='joint_unit')return appState.focusGroup;
+     if(key==='joint_chromatic_below')return belowLatch?2:belowHeld?1:0;
+     const recording=['root','bass','comp','melody'].indexOf(key.replace('joint_record_',''));
+@@ -222,10 +230,11 @@
+         if(value==='LatchOn')belowLatch=true;
+         if(value==='LatchOff'||value==='Cancel')belowLatch=false;
+     }else if(!Number.isInteger(index)||index<0)return;
++    else if(key==='joint_conductor'&&index<=1){settings.conductor=index;syncChordConductor();resetJointPanels();}
+     else if(key.startsWith('joint_pads_')){
+         const role=Number(key.slice(11));if(role>=0&&role<4&&index<=1)settings.pads=index?settings.pads|(1<<role):settings.pads&~(1<<role);
+     }else if(key==='joint_unit'){
+-        if(index<=3&&[0,1,2,3].every(role=>trackKind(actorTrack(index*4,role))==='movy'))appState.focusGroup=index;
++        if(index<=3&&[0,1,2,3].every(role=>trackKind(actorTrack(index*4,role))==='movy')){appState.focusGroup=index;syncChordConductor();}
+     }else if(key.startsWith('joint_record_')){
+         const role=['root','bass','comp','melody'].indexOf(key.slice(13));
+         if(role>0&&index<=1)settings.overwrite=index?settings.overwrite|(1<<role):settings.overwrite&~(1<<role);
+@@ -237,8 +246,9 @@
+ }
+ 
+ export function renderJoint():void {
++    if(jointChordKnobs()&&renderChordReview())return;
+     const page=jointPage();
+-    for(let slot=0;slot<8;slot++)if(!(page.knobLEDMask&(1<<slot))){
++    for(let slot=0;slot<8;slot++)if(!((page.knobLEDMask|chordKnobLEDMask())&(1<<slot))){
+         const key=page.keyAt(slot)??'',match=/^joint_(?:actor|pads)_([0-3])/.exec(key);
+         const role=match?Number(match[1]):key==='joint_bass'?1:key==='joint_comp'?2:3;
+         const color=key==='joint_blank'?0:jointActorColor(role);cachedSetAnimLED(slot,color,color,0);
+diff --git a/src/seq/router-buttons.ts b/src/seq/router-buttons.ts
+--- a/src/seq/router-buttons.ts
++++ b/src/seq/router-buttons.ts
+@@ -1,3 +1,4 @@
++import {endChordStepEntry} from './chord-step-entry.js';
+ import { enterClips } from './clips-layout.js';
+ import { invalidateInputModeLeds } from './led-cache.js';
+ import { beginTrackSwitch, followModulePanel, type TrackSnapshot } from '../track/switch.js';
+@@ -45,6 +46,7 @@
+     if(motifEditing()){seqToast('Finish motif edit first');return;}
+     if(next===2&&schwungActiveFor(appState.activeTrack.index,'midi_fx1')?.moduleId!=='harmonybus'){seqToast('Motif Play requires HB');return;}
+     if(next===3&&(!jointAvailable()||!schwungLibAvailable())){seqToast('Joint Play unavailable');return;}
++    endChordStepEntry();
+     if(remember)rememberInputView();
+     inputModeChoice=-1;
+     invalidateInputModeLeds();
+diff --git a/src/seq/router-pads.ts b/src/seq/router-pads.ts
+--- a/src/seq/router-pads.ts
++++ b/src/seq/router-pads.ts
+@@ -1,3 +1,4 @@
++import {stepRecClipOwner} from './step-rec-owner.js';
+ import { fieldActive } from './field-play.js';
+ import { gridActive } from './grid.js';
+ /* Pad input for the sequencer: the held chord that step entry places, and the
+@@ -61,6 +62,7 @@
+         seqState.lastPitch[track] = midiNote;
+         seqState.lastVel[track] = vel;
+     }
++    if(stepRecClipOwner()!==null&&track!==stepRecClipOwner())return;
+     if (stepRecPad(padNote, midiNote, vel)) return;
+     if (deleteActive()) {
+         deletePad(midiNote); // hold Delete + pad clears that pitch
+diff --git a/src/seq/session.ts b/src/seq/session.ts
+--- a/src/seq/session.ts
++++ b/src/seq/session.ts
+@@ -96,8 +96,14 @@
+      * launching a clip must not throw you out of the grid you are launching
+      * from. The grid only shows the focused quartet, so the focus cannot move
+      * out from under the pad that was pressed. */
++    launchClip(track,slot,true);
++}
++
++/** Launch authority is shared; performance surfaces can keep melody pad focus. */
++export function launchClip(track:number,slot:number,focus=true):void {
++    if(!Number.isInteger(track)||track<0||track>=16||!Number.isInteger(slot)||slot<0||slot>=8)return;
+     const visibleBank = appState.focusGroup;
+-    selectTrack(track);
++    if(focus)selectTrack(track);
+     // A global conductor or borrowed drum row must not pull the visible bank away.
+     appState.focusGroup = visibleBank;
+     appState.dirty = true;
+diff --git a/src/seq/step-rec-owner.ts b/src/seq/step-rec-owner.ts
+new file mode 100644
+--- /dev/null
++++ b/src/seq/step-rec-owner.ts
+@@ -0,0 +1,10 @@
++import {seqState,requestLoopWindowAdopt} from './state.js';
++/** Optional clip destination for the ordinary step recorder. Pad focus stays separate. */
++let owner:number|null=null,valid:()=>boolean=()=>true,previousLane=-1,finish:()=>void=()=>{};
++export const stepRecClipOwner=():number|null=>owner;
++export const stepRecClipValid=():boolean=>owner===null||valid();
++export function setStepRecClipOwner(track:number|null,validate:()=>boolean=()=>true,onEnd:()=>void=()=>{}):void {
++    if(owner===null&&track!==null)previousLane=seqState.watchLane;
++    if(owner!==null&&track===null){seqState.watchLane=previousLane;requestLoopWindowAdopt();finish();}
++    owner=track;valid=validate;finish=onEnd;
++}
+diff --git a/src/seq/step-rec.ts b/src/seq/step-rec.ts
+--- a/src/seq/step-rec.ts
++++ b/src/seq/step-rec.ts
+@@ -1,3 +1,4 @@
++import {setStepRecClipOwner,stepRecClipOwner,stepRecClipValid} from './step-rec-owner.js';
+ import { stepRecTarget } from './step-rec-target.js';
+ /* Step recording (manual §5): hold Rec while the transport is stopped and play
+  * the pads to fill the sequencer one step at a time — OP-Z / OP-XY / KeyStep
+@@ -92,16 +93,21 @@
+     chord = null;
+     heldPads.clear();
+     flushPreview();
+-    headEnd();
++    headEnd();setStepRecClipOwner(null);
+ }
+ 
+ /* A pad played while the mode is active. Returns true when consumed, so the
+  * caller skips the normal chord/live-capture path. The note has already been
+  * sounded by midi/router.ts — this only writes it. */
+-export function stepRecPad(padNote: number, pitch: number, vel: number): boolean {
++export function stepRecPad(padNote: number, pitch: number, vel: number, write?: (step:number)=>string): boolean {
++    if(!stepRecClipValid()){stepRecEnd();return true;}
+     const target=stepRecTarget();if(target)return target.pad(padNote,pitch,vel);
+     if (!active) return false;
+     touched = true;
++    if(heldPads.has(padNote))return true;
++    // A chord-bank selection is already a complete element. Connected touches
++    // append elements; ordinary note pads still accumulate pitches in one chord.
++    if(write&&chord){chord=null;advanceHead();}
+     heldPads.set(padNote, pitch);
+     const t = watchedTrack();
+     if (!chord) chord = { pitches: [], anchor: headStep(), tieSteps: 0 };
+@@ -125,13 +131,13 @@
+         /* Melodic replaces because the head is the user's cursor: stepping back
+          * and replaying has to overwrite cleanly. Drums only ever add, so a kick
+          * pass followed by a snare pass builds a kit instead of erasing one. */
+-        if (!isDrum()) seqCmd(`del ${t} ${step} ${step} -1`);
++        if (!write&&!isDrum()) seqCmd(`del ${t} ${step} ${step} -1`);
+         // Interaction-rate only (once per step entered, not once per pad in the
+         // chord, never per tick) — lets the device test count entered steps.
+         mlog(`seq: steprec ${step}`);
+     }
+     headWritten();
+-    seqCmd(`addp ${t} ${step} ${step} ${pitch} ${vel}`);
++    seqCmd(write?write(step):`addp ${t} ${step} ${step} ${pitch} ${vel}`);
+     // Trim the engine's bar rounding in the SAME batch as the write that caused
+     // it, not on the later advance — otherwise the clip reads a full bar for as
+     // long as the pad is held and the step row flashes under the finger.
+@@ -141,13 +147,14 @@
+         seqCmd(`slen ${t} ${step} ${step} ${pitch} ${(chord.tieSteps + 1) * TICKS_PER_STEP}`);
+     }
+     endEdit();
+-    chord.pitches.push(pitch);
++    if(write)chord.pitches=[pitch];else chord.pitches.push(pitch);
+     if (!occHasStep(step)) occToggleStep(step);
+     return true;
+ }
+ 
+ /* A pad released. The head advances only once every pad is up (KeyStep). */
+ export function stepRecPadRelease(padNote: number): boolean {
++    if(!stepRecClipValid()){stepRecEnd();return true;}
+     const target=stepRecTarget();if(target)return target.release(padNote);
+     if (!active) return false;
+     if (!heldPads.delete(padNote)) return true;   // not ours, but still consumed
+@@ -163,6 +170,7 @@
+  * held they move the head: forward leaves a rest, backward re-opens the
+  * previous step for editing. Returns true when consumed. */
+ export function stepRecArrow(dir: number): boolean {
++    if(!stepRecClipValid()){stepRecEnd();return true;}
+     const target=stepRecTarget();if(target)return target.arrow(dir);
+     if (!active) return false;
+     touched = true;
+@@ -193,10 +201,16 @@
+         return true;
+     }
+     if (dir > 0) {
++        if(stepRecClipOwner()!==null){
++            const track=watchedTrack(),step=headStep();
++            beginEdit({key:'steprec:rest:'+track+':'+step,verb:'REST',target:trackLabel(track)+' STEP '+(step+1),close:CLOSE.IMMEDIATE,seq:true});
++            seqCmd(`del ${track} ${step} ${step} -1`);growTo(step);endEdit();
++            if(occHasStep(step))occToggleStep(step);
++        }
+         advanceHead();
+     } else {
+         setHead(Math.max(0, headStep() - 1));
+-        requestPreview();              // play what is there, ready to overwrite
++        if(stepRecClipOwner()===null)requestPreview(); // Ordinary notes retain their existing audition.
+     }
+     return true;
+ }
+@@ -207,6 +221,7 @@
+  * pattern, so they are inert — but in grow mode the tap extends the clip to
+  * reach the step you asked for. */
+ export function stepRecStepTap(button: number): boolean {
++    if(!stepRecClipValid()){stepRecEnd();return true;}
+     const target=stepRecTarget();if(target)return target.step(button);
+     if (!active) return false;
+     touched = true;
+@@ -237,5 +252,5 @@
+     chord = null;
+     heldPads.clear();
+     flushPreview();
+-    headReset();
+-}
++    headReset();setStepRecClipOwner(null);
++}
+diff --git a/src/seq/touch-sequence.ts b/src/seq/touch-sequence.ts
+new file mode 100644
+--- /dev/null
++++ b/src/seq/touch-sequence.ts
+@@ -0,0 +1,23 @@
++/** A connected chain of touches, ordered by onset rather than release. */
++export class TouchSequence<T> {
++    private held=new Set<number>();
++    private values:T[]=[];
++    private invalid=false;
++    constructor(private readonly limit=16){}
++    get length():number{return this.values.length;}
++    get active():boolean{return this.held.size>0;}
++    owns(control:number):boolean{return this.held.has(control);}
++    begin(control:number,value:T):boolean {
++        if(this.held.has(control))return true;
++        if(!this.active){this.values=[];this.invalid=false;}
++        this.held.add(control);
++        if(this.values.length>=this.limit){this.invalid=true;return false;}
++        this.values.push(value);return true;
++    }
++    invalidate():void {if(this.active)this.invalid=true;}
++    release(control:number):T[]|null {
++        if(!this.held.delete(control)||this.active)return null;
++        const result=this.invalid?[]:[...this.values];this.cancel();return result;
++    }
++    cancel():void {this.held.clear();this.values=[];this.invalid=false;}
++}
+diff --git a/src/seq/watch.ts b/src/seq/watch.ts
+--- a/src/seq/watch.ts
++++ b/src/seq/watch.ts
+@@ -20,12 +20,13 @@
+  * A re-dlopened engine is a brand new one watching track 0, and says so on its
+  * next poll; that disagreement is what re-sends the command. */
+ 
++import {stepRecClipOwner} from './step-rec-owner.js';
+ import { appState } from '../app/state.js';
+ import { seqState } from './state.js';
+ 
+ /** The track every step edit belongs to. The one definition. */
+ export function watchedTrack(): number {
+-    return appState.activeTrack.index;
++    return stepRecClipOwner()??appState.activeTrack.index;
+ }
+ 
+ /* What the engine was last told, or -1 for "does not know". Kept here rather
+diff --git a/src/undo/verbs.ts b/src/undo/verbs.ts
+--- a/src/undo/verbs.ts
++++ b/src/undo/verbs.ts
+@@ -11,7 +11,7 @@
+ /** User edits — the unit undo restores. */
+ export const UNDOABLE_VERBS: string[] = [
+     // step entry and note editing
+-    'gtog', 'tog', 'addp', 'del', 'evel', 'elen', 'enudge', 'emove', 'etrn', 'slen',
++    'gtog', 'tog', 'addp', 'cadd', 'del', 'evel', 'elen', 'enudge', 'emove', 'etrn', 'slen',
+     'eprob', 'econd', 'einv',
+     // clip shape and clip-level edits
+     'clen', 'cscl', 'ctr', 'cq', 'cfill', 'dfill', 'mload', 'clipfill', 'pload', 'pshape', 'dbl', 'loop', 'ltog',

@@ -29,7 +29,7 @@ for(let track=0;track<16;track++){
 }
 setFlag('chtracks',1);appState.focusGroup=0;seqState.sessionMode=false;joint.restoreJoint(null);joint.setJointEnabled(true);
 let page=panels.jointPage();assert(page.ready);
-assert.equal(page.keyAt(0),'joint_unit');assert.equal(page.keyAt(1),'joint_blank');
+assert.equal(page.keyAt(0),'joint_unit');assert.equal(page.keyAt(1),'joint_conductor');
 const savedMode=flagValue('hbsteprow');
 assert.equal(hbPerformancePage().performanceTrack,undefined);
 assert(writes.some(([track,key,value])=>track===3&&key==='midi_fx1:joint_pad_approach_mode_active'&&value==='1'));
