@@ -1,11 +1,15 @@
-# Chord output and mode feedback — Movy 0.34.1-hbclean.241
+# Chord banks and performance feedback — Movy 0.34.1-hbclean.243
 
-Chord selections now use HarmonyBus 0.2.293 and the conductor’s configured Render channel. With Movy track 1 routed to MIDI channel 3, chord-bank knob touches and step buttons play the selected harmony into original Schwung’s chord/pad track. Conductor chord, voicing, arp, and rhythm panels are available in Chord Play’s Conductor category. The default Comp Input uses conductor output when enabled, avoiding duplicate melody-triggered chords on the same destination. With Render Off it follows the melody instead. Comp Clip and explicit Follow Melody remain available.
+Chord Play has three banks of seven chords: Home, Parallel (major/natural minor swapped), and Blues Dominants (I7, II7, flat III7, IV7, V7, flat VI7, flat VII7). Defaults resolve from the shared parent key. Manual definitions are shared across melody tracks within the Set, and Reset Chords restores the relative defaults without changing track routing. Existing saved definitions are retained until reset.
 
-Selecting harmony does not arm recording or edit the conductor clip. Record explicitly starts the existing take: the conductor replaces the elapsed interval, while melody retains its existing recording behavior. Rendered chord voices are not recorded a second time.
+Knob 8 is Harmony Off on every Chord Play panel. Selecting the active chord again retriggers it. The step row mirrors two banks of seven chords plus Off: the current bank, then the following bank, wrapping after Blues. Selecting another bank changes this mapping. Setup contains routing, color choice, and Reset Chords. One Chord Editor owns Edit Chord; its Scale Context panel edits that same chord. Chord Enabled controls whether its chord button can trigger. Scale Operations resurfaces the existing conductor key, parallel, and dominant controls.
 
-Input-mode changes invalidate instrument, step, and knob LED caches. Ordinary and animated step painters invalidate each other’s cached colors, and chord-bank knob LEDs are protected from generic parameter meters. Accepted-harmony feedback polls at 16 ms intervals for the first 100 ms after selection, then returns to the normal 250 ms idle interval.
+Requires HarmonyBus 0.2.294. A manual chord replaces only current harmony; playing recorded harmony retains its next-chord lookahead. A stopped manual chord has no lookahead. The recorded boundary ends the live override and closes its recording gate. Existing conductor voicing, arp, rhythm and Render routing remain authoritative. Recording still requires Record explicitly.
 
-Session single-tap opens the mode selector; double-tap within 350 ms opens Clips. Back retains the previous-view behavior.
+Mode changes sweep all instrument pads, with rejected frames retried. Chord Play paints pads before competing control feedback. Native output membership clears old green highlights, and conductor-driven chord-button feedback refreshes while playing.
 
-Validation covers real conductor MIDI output, no recording without Record, conductor replacement, mode cache reset, alternating LED owners, browser/controller suites, native sequencer/DSP suites, and ARM packaging.
+Clips keeps its special performance view and navigation. Setup uses the shared knob value boxes and clip-specific help. A filled slot number identifies the selected drum clip; a play triangle and Q identify playing and queued clips separately. Extended-settings selectors return to their entry panel when jogging left; jogging right cycles categories and click enters. The category-scoped bank bar remains stable during knob touches.
+
+Session single tap opens the mode selector; double tap within 350 ms opens Clips. Back retains previous-view navigation.
+
+Validation includes browser/controller and framebuffer checks, accepted/rejected pad delivery, parent-relative native bank tests, live/current/next and stopped/Off tests, native sequencer/DSP regressions, production-chain MIDI/audio checks, and ARM packaging. Hardware verification remains necessary after installation.

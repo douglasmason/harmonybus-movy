@@ -204,10 +204,12 @@ export function gridMidi(data:number[]):boolean {
     if(type===176&&key===51){if(value&&page.back()?.action==='exit'){overview=true;appState.dirty=true;}return true;}
     return false;
 }
-export function paintGrid():void {
+export function paintGrid(force=false):boolean {
+    if(force)lastPaint.fill(-1);
     const colors=gridColors('move',4,8);
     const changes=colors.flatMap((color,index)=>color===lastPaint[index]?[]:[{index,note:68+index,color}]);
     for(const change of sendPadLedFrame(changes))lastPaint[change.index]=change.color;
+    return colors.every((value,index)=>lastPaint[index]===value);
 }
 export function renderGrid():void {
     if(noteFocus&&noteFocus.track!==watchedTrack())clearNoteFocus();

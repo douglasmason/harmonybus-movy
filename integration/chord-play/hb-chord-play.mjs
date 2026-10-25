@@ -38,20 +38,20 @@ assert(!page.ctl.pages.some(item=>item.keys?.includes('monitor_status')),'Chord 
 assert(!page.ctl.pages.some(item=>item.keys?.includes('render_channel')),'Chord Play excludes global routing');
 const flush=()=>{for(let tick=0;tick<4;tick++){now+=100;page.tick();}};
 const find=key=>{const index=page.ctl.pages.findIndex(item=>item.keys?.includes(key));assert(index>=0,key);page.goToPage(index);flush();};
-find('cp_slot_0');assert.equal(chord.chordKnobLEDMask(),255,'bank owns all knob LED channels');assert.deepEqual(Array.from({length:8},(_,index)=>page.keyAt(index)),Array.from({length:8},(_,index)=>'cp_slot_'+index));
-chord.chordMidi([144,0,100]);assert.equal(engine.params.chord_select,'0,0,1,0,1,0,1,12');
-chord.chordMidi([128,0,0]);assert.equal(engine.params.chord_select,'0,0,1,0,1,0,1,12','release retains harmony');
-find('cp_slot_8');assert.equal(page.keyAt(7),'cp_slot_15');
-chord.chordMidi([144,23,100]);assert.equal(engine.params.chord_select,'0,10,1,0,1,0,1,12');
-chord.chordMidi([128,23,0]);
+find('cp_slot_0');assert.equal(chord.chordKnobLEDMask(),255,'bank owns all knob LED channels');assert.deepEqual(Array.from({length:8},(_,index)=>page.keyAt(index)),[...Array.from({length:7},(_,index)=>'cp_slot_'+index),'cp_off']);
+chord.chordMidi([144,0,100]);assert.equal(engine.params.chord_select,'0,0,0,0,3,0,1,12,1,0');
+chord.chordMidi([128,0,0]);assert.equal(engine.params.chord_select,'0,0,0,0,3,0,1,12,1,0','release retains harmony');
+find('cp_slot_7');assert.equal(page.keyAt(7),'cp_off');
+chord.chordMidi([144,16,100]);assert.equal(engine.params.chord_select,'0,0,0,0,3,0,1,12,12,0');
+chord.chordMidi([128,16,0]);
 assert.equal(appState.activeTrack.index,3);assert.equal(chord.chordRecordCommand(),'jrec 9 1');
-find('cp_track_2_chord_quality');assert.equal(chord.chordKnobLEDMask(),0,'actor settings use ordinary parameter meters');const before=writes.length;
+find('cp_track_2_chord_quality');assert.equal(chord.chordKnobLEDMask(),128,'actor settings reserve knob eight for Off');const before=writes.length;
 const quality=Array.from({length:8},(_,index)=>page.keyAt(index)).indexOf('cp_track_2_chord_quality');page.knobTurn(quality,4);flush();
 assert(writes.slice(before).some(([track,key])=>track===2&&key==='midi_fx1:chord_quality'));
 assert(!writes.slice(before).some(([track,key])=>track!==2&&key==='midi_fx1:chord_quality'));
 find('travel_map');const travel=Array.from({length:8},(_,index)=>page.keyAt(index)).indexOf('travel_map');page.knobTurn(travel,4);flush();
 assert(writes.some(([track,key])=>track===3&&key==='midi_fx1:travel_map'));
-find('cp_quality');const editorBefore=chord.chordSnapshot();page.knobTurn(2,4);flush();
+find('cp_quality');const editorBefore=chord.chordSnapshot();page.knobTurn(Array.from({length:8},(_,index)=>page.keyAt(index)).indexOf('cp_quality'),4);flush();
 assert.notDeepEqual(chord.chordSnapshot().slots[7],editorBefore.slots[7]);
 const snapshot=chord.chordSnapshot();chord.restoreChord(snapshot);assert.deepEqual(chord.chordSnapshot(),snapshot);
 chord.setChordEnabled(true);chord.tickChord();assert.equal(engine.params.chord_route,'3,2,1');
@@ -65,12 +65,12 @@ settings.setSettingsOpen(true);settings.setSettingsOpen(false);assert.equal(seqS
 settings.setSettingsOpen(true,false);settings.setSettingsOpen(false);assert.equal(seqState.sessionMode,false,'Session-cycle Settings returns to the underlying performance mode');
 for(const mode of [0,1,2]){const hierarchy=hbStepHierarchy(structuredClone(metadata.capabilities.ui_hierarchy),mode);assert.equal(hierarchy.levels.diagnostics.visible_if.movyStepVisible,false);assert(!hierarchy.levels.root.knobs.includes('version'));}
 chord.setChordEnabled(false);assert.equal(engine.params.chord_select,'off');assert.equal(engine.params.chord_route,'off');
-console.log('Chord Play: two full banks, silent conductor commands, fixed track aliases, persistence, settings overlay and curated pages pass');
+console.log('Chord Play: three relative banks, conductor commands, fixed track aliases, persistence, settings overlay and curated pages pass');
 
 // Native classifications drive hue/brightness. The UI must not infer harmony.
 const {ledFrameReset}=await import('../dist/esm/seq/led-cache.js');
 const saved=chord.chordSnapshot();saved.colorView=0;saved.slots[2].intent=2;saved.slots[2].target=4;saved.slots[3].intent=3;saved.slots[3].target=4;
-const rows=Array.from({length:16},()=>[0,145,2741,7,0,0,1,0,'C']);
+const rows=Array.from({length:21},()=>[0,145,2741,7,0,0,1,0,'C']);
 rows[1]=[10,1060,1717,7,0,10,1,1,'Bb'];
 rows[2]=[9,657,2773,8,7,9,2,0,'Am7'];rows[3]=[2,581,2773,2,7,2,3,1,'D7'];
 const frame=active=>'cb1|2741|'+active.join(',')+'|'+rows.map(row=>row.join(',')).join('|');
@@ -91,7 +91,7 @@ colorPort.setParam('midi_fx1:cp_selected','4');colorPort.setParam('midi_fx1:cp_i
 chord.selectChordSlot(3);assert(engine.params.chord_select.endsWith(',3,4'));
 const persistence=chord.chordSnapshot();chord.restoreChord(persistence);assert.deepEqual(chord.chordSnapshot(),persistence);
 const legacy=structuredClone(persistence);delete legacy.colorView;for(const slot of legacy.slots){delete slot.intent;delete slot.target;delete slot.enabled;}
-chord.restoreChord(legacy);assert.equal(chord.chordSnapshot().colorView,0);assert(chord.chordSnapshot().slots.every(slot=>slot.intent===0&&slot.target===0&&slot.enabled===1));
+chord.restoreChord(legacy);assert.equal(chord.chordSnapshot().colorView,0);assert(chord.chordSnapshot().slots.every(slot=>slot.enabled===1));
 console.log('Chord colors: native quality/intent families, binary chromatic brightness, actual harmony, matching knobs, bounded reads, disabled slots and legacy migration pass');
 
 // A regular step painter must recover after Chord Play's animated-address writer.
@@ -117,3 +117,19 @@ routePort.setParam('midi_fx1:cp_source','Follow Melody');
 portFor(0).setParam('midi_fx1:render_channel','3');now+=250;chord.tickChord();
 assert.equal(engine.params.chord_route,'3,2,1','explicit extra melody trigger remains available');
 console.log('Conductor output route avoids duplicate comp attacks; explicit extra triggers remain available');
+
+// A single shared bank survives track changes; reset restores dynamic definitions.
+chord.restoreChord(null);selectTrack(3);seqState.sessionMode=false;chord.setChordEnabled(true);
+page=chord.chordPage();find('cp_slot_14');
+assert.equal(page.keyAt(7),'cp_off');chord.chordMidi([144,0,100]);chord.chordMidi([128,0,0]);
+assert.equal(engine.params.chord_select,'0,0,0,0,1,0,1,12,13,0');
+chord.chordMidi([144,7,100]);assert.equal(engine.params.chord_select,'off');chord.chordMidi([128,7,0]);
+chord.chordMidi([144,0,100]);assert.notEqual(engine.params.chord_select,'off','same chord remains a retrigger');chord.chordMidi([128,0,0]);
+const edited=chord.chordSnapshot();edited.slots[0].root=5;edited.slots[0].intent=0;chord.restoreChord(edited);chord.setChordEnabled(true);
+selectTrack(4);assert.equal(chord.chordSnapshot().slots[0].root,5,'manual definitions are global across melody tracks');
+chord.resetChordDefaults();assert.deepEqual(chord.chordSnapshot().slots.map(slot=>slot.intent),[...Array(7).fill(1),...Array(7).fill(12),...Array(7).fill(13)]);
+page=chord.chordPage();for(const panel of page.ctl.pages.filter(panel=>panel.keys?.length))assert.equal(panel.keys[7],'cp_off','every Chord Play settings panel reserves knob 8');
+console.log('Global reset, home/parallel/blues banks and universal Harmony Off pass');
+
+assert.equal(page.ctl.pages.filter(panel=>panel.keys?.includes('cp_selected')).length,1,'only one Edit Chord selector');
+assert(!page.ctl.pages[0].keys.includes('cp_selected'),'Setup contains routing and defaults only');

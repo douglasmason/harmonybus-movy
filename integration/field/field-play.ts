@@ -120,10 +120,12 @@ export function fieldColors(source:string,width=8,height=4):number[]{
         return [1,2,13,14,15][Math.min(4,Math.floor(level*5/128))];
     });
 }
-export function paintField():void{
+export function paintField(force=false):boolean {
+    if(force)paint.fill(-1);
     const colors=fieldColors('move');
     const changes=colors.flatMap((color,index)=>color===paint[index]?[]:[{note:68+index,color}]);
     for(const change of sendPadLedFrame(changes))paint[change.note-68]=change.color;
+    return colors.every((value,index)=>paint[index]===value);
 }
 /** Remote and Move navigation share this controller; editing remains in the LFO page. */
 export function openFieldRoute():boolean {
