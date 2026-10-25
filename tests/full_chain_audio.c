@@ -472,6 +472,7 @@ static void test_source_weaving(void){
 }
 
 #include "drum_destination_audio.h"
+#include "single_conductor_audio.h"
 
 static void test_drum_fill_output(void){
     set("cmd","stop");render(32);set("chtracks","0");
@@ -730,5 +731,6 @@ int main(int argc,char **argv){
 #ifdef HB_TEST_PART_LIBRARY
     test_part_library();
 #endif
+    test_single_conductor_output();
     api->destroy_instance(instance);return 0;
 }

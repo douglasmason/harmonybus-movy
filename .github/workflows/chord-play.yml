@@ -3,6 +3,10 @@ on:
   push:
     branches: [main, work/clip-content-fill]
     paths:
+      - integration/single-conductor/**
+      - scripts/patch_single_conductor.py
+      - tests/single_conductor_audio.h
+      - docs/single-conductor.md
       - integration/drum-output/**
       - scripts/patch_drum_output.py
       - tests/drum_destination_audio.h
@@ -32,6 +36,10 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - integration/single-conductor/**
+      - scripts/patch_single_conductor.py
+      - tests/single_conductor_audio.h
+      - docs/single-conductor.md
       - integration/drum-output/**
       - scripts/patch_drum_output.py
       - tests/drum_destination_audio.h
@@ -65,7 +73,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.248
+  SOURCE_VERSION: 0.34.1-hbclean.249
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -94,7 +102,7 @@ jobs:
           npm run typecheck
           npm run build:browser
           node browser-test/logic.mjs
-          for suite in hb-clips-fill hb-part-library hb-clips-view hb-panel-navigation hb-chord-play hb-chord-pad-feedback hb-pad-colors hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
+          for suite in hb-single-conductor hb-clips-fill hb-part-library hb-clips-view hb-panel-navigation hb-chord-play hb-chord-pad-feedback hb-pad-colors hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
             node "browser-test/$suite.mjs"
           done
           # Legacy app-loop fails unchanged on the pre-routing hbclean.209 baseline.
@@ -144,7 +152,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: clip-fill-248
+          name: single-conductor-249
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -164,10 +172,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.247':
-              raise SystemExit('Expected Movy 247 before clip fill release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.248':
+              raise SystemExit('Expected Movy 248 before single conductor release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Compose clip pitches and rhythms" --notes-file docs/clip-fill.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — One session conductor" --notes-file docs/single-conductor.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -180,7 +188,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.247':
+          if metadata['version'] != '0.34.1-hbclean.248':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
