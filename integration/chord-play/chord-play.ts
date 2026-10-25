@@ -378,7 +378,7 @@ function performanceStatus(field:string):string {
         const queue=setup.playMode?(conductor.getParam('midi_fx1:hb_chord_queue_status')??'').split('|'):[];
         const queued=queue[0]==='cq1',count=queued?Number(queue[1]):0;
         const live=active==='1';
-        statusCache={at:now,identity,values:{queue_current:queued?queue[3]:effective||'--',queue_next:queued?queue[4]:'--',queue_count:queued?String(count)+(queue[5]==='2'?' Full':''):'0',effective:effective||'--',override:live?'On':active==='0'?'Off':'--',next:queued?queue[4]:seqState.playing?(next||'--'):'--',handoff:queued?(count?'Queued':'Hold'):live?(seqState.playing?'Next event':'Off button'):'--',key:key||'--'}};
+        statusCache={at:now,identity,values:{queue_current:queued?queue[3]:effective||'--',queue_next:queued?queue[4]:'--',queue_count:queued?String(count)+(count>=16?' Full':''):'0',effective:effective||'--',override:live?'On':active==='0'?'Off':'--',next:queued?queue[4]:seqState.playing?(next||'--'):'--',handoff:queued?(count?'Queued':'Hold'):live?(seqState.playing?'Next event':'Off button'):'--',key:key||'--'}};
     }
     return (statusCache.values[field]??'--').replace(/\//g,':');
 }

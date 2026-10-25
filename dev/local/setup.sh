@@ -19,7 +19,7 @@ checkout() {
   fi
 }
 checkout movy https://github.com/DimaDake/schwung-movy.git 5c01a4fe7745b730ee98111194fc64328ea2659b
-checkout harmonybus https://github.com/douglasmason/harmonybus.git 9d5ba25d9af985b4829918487ae76e1b3b314f59
+checkout harmonybus https://github.com/douglasmason/harmonybus.git e9c9198fb0cbb2d5ace2d3cc6fb6b6e1140fa925
 checkout schwung https://github.com/charlesvestal/schwung.git a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
 # Always patch a pristine export: the integration patch stack is not idempotent.
 # The cached source checkout and any local edits are left untouched.
