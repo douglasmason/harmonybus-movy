@@ -63,13 +63,7 @@ diff --git a/engine/crates/movy-dsp/src/lib.rs b/engine/crates/movy-dsp/src/lib.
              }
              "chord_queue" => {
                  if val=="off" {self.clear_chord_queue();}
-@@ -702,11 +708,12 @@
-                 s.push_str(&self.tone_check.status());
-                 s.push_str(&self.chains.worker_profile.status());
-                 s.push_str(&self.chains.thread_profile.status()); s.push_str(&pressure_trace::status()); s.push_str(&self.idle_probe.status());
--                s.push_str(" workerbuild=0.34.1-hbclean.249");
-+                s.push_str(" workerbuild=0.34.1-hbclean.250");
-                 Some(s)
+@@ -707,6 +713,7 @@
              }
              "capinfo" => Some(self.engine.capture_info()),
              "alabels" => Some(self.engine.auto_labels()),
@@ -530,7 +524,7 @@ new file mode 100644
 +/** Chord choices are another input to the existing clip step recorder. */
 +let destination:{track:number;slot:number;generation:number}|null=null;
 +export function endChordStepEntry():void {
-+    if(stepRecClipOwner()!==null){stepRecEnd();fieldEngineSet('chord_select','off');}
++    if(stepRecClipOwner()!==null){stepRecEnd();}
 +    destination=null;
 +}
 +export function chordRecordButton(down:boolean,track:number):void {
@@ -544,11 +538,11 @@ new file mode 100644
 +        if(clip.length!==6||![slot,length,start].every(Number.isInteger)||slot<0||length<0||length>256){seqToast('Conductor clip unavailable');return;}
 +        destination={track,slot,generation:engineGeneration()};
 +        const entered=destination;
-+        setStepRecClipOwner(track,()=>!seqState.playing&&engineGeneration()===entered.generation&&Number(String(host_module_get_param('motif_clip_info_'+track)??'').split(',')[0])===entered.slot);seqState.lenSteps=length;seqState.loopStart=start;seqState.watchLane=-1;seqState.occ.fill(0);
++        setStepRecClipOwner(track,()=>!seqState.playing&&engineGeneration()===entered.generation&&Number(String(host_module_get_param('motif_clip_info_'+track)??'').split(',')[0])===entered.slot,()=>fieldEngineSet('chord_select','off'));seqState.lenSteps=length;seqState.loopStart=start;seqState.watchLane=-1;seqState.occ.fill(0);
 +        stepRecDown();seqToast('Hold Rec: chords / Right: tie or rest');
 +    }else{
 +        if(stepRecClipOwner()===null)return;
-+        const tap=stepRecUp();fieldEngineSet('chord_select','off');destination=null;requestLoopWindowAdopt();
++        const tap=stepRecUp();destination=null;requestLoopWindowAdopt();
 +        if(tap)recToggle(track);
 +    }
 +}
@@ -830,13 +824,13 @@ new file mode 100644
 @@ -0,0 +1,10 @@
 +import {seqState,requestLoopWindowAdopt} from './state.js';
 +/** Optional clip destination for the ordinary step recorder. Pad focus stays separate. */
-+let owner:number|null=null,valid:()=>boolean=()=>true,previousLane=-1;
++let owner:number|null=null,valid:()=>boolean=()=>true,previousLane=-1,finish:()=>void=()=>{};
 +export const stepRecClipOwner=():number|null=>owner;
 +export const stepRecClipValid=():boolean=>owner===null||valid();
-+export function setStepRecClipOwner(track:number|null,validate:()=>boolean=()=>true):void {
++export function setStepRecClipOwner(track:number|null,validate:()=>boolean=()=>true,onEnd:()=>void=()=>{}):void {
 +    if(owner===null&&track!==null)previousLane=seqState.watchLane;
-+    if(owner!==null&&track===null){seqState.watchLane=previousLane;requestLoopWindowAdopt();}
-+    owner=track;valid=validate;
++    if(owner!==null&&track===null){seqState.watchLane=previousLane;requestLoopWindowAdopt();finish();}
++    owner=track;valid=validate;finish=onEnd;
 +}
 diff --git a/src/seq/step-rec.ts b/src/seq/step-rec.ts
 --- a/src/seq/step-rec.ts
