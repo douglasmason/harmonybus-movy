@@ -633,6 +633,8 @@ def main() -> int:
     patch_part_library(root)
     from patch_drum_output import patch_drum_output
     patch_drum_output(root)
+    from patch_clip_fill import patch_clip_fill
+    patch_clip_fill(root)
     from patch_single_conductor import patch_single_conductor
     patch_single_conductor(root)
     print("HarmonyBus clean integration applied")

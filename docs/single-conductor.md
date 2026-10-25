@@ -1,4 +1,4 @@
-# One session conductor — Movy 248
+# One session conductor — Movy 249
 
 New Sets use **track 1 as the conductor across all four banks**. Joint Play's
 Root pads, Root settings, record target and performance controls address track 1.
@@ -23,7 +23,7 @@ register. Comp follows its bank's Melody as before.
 
 Existing Sets retain their saved layout, including Sets without a UI-state file.
 To adopt the new layout, stop playback and recording, open **Clips → jog right →
-Setup**, and turn **knob 5, Conductor**, from **Legacy** to **Track1**.
+Setup**, and turn **knob 6, Conductor**, from **Legacy** to **Track1**.
 The conversion requires a ready Movy/HarmonyBus track 1. Wait for loaded chains
 to settle before converting.
 

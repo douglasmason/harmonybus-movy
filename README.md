@@ -1,4 +1,4 @@
-> Movy hbclean.248 uses one session conductor on track 1 in new Sets. Existing Sets can adopt it with the stopped, undoable Conductor control on Clips Setup knob 5. Joint Root follows track 1 across all four banks; drum output stays explicit. Includes the existing bass library and Chord Play context changes. See [single conductor](docs/single-conductor.md).
+> Movy hbclean.249 uses one session conductor on track 1 in new Sets. Existing Sets can adopt it with the stopped, undoable Conductor control on Clips Setup knob 6. Joint Root follows track 1 across all four banks; drum output stays explicit. Includes Clip Fill, the bass library and Chord Play context changes. See [single conductor](docs/single-conductor.md).
 
 > Movy hbclean.246 adds a Bass Library in Chord Play: six mapped styles, eight separate user slots, velocity, note length, register, and mapping controls. Reuses the comp clip engine and restores its routing with Undo. Requires HarmonyBus 0.2.294. See [bass library controls](docs/bass-library.md).
 

@@ -30,7 +30,7 @@ retrigger a shared pitch but only its final owner releases the physical gate.
 Source Weaving and a drum destination cannot be enabled together on the same
 source track. Disable Source Weaving before choosing Drum Ch 1; this avoids
 interpreting borrowed melodic material as sample addresses. Live pad routing and
-automatic fill-return behavior are outside this increment. Movy 248 adds a
+automatic fill-return behavior are outside this increment. Movy 249 adds a
 separate [single-conductor setup](single-conductor.md); selecting a drum clip
 destination does not silently rewrite Joint Play actors.
 
