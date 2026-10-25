@@ -1,5 +1,9 @@
 # Movy 0.34.1-hbclean.255
 
+Install with HarmonyBus 0.2.296. The current device and development-host checks
+share the exact HarmonyBus revision in `integration/harmonybus.ref`; mixed
+older module versions are outside this release's supported configuration.
+
 Chord Play now has eight main panels: its home controls, three chord banks,
 scale controls, two operation banks, and motif play. Editing, routing, comping,
 bass, and setup options remain in the existing grouped Settings menu. Back

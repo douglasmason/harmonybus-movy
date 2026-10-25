@@ -3,6 +3,7 @@ on:
   push:
     branches: [main, work/performance-controls]
     paths:
+      - integration/harmonybus.ref
       - integration/single-conductor/**
       - scripts/patch_single_conductor.py
       - tests/single_conductor_audio.h
@@ -52,6 +53,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - integration/harmonybus.ref
       - integration/single-conductor/**
       - scripts/patch_single_conductor.py
       - tests/single_conductor_audio.h
@@ -123,7 +125,7 @@ jobs:
           git clone https://github.com/DimaDake/schwung-movy.git movy
           git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
           git clone https://github.com/douglasmason/harmonybus.git harmonybus
-          git -C harmonybus checkout e22271503118f02081cef1fcb2f43af06b957a65
+          git -C harmonybus checkout "$(cat integration/harmonybus.ref)"
           git clone https://github.com/charlesvestal/schwung.git schwung
           git -C schwung checkout a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
           python3 scripts/apply_clean_harmonybus.py movy

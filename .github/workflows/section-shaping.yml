@@ -3,6 +3,7 @@ on:
   push:
     branches: [main]
     paths:
+      - integration/harmonybus.ref
       - integration/section-shaping/**
       - scripts/patch_section_shaping.py
       - scripts/apply_clean_harmonybus.py
@@ -13,6 +14,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - integration/harmonybus.ref
       - integration/section-shaping/**
       - scripts/patch_section_shaping.py
       - scripts/apply_clean_harmonybus.py
@@ -45,7 +47,7 @@ jobs:
           git clone https://github.com/DimaDake/schwung-movy.git movy
           git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
           git clone https://github.com/douglasmason/harmonybus.git harmonybus
-          git -C harmonybus checkout b907f48b0d6d24598c4b903e4d2e59e9b759ec38
+          git -C harmonybus checkout "$(cat integration/harmonybus.ref)"
           git clone https://github.com/charlesvestal/schwung.git schwung
           git -C schwung checkout a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
           python3 scripts/apply_clean_harmonybus.py movy
