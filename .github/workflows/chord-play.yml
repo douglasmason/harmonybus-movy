@@ -1,7 +1,7 @@
 name: Chord Play verification and package
 on:
   push:
-    branches: [main, work/chord-output-fix]
+    branches: [main, work/chord-pad-refresh]
     paths:
       - integration/clips-view/**
       - scripts/patch_clips_view.py
@@ -10,6 +10,7 @@ on:
       - scripts/patch_grid.py
       - scripts/patch_panel_navigation.py
       - scripts/patch_chord_play.py
+      - scripts/patch_chord_pad_feedback.py
       - scripts/patch_session_selector.py
       - scripts/apply_clean_harmonybus.py
       - scripts/patch_idle_probe.py
@@ -27,6 +28,7 @@ on:
       - scripts/patch_grid.py
       - scripts/patch_panel_navigation.py
       - scripts/patch_chord_play.py
+      - scripts/patch_chord_pad_feedback.py
       - scripts/patch_session_selector.py
       - scripts/apply_clean_harmonybus.py
       - scripts/patch_idle_probe.py
@@ -41,7 +43,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.242
+  SOURCE_VERSION: 0.34.1-hbclean.243
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -59,7 +61,7 @@ jobs:
           git clone https://github.com/DimaDake/schwung-movy.git movy
           git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
           git clone https://github.com/douglasmason/harmonybus.git harmonybus
-          git -C harmonybus checkout 475e02f3b37a0ff38b821d5bff9d148ff8bb3520
+          git -C harmonybus checkout d0fa77f762fe2628ca0be818c9de4bf0b6e84326
           git clone https://github.com/charlesvestal/schwung.git schwung
           git -C schwung checkout a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
           python3 scripts/apply_clean_harmonybus.py movy
@@ -70,7 +72,7 @@ jobs:
           npm run typecheck
           npm run build:browser
           node browser-test/logic.mjs
-          for suite in hb-clips-view hb-panel-navigation hb-chord-play hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
+          for suite in hb-clips-view hb-panel-navigation hb-chord-play hb-chord-pad-feedback hb-pad-colors hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
             node "browser-test/$suite.mjs"
           done
           # Legacy app-loop fails unchanged on the pre-routing hbclean.209 baseline.
@@ -120,7 +122,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: clips-view-242
+          name: chord-play-243
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -140,10 +142,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.241':
-              raise SystemExit('Expected Movy 241 before Clips release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.242':
+              raise SystemExit('Expected Movy 242 before Chord Play release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Configurable Clips controls" --notes-file docs/release-242.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Chord banks and consistent performance feedback" --notes-file docs/chord-play.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -156,7 +158,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.241':
+          if metadata['version'] != '0.34.1-hbclean.242':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')

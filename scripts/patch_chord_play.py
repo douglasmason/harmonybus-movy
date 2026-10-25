@@ -3,6 +3,7 @@ from pathlib import Path
 from patch_responsive_persistence import replace_once
 from patch_session_selector import patch_session_selector
 from patch_panel_navigation import patch_panel_navigation
+from patch_chord_pad_feedback import patch_chord_pad_feedback
 
 
 def patch_chord_play(root: Path) -> None:
@@ -107,6 +108,7 @@ export function invalidateInputModeLeds():void {
     source = replace_once(source, '    lastNoteLed.set(note, color);', '    lastAnimLed.delete(note);\n    lastNoteLed.set(note, color);')
     source = replace_once(source, '    if (button) lastButtonLed.delete(note);', '    if (button) lastButtonLed.delete(note); else lastNoteLed.delete(note);')
     path.write_text(source)
+    patch_chord_pad_feedback(root)
 
 
 
@@ -178,6 +180,18 @@ pub fn parse(message:''')
     source = replace_once(source, '                OutEvent::RecordedActions {track,pitch,actions}=>{', '                OutEvent::RecordedActions {track,pitch,actions}=>{\n                    self.chord_playback[track as usize*128+pitch as usize]=actions.as_ref().is_some_and(seq_core::recorded_actions::chord_selection);')
     source = source.replace('                    self.joint_follow(surface_route::Event{track:track as usize,pitch,', '                    if !self.chord_playback[track as usize*128+pitch as usize] {self.joint_follow(surface_route::Event{track:track as usize,pitch,').replace('full_velocity:false},true);', 'full_velocity:false},true);}')
     source = source.replace('full_velocity:self.pads.full_velocity()},true);', 'full_velocity:self.pads.full_velocity()},true);}')
+    path.write_text(source)
+
+    path = root / 'engine/crates/movy-dsp/src/lib.rs'
+    source = path.read_text()
+    source = replace_once(source, '        self.chains.hb_conductor_block(message.as_c_str());', '''        self.chains.hb_conductor_block(message.as_c_str());
+        // HB expires the live override at the next recorded harmony boundary.
+        // Close only its recording gate; the native player already owns note-offs.
+        if let Some((track,pitch))=self.chord_note {
+            if self.chains.get_param(track,"midi_fx1:hb_chord_active").as_deref()==Some("0") {
+                self.chord_note=None;self.engine.live_note_off(track,pitch);
+            }
+        }''')
     path.write_text(source)
 
     for source_name, destination in (('selection-tests.rs', 'seq-core/src/recorded_actions.rs'), ('recording-tests.rs', 'seq-core/src/engine.rs'), ('route-tests.rs', 'movy-dsp/src/joint_links.rs')):
