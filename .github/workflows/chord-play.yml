@@ -1,7 +1,7 @@
 name: Chord Play verification and package
 on:
   push:
-    branches: [main, work/clip-content-fill]
+    branches: [main, work/chord-queue]
     paths:
       - integration/single-conductor/**
       - scripts/patch_single_conductor.py
@@ -31,6 +31,9 @@ on:
       - scripts/patch_idle_probe.py
       - scripts/test_full_chain_audio.sh
       - tests/full_chain_audio.c
+      - tests/chord_queue_audio.h
+      - integration/performance/hb-motif-loader.ts
+      - docs/chord-queue.md
       - docs/chord-play.md
       - .github/workflows/chord-play.yml
   pull_request:
@@ -64,6 +67,9 @@ on:
       - scripts/patch_idle_probe.py
       - scripts/test_full_chain_audio.sh
       - tests/full_chain_audio.c
+      - tests/chord_queue_audio.h
+      - integration/performance/hb-motif-loader.ts
+      - docs/chord-queue.md
       - docs/chord-play.md
       - .github/workflows/chord-play.yml
   workflow_dispatch:
@@ -73,7 +79,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.249
+  SOURCE_VERSION: 0.34.1-hbclean.250
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -91,7 +97,7 @@ jobs:
           git clone https://github.com/DimaDake/schwung-movy.git movy
           git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
           git clone https://github.com/douglasmason/harmonybus.git harmonybus
-          git -C harmonybus checkout d0fa77f762fe2628ca0be818c9de4bf0b6e84326
+          git -C harmonybus checkout e9c9198fb0cbb2d5ace2d3cc6fb6b6e1140fa925
           git clone https://github.com/charlesvestal/schwung.git schwung
           git -C schwung checkout a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
           python3 scripts/apply_clean_harmonybus.py movy
@@ -102,7 +108,7 @@ jobs:
           npm run typecheck
           npm run build:browser
           node browser-test/logic.mjs
-          for suite in hb-single-conductor hb-clips-fill hb-part-library hb-clips-view hb-panel-navigation hb-chord-play hb-chord-pad-feedback hb-pad-colors hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
+          for suite in hb-chord-queue hb-single-conductor hb-clips-fill hb-part-library hb-clips-view hb-panel-navigation hb-chord-play hb-chord-pad-feedback hb-pad-colors hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
             node "browser-test/$suite.mjs"
           done
           # Legacy app-loop fails unchanged on the pre-routing hbclean.209 baseline.
@@ -113,6 +119,7 @@ jobs:
       - name: Native sequencer, DSP and full production chain
         run: |
           cargo test --manifest-path movy/engine/Cargo.toml -p seq-core -p movy-dsp
+          test -f harmonybus/src/chord_queue.h
           grep -q HB_SELECTION_INTENT_TAG harmonybus/src/chord_selection.h
           grep -q 'key->count=hb_cp_voice_semantic' harmonybus/src/chord_selection_input.h
           bash scripts/test_full_chain_audio.sh movy harmonybus schwung
@@ -152,7 +159,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: single-conductor-249
+          name: chord-queue-250
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -172,10 +179,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.248':
-              raise SystemExit('Expected Movy 248 before single conductor release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.249':
+              raise SystemExit('Expected Movy 249 before queued Chord Play release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — One session conductor" --notes-file docs/single-conductor.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Queued Chord Play and conductor recording" --notes-file docs/chord-queue.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -188,7 +195,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.248':
+          if metadata['version'] != '0.34.1-hbclean.249':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
@@ -196,5 +203,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add release.json
-          git commit -m "Publish verified Clips $SOURCE_VERSION [skip ci]"
+          git commit -m "Publish verified Chord Play $SOURCE_VERSION [skip ci]"
           git push origin HEAD:main

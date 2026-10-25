@@ -5,7 +5,7 @@ const chord=await import('../dist/esm/seq/chord-play.js');
 const {portFor}=await import('../dist/esm/track/registry.js');
 const {partRead,partWrite}=await import('../dist/esm/seq/part-controls.js');
 const {preparePart,partModalTouch,partModalActive,drawPartReview,cancelPartReview}=await import('../dist/esm/seq/part-library.js');
-chord.restoreChord(null);chord.setChordEnabled(true);let page=chord.chordPage();page.goToPage(0);
+chord.restoreChord(null);chord.setChordEnabled(true);let page=chord.chordPage();page.goToPage(page.ctl.pages.findIndex(entry=>entry.level==='cp_Comp_live'));
 assert.deepEqual(Array.from({length:8},(_,index)=>page.keyAt(index)),['cp_source','cp_style','cp_velocity','cp_gate','cp_form_live','cp_voicing_live','cp_register','cp_off']);
 const conductor=portFor(0);conductor.setParam('midi_fx1:render_channel','3');
 chord.setChordCompSource(1);assert.equal(conductor.getParam('midi_fx1:render_channel'),'Off');

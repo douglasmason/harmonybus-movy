@@ -6,7 +6,7 @@ SOURCES="$ROOT/dev/local/sources"
 PREPARED="$(mktemp -d)"
 trap 'rm -rf "$PREPARED"' EXIT
 [[ "$(git -C "$SOURCES/movy" rev-parse HEAD)" == 5c01a4fe7745b730ee98111194fc64328ea2659b ]]
-[[ "$(git -C "$SOURCES/harmonybus" rev-parse HEAD)" == d0fa77f762fe2628ca0be818c9de4bf0b6e84326 ]]
+[[ "$(git -C "$SOURCES/harmonybus" rev-parse HEAD)" == e9c9198fb0cbb2d5ace2d3cc6fb6b6e1140fa925 ]]
 git -C "$SOURCES/movy" archive HEAD | tar -x -C "$PREPARED"
 git -C "$PREPARED" init -q
 SCHWUNG_ROOT="$SOURCES/schwung" HARMONYBUS_ROOT="$SOURCES/harmonybus" python3 "$ROOT/scripts/apply_clean_harmonybus.py" "$PREPARED"

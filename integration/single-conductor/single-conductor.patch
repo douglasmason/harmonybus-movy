@@ -276,19 +276,21 @@ index b0197e8b..ee398db8 100644
  import { fontPrint, fontWidth } from '../font/index.js';
  import { preparePart,partModalTouch,partModalActive,cancelPartReview,drawPartReview } from './part-library.js';
  import {partParameters,partRead,partWrite,partChoiceFor,partKind,partNativeKey} from './part-controls.js';
-@@ -81,6 +82,7 @@ export function restoreChord(value:unknown):void{
+@@ -81,7 +82,8 @@ export function restoreChord(value:unknown):void{
          const input=value as Partial<Setup>;
          if(typeof input.directRender==='string'&&/^(Off|[1-9]|1[0-6])$/.test(input.directRender))setup.directRender=input.directRender;
          for(const key of ['conductor','comp','bass','source','selected','colorView'] as const){const number=input[key];if(Number.isInteger(number)&&number!>=0&&number!<=(key==='source'?2:key==='colorView'?2:key==='selected'?20:15))setup[key]=number!;}
 +        if(singleConductor())setup.conductor=0;
+         setup.playMode=input.playMode===1?1:0;
          setup.bassClip=input.bassClip===true;
          if(setup.comp===setup.conductor)setup.comp=setup.conductor===2?3:2;
          if([setup.conductor,setup.comp].includes(setup.bass))setup.bass=Array.from({length:16},(_,index)=>index).find(track=>![setup.conductor,setup.comp].includes(track))!;
-@@ -159,6 +161,7 @@ export function chordPanelPort(track:number):TrackPort{
+@@ -159,7 +161,8 @@ export function chordPanelPort(track:number):TrackPort{
          if(!meta)return native.setParam(key,value);
          if(!meta.options)return false;
          const selected=meta.options.indexOf(value);if(selected<0)return false;
 +        if(bare==='cp_conductor'&&singleConductor()&&selected!==0){seqToast('Session conductor: Track 1');return false;}
+         if(bare==='cp_play_mode'){if(selected!==setup.playMode){send('chord_queue','off');setup.playMode=selected;statusCache=null;markUiStateDirty();appState.dirty=true;}return true;}
          if(['cp_melody','cp_comp','cp_conductor','cp_bass_track'].includes(bare)){
              const assignments={cp_melody:appState.activeTrack.index,cp_comp:setup.comp,cp_conductor:setup.conductor,cp_bass_track:setup.bass};
              const others=Object.entries(assignments).filter(([key])=>key!==bare).map(([,track])=>track);

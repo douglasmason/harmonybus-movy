@@ -637,6 +637,10 @@ def main() -> int:
     patch_clip_fill(root)
     from patch_single_conductor import patch_single_conductor
     patch_single_conductor(root)
+    # The UI must reload the engine when installing queued Chord Play.
+    for relative_path in ('engine/crates/movy-dsp/src/lib.rs', 'src/seq/constants.ts'):
+        version_path: Path = root / relative_path
+        version_path.write_text(version_path.read_text().replace('0.74.0-single-conductor1', '0.75.0-chord-queue1'))
     print("HarmonyBus clean integration applied")
     return 0
 

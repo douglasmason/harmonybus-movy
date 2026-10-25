@@ -552,6 +552,9 @@ static void test_chord_play(void){
 }
 #endif
 
+#ifdef HB_TEST_CHORD_QUEUE
+#include "chord_queue_audio.h"
+#endif
 #ifdef HB_TEST_PART_LIBRARY
 #include "part_library_audio.h"
 #endif
@@ -580,6 +583,9 @@ int main(int argc,char **argv){
     }
 #ifdef HB_TEST_PART_LIBRARY
     if(getenv("HB_PART_ONLY")){test_part_library();api->destroy_instance(instance);return 0;}
+#endif
+#ifdef HB_TEST_CHORD_QUEUE
+    if(getenv("HB_QUEUE_ONLY")){test_chord_queue();api->destroy_instance(instance);return 0;}
 #endif
     /* Physical pads 68,69,70 map to C-E-G. */
     for(int mode=0;mode<2;mode++)for(int track=0;track<2;track++){
@@ -727,6 +733,9 @@ int main(int argc,char **argv){
     test_drum_destination();
 #ifdef HB_TEST_CHORD_PLAY
     test_chord_play();
+#ifdef HB_TEST_CHORD_QUEUE
+    test_chord_queue();
+#endif
 #endif
 #ifdef HB_TEST_PART_LIBRARY
     test_part_library();

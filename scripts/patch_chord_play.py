@@ -10,6 +10,7 @@ def patch_chord_play(root: Path) -> None:
     """Connect panel owners, persisted definitions and existing native recording."""
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/chord-play'
     (root / 'browser-test/hb-chord-play.mjs').write_text((assets / 'hb-chord-play.mjs').read_text())
+    (root / 'browser-test/hb-chord-queue.mjs').write_text((assets / 'hb-chord-queue.mjs').read_text())
     for name in ('chord-play.ts', 'chord-colors.ts', 'hb-settings.ts'):
         (root / 'src/seq' / name).write_text((assets / name).read_text())
     path: Path = root / 'src/seq/router-buttons.ts'
@@ -116,6 +117,17 @@ def patch_native(root: Path) -> None:
     """Add atomic selection input and optional melody-to-comp routing."""
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/chord-play'
     (root / 'engine/crates/movy-dsp/src/chord_selection.rs').write_text((assets / 'chord_selection.rs').read_text())
+    (root / 'engine/crates/movy-dsp/src/chord_queue.rs').write_text((assets / 'queue-bridge.rs').read_text())
+    (root / 'engine/crates/seq-core/src/chord_record.rs').write_text((assets / 'chord-record.rs').read_text())
+    path = root / 'engine/crates/seq-core/src/joint_record.rs'
+    source = path.read_text().replace('track < NUM_TRACKS && if', 'track < NUM_TRACKS && (self.joint_overwrite_mask & (1 << track) != 0 || if')
+    source = replace_once(source, 'else {self.joint_record_mask & (1 << track) != 0}', 'else {self.joint_record_mask & (1 << track) != 0})')
+    source = replace_once(source, 'if self.joint_record_mask == 0 {return;}', 'if self.joint_record_mask | self.joint_overwrite_mask == 0 {return;}')
+    source = source.replace('if self.tracks[track].queued_slot.is_some() || self.tracks[track].pending_stop {', 'if (self.joint_record_mask != 0 || self.joint_overwrite_mask & (1 << track) != 0) && (self.tracks[track].queued_slot.is_some() || self.tracks[track].pending_stop) {')
+    path.write_text(source)
+    path = root / 'engine/crates/seq-core/src/engine.rs'
+    source = path.read_text().replace('slot: if self.joint_record_mask != 0 {', 'slot: if self.joint_record_mask != 0 || self.joint_overwrite_mask & (1 << track) != 0 {')
+    path.write_text(source + '\ninclude!("chord_record.rs");\n')
     path: Path = root / 'engine/crates/seq-core/src/recorded_actions.rs'
     source: str = path.read_text()
     source = replace_once(source, 'pub fn parse(message:', '''/// Reserved silent harmony descriptor. It is never an executable operation.
@@ -159,17 +171,24 @@ pub fn parse(message:''')
     fn input_event(&mut self, event: surface_route::Event, derive:bool) {''')
     source = replace_once(source, '        self.joint_follow(event,false);', '        if derive {self.joint_follow(event,false);}')
     source = replace_once(source, '    fn set_param(&mut self, key: &str, val: &str) {', '''    fn set_param(&mut self, key: &str, val: &str) {
-        if key=="cmd" && val.split(';').any(|command|matches!(command.split_whitespace().next(),Some("stop"|"reset"))){self.release_chord_selection();}''')
-    source = replace_once(source, '            "joint_links" => {', '''            "chord_select" => {
-                if val=="off" {self.release_chord_selection();}
-                else if let Some(selection)=chord_selection::Selection::parse(val) {
+        if key=="cmd" && val.split(';').any(|command|matches!(command.split_whitespace().next(),Some("stop"|"reset"))){self.clear_chord_queue();self.release_chord_selection();}''')
+    source = replace_once(source, '            "joint_links" => {', '''            "chord_queue" => {
+                if val=="off" {self.clear_chord_queue();}
+                else if let Some(selection)=chord_selection::Selection::parse(val){
                     self.abort_idle_input();
+                    if self.chord_queue.is_some_and(|track|track!=selection.track){self.clear_chord_queue();self.release_chord_selection();}
+                    self.chains.set_param(selection.track,"midi_fx1:hb_chord_queue",&selection.payload);
+                    self.chord_queue=Some(selection.track);self.tick_chord_queue();
+                }
+            }
+            "chord_select" => {
+                if val=="off" {self.clear_chord_queue();self.release_chord_selection();}
+                else if let Some(selection)=chord_selection::Selection::parse(val) {
+                    self.clear_chord_queue();self.abort_idle_input();
                     self.chains.set_param(selection.track,"midi_fx1:hb_movy_input_chord",&selection.payload);
                     if self.chains.get_param(selection.track,"midi_fx1:hb_chord_prepared").as_deref()==Some("1"){
                         let pitch=self.chains.get_param(selection.track,"midi_fx1:hb_chord_note").and_then(|text|text.parse::<u8>().ok()).filter(|pitch|*pitch<128).unwrap_or(selection.pitch);
-                        self.release_chord_selection();
-                        self.input_event(surface_route::Event{track:selection.track,pitch,status:0x90,value:100,approach:None,full_velocity:false},false);
-                        self.chord_note=Some((selection.track,pitch));
+                        self.activate_chord_selection(selection.track,pitch);
                     }
                 }
             }
@@ -192,6 +211,19 @@ pub fn parse(message:''')
                 self.chord_note=None;self.engine.live_note_off(track,pitch);
             }
         }''')
+    path.write_text(source)
+
+    path = root / 'engine/crates/movy-dsp/src/lib.rs'
+    source = path.read_text() + '\ninclude!("chord_queue.rs");\n'
+    source = replace_once(source, '                if seq_core::persist::load(&mut self.engine, val) {', '                if seq_core::persist::load(&mut self.engine, val) {\n                    self.clear_chord_queue();self.release_chord_selection();')
+    source = replace_once(source, '    blocks: u64,', '    blocks: u64,\n    chord_queue: Option<usize>,\n    chord_queue_tick: Option<(u64,bool)>,')
+    source = replace_once(source, '            blocks: 0,', '            blocks: 0,\n            chord_queue: None,\n            chord_queue_tick: None,')
+    source = replace_once(source, '        self.chains.hb_conductor_block(message.as_c_str());', '''
+        let queue_tick=(self.engine.hb_master_tick(),self.engine.playing);
+        if self.chord_queue.is_some()&&self.chord_queue_tick!=Some(queue_tick){
+            self.chord_queue_tick=Some(queue_tick);self.tick_chord_queue();
+        }
+        self.chains.hb_conductor_block(message.as_c_str());''')
     path.write_text(source)
 
     for source_name, destination in (('selection-tests.rs', 'seq-core/src/recorded_actions.rs'), ('recording-tests.rs', 'seq-core/src/engine.rs'), ('route-tests.rs', 'movy-dsp/src/joint_links.rs')):
