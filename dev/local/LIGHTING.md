@@ -128,3 +128,25 @@ After the normal full Wasm build:
 compares exact output MIDI and saved state with and without lighting reads,
 checks that display polling never advances the field, and verifies live melody
 note ownership and release while stopped. Existing full host tests remain gates.
+
+### Voice identities
+
+The collapsed **Voice identities** controls set each output channel's lighting
+strength (0–100%) and home corner independently. Defaults preserve the existing
+Root/Bass/Comp/Melody appearance. Zero strength removes only that channel's visual
+note contribution; Perlin ambience, MIDI holds, audio and release processing
+continue. Restoring strength during a held note shows its current sustain rather
+than replaying its attack. Home changes anchor degree motion and voice-only mode;
+pitch mode retains its horizontal pitch mapping and uses the home's vertical side.
+Settings travel with the existing browser profile and `ui.lighting` session data;
+older profiles receive the original defaults. Labels describe output channels
+1–4, not exact track ownership; tracks sharing a channel share a visual identity.
+
+### Playing-surface monitor
+
+A compact four-fixture square beside the clip cards displays the same RGB frame
+as the full Lights panel while pads remain available. Its held-note count,
+blackout and waiting labels come from that same projection. Tap it to open Lights.
+The existing 40 ms presentation update drives both views; no extra engine reads,
+subscriptions or clocks are added. The full canvas skips drawing while its panel
+is hidden. The monitor retains fixture order 1/2 above 4/3.

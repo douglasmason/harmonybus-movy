@@ -26,14 +26,14 @@ const mapScaleToIntervals=new Map(Object.entries({
 }));
 const mapNoteToPitchClass=new Map([['C',0],['D',2],['E',4],['F',5],['G',7],['A',9],['B',11]]);
 /** Position uses HB's named effective scale; chromatic notes interpolate degrees. */
-export function voicePosition(channel,pitch,shared,mode='degree') {
+export function voicePosition(channel,pitch,shared,mode='degree',homeIndex=channel) {
  const context=String(shared??'').split('|'),match=/^([A-G])([#b♯♭]?)/.exec(context[1]??'');
  const tonic=match?(mapNoteToPitchClass.get(match[1])+(['#','♯'].includes(match[2])?1:['b','♭'].includes(match[2])?-1:0)+12)%12:0;
  const intervals=context[0]==='dp1'?mapScaleToIntervals.get(context[7]):null;
  const relative=((pitch-tonic)%12+12)%12;
  let degree=relative/12;
  if(intervals){const extended=[...intervals,12];const index=extended.findIndex((value,index)=>index<extended.length-1&&relative>=value&&relative<extended[index+1]);degree=(index+(relative-extended[index])/(extended[index+1]-extended[index]))/intervals.length;}
- const home=fixturePositions[channel];
+ const home=fixturePositions[homeIndex];
  if(mode==='voice')return home.map(value=>value*.7);
  if(mode==='pitch')return [clamp((pitch-60)/18,-1.2,1.2),home[1]*.65];
  const angle=degree*Math.PI*2-Math.PI/2;
@@ -48,7 +48,7 @@ export function gaussianWeights(position,width) {
  return weights.map(value=>value/total);
 }
 export const defaultSamples=[[9,18,10],[14,21,13],[54,45,53],[49,42,50]];
-export const defaultSettings=Object.freeze({source:'terrain',palette:'blend',harmony:.75,level:.7,saturation:.85,reactivity:.65,vinyl:.45,hueTurns:2,phraseBars:0,blackout:false,position:'degree',spread:.85,sectionCue:'arrival'});
+export const defaultSettings=Object.freeze({source:'terrain',palette:'blend',harmony:.75,level:.7,saturation:.85,reactivity:.65,vinyl:.45,hueTurns:2,phraseBars:0,blackout:false,position:'degree',spread:.85,sectionCue:'arrival',voiceGain0:1,voiceGain1:1,voiceGain2:1,voiceGain3:1,voiceHome0:0,voiceHome1:1,voiceHome2:2,voiceHome3:3});
 
 /** Parse existing quantized terrain or lane telemetry; reject incomplete frames. */
 export function parseField(text,source='terrain') {
@@ -199,8 +199,8 @@ export class Lighting {
   for(const [key,note] of this.envelopes){
    if(note.released!==null&&now-note.released>1200){this.envelopes.delete(key);continue;}
    const held=note.released===null,sustain=held?.4:.4*Math.exp(-(now-note.released)/200);
-   const envelope=Math.max(sustain*note.velocity,note.velocity*Math.exp(-(now-note.started)/130),held?note.pressure*.7:0);
-   const position=voicePosition(note.channel,note.pitch,this.shared,this.settings.position),weights=gaussianWeights(position,this.settings.spread);
+   const envelope=this.settings[`voiceGain${note.channel}`]*Math.max(sustain*note.velocity,note.velocity*Math.exp(-(now-note.started)/130),held?note.pressure*.7:0);
+   const position=voicePosition(note.channel,note.pitch,this.shared,this.settings.position,this.settings[`voiceHome${note.channel}`]),weights=gaussianWeights(position,this.settings.spread);
    const voice=voices[note.channel];
    for(let fixture=0;fixture<4;fixture++)voice.levels[fixture]=Math.max(voice.levels[fixture],weights[fixture]*envelope);
    if(envelope>voice.energy){voice.position=position;voice.energy=envelope;}

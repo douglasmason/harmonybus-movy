@@ -11,12 +11,17 @@ try{
  await page.waitForFunction(()=>globalThis.__joint?.page().ready);
  for(const viewport of [{width:1024,height:768},{width:1180,height:720},{width:768,height:1024},{width:390,height:844}]){
   await page.setViewportSize(viewport);
-  for(const selector of ['#record','#play','#stop','#pads','#clip-status']){
+  for(const selector of ['#record','#play','#stop','#pads','#clip-status','#light-monitor']){
    const box=await page.locator(selector).boundingBox();assert(box&&box.y>=0&&box.y+box.height<=viewport.height,`${selector} fits ${JSON.stringify(viewport)}`);
   }
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth&&document.documentElement.scrollHeight<=innerHeight));
  }
  await page.setViewportSize({width:1024,height:768});
+ await page.locator('#light-monitor').click();assert(await page.locator('#view-lights').isVisible());
+ await page.locator('#light-blackout').click();await page.locator('[data-view=perform]').click();
+ await page.waitForFunction(()=>document.querySelector('#light-monitor-state').textContent==='Blackout');
+ assert(await page.locator('#light-monitor [data-fixture]').evaluateAll(elements=>elements.every(element=>element.style.backgroundColor==='rgb(0, 0, 0)')));
+ await page.locator('#light-monitor').click();await page.locator('#light-blackout').click();await page.locator('[data-view=perform]').click();
  assert.equal(await page.locator('#pads').evaluate(element=>getComputedStyle(element).touchAction),'none');
  await page.locator('#audio').click();await page.waitForFunction(()=>__joint.monitor.enabled);
  await page.locator('#record').click();await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Count-in');

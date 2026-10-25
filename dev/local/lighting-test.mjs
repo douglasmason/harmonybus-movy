@@ -189,3 +189,44 @@ test('section rotation changes fixture routing in effective output-lane mode',()
  model.cue('phrase',0);
  assert(model.render(40).fixtures[0].level>control.render(40).fixtures[0].level);
 });
+
+test('independent voice strengths preserve MIDI holds and leave the field background intact',()=>{
+ const model=new Lighting(),ambient=new Lighting();
+ for(const target of [model,ambient]){ingest(target,0);target.render(0);}
+ ingest(model,40,[event(1,0x90,60,127),event(2,0x91,48,100)]);ingest(ambient,40);
+ const original=model.render(40).voices;
+ model.settings.voiceGain0=0;model.settings.voiceGain1=.5;
+ const adjusted=model.render(40).voices;
+ assert.equal(adjusted[0].energy,0);assert.equal(adjusted[0].position,null);
+ assert.deepEqual(adjusted[0].levels,[0,0,0,0]);
+ assert.equal(adjusted[1].energy,original[1].energy*.5);
+ assert.equal(model.notes.size,2,'lighting strength never changes held note ownership');
+ model.settings.voiceGain1=0;
+ for(let now=80;now<=2000;now+=40){ingest(model,now);ingest(ambient,now);model.render(now);ambient.render(now);}
+ for(let index=0;index<4;index++)assert(Math.abs(model.frame[index].level-ambient.frame[index].level)<.001);
+ model.settings.voiceGain0=1;assert(model.render(2000).voices[0].energy>0,'held voice returns without another attack');
+ ingest(model,2040,[event(3,0x80,60,0),event(4,0x81,48,0)]);
+ assert.equal(model.notes.size,0);
+});
+
+test('home edits move only the selected voice Gaussian and retain pitch motion',()=>{
+ const model=new Lighting();model.settings.position='voice';ingest(model,0);
+ ingest(model,40,[event(1,0x90),event(2,0x91)]);
+ const before=model.render(40).voices;
+ model.settings.voiceHome0=2;const after=model.render(40).voices;
+ assert.deepEqual(after[0].position,[.7,.7]);
+ assert(after[0].levels[2]>after[0].levels[0]);
+ assert.deepEqual(after[1],before[1]);
+ assert.notDeepEqual(voicePosition(0,60,shared(),'degree',2),voicePosition(0,62,shared(),'degree',2));
+ assert.equal(voicePosition(0,60,shared(),'pitch',2)[1],.65);
+});
+
+test('voice profiles migrate old saves, roundtrip controls and reject invalid identities',()=>{
+ const old=lightingProfile({schema:1,settings:{}});
+ for(let voice=0;voice<4;voice++){
+  assert.equal(old.settings[`voiceGain${voice}`],1);assert.equal(old.settings[`voiceHome${voice}`],voice);
+ }
+ old.settings.voiceGain2=.37;old.settings.voiceHome2=0;
+ assert.deepEqual(lightingProfile(JSON.parse(JSON.stringify(old))),old);
+ for(const settings of [{voiceHome0:4},{voiceHome1:1.5},{voiceHome2:'2'},{voiceGain0:-.1},{voiceGain3:1.01},{voiceGain1:NaN}])assert.equal(lightingProfile({schema:1,settings}),null);
+});
