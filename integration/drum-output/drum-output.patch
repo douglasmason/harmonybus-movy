@@ -78,7 +78,7 @@ index c3a52ea5..391360c1 100644
      let slot=engine.song_entry_at(0).map(|entry|entry.0).unwrap_or(track.active_clip);
      let clip=&track.clips[slot];
 diff --git a/engine/crates/movy-dsp/src/lib.rs b/engine/crates/movy-dsp/src/lib.rs
-index 9f35f8f7..0340cbad 100644
+index 9f35f8f7..bcd1efc2 100644
 --- a/engine/crates/movy-dsp/src/lib.rs
 +++ b/engine/crates/movy-dsp/src/lib.rs
 @@ -12,6 +12,7 @@ mod pressure_trace;
@@ -122,15 +122,6 @@ index 9f35f8f7..0340cbad 100644
                  if let Some(id) = self.engine.undo.take_noop() {
                      s.push_str(&format!(" unop={id}"));
                  }
-@@ -684,7 +688,7 @@ impl Instance {
-                 s.push_str(&self.tone_check.status());
-                 s.push_str(&self.chains.worker_profile.status());
-                 s.push_str(&self.chains.thread_profile.status()); s.push_str(&pressure_trace::status()); s.push_str(&self.idle_probe.status());
--                s.push_str(" workerbuild=0.34.1-hbclean.244");
-+                s.push_str(" workerbuild=0.34.1-hbclean.245");
-                 Some(s)
-             }
-             "capinfo" => Some(self.engine.capture_info()),
 @@ -759,6 +763,7 @@ impl Instance {
                  if changed {self.chains.hb_shared("midi_fx1:hb_shared_flush","");}
              }
