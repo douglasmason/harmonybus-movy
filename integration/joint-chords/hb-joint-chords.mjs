@@ -57,6 +57,13 @@ assert(!commands.some(([key])=>key==='chord_queue'),'stopped entry never appends
 const before=commands.length;seqNotePadPlayed(3,68,72,90);seqCmdFlush();assert(!commands.slice(before).some(([key,value])=>key==='cmd'&&/addp|cadd/.test(value)),'melody pads cannot write conductor clip');
 seqHandleMidi([176,86,0],false);assert(!record.stepRecActive());assert.equal(watchedTrack(),3);
 assert.equal(chord.chordSnapshot().playMode,1,'authoring preserves live selection preference');
+// Chord-bank controls are whole elements: continuous overlap appends rather than stacks.
+commands.length=0;seqHandleMidi([176,86,127],false);
+seqHandleMidi([144,0,100],false);seqHandleMidi([144,1,100],false);seqHandleMidi([128,0,0],false);
+seqHandleMidi([144,0,100],false);seqHandleMidi([128,1,0],false);assert.equal(record.stepRecHead(),2);
+seqHandleMidi([128,0,0],false);assert.equal(record.stepRecHead(),3);seqHandleMidi([176,86,0],false);seqCmdFlush();
+const connected=commands.filter(([key])=>key==='cmd').flatMap(([,value])=>value.split(';')).filter(op=>op.startsWith('cadd'));
+assert.deepEqual(connected.map(op=>Number(op.split(' ')[3])),[0,1,2],'re-touching a note adds a new onset in the connected phrase');
 // Slot changes fail closed; entry never follows a newly selected clip.
 seqHandleMidi([176,86,127],false);clipSlot=1;commands.length=0;
 seqHandleMidi([144,2,100],false);seqHandleMidi([128,2,0],false);seqCmdFlush();

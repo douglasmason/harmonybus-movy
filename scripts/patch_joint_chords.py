@@ -11,4 +11,5 @@ def patch_joint_chords(root: Path) -> None:
         ['git', 'apply', '--reverse', '--check', str(patch)], cwd=root, capture_output=True)
     if applied.returncode != 0:
         subprocess.run(['git', 'apply', str(patch)], cwd=root, check=True)
-    (root / 'browser-test/hb-joint-chords.mjs').write_text((assets / 'hb-joint-chords.mjs').read_text())
+    for name in ('hb-joint-chords.mjs','hb-conductor-content.mjs'):
+        (root / 'browser-test' / name).write_text((assets / name).read_text())
