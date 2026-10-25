@@ -29,8 +29,10 @@
         assert_eq!(engine.tracks[0].clips[0].notes[0].pitch,70);
         assert_eq!(engine.tracks[3].clips[2].notes.len(),2);
         engine.live_note_on(0,71,100);engine.tracks[0].pos_tick=24;
-        engine.tracks[0].queued_slot=Some(1);engine.joint_before_launch();
-        assert!(engine.rec_pending.is_empty()); // Close against the old clip before launch.
+        engine.live_note_on(3,75,90);
+        engine.tracks[0].queued_slot=Some(1);engine.tracks[3].queued_slot=Some(1);engine.joint_before_launch();
+        assert_eq!(engine.rec_pending.len(),1); // Close only the conductor before launch.
+        assert_eq!(engine.rec_pending[0].track,3); // Preserve ordinary recording's held tail.
         engine.toggle_record(3);engine.toggle_record(3);
         assert_eq!(engine.joint_overwrite_mask,0); // A later take starts clean.
     }

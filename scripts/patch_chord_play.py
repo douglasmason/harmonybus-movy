@@ -123,6 +123,7 @@ def patch_native(root: Path) -> None:
     source = path.read_text().replace('track < NUM_TRACKS && if', 'track < NUM_TRACKS && (self.joint_overwrite_mask & (1 << track) != 0 || if')
     source = replace_once(source, 'else {self.joint_record_mask & (1 << track) != 0}', 'else {self.joint_record_mask & (1 << track) != 0})')
     source = replace_once(source, 'if self.joint_record_mask == 0 {return;}', 'if self.joint_record_mask | self.joint_overwrite_mask == 0 {return;}')
+    source = source.replace('if self.tracks[track].queued_slot.is_some() || self.tracks[track].pending_stop {', 'if (self.joint_record_mask != 0 || self.joint_overwrite_mask & (1 << track) != 0) && (self.tracks[track].queued_slot.is_some() || self.tracks[track].pending_stop) {')
     path.write_text(source)
     path = root / 'engine/crates/seq-core/src/engine.rs'
     source = path.read_text().replace('slot: if self.joint_record_mask != 0 {', 'slot: if self.joint_record_mask != 0 || self.joint_overwrite_mask & (1 << track) != 0 {')
