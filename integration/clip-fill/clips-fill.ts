@@ -35,7 +35,7 @@ export function fillMidi(data:number[]):boolean {
     if(key===51||key===14||key===MoveMainButton){if(value)setFillActive(false);return true;}
     if(key<71||key>78)return false;
     if(!value)return true;const knob=key-71,direction=value<64?1:-1;
-    if(knob<6){const bounds=[15,7,15,7,16,1];choices[knob]=Math.max(knob===4?1:0,Math.min(bounds[knob],choices[knob]+direction));refreshAt=Date.now()+70;preview='error:Preparing preview';message='';appState.dirty=true;}
+    if(knob<6){const bounds=[15,7,15,7,16,2];choices[knob]=Math.max(knob===4?1:0,Math.min(bounds[knob],choices[knob]+direction));refreshAt=Date.now()+70;preview='error:Preparing preview';message='';appState.dirty=true;}
     else if(knob===6){keep=direction>0;appState.dirty=true;}
     else setFillActive(false);
     return true;
@@ -65,8 +65,8 @@ export function renderFill():boolean {
     clear_screen();const line=(y:number,text:string)=>fontPrint(1,y,fitHeaderText(text,126),1);
     line(1,'FILL - pads REPLACE');
     line(12,`1/2 Pitch T${choices[0]+1} C${choices[1]+1}`);
-    line(22,`3/4 Rhythm T${choices[2]+1} C${choices[3]+1}`);
-    line(32,`5 ${choices[4]} bars  6 ${choices[5]?'Fit pitch':'Sequence'}`);
+    line(22,choices[5]===2?'3/4 Rhythm: original':`3/4 Rhythm T${choices[2]+1} C${choices[3]+1}`);
+    line(32,`5 ${choices[4]} bars  6 ${['Sequence','Fit pitch','Original'][choices[5]]}`);
     if(peekUntil&&preview&&!preview.startsWith('error:')){
         const [signature,duration,count,encoded]=preview.split('|');
         const notes=(encoded??'').split(';').filter(Boolean).map(note=>note.split(',').map(Number));

@@ -643,6 +643,9 @@ def main() -> int:
         version_path.write_text(version_path.read_text().replace('0.74.0-single-conductor1', '0.75.0-chord-queue1'))
     from patch_joint_chords import patch_joint_chords
     patch_joint_chords(root)
+    for relative_path in ('engine/crates/movy-dsp/src/lib.rs', 'src/seq/constants.ts'):
+        version_path = root / relative_path
+        version_path.write_text(version_path.read_text().replace('0.76.0-joint-chords1', '0.77.0-conductor-fill1'))
     print("HarmonyBus clean integration applied")
     return 0
 

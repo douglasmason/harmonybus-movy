@@ -59,3 +59,47 @@ fn write(engine:&mut Engine,request:&str,out:&mut Vec<OutEvent>)->String {
     engine=setup();engine.tracks[4].clips[2].quant=1;assert!(engine.fill_preview("1_3_4_2_1_0").contains("timing"));
     assert!(engine.fill_preview("99_0_4_2_1_0").contains("Invalid"));assert!(engine.fill_preview("1_3_4_2_0_0").contains("length"));
 }
+
+fn conductor_settings()->Settings {let mut settings=Settings::comp();settings.0[0]=0;settings.0[1]=0;settings}
+fn conductor_write(engine:&mut Engine,request:&str,out:&mut Vec<OutEvent>)->String {
+    let preview=engine.fill_preview(request);assert!(!preview.starts_with("error:"),"{preview}");
+    let command=format!("clipfill 0 5 {} {request} {} {} own",engine.fill_target("0_5"),preview.split('|').next().unwrap(),conductor_settings().wire());
+    apply_batch(engine,&command,out);command
+}
+#[test] fn conductor_descriptor_without_input_key_keeps_intent_ties_and_rests(){
+    let mut engine=setup();let mut out=Vec::new();
+    let mut actions=[0;52];actions[0]=0xc858001f00000000|0x91|(0xab5<<12);
+    let source=&mut engine.tracks[1].clips[3];source.notes.truncate(1);source.input_key=None;
+    source.notes[0].input_key=None;source.notes[0].actions=Some(actions);source.notes[0].gate=192;
+    let original=source.notes[0].clone();
+    apply_batch(&mut engine,"usnap 71",&mut out);let before=engine.undo_snapshot();
+    conductor_write(&mut engine,"1_3_4_2_2_2",&mut out);assert!(engine.part_result.starts_with("Filled"),"{}",engine.part_result);
+    let clip=&engine.tracks[0].clips[5];assert_eq!(clip.length_steps,32);
+    assert_eq!(clip.notes.iter().map(|n|(n.tick,n.gate)).collect::<Vec<_>>(),vec![(0,192),(384,192)]);
+    assert!(clip.notes.iter().all(|n|n.actions==original.actions&&n.input_key.is_none()&&!n.rendered));
+    assert_eq!(engine.tracks[0].playing_slot,None);assert_eq!(engine.tracks[0].active_clip,0);
+    let saved=crate::persist::serialize(&engine);let mut restored=Engine::new(48000,12000);assert!(crate::persist::load(&mut restored,&saved));
+    assert_eq!(restored.tracks[0].clips[5].notes[0].actions,Some(actions));
+    apply_batch(&mut engine,"ucommit 71;uswap 71 72",&mut out);assert_eq!(engine.undo_snapshot(),before);
+    write(&mut engine,"1_3_4_2_1_0",&mut out);assert!(engine.part_result.contains("conductor destination"));
+}
+#[test] fn motif_import_can_fill_another_conductor_clip_with_original_silence(){
+    let mut engine=Engine::new(48000,12000);let mut out=Vec::new();
+    let info=engine.motif_clip_info(0);let info:Vec<_>=info.split(',').collect();
+    let words=vec!["0";52].join(",");
+    // One tied event, then a timed rest: the existing motif importer owns parsing.
+    apply_batch(&mut engine,&format!("mload 0 0 {} 0 384 0 1 0,192,60.100:{words}|192,192:{words}",info[1]),&mut out);
+    assert!(engine.motif_load_result.starts_with("Written"));
+    conductor_write(&mut engine,"0_0_99_99_2_2",&mut out);assert!(engine.part_result.starts_with("Filled"),"{}",engine.part_result);
+    assert_eq!(engine.tracks[0].clips[5].notes.iter().map(|n|(n.tick,n.gate)).collect::<Vec<_>>(),vec![(0,192),(384,192)]);
+    engine.tracks[0].clips[0].notes.clear();
+    conductor_write(&mut engine,"0_0_99_99_1_2",&mut out);assert!(engine.part_result.starts_with("Filled"));
+    assert!(engine.tracks[0].clips[5].notes.is_empty());assert_eq!(engine.tracks[0].clips[5].length_steps,16);
+}
+#[test] fn conductor_fill_recombines_rhythm_and_rejects_role_changes_atomically(){
+    let mut engine=setup();let mut out=Vec::new();conductor_write(&mut engine,"1_3_4_2_1_0",&mut out);
+    assert!(engine.part_result.starts_with("Filled"));assert_eq!(engine.tracks[0].clips[5].notes.len(),5);
+    engine.tracks[1].clips[3].recipe=Some(crate::clip_recipe::Recipe{name:"Follower".into(),settings:Settings::comp(),gate:100});
+    let before=engine.undo_snapshot();conductor_write(&mut engine,"1_3_4_2_1_2",&mut out);
+    assert!(engine.part_result.contains("source recipe is a follower"));assert_eq!(engine.undo_snapshot(),before);
+}
