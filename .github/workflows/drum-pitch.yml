@@ -3,6 +3,7 @@ on:
   push:
     branches: [main]
     paths:
+      - integration/harmonybus.ref
       - integration/drum-pitch/**
       - scripts/patch_drum_pitch.py
       - integration/drum-fill/**
@@ -15,6 +16,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - integration/harmonybus.ref
       - integration/drum-pitch/**
       - scripts/patch_drum_pitch.py
       - integration/drum-fill/**
@@ -49,7 +51,7 @@ jobs:
           git clone https://github.com/DimaDake/schwung-movy.git movy
           git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
           git clone https://github.com/douglasmason/harmonybus.git harmonybus
-          git -C harmonybus checkout 7712c10508623392dc6d91dc34842f1bdf8a4aa0
+          git -C harmonybus checkout "$(cat integration/harmonybus.ref)"
           git clone https://github.com/charlesvestal/schwung.git schwung
           git -C schwung checkout a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
           python3 scripts/apply_clean_harmonybus.py movy

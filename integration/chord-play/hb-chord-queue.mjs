@@ -11,7 +11,8 @@ selectTrack(3);seqState.sessionMode=false;chord.restoreChord(null);chord.setChor
 const page=chord.chordPage(),port=chord.chordPanelPort(3);port.getParam('midi_fx1:chain_params');
 page.goToPage(0);assert.equal(page.keyAt(0),'cp_play_mode');
 const core=page.ctl.hbNavigation.state().indices.map(index=>page.ctl.pages[index].level);
-assert(core.includes('cp_Conductor_follower_touch'));assert(core.includes('cp_Conductor_motif_load'));
+assert(core.includes('cp_Conductor_follower_touch'));assert(core.includes('cp_Conductor_motif_play'));
+assert(!core.includes('cp_Conductor_motif_load'),'motif loading remains in Conductor settings');
 assert(!core.includes('cp_bass_library')&&!core.includes('cp_comp_library')&&!core.includes('cp_setup'));
 assert(!page.ctl.pages.some(entry=>/^cp_(Comp|Melody)_motif_load/.test(entry.level)),'Chord Play fill is conductor-only');
 const commands=[],oldSet=globalThis.host_module_set_param_blocking;
