@@ -1,0 +1,387 @@
+[
+  {
+    "key": "track_role",
+    "default": 1,
+    "min": 0,
+    "max": 3,
+    "options": [
+      "Conductor",
+      "Follower",
+      "Receiver",
+      "Off"
+    ]
+  },
+  {
+    "key": "travel_map",
+    "default": 1,
+    "min": 0,
+    "max": 7,
+    "options": [
+      "None",
+      "Relative",
+      "Nearest Octave",
+      "Closest Chord Tone",
+      "Closest Scale Tone",
+      "Closest Split",
+      "Upward",
+      "Downward"
+    ]
+  },
+  {
+    "key": "split_map",
+    "default": 0,
+    "min": 0,
+    "max": 3,
+    "options": [
+      "Harm. / Out",
+      "135 / 2467",
+      "1357 / 246",
+      "Act. / Out"
+    ]
+  },
+  {
+    "key": "content_map",
+    "default": 0,
+    "min": 0,
+    "max": 9,
+    "options": [
+      "Chord",
+      "135",
+      "1357",
+      "12357",
+      "12356",
+      "123567",
+      "Non-Avoid",
+      "Raised-Avoid",
+      "Scale",
+      "Free"
+    ]
+  },
+  {
+    "key": "chord_mode",
+    "default": 2,
+    "min": 0,
+    "max": 2,
+    "options": [
+      "Off",
+      "Rendered Note Root",
+      "Conductor Chord"
+    ]
+  },
+  {
+    "key": "chord_form",
+    "default": 16,
+    "min": 0,
+    "max": 20,
+    "options": [
+      "Power",
+      "Triad",
+      "Seventh",
+      "Ninth",
+      "Add9",
+      "Sixth",
+      "6/9",
+      "Eleventh",
+      "Thirteenth",
+      "Sus2",
+      "Sus4",
+      "Shell 7",
+      "Shell 9",
+      "Shell 6/9",
+      "Rootless 7",
+      "Rootless 9",
+      "Follow Detected",
+      "Root Only",
+      "Root + Third",
+      "Root + Seventh",
+      "Follow Role"
+    ]
+  },
+  {
+    "key": "chord_inversion",
+    "default": 8,
+    "min": 0,
+    "max": 9,
+    "options": [
+      "Auto",
+      "Root",
+      "First",
+      "Second",
+      "Third",
+      "Fourth",
+      "Fifth",
+      "Sixth",
+      "Played Top Note",
+      "Follow Role"
+    ]
+  },
+  {
+    "key": "chord_voicing",
+    "default": 0,
+    "min": 0,
+    "max": 4,
+    "options": [
+      "Close",
+      "Root + Fifth Low",
+      "Alternate Up",
+      "Shell",
+      "Follow Role"
+    ]
+  },
+  {
+    "key": "chord_quality",
+    "default": 0,
+    "min": 0,
+    "max": 13,
+    "options": [
+      "Auto",
+      "Major",
+      "Minor",
+      "Dim",
+      "Aug",
+      "Maj7",
+      "Dom7",
+      "Min7",
+      "Half Dim7",
+      "Dim7",
+      "MinMaj7",
+      "AugMaj7",
+      "Dom7b5",
+      "Follow Role"
+    ]
+  },
+  {
+    "key": "chord_extensions",
+    "default": 0,
+    "min": 0,
+    "max": 1,
+    "options": [
+      "As Derived",
+      "Raise Avoid"
+    ]
+  },
+  {
+    "key": "chord_input",
+    "default": 0,
+    "min": 0,
+    "max": 1,
+    "options": [
+      "Single Note",
+      "Root/Bass + Top"
+    ]
+  },
+  {
+    "key": "arp_playback",
+    "default": 0,
+    "min": 0,
+    "max": 2,
+    "options": [
+      "Together",
+      "Repeat Arp",
+      "Once"
+    ]
+  },
+  {
+    "key": "arp_hold",
+    "default": 0,
+    "min": 0,
+    "max": 5,
+    "options": [
+      "Momentary",
+      "Latch - Overlap",
+      "Latch with Off - Overlap",
+      "Latch Acc. with Off",
+      "Latch - Single",
+      "Latch with Off - Single"
+    ]
+  },
+  {
+    "key": "arp_order",
+    "default": 0,
+    "min": 0,
+    "max": 6,
+    "options": [
+      "Up",
+      "Down",
+      "Up-Down",
+      "Played",
+      "Random",
+      "Shuffle",
+      "Shuffle Cycle Pin"
+    ]
+  },
+  {
+    "key": "arp_rate",
+    "default": 2,
+    "min": 0,
+    "max": 17,
+    "options": [
+      "1/64",
+      "1/32",
+      "1/16",
+      "1/8",
+      "1/4",
+      "1/2",
+      "1 Bar",
+      "2 Bars",
+      "4 Bars",
+      "Cycle 1/64",
+      "Cycle 1/32",
+      "Cycle 1/16",
+      "Cycle 1/8",
+      "Cycle 1/4",
+      "Cycle 1/2",
+      "Cycle 1 Bar",
+      "Cycle 2 Bars",
+      "Cycle 4 Bars"
+    ]
+  },
+  {
+    "key": "arp_gate",
+    "default": 1,
+    "min": 0,
+    "max": 3,
+    "options": [
+      "25%",
+      "50%",
+      "75%",
+      "90%"
+    ]
+  },
+  {
+    "key": "arp_phase",
+    "default": 2,
+    "min": 0,
+    "max": 2,
+    "options": [
+      "Free",
+      "On Grid",
+      "First Note Free"
+    ]
+  },
+  {
+    "key": "arp_start",
+    "default": 0,
+    "min": 0,
+    "max": 6,
+    "options": [
+      "Order",
+      "Lowest / Pad",
+      "Highest / Pad",
+      "Lowest / Chord",
+      "Highest / Chord",
+      "Played / Pad",
+      "Played / Chord"
+    ]
+  },
+  {
+    "key": "rhythm_gen_pattern",
+    "default": 0,
+    "min": 0,
+    "max": 9,
+    "options": [
+      "Off",
+      "Straight",
+      "Offbeats",
+      "Long-Short",
+      "Short-Long",
+      "3-3-2",
+      "User 1",
+      "User 2",
+      "User 3",
+      "User 4"
+    ]
+  },
+  {
+    "key": "render_velocity_percent",
+    "default": 100,
+    "min": 0,
+    "max": 400
+  },
+  {
+    "key": "retrigger_held",
+    "default": 0,
+    "min": 0,
+    "max": 1,
+    "options": [
+      "Off",
+      "On"
+    ]
+  },
+  {
+    "key": "strum_spread",
+    "default": 0,
+    "min": 0,
+    "max": 18,
+    "options": [
+      "0 ms",
+      "25 ms",
+      "50 ms",
+      "100 ms",
+      "200 ms",
+      "350 ms",
+      "500 ms",
+      "750 ms",
+      "1000 ms",
+      "1/64",
+      "1/32",
+      "1/16",
+      "1/8",
+      "1/4",
+      "1/2",
+      "1 Bar",
+      "2 Bars",
+      "4 Bars",
+      "Follow Role"
+    ]
+  },
+  {
+    "key": "arp_note_phase",
+    "default": 0,
+    "min": -256,
+    "max": 256
+  },
+  {
+    "key": "humanize_timing",
+    "default": 0,
+    "min": 0,
+    "max": 30
+  },
+  {
+    "key": "humanize_velocity",
+    "default": 0,
+    "min": 0,
+    "max": 30
+  },
+  {
+    "key": "humanize_gate",
+    "default": 0,
+    "min": 0,
+    "max": 30
+  },
+  {
+    "key": "render_rhythm_mode",
+    "default": 1,
+    "min": 0,
+    "max": 2,
+    "options": [
+      "Inherit",
+      "Off",
+      "Override"
+    ]
+  },
+  {
+    "key": "render_rhythm_pattern",
+    "default": 0,
+    "min": 0,
+    "max": 5,
+    "options": [
+      "As Entered",
+      "Even",
+      "Long-Short",
+      "Short-Long",
+      "Accelerate",
+      "Decelerate"
+    ]
+  }
+]

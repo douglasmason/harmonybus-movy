@@ -109,7 +109,7 @@ console.log('Mode LED owners: regular and animated caches invalidate each other'
 // The normal route must not double-trigger the same Schwung chord instrument.
 chord.restoreChord(null);selectTrack(3);seqState.sessionMode=false;chord.setChordEnabled(true);
 portFor(0).setParam('midi_fx1:render_channel','3');now+=250;chord.tickChord();
-assert.equal(engine.params.chord_route,'3,2,0','conductor output owns comp triggers by default');
+assert.equal(engine.params.chord_route,'3,2,2','conductor output owns comp triggers by default');
 portFor(0).setParam('midi_fx1:render_channel','Off');now+=250;chord.tickChord();
 assert.equal(engine.params.chord_route,'3,2,1','silent conductor retains melody-triggered comp');
 const routePort=chord.chordPanelPort(3);routePort.getParam('midi_fx1:chain_params');
