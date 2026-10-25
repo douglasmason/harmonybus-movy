@@ -179,6 +179,12 @@ const pixels=new Uint8Array(128*64),oldClear=globalThis.clear_screen,oldFill=glo
 globalThis.clear_screen=()=>pixels.fill(0);
 globalThis.fill_rect=(x,y,width,height,color)=>{for(let row=Math.max(0,y);row<Math.min(64,y+height);row++)for(let column=Math.max(0,x);column<Math.min(128,x+width);column++)pixels[row*128+column]=color?1:0;};
 try {
+ find('cp_status_effective');page.ctl.state.touched=-1;page.ctl.state.peek=null;
+ chord.renderChord();const overviewPixels=pixels.slice();
+ assert(overviewPixels.slice(10*128,12*128).every(pixel=>pixel===0),'overview clears the underlying knob-box borders');
+ clear_screen();const {fontPrint:print}=await import('../dist/esm/font/index.js');print(1,12,'Sounds F:A',1);
+ assert.deepEqual(overviewPixels.slice(12*128,17*128),pixels.slice(12*128,17*128),'overview uses full-width harmony text instead of truncated knob boxes');
+ assert.equal(chord.chordContextTrail(),'Chord>Core K8:Off');
  find('cp_slot_7');page.ctl.state.touched=-1;page.ctl.state.peek=null;
  chord.renderChord();const bankPixels=pixels.slice(),trail=chord.chordContextTrail();
  clear_screen();const {fontPrint}=await import('../dist/esm/font/index.js');fontPrint(1,58,trail,1);

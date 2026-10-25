@@ -306,9 +306,13 @@ export function paintChordSteps():boolean{
     return true;
 }
 /** Context uses the same slot mapping as the step painter and input handler. */
+function contextVisible(current:SchwungPage):boolean {
+    const state=current.ctl.state;
+    return !(current.ctl.hbNavigation?.isMenu()||state.peek||state.pickerOpen||state.hintLines||state.menuEntered||state.touched>=0);
+}
 export function chordContextTrail():string|null {
-    const current=chordPage(),state=current.ctl.state;
-    if(current.ctl.hbNavigation?.isMenu()||state.peek||state.pickerOpen||state.hintLines||state.menuEntered||state.touched>=0)return null;
+    const current=chordPage();if(!contextVisible(current))return null;
+    if(current.ctl.page?.level==='cp_overview')return 'Chord>Core K8:Off';
     if((current.ctl.page?.keys??[]).some((key:string)=>/^cp_slot_/.test(key))){
         const first=bankNames[Math.floor(stepSlot(0)/7)],second=bankNames[Math.floor(stepSlot(8)/7)];
         return '1:'+first+' 9:'+second+' OFF8/16';
@@ -320,7 +324,17 @@ export function renderChord():void{
     if(drawPartReview())return;
     const current=chordPage();clear_screen();drawHeader(current.pageTitle,'C'+(setup.conductor+1)+' P'+(setup.comp+1)+' M'+(appState.activeTrack.index+1));
     drawBankBar(current.pageIndex,current.pageCount);current.render('Chord Play');
-    let trail=chordContextTrail();if(trail){while(fontWidth(trail)>126)trail=trail.slice(0,-1);fill_rect(0,57,128,7,0);fontPrint(1,58,trail,1);}
+    if(current.ctl.page?.level==='cp_overview'&&contextVisible(current)){
+        fill_rect(0,10,128,47,0);
+        const live=performanceStatus('override'),handoff=performanceStatus('handoff');
+        const lines=['Sounds '+performanceStatus('effective'),'Live '+live+(live==='On'?' / '+handoff:''),'Next '+performanceStatus('next'),'Key '+performanceStatus('key'),'Edit '+editingChord()];
+        lines.forEach((line,index)=>printContext(12+index*9,line));
+    }
+    const trail=chordContextTrail();if(trail){fill_rect(0,57,128,7,0);printContext(58,trail);}
+}
+function printContext(y:number,line:string):void {
+    if(fontWidth(line)>126){while(fontWidth(line+'~')>126)line=line.slice(0,-1);line+='~';}
+    fontPrint(1,y,line,1);
 }
 function editingChord():string {
     const index=setup.selected,name=bankStatus?.slots[index]?.name??'--';
