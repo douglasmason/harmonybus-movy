@@ -1,6 +1,6 @@
 # Drum destination progress
 
-Movy 233 provides selected-lane drum fills. Stock host track 1 already emits ordinary clip notes on internal MIDI channel 1. With all tracks hosted by Movy, clips instead enter their corresponding chains; a dedicated channel-1 drum destination is not implemented yet.
+Movy 245 adds explicit clip-only channel-1 output for source tracks 5, 9 and 13. See [Drum clip destinations](drum-output.md) for controls, compatibility, ownership and validation. Stock host track 1 retains its existing output.
 
 ## Sample-pitch prerequisite
 
@@ -8,11 +8,11 @@ Recognized drum tracks treat stored note pitches as sample addresses. The sequen
 
 The regression covers every MIDI pitch, raw and rendered notes, stale key context, saved piano alias metadata, clip transpose, exact velocity, paired releases and pressure. Existing melodic regressions remain enabled.
 
-## Next explicit destination
+## Destination contract
 
-The intended output contract is drums 1, bass 2, pads 3 and lead 4. Joint Root remains a harmonic conductor. A drum destination must be explicitly selected; it must not silently replace Root or reserve another occupied actor track.
+The intended output contract is drums 1, bass 2, pads 3 and lead 4. Joint Root remains a harmonic conductor. A drum destination is explicitly selected; it must not silently replace Root or reserve another occupied actor track.
 
-Reuse the ordinary clip scheduler and its gate releases. Before implementation, settle and test these boundaries together:
+Reuse the ordinary clip scheduler and its gate releases. The implementation and regression tests cover:
 
 - Set persistence and Undo for selecting a source/destination, with legacy Sets defaulting off.
 - Separate clip output from live pad input; expose the actual supported scope in the UI.

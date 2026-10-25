@@ -3,6 +3,9 @@ on:
   push:
     branches: [main, work/comp-style-library]
     paths:
+      - integration/drum-output/**
+      - scripts/patch_drum_output.py
+      - tests/drum_destination_audio.h
       - integration/clips-view/**
       - scripts/patch_clips_view.py
       - integration/part-library/**
@@ -25,6 +28,9 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - integration/drum-output/**
+      - scripts/patch_drum_output.py
+      - tests/drum_destination_audio.h
       - integration/clips-view/**
       - scripts/patch_clips_view.py
       - integration/part-library/**
@@ -51,7 +57,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.244
+  SOURCE_VERSION: 0.34.1-hbclean.245
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -130,7 +136,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: comp-library-244
+          name: drum-output-245
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -150,10 +156,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.243':
-              raise SystemExit('Expected Movy 243 before comp library release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.244':
+              raise SystemExit('Expected Movy 244 before drum output release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Mapped comping clips and preset recall" --notes-file docs/comp-library.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Drum clip destinations" --notes-file docs/drum-output.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -166,7 +172,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.243':
+          if metadata['version'] != '0.34.1-hbclean.244':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
