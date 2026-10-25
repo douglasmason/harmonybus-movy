@@ -1,5 +1,5 @@
 /** Display consumes native resolved harmony. No chord or scale inference here. */
-export type ChordStatus={root:number;mask:number;scale:number;kind:number;target:number;bass:number;family:number;chromatic:boolean;name:string};
+export type ChordStatus={root:number;mask:number;scale:number;kind:number;target:number;bass:number;family:number;chromatic:boolean;name:string;queued?:boolean};
 export type ChordBankStatus={reference:number;active:number[];slots:ChordStatus[]};
 export const chordIntents=['Literal','Scale Degree','Secondary ii','Secondary V','Leading vii','Tritone V','Secondary IV','Secondary VI','Borrowed bIII','Borrowed iv','Borrowed bVI','Borrowed bVII','Parallel Degree','Blues Dominant'];
 export const chordDegrees=['I','II','III','IV','V','VI','VII'];
@@ -23,11 +23,11 @@ export function parseChordBank(text:string|null):ChordBankStatus|null{
     if(!Number.isInteger(reference)||reference<1||reference>4095||!valid(active,[11,4095,4095,10,11,11]))return null;
     const slots:ChordStatus[]=[];
     for(const field of fields.slice(3)){
-        const cells=field.split(',');if(cells.length!==9)return null;
+        const cells=field.split(',');if(cells.length!==9&&cells.length!==10)return null;
         const values=cells.slice(0,8).map(Number);
         if(!valid(values,[11,4095,4095,10,11,11,6,1])||!cells[8])return null;
         const [root,mask,scale,kind,target,bass,family,chromatic]=values;
-        slots.push({root,mask,scale,kind,target,bass,family,chromatic:!!chromatic,name:cells[8]});
+        slots.push({root,mask,scale,kind,target,bass,family,chromatic:!!chromatic,name:cells[8],queued:cells[9]==='1'});
     }
     return {reference,active,slots};
 }

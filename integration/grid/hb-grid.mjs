@@ -32,6 +32,11 @@ grid.gridMidi([176,14,127]);assert(grid.gridOverview());
 seqState.loopStart=0;seqState.lenSteps=16;seqState.playing=false;
 assert.equal(grid.gridWindowLabel(),'B1 1/2');grid.gridNavigate('move',1,0);assert.equal(grid.gridWindowLabel(),'B1 2/2');
 grid.gridNavigate('move',1,0);assert.equal(grid.gridWindowLabel(),'B1 2/2','last window clamps to loop');
+// Physical arrows and +/- move the grid, independently of the settings panel.
+const panelBefore=page.pageIndex;assert(grid.gridMidi([176,62,127]));assert.equal(grid.gridWindow('move').page,0);
+assert(grid.gridMidi([176,63,127]));assert.equal(grid.gridWindow('move').page,1);
+const laneBefore=grid.gridWindow('move').lane;assert(grid.gridMidi([176,55,127]));assert(grid.gridWindow('move').lane>laneBefore);
+assert(grid.gridMidi([176,54,127]));assert.equal(grid.gridWindow('move').lane,laneBefore);assert.equal(page.pageIndex,panelBefore);
 grid.gridViews.move.follow=true;
 seqState.playing=true;seqState.posTick=9*24;seqState.lenSteps=32;
 assert.equal(grid.gridWindow('move').page,1);grid.gridNavigate('move',-1,0);assert.equal(grid.gridViews.move.follow,false);assert.equal(grid.gridWindow('move').page,0);

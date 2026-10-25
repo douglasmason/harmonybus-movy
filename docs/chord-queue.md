@@ -1,42 +1,49 @@
-# Queued Chord Play
+# Queued Chord Play: timing, depth, Hold / Loop
 
-Requires HarmonyBus 0.2.295. Update HarmonyBus before installing Movy
-0.34.1-hbclean.250 through Schwung Manager.
+Install HarmonyBus 0.2.297 with Movy 0.34.1-hbclean.256.
 
-Chord Play's first panel now has Mode, Chord Grid, Anticipation, Current, Next,
-Queue count, and Harmony Off. Immediate remains the default. Choose Queued to
-establish the first chord immediately and append subsequent choices to a queue.
-The next chord activates on the conductor's existing grid and anticipation;
-Observed timing uses learned clip changes, with a one-bar fallback when no
-timeline is known. Preload while stopped, then press Play to start progression.
+The first Chord Play panel contains Mode, Queue Time, Anticipation, Queue End,
+Next, Queue Status, Queue Depth, and Harmony Off. These controls target the
+conductor even while the pads play a different track. The panel count stays at
+eight. Left/Right arrows navigate the same panels as the jog dial; extended
+lists retain their bounded navigation and Left-at-first-item return behavior.
 
-The native queue supplies follower lookahead and motif Next Chord destinations.
-It holds the last chord when empty, including while new choices await their
-next boundary. It supports 16 future chords; a full queue rejects another choice
-and shows Full. Stop, Harmony Off, changing conductor or loading a Set clears
-the transient queue. Choosing Immediate cancels pending choices. Queue contents
-are not saved; the mode preference is saved.
+Queue Depth is 1–16 (default 2). It is the number of choices required to start
+or refill, not a limit of two future chords. A partial initial batch waits.
+When filled while stopped, its first chord sounds and Play starts progression.
+When filled during playback, progression begins at the next Queue Time boundary,
+including Anticipation. Observed timing uses learned clip changes and otherwise
+falls back to a bar. Changing timing reschedules future entries without changing
+the current chord.
 
-With playback and Record active, new chord activations replace the conductor's
-playing clip over the elapsed recording interval. This also works when Record
-was already active on another track. Enqueueing does not write future chords
-early. The conductor's separately selected clip and the other tracks' recording
-behavior are preserved. Note-bound chord intent is recorded with the notes;
-independent automation is preserved. With Record off, live choices do not edit
-clip contents.
+Queue End has two choices:
 
-Chord banks, chord operations, conductor motif controls and the harmony overview
-now precede extended library and routing categories. Chord Play's Motif to Clip
-and Motif Targets panels use the shared preview/write/undo workflow and target
-only the conductor, even when the pads are playing a melody track. Queueing a
-chord does not automatically fill a clip with a motif.
+- Hold consumes the queue, holds its last chord, and waits for Queue Depth new
+  choices before resuming. Transport and the other tracks continue.
+- Loop repeats the queued progression. Additional choices join its end, up to
+  sixteen chords. Changing to Hold lets the pending sequence finish; changing
+  back to Loop resumes the retained progression at the next boundary.
 
-In extended-settings category lists, left and right jog move without wrapping.
-Right stays at the final item; left from the first item returns to the last
-non-list panel. Jog click enters the selected category.
+The footer shows the next chord and Fill, Ready, Hold, or Loop status. Queued
+choices pulse on their knob and step LEDs, using the existing bank snapshot and
+hardware animation. Sounding harmony retains its white selection color. The
+shared harmony footer supplies chord names beside ordinary Roman numerals;
+explicit secondary intent retains its target relationship. Live motif headers
+also retain this harmony footer. Preview/editor-specific instructions remain
+local to their respective views.
 
-Validation covers queued native harmony, lookahead, motif arrivals, transport
-lifecycle, controller navigation, conductor-only motif loading, sequencer
-recording, and the real Movy/HarmonyBus/Schwung chain. CI also builds the ARM
-install package and verifies uploaded checksums. Physical Move verification is
-still pending.
+Harmony Off clears live choices. During playback it hands authority back to the
+conductor clip and leaves Queued mode ready for another progression. While
+stopped it also switches the visible mode to Immediate and shows Queue Off.
+Stop, changing conductor, or loading a Set clears the transient queue. Queue
+Depth and Queue End persist in the conductor's native state; queued notes do not.
+
+Lookahead, pad prediction and motif destinations share the scheduled queue.
+Partial refills are not advertised as scheduled future harmony. Recording writes
+actual chord activations into the conductor's playing clip, never enqueue
+choices early. Looped activations use the same input and recording path.
+
+Validation includes native queue and lifecycle regression tests, controller
+knob routing/navigation/LED tests, shared footer tests, production QuickJS
+startup, full-chain audio/recording checks, and CI builds. Physical Move
+verification remains pending.

@@ -442,7 +442,7 @@ diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
 +/** Compose the existing chord controls into another surface without enabling its routing. */
 +export function setJointChordConductor(track:number|null):void {
 +    if(track===jointConductor)return;
-+    endChordStepEntry();releaseChordTouches();harmonyOff();
++    endChordStepEntry();releaseChordTouches();harmonyOff(false);
 +    jointConductor=track;jointSurface=null;resetBank();resetKnobLedCache();
 +    send('chord_joint',track===null?'off':String(track));appState.dirty=true;
 +}
@@ -516,8 +516,8 @@ diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
  ];
  function parameters(native:any[]):any[]{
      const scale=native.find(parameter=>parameter.key==='key_center_explicit_scale')?.options??['Major','Natural Minor','Dorian','Phrygian','Lydian','Mixolydian','Locrian'];
--    return [enumeration('cp_play_mode','Chord Selection',['Immediate','Queued']),...['current','next','count'].map(field=>({key:'cp_queue_'+field,name:field==='count'?'Queued Chords':field==='next'?'Queued Next':'Current Chord',type:'string',readOnly:true,access:'read'})),...statusFields.map((field,index)=>({key:'cp_status_'+field,name:statusNames[index],short_name:statusShort[index],type:'string',readOnly:true,access:'read'})),...partParameters(native),...Array.from({length:7},(_,index)=>({key:'cp_blank_'+index,name:' ',type:'string',readOnly:true})),{key:'cp_off',name:'Harmony Off',type:'string',readOnly:true},{key:'cp_reset',name:'Reset Chords',type:'string',readOnly:true},enumeration('cp_conductor','Conductor Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_bass_track','Bass Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_bass_source','Bass Input',['Existing Routing','Bass Clip']),enumeration('cp_comp','Comp Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_melody','Playing Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_source','Comp Input',['Conductor / Melody','Comp Clip','Follow Melody']),enumeration('cp_selected','Edit Chord',Array.from({length:21},(_,index)=>String(index+1))),enumeration('cp_colorView','Color By',['Quality + Scale','Intent + Scale','Scale Only']),enumeration('cp_intent','Chord Intent',chordIntents),enumeration('cp_target','Target Degree',chordDegrees),enumeration('cp_enabled','Chord Enabled',['Off','On']),{key:'cp_resolved',name:'Resolved Chord',type:'string',readOnly:true},{key:'cp_relation',name:'Scale Relation',type:'string',readOnly:true},
-+    return [...conductorContentParameters(),enumeration('cp_play_mode','Chord Selection',['Immediate','Queued']),...['current','next','count'].map(field=>({key:'cp_queue_'+field,name:field==='count'?'Queued Chords':field==='next'?'Queued Next':'Current Chord',type:'string',readOnly:true,access:'read'})),...statusFields.map((field,index)=>({key:'cp_status_'+field,name:statusNames[index],short_name:statusShort[index],type:'string',readOnly:true,access:'read'})),...partParameters(native),...Array.from({length:7},(_,index)=>({key:'cp_blank_'+index,name:' ',type:'string',readOnly:true})),{key:'cp_off',name:'Harmony Off',type:'string',readOnly:true},{key:'cp_reset',name:'Reset Chords',type:'string',readOnly:true},enumeration('cp_conductor','Conductor Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_bass_track','Bass Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_bass_source','Bass Input',['Existing Routing','Bass Clip']),enumeration('cp_comp','Comp Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_melody','Playing Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_source','Comp Input',['Conductor / Melody','Comp Clip','Follow Melody']),enumeration('cp_selected','Edit Chord',Array.from({length:21},(_,index)=>String(index+1))),enumeration('cp_colorView','Color By',['Quality + Scale','Intent + Scale','Scale Only']),enumeration('cp_intent','Chord Intent',chordIntents),enumeration('cp_target','Target Degree',chordDegrees),enumeration('cp_enabled','Chord Enabled',['Off','On']),{key:'cp_resolved',name:'Resolved Chord',type:'string',readOnly:true},{key:'cp_relation',name:'Scale Relation',type:'string',readOnly:true},
+-    return [enumeration('cp_play_mode','Chord Selection',['Immediate','Queued']),...['current','next','count'].map(field=>({key:'cp_queue_'+field,name:field==='count'?'Queue Status':field==='next'?'Queued Next':'Current Chord',type:'string',readOnly:true,access:'read'})),...statusFields.map((field,index)=>({key:'cp_status_'+field,name:statusNames[index],short_name:statusShort[index],type:'string',readOnly:true,access:'read'})),...partParameters(native),...Array.from({length:7},(_,index)=>({key:'cp_blank_'+index,name:' ',type:'string',readOnly:true})),{key:'cp_off',name:'Harmony Off',type:'string',readOnly:true},{key:'cp_reset',name:'Reset Chords',type:'string',readOnly:true},enumeration('cp_conductor','Conductor Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_bass_track','Bass Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_bass_source','Bass Input',['Existing Routing','Bass Clip']),enumeration('cp_comp','Comp Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_melody','Playing Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_source','Comp Input',['Conductor / Melody','Comp Clip','Follow Melody']),enumeration('cp_selected','Edit Chord',Array.from({length:21},(_,index)=>String(index+1))),enumeration('cp_colorView','Color By',['Quality + Scale','Intent + Scale','Scale Only']),enumeration('cp_intent','Chord Intent',chordIntents),enumeration('cp_target','Target Degree',chordDegrees),enumeration('cp_enabled','Chord Enabled',['Off','On']),{key:'cp_resolved',name:'Resolved Chord',type:'string',readOnly:true},{key:'cp_relation',name:'Scale Relation',type:'string',readOnly:true},
++    return [...conductorContentParameters(),enumeration('cp_play_mode','Chord Selection',['Immediate','Queued']),...['current','next','count'].map(field=>({key:'cp_queue_'+field,name:field==='count'?'Queue Status':field==='next'?'Queued Next':'Current Chord',type:'string',readOnly:true,access:'read'})),...statusFields.map((field,index)=>({key:'cp_status_'+field,name:statusNames[index],short_name:statusShort[index],type:'string',readOnly:true,access:'read'})),...partParameters(native),...Array.from({length:7},(_,index)=>({key:'cp_blank_'+index,name:' ',type:'string',readOnly:true})),{key:'cp_off',name:'Harmony Off',type:'string',readOnly:true},{key:'cp_reset',name:'Reset Chords',type:'string',readOnly:true},enumeration('cp_conductor','Conductor Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_bass_track','Bass Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_bass_source','Bass Input',['Existing Routing','Bass Clip']),enumeration('cp_comp','Comp Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_melody','Playing Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_source','Comp Input',['Conductor / Melody','Comp Clip','Follow Melody']),enumeration('cp_selected','Edit Chord',Array.from({length:21},(_,index)=>String(index+1))),enumeration('cp_colorView','Color By',['Quality + Scale','Intent + Scale','Scale Only']),enumeration('cp_intent','Chord Intent',chordIntents),enumeration('cp_target','Target Degree',chordDegrees),enumeration('cp_enabled','Chord Enabled',['Off','On']),{key:'cp_resolved',name:'Resolved Chord',type:'string',readOnly:true},{key:'cp_relation',name:'Scale Relation',type:'string',readOnly:true},
          enumeration('cp_root','Literal Root',notes),enumeration('cp_quality','Quality',qualities),enumeration('cp_form','Form',forms),enumeration('cp_policy','Scale Context',['Parent','Minimum Change','Explicit','Harmony Rules']),enumeration('cp_tonic','Scale Tonic',notes),enumeration('cp_scale','Scale',scale),enumeration('cp_bass','Bass',['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B','Root']),
          ...setup.slots.map((slot,index)=>enumeration('cp_slot_'+index,String(index+1),slot.intent?chordDegrees.map((_,degree)=>intentLabel(slot.intent,degree)):notes.flatMap(root=>qualities.map(quality=>root+' '+quality))))];
  }
@@ -531,7 +531,7 @@ diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
          if(bare.startsWith('cp_queue_'))return performanceStatus(bare.slice(3));
 @@ -163,6 +186,7 @@
      const setParam=(key:string,value:string):boolean=>{
-         const target=alias(key);if(target)return portFor(target.track).setParam(target.key,value);
+         const target=alias(key);if(target){statusCache=null;return portFor(target.track).setParam(target.key,value);}
          const bare=key.split(':').pop()??'';const partResult=partWrite(bare,value,partOwner(bare));if(partResult!==null)return partResult;
 +        const content=conductorContentWrite(bare,value);if(content!==null)return content;
          const meta=metadata.find(entry=>entry.key===bare);
@@ -552,8 +552,8 @@ diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
      add('cp_comp_library','Comp Library',['cp_style','cp_load','cp_save','cp_user','cp_mapping','cp_gate','cp_register']);
      add('cp_bass_library','Bass Library',['bp_style','bp_velocity','bp_gate','bp_register','bp_mapping','bp_user','bp_save']);
      add('cp_setup','Chord Play Setup',['cp_conductor','cp_comp','cp_melody','cp_colorView','cp_reset','cp_bass_track','cp_bass_source']);
--    const rootKeys=['cp_play_mode','cp_track_'+setup.conductor+'_chord_timing','cp_track_'+setup.conductor+'_anticipation','cp_queue_current','cp_queue_next','cp_queue_count','cp_blank_0','cp_off'];
-+    const rootKeys=['cp_play_mode','cp_track_'+conductorTrack()+'_chord_timing','cp_track_'+conductorTrack()+'_anticipation','cp_queue_current','cp_queue_next','cp_queue_count','cp_blank_0','cp_off'];
+-    const rootKeys=['cp_play_mode','cp_track_'+setup.conductor+'_chord_timing','cp_track_'+setup.conductor+'_anticipation','cp_track_'+setup.conductor+'_chord_queue_end','cp_queue_next','cp_queue_count','cp_track_'+setup.conductor+'_chord_queue_depth','cp_off'];
++    const rootKeys=['cp_play_mode','cp_track_'+conductorTrack()+'_chord_timing','cp_track_'+conductorTrack()+'_anticipation','cp_track_'+conductorTrack()+'_chord_queue_end','cp_queue_next','cp_queue_count','cp_track_'+conductorTrack()+'_chord_queue_depth','cp_off'];
      levels.root={name:'Chord Play',knobs:rootKeys,params:[...rootKeys.map(key=>({key})),...links]};
      // Reserve the same physical stop control on every page, retaining displaced settings.
      for(const link of [...links]){
@@ -631,7 +631,7 @@ diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
          if(down){touches.set(key,current);current.knobTouch(key,true);}return true;
      }
      if(status!==176)return false;
-     if(key===14){current.changePage(value<64?value:value-128);appState.dirty=true;return true;}
+     if(key===14||key===62||key===63){if(key===14||value)current.changePage(key===62?-1:key===63?1:value<64?value:value-128);appState.dirty=true;return true;}
      if(key===78)return true;
 -    if(key>=71&&key<=77){if(styleTouch?.key===key-71)styleTouch.moved=true;current.knobTurn(key-71,value<64?value:value-128);appState.dirty=true;return true;}
 +    if(key>=71&&key<=77){if(value)conductorPhraseTurn(key-71);if(styleTouch?.key===key-71)styleTouch.moved=true;current.knobTurn(key-71,value<64?value:value-128);appState.dirty=true;return true;}
@@ -652,16 +652,16 @@ diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
  }
  export function paintChordSteps():boolean{
 -    if(!chordActive())return false;
--    for(let index=0;index<16;index++){const slot=stepSlot(index),color=slot<0?123:chordSlotColor(slot);cachedSetAnimLED(16+index,color,color,0);}
+-    for(let index=0;index<16;index++){const slot=stepSlot(index),color=slot<0?123:chordSlotColor(slot);cachedSetAnimLED(16+index,color,chordSlotQueued(slot)?0:color,chordSlotQueued(slot)?ANIM_PULSE_SLOW:0);}
 -    const current=!settingsActive()?page:null;
 -    const keys=Array.from({length:8},(_,knob)=>current?.keyAt(knob)??null),onBank=keys.some(key=>/^cp_slot_/.test(key??''));
 +    if(!controlsActive())return false;
-+    if(chordActive())for(let index=0;index<16;index++){const slot=stepSlot(index),contentKey=contentStepKey(index),color=contentKey?(conductorContentColor(contentKey,conductorTrack())??123):slot<0?123:chordSlotColor(slot);cachedSetAnimLED(16+index,color,color,0);}
++    if(chordActive())for(let index=0;index<16;index++){const slot=stepSlot(index),contentKey=contentStepKey(index),color=contentKey?(conductorContentColor(contentKey,conductorTrack())??123):slot<0?123:chordSlotColor(slot);cachedSetAnimLED(16+index,color,chordSlotQueued(slot)?0:color,chordSlotQueued(slot)?ANIM_PULSE_SLOW:0);}
 +    const current=!settingsActive()?(jointConductor!==null?jointSurface:page):null;
 +    const keys=Array.from({length:8},(_,knob)=>current?.keyAt(knob)??null),onBank=keys.some(key=>/^cp_(slot_|clip_launch_|motif_launch_)/.test(key??''));
      if(onBank){
--        for(let knob=0;knob<8;knob++){const index=knob===7?-1:Number(keys[knob]!.slice(8)),color=index<0?123:chordSlotColor(index);cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);}
-+        for(let knob=0;knob<8;knob++){const index=knob===7?-1:Number(keys[knob]!.slice(8)),color=conductorContentColor(keys[knob]??'',conductorTrack())??(index<0?123:chordSlotColor(index));cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);}
+-        for(let knob=0;knob<8;knob++){const index=knob===7?-1:Number(keys[knob]!.slice(8)),color=index<0?123:chordSlotColor(index);cachedSetAnimLED(knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0);cachedSetAnimLED(71+knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0,true);}
++        for(let knob=0;knob<8;knob++){const index=knob===7?-1:Number(keys[knob]!.slice(8)),color=conductorContentColor(keys[knob]??'',conductorTrack())??(index<0?123:chordSlotColor(index));cachedSetAnimLED(knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0);cachedSetAnimLED(71+knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0,true);}
      }else if(bankKnobs){
          for(let knob=0;knob<8;knob++)if(!current||!(current.knobLEDMask&(1<<knob))){const color=keys[knob]?123:0;cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);}
      }
@@ -676,7 +676,7 @@ diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
 @@ -341,6 +375,7 @@
  export function chordContextTrail():string|null {
      const current=chordPage();if(!contextVisible(current))return null;
-     if(current.ctl.page?.level==='root')return setup.playMode?'Queue: '+performanceStatus('queue_count')+' / K8:Off':'Touch chords / K8:Off';
+     if(setup.playMode)return queueFooterText(performanceStatus('queue_next'),performanceStatus('queue_count'));if(current.ctl.page?.level==='root')return 'Touch chords / K8:Off';
 +    if(['cp_clips','cp_motifs'].includes(current.ctl.page?.level??''))return current.ctl.page.level==='cp_clips'?'Turn:clip Tap:launch K8:Off':'Turn:motif Tap:preview K8:Off';
      if(current.ctl.page?.level==='cp_overview')return 'Chord>Core K8:Off';
      if((current.ctl.page?.keys??[]).some((key:string)=>/^cp_slot_/.test(key))){
