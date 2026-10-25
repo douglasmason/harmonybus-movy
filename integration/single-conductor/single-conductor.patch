@@ -1,0 +1,798 @@
+diff --git a/browser-test/hb-single-conductor.mjs b/browser-test/hb-single-conductor.mjs
+new file mode 100644
+index 00000000..b8c94abf
+--- /dev/null
++++ b/browser-test/hb-single-conductor.mjs
+@@ -0,0 +1,67 @@
++import assert from 'node:assert/strict';
++import {readFileSync} from 'node:fs';
++import {installEnv} from './env.mjs';
++installEnv();await import('../dist/esm/app/globals.js');
++const {installMockEngine}=await import('./mock-engine.mjs');const engine=installMockEngine();
++const {seqEngineTick,seqCmdFlush}=await import('../dist/esm/seq/engine.js');seqEngineTick();
++const {seqState}=await import('../dist/esm/seq/state.js');
++const {appState,VIEW_KNOBS}=await import('../dist/esm/app/state.js');
++const {setFlag}=await import('../dist/esm/seq/flags.js');setFlag('chtracks',1);
++const roles=await import('../dist/esm/seq/session-roles.js');
++const joint=await import('../dist/esm/seq/joint-play.js');
++const setup=await import('../dist/esm/seq/conductor-setup.js');
++const {portFor}=await import('../dist/esm/track/registry.js');
++const {undoOnce,redoOnce}=await import('../dist/esm/undo/apply.js');
++const {chordSnapshot,restoreChord}=await import('../dist/esm/seq/chord-play.js');
++const {serializeUiState,applyUiState,resetUiState}=await import('../dist/esm/seq/ui-state.js');
++const module=JSON.parse(readFileSync(process.env.HB_MODULE,'utf8'));
++const values=Array.from({length:16},(_,track)=>new Map([['track_role',track%4===0?'Conductor':'Follower'],['travel_map','None']]));
++const writes=[];let reject=-1;let rejectRollback=false;
++for(let track=0;track<16;track++){
++ const port=portFor(track);
++ port.getParam=key=>key==='midi_fx1_module'?'harmonybus':key.endsWith('chain_params')?JSON.stringify(module.capabilities.chain_params):key.endsWith('ui_hierarchy')?JSON.stringify(module.capabilities.ui_hierarchy):values[track].get(key.split(':').at(-1))??'';
++ port.setParam=(key,value)=>{if(track===reject||(rejectRollback&&track===4&&value==='Conductor'))return false;writes.push([track,key,value]);values[track].set(key.split(':').at(-1),value);return true;};
++}
++roles.restoreSessionRoles(null);joint.restoreJoint(null);restoreChord({conductor:4,comp:6,bass:5});
++seqState.engineOk=true;seqState.playing=true;assert.equal(setup.convertToSingleConductor(),false);assert.equal(writes.length,0);
++seqState.playing=false;reject=8;assert.equal(setup.convertToSingleConductor(),false);assert.equal(roles.singleConductor(),false);assert.equal(values[4].get('track_role'),'Conductor','failed migration rolls back');reject=-1;
++reject=8;rejectRollback=true;assert.equal(setup.convertToSingleConductor(),false);
++assert.equal(values[4].get('track_role'),'Off','failed rollback retains the recoverable write');
++reject=-1;rejectRollback=false;undoOnce();assert.equal(values[4].get('track_role'),'Conductor');assert.equal(roles.singleConductor(),false);
++const clips=await import('../dist/esm/seq/clips-layout.js');const view=await import('../dist/esm/seq/clips-view.js');
++seqState.sessionMode=true;appState.currentView=VIEW_KNOBS;clips.setClipsPage(1);
++assert(view.clipsMidi([176,75,1]),'fifth setup knob owns conversion');
++assert(roles.singleConductor());assert.equal(chordSnapshot().conductor,0);
++assert.equal(values[0].get('track_role'),'Conductor');for(const track of [4,8,12])assert.equal(values[track].get('track_role'),'Off');
++assert(writes.every(([,key])=>key==='midi_fx1:track_role'),'conversion changes no instrument, channel, clip or output route');
++undoOnce();assert.equal(roles.singleConductor(),false);assert.equal(chordSnapshot().conductor,4);for(const track of [4,8,12])assert.equal(values[track].get('track_role'),'Conductor');
++redoOnce();assert(roles.singleConductor());assert.equal(chordSnapshot().conductor,0);
++for(const base of [0,4,8,12]){
++ appState.focusGroup=base/4;const settings={...joint.jointSnapshot()[base/4],bass:2,comp:2};joint.restoreJoint(Array.from({length:4},()=>settings));joint.setJointEnabled(true);seqState.sessionMode=false;
++ const geometry=joint.jointGeometry(base,settings,[48,36,48,60],0,false,false);
++ assert.deepEqual([...new Set(geometry.map(cell=>cell.track))].sort((a,b)=>a-b),[0,base+1,base+2,base+3]);
++ assert.equal(joint.jointRecordCommand(),'jrec '+(1|(14<<base))+' '+(1|(4<<base)));
++}
++const saved=serializeUiState();roles.restoreSessionRoles(null);applyUiState(saved);assert(roles.singleConductor());
++const legacy=JSON.parse(saved);delete legacy.roleLayout;applyUiState(JSON.stringify(legacy));assert.equal(roles.singleConductor(),false);
++resetUiState(false);assert.equal(roles.singleConductor(),false,'existing native-only Set remains legacy');
++resetUiState();assert(roles.singleConductor());assert.deepEqual(joint.jointSnapshot().map(group=>group.bass),[0,1,1,1]);
++seqCmdFlush();assert(!engine.ops.some(op=>op.startsWith('drumout ')),'new layout does not infer drum content');
++console.log('Single conductor: explicit stopped conversion, rollback, actual Undo/Redo, all-bank geometry and recording, legacy/native-only persistence, safe new defaults pass');
++// Actual shared controller: the bank-4 Root editor writes track 1.
++const panels=await import('../dist/esm/seq/joint-panels.js');
++appState.focusGroup=3;panels.resetJointPanels();let page=panels.jointPage();
++assert(page.ready);
++const rootPage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_actor_0_travel_map'));assert(rootPage>=0);page.goToPage(rootPage);
++const rootKnob=Array.from({length:8},(_,index)=>page.keyAt(index)).indexOf('joint_actor_0_travel_map');assert(rootKnob>=0);
++const start=writes.length;page.knobTurn(rootKnob,4);
++let now=Date.now();Date.now=()=>now;for(let tick=0;tick<5;tick++){now+=100;page.tick();}
++assert(writes.slice(start).some(([track,key])=>track===0&&key==='midi_fx1:travel_map'));
++assert(!writes.slice(start).some(([track,key])=>track===12&&key==='midi_fx1:travel_map'));
++// Touch ownership captures actual tracks, not roles remapped on release.
++roles.restoreSessionRoles(null);appState.focusGroup=1;joint.restoreJoint(null);panels.resetJointPanels();
++const performance=panels.jointPerformancePort();const touchStart=writes.length;
++performance.performanceSet('motion_hold_1','Down');roles.restoreSessionRoles(1);performance.performanceSet('motion_hold_1','Up');
++assert(writes.slice(touchStart).some(([track,key,value])=>track===4&&key==='midi_fx1:joint_pad_motion_hold_1'&&value.endsWith('|Up')));
++assert(!writes.slice(touchStart).some(([track,key,value])=>track===0&&key==='midi_fx1:joint_pad_motion_hold_1'&&value.endsWith('|Up')));
++console.log('Single conductor shared controller: Root edits and held modifier releases use actual actor track ownership');
+diff --git a/browser-test/logic/tracks-chain.mjs b/browser-test/logic/tracks-chain.mjs
+index 683348f2..11ad50bc 100644
+--- a/browser-test/logic/tracks-chain.mjs
++++ b/browser-test/logic/tracks-chain.mjs
+@@ -358,7 +358,7 @@ export async function run() {
+       await import('../../dist/esm/seq/ui-state.js');
+     for (let track = 0; track < 16; track++) {
+       const saved = pendingPayloadFor(track);
+-      const role = track % 4 === 0 ? 0 : 1;
++      const role = track === 0 ? 0 : track % 4 === 0 ? 2 : 1;
+       const destination = track % 4 === 0 ? -1 : track % 4;
+       const values = saved?.comp[0]?.s?.split(';')[0].split(',');
+       eq('fresh HB state format ' + track, values?.[0], 'hb16');
+diff --git a/build/browser.mjs b/build/browser.mjs
+index 41b65465..93a71cfe 100644
+--- a/build/browser.mjs
++++ b/build/browser.mjs
+@@ -17,6 +17,8 @@ rmSync(resolve(root, 'dist/esm'), { recursive: true, force: true });
+ 
+ await esbuild.build({
+     entryPoints: [
++        resolve(root, 'src/seq/session-roles.ts'),
++        resolve(root, 'src/seq/conductor-setup.ts'),
+         resolve(root, 'src/seq/part-library.ts'),
+         resolve(root, 'src/seq/part-storage.ts'),
+         resolve(root, 'src/seq/part-controls.ts'),
+diff --git a/engine/crates/movy-dsp/src/joint_links.rs b/engine/crates/movy-dsp/src/joint_links.rs
+index 65cc5a9b..ca013ffc 100644
+--- a/engine/crates/movy-dsp/src/joint_links.rs
++++ b/engine/crates/movy-dsp/src/joint_links.rs
+@@ -3,27 +3,29 @@
+ use crate::surface_route::Event;
+ 
+ pub struct JointLinks {
+-    routes: [Option<(usize,i16)>;16],
++    routes: [[Option<(usize,i16)>;4];16],
+     chord: Option<(usize,usize,u8)>,
+     chord_bass:Option<usize>,
+     // Separate live and clip owners. A live release cannot close a recorded voice.
+-    held: Vec<Vec<(usize,u8)>>,
++    held: Vec<Vec<[Option<(usize,u8)>;4]>>,
+     guide_enabled: [bool;4],
+     guide: [Option<u8>;4],
+     guide_shift: [i16;4],
+     guided_held: Vec<Vec<Option<u8>>>,
+ }
+ impl JointLinks {
+-    pub fn new() -> Self {Self {chord_bass:None,chord:None,routes:[None;16],held:(0..4096).map(|_|Vec::new()).collect(),
++    pub fn new() -> Self {Self {chord_bass:None,chord:None,routes:[[None;4];16],held:(0..4096).map(|_|Vec::new()).collect(),
+         guide_enabled:[false;4],guide:[None;4],guide_shift:[0;4],guided_held:(0..2048).map(|_|Vec::new()).collect()}}
+     pub fn set(&mut self,value:&str)->bool {
+-        let mut routes=[None;16];let mut seen=0u16;let mut guide_enabled=[false;4];let mut guide_shift=[0;4];
++        let mut routes=[[None;4];16];let mut seen=0u16;let mut guide_enabled=[false;4];let mut guide_shift=[0;4];
+         for entry in value.split(';') {
+             let fields:Vec<i16>=match entry.split(',').map(str::parse).collect(){Ok(fields)=>fields,Err(_)=>return false};
+-            if fields.len()!=6 || ![0,4,8,12].contains(&fields[0]) || !(0..=1).contains(&fields[1]) || !(0..=1).contains(&fields[2]) || !(-8..=8).contains(&fields[3]) || !(-8..=8).contains(&fields[4]) || !(0..=1).contains(&fields[5]) {return false;}
++            if !matches!(fields.len(),6|7) || ![0,4,8,12].contains(&fields[0]) || !(0..=1).contains(&fields[1]) || !(0..=1).contains(&fields[2]) || !(-8..=8).contains(&fields[3]) || !(-8..=8).contains(&fields[4]) || !(0..=1).contains(&fields[5]) {return false;}
++            let root=*fields.get(6).unwrap_or(&fields[0]);
++            if root!=0&&root!=fields[0] {return false;}
+             let base=fields[0] as usize;if seen&(1<<base)!=0{return false;}seen|=1<<base;
+-            if fields[1]!=0 {routes[base]=Some((base+1,fields[3]*12));}
+-            if fields[2]!=0 {routes[base+3]=Some((base+2,fields[4]*12));}
++            if fields[1]!=0 {routes[root as usize][base/4]=Some((base+1,fields[3]*12));}
++            if fields[2]!=0 {routes[base+3][0]=Some((base+2,fields[4]*12));}
+             guide_enabled[base/4]=fields[5]!=0;guide_shift[base/4]=fields[4]*12;
+         }
+         if seen!=0x1111{return false;}
+@@ -37,36 +39,43 @@ impl JointLinks {
+         if bass.is_some_and(|track|track>=16||track==fields[0]||track==fields[1]){return false;}
+         let next=Some((fields[0],fields[1],fields[2] as u8));if next==self.chord&&bass==self.chord_bass{return false;}self.chord=next;self.chord_bass=bass;true
+     }
+-    fn effective_route(&self,source:usize)->Option<(usize,i16)>{
++    fn effective_routes(&self,source:usize)->[Option<(usize,i16)>;4] {
++        let mut routes=self.routes[source];
+         if let Some((melody,comp,follow))=self.chord {
+-            if source==melody{return if follow==1 {Some((comp,0))} else {None};}
+-            if self.routes[source].is_some_and(|(target,_)|target==comp||Some(target)==self.chord_bass){return None;}
++            if source==melody {return [if follow==1 {Some((comp,0))} else {None},None,None,None];}
++            for route in &mut routes {if route.is_some_and(|(target,_)|target==comp||Some(target)==self.chord_bass){*route=None;}}
+         }
+-        self.routes[source]
+-    }
+-    pub fn derived(&self,track:usize)->bool {(0..16).any(|source|self.effective_route(source).is_some_and(|(target,_)|target==track))}
+-    pub fn route(&mut self,event:Event,playback:bool)->Option<Event> {
+-        self.route_source(event,playback,0)
++        routes
+     }
++    pub fn derived(&self,track:usize)->bool {(0..16).any(|source|self.effective_routes(source).iter().flatten().any(|(target,_)|*target==track))}
++    #[cfg(test)]
++    pub fn route(&mut self,event:Event,playback:bool)->Option<Event> {self.route_source(event,playback,0)}
++    #[cfg(test)]
+     pub fn route_source(&mut self,event:Event,playback:bool,blocked:u16)->Option<Event> {
+-        if event.track>=16{return None;}
++        self.route_sources(event,playback,blocked).into_iter().flatten().next()
++    }
++    /// One onset-owned group per source strike, using fixed-size storage.
++    pub fn route_sources(&mut self,event:Event,playback:bool,blocked:u16)->[Option<Event>;4] {
++        if event.track>=16{return [None;4];}
+         if event.track%4==3 && event.status==0x90 {
+             self.guide[event.track/4]=Some((event.pitch as i16+event.approach.map_or(0,|(delta,_)|delta)).clamp(0,127) as u8);
+         }
+         let index=usize::from(playback)*2048+event.track*128+event.pitch as usize;
+-        let (track,pitch)=match event.status {
++        let owners=match event.status {
+             0x90=>{
+-                let (track,shift)=self.effective_route(event.track)?;
+-                if blocked & (1 << track) != 0 {return None;}
+                 let source=event.pitch as i16+event.approach.map_or(0,|(delta,_)|delta);
+-                let pitch=source+shift;if !(0..128).contains(&pitch){return None;}
+-                self.held[index].push((track,pitch as u8));(track,pitch as u8)
++                let owners=self.effective_routes(event.track).map(|route|route.and_then(|(track,shift)|{
++                    let pitch=source+shift;
++                    (blocked&(1<<track)==0&&(0..128).contains(&pitch)).then_some((track,pitch as u8))
++                }));
++                if owners.iter().any(Option::is_some) {self.held[index].push(owners);}
++                owners
+             },
+-            0x80=>self.held[index].pop()?,
+-            0xa0=>*self.held[index].last()?,
+-            _=>return None,
++            0x80=>self.held[index].pop().unwrap_or([None;4]),
++            0xa0=>self.held[index].last().copied().unwrap_or([None;4]),
++            _=>return [None;4],
+         };
+-        Some(Event{track,pitch,approach:None,..event})
++        owners.map(|owner|owner.map(|(track,pitch)|Event{track,pitch,approach:None,..event}))
+     }
+     /// Clip rhythm and duration stay intact while melody supplies its register.
+     pub fn playback_pitch(&mut self,track:usize,pitch:u8,on:bool)->Option<u8> {
+@@ -86,7 +95,7 @@ impl JointLinks {
+     }
+ 
+     pub fn drain(&mut self)->Vec<(Event,bool)> {
+-        self.held.iter_mut().enumerate().flat_map(|(index,owners)|owners.drain(..).map(move |(track,pitch)|(Event{track,pitch,status:0x80,value:0,approach:None,full_velocity:false},index>=2048))).collect()
++        self.held.iter_mut().enumerate().flat_map(|(index,owners)|owners.drain(..).flatten().flatten().map(move |(track,pitch)|(Event{track,pitch,status:0x80,value:0,approach:None,full_velocity:false},index>=2048))).collect()
+     }
+ }
+ 
+@@ -193,3 +202,35 @@ mod source_override_tests {
+         assert!(links.derived(1));
+     }
+ }
++
++#[cfg(test)] mod single_conductor_tests {
++    use super::*;
++    const SHARED:&str="0,1,0,-2,0,0,0;4,1,0,-1,0,0,0;8,1,0,0,0,0,0;12,1,0,1,0,0,0";
++    fn source(status:u8)->Event {Event{track:0,pitch:60,status,value:91,approach:None,full_velocity:false}}
++    #[test] fn one_root_reaches_each_enabled_bass_with_original_release_owners() {
++        let mut links=JointLinks::new();assert!(links.set(SHARED));
++        let targets:Vec<_>=links.route_sources(source(0x90),false,0).into_iter().flatten().map(|event|(event.track,event.pitch)).collect();
++        assert_eq!(targets,vec![(1,36),(5,48),(9,60),(13,72)]);
++        let recorded=links.route_sources(source(0x90),true,1<<5);assert!(recorded[1].is_none());
++        assert!(links.set("0,0,0,0,0,0;4,0,0,0,0,0;8,0,0,0,0,0;12,0,0,0,0,0"));
++        assert_eq!(links.route_sources(source(0xa0),false,0).into_iter().flatten().count(),4);
++        assert_eq!(links.route_sources(source(0x80),false,0).into_iter().flatten().count(),4);
++        assert_eq!(links.route_sources(source(0x80),true,0).into_iter().flatten().count(),3);
++        assert!(links.drain().is_empty());
++    }
++    #[test] fn invalid_map_is_atomic_and_chord_bass_override_only_removes_its_target() {
++        let mut links=JointLinks::new();assert!(links.set(SHARED));
++        assert!(!links.set("0,1,0,0,0,0,4;4,1,0,0,0,0,0;8,1,0,0,0,0,0;12,1,0,0,0,0,0"));
++        assert!(links.set_chord("7,6,0,5"));
++        assert!(!links.derived(5));assert!(links.derived(9));
++        let events=links.route_sources(source(0x90),true,0);
++        assert_eq!(events.into_iter().flatten().map(|event|event.track).collect::<Vec<_>>(),vec![1,9,13]);
++        assert_eq!(links.drain().len(),3);
++    }
++    #[test] fn drum_candidate_roots_never_derive_bass_in_the_shared_layout() {
++        let mut links=JointLinks::new();assert!(links.set(SHARED));
++        for track in [4,8,12] {
++            assert!(links.route_sources(Event{track,..source(0x90)},false,0).iter().all(Option::is_none));
++        }
++    }
++}
+diff --git a/engine/crates/movy-dsp/src/lib.rs b/engine/crates/movy-dsp/src/lib.rs
+index 50ade81c..fae70d8f 100644
+--- a/engine/crates/movy-dsp/src/lib.rs
++++ b/engine/crates/movy-dsp/src/lib.rs
+@@ -132,7 +132,7 @@ fn parse_mix(val: &str) -> Option<crate::mixer::TrackMix> {
+ }
+ 
+ const DEFAULT_BPM_X100: u32 = 12000;
+-const ENGINE_VERSION: &str = "0.72.0-drum-output1";
++const ENGINE_VERSION: &str = "0.73.0-single-conductor1";
+ 
+ /// Tracks backed by schwung's own shadow slots by default. Their notes go out as
+ /// MIDI on the matching channel; everything above this index is a chain movy
+@@ -221,7 +221,7 @@ impl Instance {
+     }
+ 
+     fn joint_follow(&mut self, event: surface_route::Event, playback: bool) {
+-        if let Some(derived)=self.joint_links.route_source(event,playback,if playback {self.engine.source_routes.iter().enumerate().fold(0u16,|mask,(track,route)|mask|if route.enabled {1<<track}else{0})} else {0}) {
++        for derived in self.joint_links.route_sources(event,playback,if playback {self.engine.source_routes.iter().enumerate().fold(0u16,|mask,(track,route)|mask|if route.enabled {1<<track}else{0})} else {0}).into_iter().flatten() {
+             if playback {self.chains.hb_playback(derived.track,false);}
+             if derived.status==0xa0 {self.chains.set_param(derived.track,"midi_fx1:hb_pressure_full_velocity",if derived.full_velocity {"1"} else {"0"});}
+             self.chains.on_midi(derived.track,&[derived.status,derived.pitch,derived.value],MOVE_MIDI_SOURCE_INTERNAL);
+diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
+index b0197e8b..ee398db8 100644
+--- a/src/seq/chord-play.ts
++++ b/src/seq/chord-play.ts
+@@ -1,3 +1,4 @@
++import {singleConductor} from './session-roles.js';
+ import { fontPrint, fontWidth } from '../font/index.js';
+ import { preparePart,partModalTouch,partModalActive,cancelPartReview,drawPartReview } from './part-library.js';
+ import {partParameters,partRead,partWrite,partChoiceFor,partKind,partNativeKey} from './part-controls.js';
+@@ -81,6 +82,7 @@ export function restoreChord(value:unknown):void{
+         const input=value as Partial<Setup>;
+         if(typeof input.directRender==='string'&&/^(Off|[1-9]|1[0-6])$/.test(input.directRender))setup.directRender=input.directRender;
+         for(const key of ['conductor','comp','bass','source','selected','colorView'] as const){const number=input[key];if(Number.isInteger(number)&&number!>=0&&number!<=(key==='source'?2:key==='colorView'?2:key==='selected'?20:15))setup[key]=number!;}
++        if(singleConductor())setup.conductor=0;
+         setup.bassClip=input.bassClip===true;
+         if(setup.comp===setup.conductor)setup.comp=setup.conductor===2?3:2;
+         if([setup.conductor,setup.comp].includes(setup.bass))setup.bass=Array.from({length:16},(_,index)=>index).find(track=>![setup.conductor,setup.comp].includes(track))!;
+@@ -159,6 +161,7 @@ export function chordPanelPort(track:number):TrackPort{
+         if(!meta)return native.setParam(key,value);
+         if(!meta.options)return false;
+         const selected=meta.options.indexOf(value);if(selected<0)return false;
++        if(bare==='cp_conductor'&&singleConductor()&&selected!==0){seqToast('Session conductor: Track 1');return false;}
+         if(['cp_melody','cp_comp','cp_conductor','cp_bass_track'].includes(bare)){
+             const assignments={cp_melody:appState.activeTrack.index,cp_comp:setup.comp,cp_conductor:setup.conductor,cp_bass_track:setup.bass};
+             const others=Object.entries(assignments).filter(([key])=>key!==bare).map(([,track])=>track);
+@@ -405,3 +408,19 @@ export function setChordBassClip(value:boolean):void{
+     };
+     if(groupOpen())change();else undoableEdit('BASS INPUT','Chord Play',change);
+ }
++
++/** Routing-only snapshot: conversion never edits shared chord definitions. */
++export function chordRoutingState():string {return JSON.stringify({conductor:setup.conductor,comp:setup.comp,bass:setup.bass});}
++export function restoreChordRouting(value:string):void {
++    try {
++        const next=JSON.parse(value);
++        if(!['conductor','comp','bass'].every(key=>Number.isInteger(next[key])&&next[key]>=0&&next[key]<16)||new Set(Object.values(next)).size!==3)return;
++        harmonyOff();setup.conductor=next.conductor;setup.comp=next.comp;setup.bass=next.bass;
++        page=null;route='';resetBank();markUiStateDirty();appState.dirty=true;
++    }catch{}
++}
++export function useSessionConductor():void {
++    const comp=setup.comp===0?2:setup.comp;
++    const bass=setup.bass===0||setup.bass===comp?[1,2,3].find(track=>track!==comp)!:setup.bass;
++    restoreChordRouting(JSON.stringify({conductor:0,comp,bass}));
++}
+diff --git a/src/seq/clips-layout.ts b/src/seq/clips-layout.ts
+index 7f25301e..9b26ce50 100644
+--- a/src/seq/clips-layout.ts
++++ b/src/seq/clips-layout.ts
+@@ -1,3 +1,4 @@
++import {turnConductorLayout} from './conductor-setup.js';
+ /** Presentation only: no chain-role, transport or scene mutations. */
+ import { turnDrumOutput } from './drum-output.js';
+ import { appState } from '../app/state.js';
+@@ -38,6 +39,7 @@ export function clipsRowTrack(rowFromBottom: number): number {
+ }
+ export function clipsKnobTrack(): number { return clipsRoleTrack(layout.knobRow); }
+ export function turnClipsSetting(knob: number, delta: number): void {
++    if (knob === 4) {turnConductorLayout(delta);return;}
+     if (knob === 3) {turnDrumOutput(delta);return;}
+     if (!delta || knob < 0 || knob > 2) return;
+     const direction = Math.sign(delta);
+diff --git a/src/seq/clips-settings.ts b/src/seq/clips-settings.ts
+index 5af0d7a3..e54232b6 100644
+--- a/src/seq/clips-settings.ts
++++ b/src/seq/clips-settings.ts
+@@ -1,3 +1,4 @@
++import {conductorLayoutLabel,turnConductorLayout} from './conductor-setup.js';
+ /** Clips keeps its performance screen; setup uses the shared settings controller. */
+ import { drumOutputLabel, turnDrumOutput } from './drum-output.js';
+ import {createSchwungPage, type SchwungPage} from '../renderer/schwung-page.js';
+@@ -8,7 +9,8 @@ const controls=[
+     {key:'clips_row',name:'Top Pad Row',options:['Bank','Conductor','Drums']},
+     {key:'clips_touch',name:'Knob Touch Row',options:['Normal','Conductor','Drums']},
+     {key:'clips_drums',name:'Drum Track',options:['5','9','13']},
+-    {key:'clips_output',name:'Drum Clip Out',options:['Chain','Drum Ch 1']}
++    {key:'clips_output',name:'Drum Clip Out',options:['Chain','Drum Ch 1']},
++    {key:'clips_conductor',name:'Conductor',options:['Legacy','Track1']}
+ ];
+ let page:SchwungPage|null=null;
+ export function clipsSettingsPage():SchwungPage{
+@@ -22,6 +24,7 @@ export function clipsSettingsPage():SchwungPage{
+         if(key.endsWith(':modulated'))return '0';
+         const index=controls.findIndex(control=>control.key===bare);if(index<0)return native.getParam(key);
+         if(index===3)return drumOutputLabel();
++        if(index===4)return conductorLayoutLabel();
+         const layout=clipsSnapshot(),value=[layout.topRow,layout.knobRow,[4,8,12].indexOf(layout.drumTracks[appState.focusGroup])][index];
+         return controls[index].options[value];
+     };
+@@ -30,6 +33,7 @@ export function clipsSettingsPage():SchwungPage{
+         const target=controls[index].options.indexOf(value),current=controls[index].options.indexOf(getParam(key)??'');
+         if(target<0||current<0)return false;
+         if(index===3){turnDrumOutput(target-current);return true;}
++        if(index===4){turnConductorLayout(target-current);return true;}
+         for(let step=0;step<Math.abs(target-current);step++)turnClipsSetting(index,Math.sign(target-current));
+         return true;
+     };
+diff --git a/src/seq/clips-view.ts b/src/seq/clips-view.ts
+index 0104ef23..9cc733d2 100644
+--- a/src/seq/clips-view.ts
++++ b/src/seq/clips-view.ts
+@@ -86,7 +86,7 @@ export function clipsSlotStatus(track: number, slot: number): string {
+ export function renderClipsKnobs(): void {
+     const track = clipsKnobTrack();
+     const colors = Array.from({length: 8}, (_, slot) => {
+-        if (clipsPage === 1) return slot < 4 ? 120 : 0;
++        if (clipsPage === 1) return slot < 5 ? 120 : 0;
+         if (track < 0) return 0;
+         const state = seqState.session[track];
+         return state.queued === slot ? 120 : sessionCellColor({track,
+@@ -102,7 +102,8 @@ export function renderClips(): void {
+     drawHeader(clipsPage === 1 ? 'Clips Setup' : 'Clips', `Bank ${bank + 1}/4${seqState.recording ? ' REC' : ''}`);
+     const line = (y: number, text: string): void => fontPrint(2, y, fitHeaderText(text, 124), 1);
+     if (clipsPage === 1) {
+-        const settings=clipsSettingsPage();settings.ctl.revalue();settings.tick();settings.render('Clips');line(43,'Drum Out: clips only');line(51,'Launch: bar / now');line(58,'Jog > Master / Back');
++        const settings=clipsSettingsPage();settings.ctl.revalue();settings.tick();settings.render('Clips');
++        fontPrint(38,35,'Drum out:',1);fontPrint(38,44,'Clips only',1);line(58,'Jog > Master / Back');
+     } else {
+         line(12, 'Pads: ' + [3, 2, 1, 0].map(row => clipsRowTrack(row) + 1).join('/'));
+         const track = clipsKnobTrack();
+diff --git a/src/seq/conductor-setup.ts b/src/seq/conductor-setup.ts
+new file mode 100644
+index 00000000..85687a42
+--- /dev/null
++++ b/src/seq/conductor-setup.ts
+@@ -0,0 +1,59 @@
++/** Explicit, stopped-only migration through the existing parameter Undo journal. */
++import {singleConductor,restoreSessionRoles,sessionRolesSnapshot} from './session-roles.js';
++import {appState} from '../app/state.js';
++import {portFor} from '../track/registry.js';
++import {trackKind} from '../track/ref.js';
++import {seqState} from './state.js';
++import {engineReady,fieldEngineSet} from './engine.js';
++import {seqToast} from './render.js';
++import {markUiStateDirty} from './ui-dirty.js';
++import {beginEdit,endEdit,CLOSE} from '../undo/group.js';
++import {recordParamOp,recordUiOp} from '../undo/record.js';
++import {chordRoutingState,useSessionConductor} from './chord-play.js';
++
++export function conductorLayoutLabel():string {return singleConductor()?'Track1':'Legacy';}
++export function convertToSingleConductor():boolean {
++    if(singleConductor())return true;
++    if(!engineReady()||!seqState.engineOk){seqToast('Wait for engine');return false;}
++    if(seqState.playing||seqState.recording){seqToast('Stop before conversion');return false;}
++    if(trackKind(0)!=='movy'){seqToast('Track 1 must use Movy');return false;}
++    const changes:{track:number;old:string;next:string}[]=[];
++    for(let track=0;track<16;track++) {
++        const port=portFor(track),module=port.getParam('midi_fx1_module');
++        if(module!=='harmonybus'){
++            if(track===0||module===null||module==='--'){seqToast('Wait for track modules');return false;}
++            continue;
++        }
++        const role=port.getParam('midi_fx1:track_role');
++        if(!role||!['Conductor','Follower','Off','Receiver'].includes(role)){seqToast('Wait for track roles');return false;}
++        const next=track===0?'Conductor':role==='Conductor'?'Off':role;
++        if(next!==role)changes.push({track,old:role,next});
++    }
++    // End source gestures before HB's existing role-change voice flush runs.
++    fieldEngineSet('joint_release','1');fieldEngineSet('chord_select','off');
++    beginEdit({key:'single-conductor',verb:'SINGLE CONDUCTOR',target:'Session',close:CLOSE.IMMEDIATE,seq:false});
++    const applied:typeof changes=[];
++    try {
++        for(const change of changes) {
++            if(!portFor(change.track).setParam('midi_fx1:track_role',change.next)){
++                let restored=true;
++                for(const old of applied.reverse()){
++                    if(portFor(old.track).setParam('midi_fx1:track_role',old.old))recordParamOp(old.track,'midi_fx1:track_role',old.old,old.old);
++                    else restored=false;
++                }
++                if(!restored){markUiStateDirty();appState.dirty=true;}
++                seqToast(restored?'Conversion failed; unchanged':'Conversion failed / Undo');return false;
++            }
++            applied.push(change);
++            recordParamOp(change.track,'midi_fx1:track_role',change.old,change.next);
++        }
++        const before=chordRoutingState();useSessionConductor();
++        recordUiOp('chordRouting',before,chordRoutingState());
++        recordUiOp('roleLayout',String(sessionRolesSnapshot()),'1');restoreSessionRoles(1);
++    }finally {endEdit();}
++    markUiStateDirty();appState.dirty=true;seqToast('Track 1 conductor / Undo');return true;
++}
++export function turnConductorLayout(delta:number):void {
++    if(delta>0)convertToSingleConductor();
++    else if(delta<0&&singleConductor())seqToast('Undo restores prior setup');
++}
+diff --git a/src/seq/constants.ts b/src/seq/constants.ts
+index 348be0d5..3a35185e 100644
+--- a/src/seq/constants.ts
++++ b/src/seq/constants.ts
+@@ -36,7 +36,7 @@ export const MAIN_PAGE_STEPS: Record<number, number> = { 4: 0, 6: 0, 8: 0 };
+  * build-dsp.sh fails the build when they diverge. The UI re-issues the DSP
+  * load until ping returns this exact version (fixes the fire-and-forget
+  * load race and stale engines after redeploy). */
+-export const ENGINE_VERSION = '0.72.0-drum-output1';
++export const ENGINE_VERSION = '0.73.0-single-conductor1';
+ export const ENGINE_DSP_PATH = '/data/UserData/schwung/modules/tools/movy/dsp.so';
+ 
+ /* Where the engine finds schwung's chain host, and where it may keep its own
+diff --git a/src/seq/joint-panels.ts b/src/seq/joint-panels.ts
+index 88093664..f040c14e 100644
+--- a/src/seq/joint-panels.ts
++++ b/src/seq/joint-panels.ts
+@@ -1,3 +1,4 @@
++import {actorTrack} from './session-roles.js';
+ import { sectionParameters, sectionHierarchy, sectionPanelGet, sectionPanelSet, resetSectionPanel } from './section-panels.js';
+ import { variationParameters, variationKeys, variationPanelGet, variationPanelSet } from './variation-panels.js';
+ import { overviewParameters, overviewHierarchy, overviewGet, overviewKey, resetOverview } from './source-overview.js';
+@@ -104,7 +105,7 @@ function panelPort(track:number):TrackPort {
+     const native=portFor(track),base=track&~3;
+     const recipients=new Map<string,number[]>();
+     const getParam=(key:string):string|null=>{
+-        const alias=actorAlias(key);if(alias)return portFor(base+alias.role).getParam(alias.key);
++        const alias=actorAlias(key);if(alias)return portFor(actorTrack(base,alias.role)).getParam(alias.key);
+         const bare=key.replace(/:(base|modulated)$/,'').split(':').pop()??'';
+         const sectionValue=sectionPanelGet(bare);if(sectionValue!==null)return key.endsWith(':modulated')?'0':sectionValue;
+         const overviewValue=overviewGet(base,bare);if(overviewValue!==null)return key.endsWith(':modulated')?'0':overviewValue;
+@@ -117,7 +118,7 @@ function panelPort(track:number):TrackPort {
+         return value;
+     };
+     const setParam=(key:string,value:string):boolean=>{
+-        const alias=actorAlias(key);if(alias)return portFor(base+alias.role).setParam(alias.key,value);
++        const alias=actorAlias(key);if(alias)return portFor(actorTrack(base,alias.role)).setParam(alias.key,value);
+         const bare=key.split(':').pop()??'';
+         if(sectionPanelSet(bare,value))return true;
+         if(overviewKey(bare))return true;
+@@ -130,10 +131,10 @@ function panelPort(track:number):TrackPort {
+         if(jointScoped(bare)){
+             const down=/^(Down|Touch|Knob)/.test(value)||(bare==='approach_mode_active'&&value==='1');
+             const up=/^(Up|Cancel)/.test(value)||(bare==='approach_mode_active'&&value==='0');
+-            if(down)recipients.set(bare,jointPadRoles(base));
+-            const roles=recipients.get(bare)??jointPadRoles(base);
+-            const mask=roles.reduce((bits,role)=>bits|(1<<(base+role)),0);
+-            const result=roles.map(role=>portFor(base+role).setParam('midi_fx1:joint_pad_'+bare,mask+'|'+value)).every(Boolean);
++            if(down)recipients.set(bare,jointPadRoles(base).map(role=>actorTrack(base,role)));
++            const tracks=recipients.get(bare)??jointPadRoles(base).map(role=>actorTrack(base,role));
++            const mask=tracks.reduce((bits,track)=>bits|(1<<track),0);
++            const result=tracks.map(track=>portFor(track).setParam('midi_fx1:joint_pad_'+bare,mask+'|'+value)).every(Boolean);
+             if(up)recipients.delete(bare);
+             return result;
+         }
+diff --git a/src/seq/joint-play.ts b/src/seq/joint-play.ts
+index 2bf87139..74a9f063 100644
+--- a/src/seq/joint-play.ts
++++ b/src/seq/joint-play.ts
+@@ -1,3 +1,4 @@
++import {actorTrack,actorRole,singleConductor} from './session-roles.js';
+ import { returnPreviousInputView } from './router-buttons.js';
+ /** Session's multi-track instrument. Tracks own sound and harmony; this module
+  * owns only role allocation, gestures, geometry and cached preview requests. */
+@@ -27,7 +28,7 @@ let groups: JointGroup[] = Array.from({length:4}, fresh);
+ let enabled = false;
+ let belowHeld=false, belowLatch=false;
+ /** Actor identity is exactly the existing track palette, including native colors. */
+-export function jointActorColor(role:number):number {return trackColor(baseTrack()+role);}
++export function jointActorColor(role:number):number {return trackColor(actorTrack(baseTrack(),role));}
+ let pushed = '', linked = '', geometry = '', previewAt = -Infinity, previewActor = 0;
+ let setId = '';
+ let pendingRelease = false;
+@@ -70,14 +71,14 @@ export function restoreJoint(value: unknown): void {
+ /** Pure geometry: physical row zero is the bottom, actors remain semantic. */
+ export function jointGeometry(base: number, settings: JointGroup, bases: number[], scale: number,
+                               approach: boolean, below: boolean): (SurfaceCell & {track:number})[] {
+-    const result = Array.from({length:32},()=>({track:base,pitch:-1,target:-1,row:0}));
++    const result = Array.from({length:32},()=>({track:actorTrack(base,0),pitch:-1,target:-1,row:0}));
+     const section = (role:number, start:number, rows:number, layout:number): void => {
+         const actualLayout = rows===1 || role===2 ? 1 : layout===0?1:layout===1?1:2;
+         const mode = rows===1 || layout!==1 ? 1 : 0;
+         const notes = buildPadMap(mode,actualLayout,scale,bases[role],rows);
+         const surface = buildSurfaceCells(notes,actualLayout,mode===0);
+         surface.forEach((cell,index)=> {
+-            const next={...cell,track:base+role};
++            const next={...cell,track:actorTrack(base,role)};
+             // Comp guides never acquire pitch-operation semantics.
+             if(role===2) next.target=-1;
+             // Lower chromatic keys commit harmony; they must not carry a
+@@ -101,13 +102,13 @@ export function jointGeometry(base: number, settings: JointGroup, bases: number[
+ 
+ function updateGeometry(): void {
+     const base=baseTrack(), settings=group();
+-    const signature=JSON.stringify([base,settings,keyboardState.scale,keyboardState.rootPc,
+-        keyboardState.octave.slice(base,base+4),false,belowHeld||belowLatch]);
++    const signature=JSON.stringify([base,singleConductor(),settings,keyboardState.scale,keyboardState.rootPc,
++        [0,1,2,3].map(role=>keyboardState.octave[actorTrack(base,role)]),false,belowHeld||belowLatch]);
+     if(signature===geometry)return;
+     geometry=signature;
+-    cells=jointGeometry(base,settings,[0,1,2,3].map(role=>baseNoteFor(base+role)),keyboardState.scale,
++    cells=jointGeometry(base,settings,[0,1,2,3].map(role=>baseNoteFor(actorTrack(base,role))),keyboardState.scale,
+         false,belowHeld||belowLatch);
+-    actors=[0,1,2,3].map(role=>base+role).filter(track=>settings.overlay!==0||cells.some(cell=>cell.track===track&&(cell.pitch>=0||cell.target>=0))).map(track=>({track,view:null,payload:'',sounding:[],
++    actors=[0,1,2,3].map(role=>actorTrack(base,role)).filter(track=>settings.overlay!==0||cells.some(cell=>cell.track===track&&(cell.pitch>=0||cell.target>=0))).map(track=>({track,view:null,payload:'',sounding:[],
+         cells:cells.map(cell=>cell.track===track?cell:{pitch:-1,target:-1,row:0})}));
+     colors.fill(-1); previewAt=-Infinity; previewActor=0;
+ }
+@@ -118,8 +119,8 @@ export function syncJoint(send:(key:string,value:string)=>void, now=Date.now()):
+     if(setId!==nextSet){setId=nextSet;geometry='';pushed=linked='';}
+     if(pendingRelease){send('joint_release','1');pendingRelease=false;}
+     const linkValue=groups.map((settings,index)=>[index*4,settings.bass===0?1:0,settings.comp===0?1:0,
+-        keyboardState.octave[index*4+1]-keyboardState.octave[index*4],
+-        keyboardState.octave[index*4+2]-keyboardState.octave[index*4+3],settings.comp===3?1:0].join(',')).join(';');
++        keyboardState.octave[index*4+1]-keyboardState.octave[actorTrack(index*4,0)],
++        keyboardState.octave[index*4+2]-keyboardState.octave[index*4+3],settings.comp===3?1:0,actorTrack(index*4,0)].join(',')).join(';');
+     if(linked!==linkValue){send('joint_links',linkValue);linked=linkValue;}
+     if(!jointActive()) {if(pushed!=='off'){send('joint_map','off');pushed='off';}return;}
+     if(schwungLibAvailable())jointPage().tick();
+@@ -159,14 +160,14 @@ export function paintJointPads(force=false):boolean {
+         const owner=actors.find(actor=>actor.track===cells[index].track);
+         if(!owner||cells[index].pitch<0&&cells[index].target<0)continue;
+         const pitch=owner.view?.targets?.[index];
+-        const playing=jointOverlayRoles(owner.track-baseTrack(),pitch??-1,actors.map(actor=>({role:actor.track-baseTrack(),notes:actor.sounding})),group().overlay);
++        const playing=jointOverlayRoles(actorRole(baseTrack(),owner.track),pitch??-1,actors.map(actor=>({role:actorRole(baseTrack(),actor.track),notes:actor.sounding})),group().overlay);
+         if(playing.length){
+             const role=playing[Math.floor(Date.now()/180)%playing.length];
+             if(group().overlay===2)next[index]=jointActorColor(role);
+-            else if(role!==owner.track-baseTrack())next[index]=jointSecondaryColor(group().secondary);
++            else if(role!==actorRole(baseTrack(),owner.track))next[index]=jointSecondaryColor(group().secondary);
+         }
+         // Conductor input is a harmonic command even with MIDI output disabled.
+-        if(held.get(index)===owner.track&&owner.track===baseTrack())next[index]=jointActorColor(0);
++        if(held.get(index)===owner.track&&owner.track===actorTrack(baseTrack(),0))next[index]=jointActorColor(0);
+     }
+     const changes=next.flatMap((color,index)=>color===colors[index]?[]:[{index,note:68+index,color}]);
+     for(const change of sendPadLedFrame(changes))colors[change.index]=change.color;
+@@ -176,8 +177,10 @@ export function paintJointPads(force=false):boolean {
+ export function jointRecordCommand(): string | null {
+     if(!jointActive())return null;
+     const settings=group(), base=baseTrack();
+-    const mask=jointPlayableRoles(settings).reduce((mask,role)=>mask|(1<<role),0);
+-    return 'jrec '+(mask<<base)+' '+((settings.overwrite&mask)<<base);
++    const roles=jointPlayableRoles(settings);
++    const mask=roles.reduce((mask,role)=>mask|(1<<actorTrack(base,role)),0);
++    const overwrite=roles.filter(role=>settings.overwrite&(1<<role)).reduce((mask,role)=>mask|(1<<actorTrack(base,role)),0);
++    return 'jrec '+mask+' '+overwrite;
+ }
+ 
+ /** Return true only for controls owned by this view. Session remains upstream. */
+@@ -196,7 +199,7 @@ export function jointMidi(data:number[]): boolean {
+     if(status===0xb0&&key===51&&value){if(jointPage().back()?.action==='exit')returnPreviousInputView();return true;}
+     if(status===0xb0&&key===14){const delta=value<64?value:value-128;if(delta)jointPage().changePage(delta);appState.dirty=true;return true;}
+     if(status===0xb0&&key===MoveMainButton){if(value)jointPage().click(appState.shiftHeld);appState.dirty=true;return true;}
+-    if(status===0xb0&&key===86){if(value)recToggle(baseTrack());return true;}
++    if(status===0xb0&&key===86){if(value)recToggle(actorTrack(baseTrack(),0));return true;}
+     if((status===0x90||status===0x80)&&key<8){jointPanelTouch(key,status===0x90&&value>0);appState.dirty=true;return true;}
+     if(status===0xb0&&key>=71&&key<=78){const delta=value<64?value:value-128;if(delta)jointPage().knobTurn(key-71,delta);appState.dirty=true;return true;}
+     return false;
+@@ -222,7 +225,7 @@ export function jointPanelSet(base:number,key:string,value:string):void {
+     else if(key.startsWith('joint_pads_')){
+         const role=Number(key.slice(11));if(role>=0&&role<4&&index<=1)settings.pads=index?settings.pads|(1<<role):settings.pads&~(1<<role);
+     }else if(key==='joint_unit'){
+-        if(index<=3&&[0,1,2,3].every(role=>trackKind(index*4+role)==='movy'))appState.focusGroup=index;
++        if(index<=3&&[0,1,2,3].every(role=>trackKind(actorTrack(index*4,role))==='movy'))appState.focusGroup=index;
+     }else if(key.startsWith('joint_record_')){
+         const role=['root','bass','comp','melody'].indexOf(key.slice(13));
+         if(role>0&&index<=1)settings.overwrite=index?settings.overwrite|(1<<role):settings.overwrite&~(1<<role);
+@@ -240,12 +243,12 @@ export function renderJoint():void {
+         const role=match?Number(match[1]):key==='joint_bass'?1:key==='joint_comp'?2:3;
+         const color=key==='joint_blank'?0:jointActorColor(role);cachedSetAnimLED(slot,color,color,0);
+     }
+-    clear_screen();drawHeader(page.keyAt(0)==='joint_unit'?'Joint Setup':page.pageTitle,'Tracks '+(baseTrack()+1)+'-'+(baseTrack()+4));drawBankBar(page.pageIndex,page.pageCount);
++    clear_screen();drawHeader(page.keyAt(0)==='joint_unit'?'Joint Setup':page.pageTitle,(singleConductor()?'R1 / ':'Tracks ')+(baseTrack()+1)+'-'+(baseTrack()+4));drawBankBar(page.pageIndex,page.pageCount);
+     page.render('Joint G'+(appState.focusGroup+1));
+ }
+ 
+ export function jointAvailable(): boolean {
+-    return [0,1,2,3].every(role=>trackKind(baseTrack()+role)==='movy');
++    return [0,1,2,3].every(role=>trackKind(actorTrack(baseTrack(),role))==='movy');
+ }
+ 
+ /** Exact sounding pitch matching; never fold an out-of-range note into a false pad. */
+diff --git a/src/seq/session-roles.ts b/src/seq/session-roles.ts
+new file mode 100644
+index 00000000..75a44730
+--- /dev/null
++++ b/src/seq/session-roles.ts
+@@ -0,0 +1,7 @@
++/** One mapping for every surface; old Sets retain their existing quartet roots. */
++let single = false;
++export function singleConductor():boolean {return single;}
++export function restoreSessionRoles(value:unknown):void {single=value===1;}
++export function sessionRolesSnapshot():number {return single?1:0;}
++export function actorTrack(base:number,role:number):number {return single&&role===0?0:base+role;}
++export function actorRole(base:number,track:number):number {return single&&track===0?0:track-base;}
+diff --git a/src/seq/set-session.ts b/src/seq/set-session.ts
+index 65e35603..ae02035a 100644
+--- a/src/seq/set-session.ts
++++ b/src/seq/set-session.ts
+@@ -170,7 +170,7 @@ function enterLoading(id: string, name: string): void {
+     const st = loadSet(id, name);
+     setId = id; setName = name; gen = st.gen;
+     adoptSaved(st.payload);
+-    if (!readUiBlob(id)) resetUiState();
++    if (!readUiBlob(id)) resetUiState(!stored);
+     rememberSet(name, id);
+     clearUiDirty();
+     loadedGen = engineGeneration();
+diff --git a/src/seq/source-overview.ts b/src/seq/source-overview.ts
+index c62d8409..79695bf5 100644
+--- a/src/seq/source-overview.ts
++++ b/src/seq/source-overview.ts
+@@ -1,3 +1,4 @@
++import {actorTrack} from './session-roles.js';
+ /** Read-only views of production state. No timers, writes or musical inference. */
+ import { portFor } from '../track/registry.js';
+ const roles=['Root','Bass','Comp','Melody'];
+@@ -70,7 +71,7 @@ export function overviewGet(base:number,key:string):string|null {
+         return '--';
+     }
+     const match=/^joint_preview_([0-3])_(.+)$/.exec(key);if(!match)return '--';
+-    const actor=base+Number(match[1]),field=match[2];
++    const actor=actorTrack(base,Number(match[1])),field=match[2];
+     const state=snapshot('source-'+actor,()=>typeof host_module_get_param==='function'?host_module_get_param('source_preview_'+actor):null);
+     if(state?.schema!==1||state.actor!==actor)return 'Unavailable';
+     if(field==='state')return !state.playing?'Stopped':state.muted?'Muted':state.recording?'Recording own':state.enabled?(state.alignment===2?'Weave Fit':state.timeline?'Weave Time':'Weave Seq'):'Own playback';
+diff --git a/src/seq/source-panels.ts b/src/seq/source-panels.ts
+index f80abeaa..6dbdb6fa 100644
+--- a/src/seq/source-panels.ts
++++ b/src/seq/source-panels.ts
+@@ -1,3 +1,4 @@
++import {actorTrack} from './session-roles.js';
+ /** Native sequencer state is authoritative; use the existing Joint panel UI. */
+ import { seqCmdFlush, engineReady } from './engine.js';
+ import { beginEdit, CLOSE } from '../undo/group.js';
+@@ -25,7 +26,7 @@ export const sourceParameters=[0,1,2,3].flatMap(role=>sourceKeys(role).map((key,
+ function identity(base:number,key:string):{actor:number;field:number}|null {
+     const match=/^joint_source_([0-3])_(.+)$/.exec(key);
+     if(!match)return null;
+-    const field=fields.indexOf(match[2]);return field<0?null:{actor:base+Number(match[1]),field};
++    const field=fields.indexOf(match[2]);return field<0?null:{actor:actorTrack(base,Number(match[1])),field};
+ }
+ function read(actor:number):number[] {
+     const value=typeof host_module_get_param==='function'?host_module_get_param('source_route_'+actor):null;
+diff --git a/src/seq/ui-state.ts b/src/seq/ui-state.ts
+index b38687ea..f29cc515 100644
+--- a/src/seq/ui-state.ts
++++ b/src/seq/ui-state.ts
+@@ -1,3 +1,4 @@
++import {singleConductor,sessionRolesSnapshot,restoreSessionRoles} from './session-roles.js';
+ import { clipsSnapshot, restoreClips } from './clips-layout.js';
+ import { chordSnapshot, restoreChord } from './chord-play.js';
+ import { gridSnapshot, restoreGrid } from './grid.js';
+@@ -40,6 +41,7 @@ export function serializeUiState(): string {
+         layout: keyboardState.layout,
+         oct:    keyboardState.octave.slice(),
+         gridRows:gridSnapshot(),
++        roleLayout: sessionRolesSnapshot(),
+         jointPlay: jointSnapshot(),
+         chordPlay: chordSnapshot(),
+         clipsLayout: clipsSnapshot(),
+@@ -64,6 +66,7 @@ export function serializeUiState(): string {
+ export function applyUiState(blob: string): void {
+     try {
+         const o = JSON.parse(blob);
++        restoreSessionRoles(o.roleLayout);
+         restoreGrid(o.gridRows);
+         restoreChord(o.chordPlay);
+         restoreClips(o.clipsLayout);
+@@ -150,7 +153,7 @@ function freshHarmonyBusChains() {
+             t,
+             comp: [
+                 { c: 'midi_fx1', m: 'harmonybus',
+-                  s: jointFreshState(pos) + (t === 0 ? ';freshrole1' : '') },
++                  s: (singleConductor()&&t>0&&pos===0?jointFreshState(0).replace('hb16,0,','hb16,2,'):jointFreshState(pos)) + (t === 0 ? ';freshrole1' : '') },
+                 { c: 'synth', m: 'plaits' },
+             ],
+             /* gain,pan,muted,send1,send2. Local audio is muted; MIDI is not. */
+@@ -160,11 +163,12 @@ function freshHarmonyBusChains() {
+ }
+ 
+ /* Defaults match init(): C tonic, Major, Approach, C3 on every track. */
+-export function resetUiState(): void {
++export function resetUiState(newSet = true): void {
++    restoreSessionRoles(newSet?1:0);
+     restoreChord(null);
+     restoreClips(null);
+     restoreGrid(null);
+-    restoreJoint(null);
++    restoreJoint(newSet?Array.from({length:4},(_,bank)=>({bass:bank===0?0:1})):null);
+     /* A brand-new Set uses the dedicated HarmonyBus source template.
+      * loadSetHostChoice(null) retains upstream's normal NEW-SET host decision,
+      * so Movy 1-4 are Movy chains without inventing another host-mode path. */
+diff --git a/src/seq/variation-panels.ts b/src/seq/variation-panels.ts
+index 0fac62f2..81fd26d2 100644
+--- a/src/seq/variation-panels.ts
++++ b/src/seq/variation-panels.ts
+@@ -1,3 +1,4 @@
++import {actorTrack} from './session-roles.js';
+ /** Per-actor settings use the native sequencer's save and Undo path. */
+ import { engineReady, seqCmdFlush } from './engine.js';
+ import { beginEdit, CLOSE } from '../undo/group.js';
+@@ -14,7 +15,7 @@ export const variationParameters=[1,2,3].flatMap(role=>variationKeys(role).map((
+ function identity(base:number,key:string):{actor:number;field:number}|null {
+     const match=/^joint_variation_([1-3])_(.+)$/.exec(key);
+     if(!match)return null;
+-    const field=fields.indexOf(match[2]);return field<0?null:{actor:base+Number(match[1]),field};
++    const field=fields.indexOf(match[2]);return field<0?null:{actor:actorTrack(base,Number(match[1])),field};
+ }
+ function read(actor:number):number[] {
+     const value=typeof host_module_get_param==='function'?host_module_get_param('variation_'+actor):null;
+diff --git a/src/undo/ui-fields.ts b/src/undo/ui-fields.ts
+index 594868b7..fe029d79 100644
+--- a/src/undo/ui-fields.ts
++++ b/src/undo/ui-fields.ts
+@@ -1,3 +1,5 @@
++import {restoreSessionRoles,sessionRolesSnapshot} from '../seq/session-roles.js';
++import {chordRoutingState,restoreChordRouting} from '../seq/chord-play.js';
+ import { chordCompState, restoreChordCompState } from '../seq/chord-play.js';
+ import { setFollowerInputScale, setFollowerInputRoot } from '../keyboard/harmony-pads.js';
+ import { appState } from '../app/state.js';
+@@ -21,9 +23,11 @@ import { seqState } from '../seq/state.js';
+ import { seqCmd } from '../seq/engine.js';
+ import { writePrefDefaultQuant } from '../seq/prefs.js';
+ 
+-export type UiField = 'rootPc' | 'scale' | 'mutes' | 'defaultQuant' | 'chordComp';
++export type UiField = 'rootPc' | 'scale' | 'mutes' | 'defaultQuant' | 'chordComp' | 'roleLayout' | 'chordRouting';
+ 
+ export function readUiField(f: UiField): string {
++    if(f==='roleLayout')return String(sessionRolesSnapshot());
++    if(f==='chordRouting')return chordRoutingState();
+     if(f==='chordComp')return chordCompState();
+     if (f === 'rootPc') return String(keyboardState.rootPc);
+     if (f === 'mutes') return JSON.stringify(mutesSnapshot());
+@@ -32,6 +36,8 @@ export function readUiField(f: UiField): string {
+ }
+ 
+ export function writeUiField(f: UiField, v: string): void {
++    if(f==='roleLayout'){restoreSessionRoles(Number(v));markUiStateDirty();appState.dirty=true;return;}
++    if(f==='chordRouting'){restoreChordRouting(v);return;}
+     if(f==='chordComp'){restoreChordCompState(v);return;}
+     /* Solo bookkeeping: which track is soloed and the user's own mutes held
+      * underneath it. The engine holds the DERIVED mutes and a seq snapshot

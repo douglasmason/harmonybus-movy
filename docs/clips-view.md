@@ -19,7 +19,9 @@ selection and other overlays retain ownership of their navigation.
 3. **Drum track:** track 5, 9 or 13, remembered separately for each bank.
 4. **Drum Clip Out:** Chain or Drum Ch 1 for that selected source (Movy 245). This changes clip output only; see [Drum clip destinations](drum-output.md).
 
-Knobs 5–8 are inactive in Setup. Row and Touch are independent per-Set
+5. **Conductor:** Legacy or Track1 (Movy 248). While stopped, turn to Track1 to adopt the session conductor. Undo restores the previous layout; see [single conductor](single-conductor.md).
+
+Knobs 6–8 are inactive in Setup. Row and Touch are independent per-Set
 preferences. Defaults remain Bank/Normal, preserving the existing routing and
 track presentation. Default drum sources are 5/5/9/13 across the four banks.
 These preferences persist through the existing Set UI serializer and autosave.
@@ -47,7 +49,8 @@ immediately. Tapping a playing clip queues a relaunch. These are displayed as
 behavior, not editable settings: the engine does not currently expose alternative
 launch grids or playing-clip tap policies. Empty clips retain stock stop behavior.
 
-The row assignments are a presentation layer. Selecting Drums for a row does not
+New Sets use one session conductor on track 1. Existing Sets retain their layout
+until explicitly converted with knob 5. The row assignments are a presentation layer. Selecting Drums for a row does not
 rewrite the track's chain, change MIDI channels, convert pitches, or remove other
 conductors in a saved Set. Use the separate Drum Clip Out control to enable channel-1 output explicitly.
 It preserves live pad behavior and chain settings. See [Drum clip destinations](drum-output.md)
