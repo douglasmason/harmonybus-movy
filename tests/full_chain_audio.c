@@ -484,6 +484,13 @@ static void test_drum_fill_output(void){
     sent_on=sent_off=0;set("cmd","play");render(560);
     assert(sent_on>0&&sent_on<4);set("cmd","stop");render(8);
     assert(sent_on==sent_off);
+    /* A performance fill must return to the empty stored groove after one loop. */
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 16 0 \n");
+    set("cmd","tdrum 0 1;play");render(2);sent_on=sent_off=rejected=0;
+    set("cmd","dfire 0 38 96 24 101");render(1340);set("cmd","stop");render(8);
+    assert(sent_on==4&&sent_off==4&&rejected==0);
+    sent_on=sent_off=0;set("cmd","play");render(680);set("cmd","stop");render(8);
+    assert(sent_on==0&&sent_off==0);
     drum_output_check=0;
     puts("Drum fill: production stock-track output uses MIDI channel 1, exact sample pitch and paired releases including early stop");
 }
