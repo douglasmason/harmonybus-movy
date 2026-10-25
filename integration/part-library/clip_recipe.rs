@@ -15,7 +15,7 @@ impl Recipe {
         let name = fields.next()?;
         let gate = fields.next()?.parse::<u16>().ok()?;
         let settings = Settings::parse(fields.next()?)?;
-        if fields.next().is_some() || name.len()>40 || !name.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte==b'-') || !(10..=200).contains(&gate) || !settings.mapped() { return None; }
+        if fields.next().is_some() || name.len()>40 || !name.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte==b'-') || !(10..=200).contains(&gate) || !(settings.0[0]==0 || settings.mapped()) { return None; }
         Some(Self { name:name.into(), settings, gate })
     }
 }
@@ -52,7 +52,7 @@ impl Engine {
         let slot=self.recipe_slot(track);
         if let Some(recipe)=&mut self.tracks[track].clips[slot].recipe {
             let mut next=recipe.settings;next.0[index]=number;
-            if !next.mapped() {return false;}
+            if recipe.settings.0[0]==0 {if next.0[0]!=0 {return false;}} else if !next.mapped() {return false;}
             recipe.settings=next;
         } else if let Some(settings)=&mut self.recipe_bases[track] { settings.0[index]=number; }
         if let Some(seen)=&mut self.recipe_seen[track] {seen.0[index]=number;}

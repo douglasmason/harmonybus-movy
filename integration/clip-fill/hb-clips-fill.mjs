@@ -32,6 +32,12 @@ result='error:Source changed - preview again';seqState.session[3].exist=0;sessio
 const pixels=new Uint8Array(128*64);globalThis.clear_screen=()=>pixels.fill(0);globalThis.fill_rect=(x,y,width,height,color)=>{for(let row=Math.max(0,y);row<Math.min(64,y+height);row++)for(let col=Math.max(0,x);col<Math.min(128,x+width);col++)pixels[row*128+col]=color?255:0;};
 fill.renderFill();const png=new PNG({width:512,height:256});for(let row=0;row<256;row++)for(let col=0;col<512;col++){const offset=(row*512+col)*4,value=pixels[Math.floor(row/4)*128+Math.floor(col/4)];png.data[offset]=png.data[offset+1]=png.data[offset+2]=value;png.data[offset+3]=255;}
 mkdirSync('artifacts',{recursive:true});writeFileSync('artifacts/clip-fill.png',PNG.sync.write(png));
+commands.length=0;result='Filled - Undo available';
+view.clipsMidi([176,76,1]);view.clipsMidi([176,76,1]);
+Date.now=()=>previousNow()+80;fill.fillTick();Date.now=previousNow;
+fill.fillCell(0,5);
+assert(commands.some(([,value])=>value.includes('clipfill 0 5 def 1_1_2_0_1_2 abc ')),'Original phrase uses same preview/write path and actual conductor cell');
+assert(!commands.some(([,value])=>/\blaunch\b/.test(value)),'conductor fill does not launch');
 view.clipsMidi([176,51,127]);assert(!fill.fillActive());
 fill.setFillActive(true);seqState.sessionMode=false;fill.fillTick();seqState.sessionMode=true;assert(!fill.fillActive(),'mode changes disarm writes');
 globalThis.host_module_get_param=originalGet;globalThis.host_module_set_param_blocking=originalWrite;

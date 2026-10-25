@@ -20,16 +20,16 @@ impl Engine {
         let fields:Vec<usize>=request.split('_').map(str::parse).collect::<Result<_,_>>().map_err(|_|"Invalid sources")?;
         if fields.len()!=6 {return Err("Invalid sources");}
         let [pitch_track,pitch_slot,rhythm_track,rhythm_slot,bars,alignment]=fields[..] else {unreachable!()};
-        if bars==0||bars>16||alignment>1 {return Err("Invalid length or alignment");}
+        if bars==0||bars>16||alignment>2 {return Err("Invalid length or alignment");}
         let source=|track:usize,slot:usize| self.tracks.get(track).and_then(|track|track.clips.get(slot)).ok_or("Invalid clip");
         let original_pitch=source(pitch_track,pitch_slot)?;
-        let rhythm=source(rhythm_track,rhythm_slot)?;
+        let rhythm=if alignment==2 {original_pitch}else{source(rhythm_track,rhythm_slot)?};
         if self.track_is_drum(pitch_track){return Err("Choose melodic pitch content");}
         // These are authored notes, not a capture of stochastic/live operations.
         if !rhythm.trigs.is_empty()||!rhythm.operation_intervals.is_empty()||!rhythm.grid_gates.is_empty()||!original_pitch.shared_events.is_empty()||!original_pitch.operation_intervals.is_empty(){return Err("Use plain clips; live operations need Weaving");}
         if rhythm.quant!=0||rhythm.scale_num!=rhythm.scale_den {return Err("Rhythm needs original timing/speed");}
         let mut pitch=original_pitch.clone();for note in &mut pitch.notes {note.fired=false;note.suppress=false;}
-        if pitch.notes.iter().any(|note|note.rendered||note.input_key.or(pitch.input_key).is_none()){return Err("Pitch clip needs saved input key");}
+        if pitch.notes.iter().any(|note|note.rendered||(!note.actions.as_ref().is_some_and(crate::recorded_actions::chord_selection)&&note.input_key.or(pitch.input_key).is_none())){return Err("Pitch clip needs saved input key");}
         let duration=bars as u32*16*TICKS_PER_STEP;
         let rhythm_length=rhythm.length_ticks();if rhythm_length==0||pitch.length_ticks()==0{return Err("Empty source clip");}
         let mut attacks=BTreeMap::<u32,(u32,u8)>::new();
@@ -38,9 +38,22 @@ impl Engine {
             let attack=attacks.entry(note.tick-rhythm.loop_start_ticks()).or_insert((1,note.vel));
             attack.0=attack.0.max(note.gate);attack.1=attack.1.max(note.vel);
         }
-        if attacks.is_empty(){return Err("Rhythm clip has no attacks");}
+        if attacks.is_empty()&&alignment!=2{return Err("Rhythm clip has no attacks");}
         let mut clip=Clip::new();clip.length_steps=(bars*16) as u16;clip.input_key=pitch.input_key;clip.transpose=pitch.transpose;
         clip.recipe=pitch.recipe.clone();let mut previous=None;
+        if alignment==2 {
+            // Authored gates encode ties; gaps and empty loops encode rests.
+            // Repeat the original phrase without introducing a new attack at a tie.
+            for cycle in (0..duration).step_by(pitch.length_ticks() as usize) {
+                for source_note in pitch.notes.iter().filter(|note|note.vel>0&&note.tick>=pitch.loop_start_ticks()&&note.tick<pitch.loop_end_ticks()) {
+                    let tick=cycle+source_note.tick-pitch.loop_start_ticks();if tick>=duration{continue;}
+                    if clip.notes.len()>=MAX_NOTES{return Err("Clip note capacity exceeded");}
+                    let mut note=source_note.clone();note.input_key=note.input_key.or(pitch.input_key);
+                    note.tick=tick;note.step=(tick/TICKS_PER_STEP) as u16;note.gate=note.gate.max(1).min(duration-tick);
+                    note.pressure.clear();clip.notes.push(note);
+                }
+            }
+        } else {
         // Repeat rhythm at authored rate. Fit maps the pitch phrase into the target window.
         for cycle in (0..duration).step_by(rhythm_length as usize) {
             for (&offset,&(gate,velocity)) in &attacks {
@@ -55,7 +68,8 @@ impl Engine {
                 }
             }
         }
-        if clip.notes.is_empty()||clip.length_steps>MAX_STEPS{return Err("Empty result");}
+        }
+        if (clip.notes.is_empty()&&alignment!=2)||clip.length_steps>MAX_STEPS{return Err("Empty result");}
         let mut hash=std::collections::hash_map::DefaultHasher::new();request.hash(&mut hash);
         crate::motif_load::fingerprint(original_pitch).hash(&mut hash);crate::motif_load::fingerprint(rhythm).hash(&mut hash);
         Ok(Plan{clip,signature:hash.finish()})
@@ -86,9 +100,15 @@ impl Engine {
         let mut plan=self.fill_plan(values[4])?;
         if format!("{:x}",plan.signature)!=values[5]{return Err("Source changed - preview again");}
         let baseline=Settings::parse(values[6]).ok_or("Destination needs HarmonyBus settings")?;
-        if baseline.0[0]!=1{return Err("Choose a follower destination");}
+        let conductor=baseline.0[0]==0;
+        if !conductor&&baseline.0[0]!=1{return Err("Choose a conductor or follower destination");}
         let settings=plan.clip.recipe.as_ref().map_or(baseline,|recipe|recipe.settings);
-        if !settings.mapped(){return Err("Destination needs Relative or Split mapping");}
+        if conductor {
+            if settings.0[0]!=0{return Err("Choose conductor content; source recipe is a follower");}
+        } else {
+            if plan.clip.notes.iter().any(|note|note.actions.as_ref().is_some_and(crate::recorded_actions::chord_selection)){return Err("Chord selections need a conductor destination");}
+            if !settings.mapped(){return Err("Destination needs Relative or Split mapping");}
+        }
         if !matches!(values[7],"own"|"keep"){return Err("Invalid weaving choice");}
         plan.clip.recipe.get_or_insert(crate::clip_recipe::Recipe{name:"Clip-Fill".into(),settings,gate:100}).gate=100;
         if self.tracks[track].playing_slot==Some(slot){self.flush_track_gates(track,out);}
