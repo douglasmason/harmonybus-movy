@@ -631,6 +631,8 @@ def main() -> int:
     patch_clips_view(root)
     from patch_part_library import patch_part_library
     patch_part_library(root)
+    from patch_drum_output import patch_drum_output
+    patch_drum_output(root)
     print("HarmonyBus clean integration applied")
     return 0
 

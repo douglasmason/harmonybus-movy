@@ -1,0 +1,669 @@
+diff --git a/browser-test/hb-clips-view.mjs b/browser-test/hb-clips-view.mjs
+index 79553ccb..247b30ea 100644
+--- a/browser-test/hb-clips-view.mjs
++++ b/browser-test/hb-clips-view.mjs
+@@ -82,3 +82,18 @@ assert(pixels.some(value=>value),'real app renders Clips panel');
+ globalThis.onMidiMessageInternal([176,14,1]);assert.equal(layout.clipsPage,2);
+ globalThis.onMidiMessageInternal([176,14,127]);assert.equal(layout.clipsPage,1);
+ console.log('Clips hardware dispatcher: bank, launch, setup editing, render and Master return pass');
++
++// Drum output is a separate, undoable engine edit for the selected source.
++const {parseStatusForTest}=await import('../dist/esm/seq/engine.js');
++layout.restoreClips(null);layout.setClipsPage(1);appState.focusGroup=2;
++parseStatusForTest('play=0 drumout=0');
++const beforeRoute=engine.ops.length;
++view.clipsMidi([176,74,1]);seqCmdFlush();
++assert(engine.ops.slice(beforeRoute).includes('drumout 8 1'));
++assert(engine.ops.slice(beforeRoute).some(op=>op.startsWith('usnap ')),'destination participates in normal Undo');
++assert.equal(seqState.drumOutputs,256);
++view.clipsMidi([176,71,1]);seqCmdFlush();assert.equal(seqState.drumOutputs,256,'row assignment cannot rewrite route');
++view.clipsMidi([176,74,127]);seqCmdFlush();assert(engine.ops.includes('drumout 8 0'));
++parseStatusForTest('drumout=4368');assert.equal(seqState.drumOutputs,4368,'reload/Undo status adopts actual engine routes');
++parseStatusForTest('play=0');assert.equal(seqState.drumOutputs,0,'old engines cannot leave stale routing status');
++console.log('Clips drum output: source, independent presentation, Undo enlistment and engine status adoption pass');
+diff --git a/engine/crates/movy-dsp/src/drum_output.rs b/engine/crates/movy-dsp/src/drum_output.rs
+new file mode 100644
+index 00000000..8d1dd26a
+--- /dev/null
++++ b/engine/crates/movy-dsp/src/drum_output.rs
+@@ -0,0 +1,30 @@
++//! Shared channel-1 percussion ownership. Scheduling remains in seq-core.
++pub struct Output { held: [u16;128] }
++impl Default for Output { fn default()->Self {Self{held:[0;128]}} }
++impl Output {
++    pub fn send(&mut self,status:u8,pitch:u8,value:u8,mut emit:impl FnMut(u8,u8,u8)) {
++        let owners=&mut self.held[pitch as usize];
++        match status {
++            0x90 => {
++                // Retrigger the same sample, including simultaneous independent clips.
++                // Close its physical gate first; a shorter overlapping owner cannot
++                // later release a hit still owned by another source.
++                if *owners>0 {emit(0x80,pitch,0);}
++                *owners=owners.saturating_add(1);emit(0x90,pitch,value);
++            },
++            0x80 if *owners>0 => {*owners-=1;if *owners==0 {emit(0x80,pitch,0);}},
++            0xa0 if *owners>0 => emit(0xa0,pitch,value),
++            _=>{}
++        }
++    }
++}
++#[cfg(test)] mod tests {
++    use super::*;
++    #[test] fn overlapping_clips_retrigger_and_last_owner_releases() {
++        let mut output=Output::default();let mut events=Vec::new();
++        for (status,value) in [(0x90,100),(0x90,80),(0x80,0),(0xa0,55),(0x80,0),(0x80,0)] {
++            output.send(status,38,value,|status,pitch,value|events.push((status,pitch,value)));
++        }
++        assert_eq!(events,vec![(0x90,38,100),(0x80,38,0),(0x90,38,80),(0xa0,38,55),(0x80,38,0)]);
++    }
++}
+diff --git a/engine/crates/movy-dsp/src/hb_loop.rs b/engine/crates/movy-dsp/src/hb_loop.rs
+index c3a52ea5..391360c1 100644
+--- a/engine/crates/movy-dsp/src/hb_loop.rs
++++ b/engine/crates/movy-dsp/src/hb_loop.rs
+@@ -27,6 +27,7 @@ pub fn snapshot(engine: &Engine, track_index: usize) -> Snapshot {
+     let next_tick = engine.hb_master_tick();
+     let mut result = Snapshot { tick: next_tick.saturating_sub(1), track: track_index as u8,
+         running: engine.playing, ..Snapshot::default() };
++    if engine.drum_output(track_index) {return result;}
+     let track = &engine.tracks[track_index];
+     let Some(clip) = track.playing() else { return result; };
+     result.slot = track.playing_slot.unwrap() as u8;
+@@ -236,6 +237,7 @@ mod tests {
+ /// Uses the same source-key projection and recorded piano intent as playback.
+ pub fn opening_preview(engine: &Engine, track_index: usize) -> Message<12288> {
+     let mut message=Message {bytes:[0;12288],len:0};
++    if engine.drum_output(track_index) {write!(&mut message,"0").unwrap();return message;}
+     let track=&engine.tracks[track_index];
+     let slot=engine.song_entry_at(0).map(|entry|entry.0).unwrap_or(track.active_clip);
+     let clip=&track.clips[slot];
+diff --git a/engine/crates/movy-dsp/src/lib.rs b/engine/crates/movy-dsp/src/lib.rs
+index 9f35f8f7..bcd1efc2 100644
+--- a/engine/crates/movy-dsp/src/lib.rs
++++ b/engine/crates/movy-dsp/src/lib.rs
+@@ -12,6 +12,7 @@ mod pressure_trace;
+ mod idle_probe;
+ mod tone_check;
+ mod hb_loop;
++mod drum_output;
+ mod actor_source;
+ mod hb_record;
+ mod ffi;
+@@ -131,7 +132,7 @@ fn parse_mix(val: &str) -> Option<crate::mixer::TrackMix> {
+ }
+ 
+ const DEFAULT_BPM_X100: u32 = 12000;
+-const ENGINE_VERSION: &str = "0.71.0-part-library1";
++const ENGINE_VERSION: &str = "0.72.0-drum-output1";
+ 
+ /// Tracks backed by schwung's own shadow slots by default. Their notes go out as
+ /// MIDI on the matching channel; everything above this index is a chain movy
+@@ -172,6 +173,7 @@ struct Instance {
+     joint: joint_route::JointRoute,
+     joint_links: joint_links::JointLinks,
+     chord_note: Option<(usize,u8)>,
++    drum_output: drum_output::Output,
+     chord_playback: [bool;2048],
+     surface: surface_route::SurfaceRoute,
+     /// `chtracks`: tracks 0..3 are movy chains rather than schwung shadow slots.
+@@ -211,6 +213,7 @@ impl Instance {
+             joint: joint_route::JointRoute::new(),
+             joint_links: joint_links::JointLinks::new(),
+             chord_note: None,
++            drum_output: drum_output::Output::default(),
+             chord_playback: [false;2048],
+             surface: surface_route::SurfaceRoute::new(),
+             movy_tracks: false,
+@@ -668,6 +671,7 @@ impl Instance {
+             "clip_input_info" => Some(self.engine.clip_input_info()),
+             "status" => {
+                 let mut s = self.engine.status();
++                s.push_str(&format!(" drumout={}",self.engine.drum_outputs));
+                 if let Some(id) = self.engine.undo.take_noop() {
+                     s.push_str(&format!(" unop={id}"));
+                 }
+@@ -759,6 +763,7 @@ impl Instance {
+                 if changed {self.chains.hb_shared("midi_fx1:hb_shared_flush","");}
+             }
+             match self.out[i] {
++                OutEvent::DrumMidi{status,pitch,value}=>self.drum_output.send(status,pitch,value,|status,pitch,value| {host::midi_send_internal(status,pitch,value);}),
+                 OutEvent::RecipeParam{track,key,value}=>{
+                     if let Some(slot)=chain_for(track,self.movy_tracks){if self.chains.get_param(slot,"midi_fx1_module").as_deref()==Some("harmonybus"){self.chains.set_param(slot,&format!("midi_fx1:{}",seq_core::part_settings::KEYS[key as usize]),&seq_core::part_settings::Settings::label(key as usize,value));}}
+                 },
+diff --git a/engine/crates/seq-core/src/command.rs b/engine/crates/seq-core/src/command.rs
+index b4075e92..f27dc2b3 100644
+--- a/engine/crates/seq-core/src/command.rs
++++ b/engine/crates/seq-core/src/command.rs
+@@ -14,7 +14,11 @@ pub fn apply_batch(engine: &mut Engine, batch: &str, out: &mut Vec<OutEvent>) {
+         let op = op.trim();
+         if !op.is_empty() {
+             let verb = op.split(' ').next().unwrap_or("");
++            let previous_drum_outputs=engine.drum_outputs;
+             apply_op(engine, op, out);
++            if verb=="uswap" {
++                for track in [4,8,12] {if (previous_drum_outputs^engine.drum_outputs)&(1<<track)!=0 {engine.flush_track_gates(track,out);}}
++            }
+             if is_undoable_edit(verb) || verb=="uswap" {engine.source_automation_invalidate();}
+             /* An op may have created or cleared a clip, or moved the default
+              * itself. Re-seeding here (rather than at each creation site) keeps
+@@ -114,7 +118,7 @@ pub fn is_undoable_edit(verb: &str) -> bool {
+         // automation edits
+         | "aset" | "asetr" | "aclr" | "aclrs" | "aclrstep"
+         // set-level settings
+-        | "mute" | "bpm" | "swing" | "source" | "variation" | "songsection" | "songsectionclear"
++        | "drumout" | "mute" | "bpm" | "swing" | "source" | "variation" | "songsection" | "songsectionclear"
+         // retroactive capture: `cap` writes the buffered phrase into the clip
+         // and `capsel` rewrites it at another tempo. `capclr`/`capdone` only
+         // touch the input buffer and the overlay, so they stay control.
+@@ -216,6 +220,11 @@ fn apply_op(engine: &mut Engine, op: &str, out: &mut Vec<OutEvent>) {
+         // tdrum <track> <0|1> — the track's slot holds a drum module, so clip
+         // transpose stops applying to it (pitches are pad addresses). The UI
+         // owns module identity, so it re-sends this on load and after a swap.
++        "drumout" => {
++            if let (Some(track),Some(enabled))=(next(),next()) {
++                if track >= 0 && (enabled==0 || enabled==1) {engine.set_drum_output(track as usize,enabled==1,out);}
++            }
++        }
+         "tdrum" => {
+             if let (Some(t), Some(d)) = (next(), next()) {
+                 if (t as usize) < NUM_TRACKS {
+diff --git a/engine/crates/seq-core/src/engine.rs b/engine/crates/seq-core/src/engine.rs
+index a7ac3e0f..661cb953 100644
+--- a/engine/crates/seq-core/src/engine.rs
++++ b/engine/crates/seq-core/src/engine.rs
+@@ -13,6 +13,7 @@ use crate::{PPQN, STEPS_PER_BAR, TICKS_PER_BAR, TICKS_PER_STEP};
+ 
+ #[derive(Debug, Clone, Copy, PartialEq)]
+ pub enum OutEvent {
++    DrumMidi { status:u8, pitch:u8, value:u8 },
+     RecipeLanes {track:u8},
+     RecipeCapture {track:u8},
+     RecipeParam {track:u8,key:u8,value:i16},
+@@ -72,6 +73,7 @@ struct RecPending {
+ 
+ #[derive(Debug, Clone)]
+ struct Gate {
++    drum: bool,
+     clock_track: u8,
+     pressure: Vec<(u32, u8)>,
+     pressure_index: usize,
+@@ -83,7 +85,21 @@ struct Gate {
+     hb_modified: bool,
+ }
+ 
++impl Gate {
++    fn off_event(&self) -> OutEvent {
++        if self.drum {OutEvent::DrumMidi{status:0x80,pitch:self.pitch,value:0}}
++        else if self.rendered {OutEvent::RenderedOff{track:self.track,pitch:self.pitch}}
++        else {OutEvent::NoteOff{track:self.track,pitch:self.pitch}}
++    }
++    fn pressure_event(&self, value:u8) -> OutEvent {
++        if self.drum {OutEvent::DrumMidi{status:0xa0,pitch:self.pitch,value}}
++        else {OutEvent::PolyPressure{track:self.track,pitch:self.pitch,value}}
++    }
++}
++
+ pub struct Engine {
++    /// Explicit clip-only channel-1 destinations. Legacy Sets default off.
++    pub drum_outputs: u16,
+     /// Sparse recipes indexed by the existing raw song press, never clip copies.
+     pub song_sections: std::collections::BTreeMap<usize, SongSection>,
+     song_epoch: u64,
+@@ -465,6 +481,7 @@ impl Engine {
+             rng_state: 0x9E3779B97F4A7C15,
+             swing_pct: 50,
+             emitting_clock: false,
++            drum_outputs: 0,
+             track_drum: [false; NUM_TRACKS],
+             ext_running: false,
+             ext_awaiting_first: false,
+@@ -494,8 +511,20 @@ impl Engine {
+         }
+     }
+ 
++    pub fn drum_output(&self, track:usize) -> bool {
++        track < NUM_TRACKS && self.drum_outputs & (1 << track) != 0
++    }
++    pub fn set_drum_output(&mut self, track:usize, enabled:bool, out:&mut Vec<OutEvent>) -> bool {
++        if ![4,8,12].contains(&track) || (enabled && self.source_routes[track].enabled) {return false;}
++        if self.drum_output(track) != enabled {
++            self.flush_track_gates(track,out);
++            if enabled {self.drum_outputs |= 1 << track;} else {self.drum_outputs &= !(1 << track);}
++            self.dirty=true;
++        }
++        true
++    }
+     pub fn track_is_drum(&self, track: usize) -> bool {
+-        track < NUM_TRACKS && self.track_drum[track]
++        track < NUM_TRACKS && (self.track_drum[track] || self.drum_output(track))
+     }
+ 
+     /// Clip transpose in effect for a track's clip — 0 on a drum track, whose
+@@ -1206,8 +1235,7 @@ impl Engine {
+     fn flush_gates(&mut self, out: &mut Vec<OutEvent>) {
+         for track in 0..self.tracks.len(){self.grid_release(track,out);}
+         for g in self.gates.drain(..) {
+-            out.push(if g.rendered {OutEvent::RenderedOff {track:g.track,pitch:g.pitch}}
+-                else {OutEvent::NoteOff {track:g.track,pitch:g.pitch}});
++            out.push(g.off_event());
+         }
+     }
+ 
+@@ -1220,8 +1248,7 @@ impl Engine {
+         while gi < self.gates.len() {
+             if self.gates[gi].track as usize == track {
+                 let g = self.gates.swap_remove(gi);
+-                out.push(if g.rendered {OutEvent::RenderedOff {track:g.track,pitch:g.pitch}}
+-                    else {OutEvent::NoteOff {track:g.track,pitch:g.pitch}});
++                out.push(g.off_event());
+                 continue; // re-examine the element swapped into this slot
+             }
+             gi += 1;
+@@ -2376,8 +2403,7 @@ impl Engine {
+                 gi += 1;
+             } else {
+                 let g = self.gates.swap_remove(gi);
+-                out.push(if g.rendered {OutEvent::RenderedOff {track:g.track,pitch:g.pitch}}
+-                    else {OutEvent::NoteOff {track:g.track,pitch:g.pitch}});
++                out.push(g.off_event());
+             }
+         }
+         self.master_tick += 1;
+@@ -2446,8 +2472,7 @@ impl Engine {
+                 self.gates[gi].ticks_left -= 1;
+                 if self.gates[gi].ticks_left == 0 {
+                     let g = self.gates.swap_remove(gi);
+-                    out.push(if g.rendered {OutEvent::RenderedOff {track:g.track,pitch:g.pitch}}
+-                        else {OutEvent::NoteOff {track:g.track,pitch:g.pitch}});
++                    out.push(g.off_event());
+                     continue; // re-examine the element swapped into this slot
+                 }
+             }
+@@ -2457,7 +2482,7 @@ impl Engine {
+                 while let Some(&(offset,value))=gate.pressure.get(gate.pressure_index) {
+                     if offset>gate.elapsed { break; }
+                     if !self.tracks[gate.track as usize].muted {
+-                        out.push(OutEvent::PolyPressure {track:gate.track,pitch:gate.pitch,value});
++                        out.push(gate.pressure_event(value));
+                     }
+                     gate.pressure_index+=1;
+                 }
+@@ -2482,10 +2507,10 @@ impl Engine {
+             if self.hb_rhythm_cycle[ti].map_or(true, |(old_slot,old_pos)|old_slot!=slot || pos<=old_pos) {self.hb_rhythm_active[ti]=self.hb_rhythm[ti];}
+             self.hb_rhythm_cycle[ti]=Some((slot,pos));
+             let clip = &self.tracks[ti].clips[slot];
+-            let hb_rhythm=if self.recording && self.records_track(ti) {Default::default()} else {self.hb_rhythm_active[ti]};
++            let hb_rhythm=if self.drum_output(ti) || (self.recording && self.records_track(ti)) {Default::default()} else {self.hb_rhythm_active[ti]};
+             let hb_rhythm_start=clip.loop_start_ticks();
+             let request=self.hb_performance[ti].winner(slot).or_else(||self.grid_performance[ti].winner(slot));
+-            let request=request.filter(|(_,gesture)|gesture.operation==65 && !joint_recording_here);
++            let request=request.filter(|(_,gesture)|gesture.operation==65 && !joint_recording_here && !self.drum_output(ti));
+             let donor=request.and_then(|(_,gesture)|usize::try_from(gesture.amount-1).ok())
+                 .and_then(|track|self.tracks.get(track))
+                 .and_then(|track|track.playing_slot.map(|slot|(slot,&track.clips[slot])));
+@@ -2493,7 +2518,7 @@ impl Engine {
+             let hb_window = self.hb_performance[ti].advance(slot,clip.loop_start_ticks(),clip.length_ticks(),pos)
+                 .or_else(||self.grid_performance[ti].advance(slot,clip.loop_start_ticks(),clip.length_ticks(),pos))
+                 .or_else(||self.source_gesture_window(ti,slot,pos));
+-            let hb_window=if request.is_some() {weave.map(|(window,_)|window)} else {hb_window};
++            let hb_window=if self.drum_output(ti) {None} else if request.is_some() {weave.map(|(window,_)|window)} else {hb_window};
+             let mut source_duration: Option<u32> = None;
+             if !muted {
+                     let len = self.tracks[ti].clips[slot].notes.len();
+@@ -6588,7 +6613,7 @@ impl Engine {
+     fn shared_track(&mut self,track:usize,out:&mut Vec<OutEvent>){
+         if self.recording&&self.records_track(track){return;}
+         for kind in 0..3 {
+-            let next=if self.playing {
++            let next=if self.playing && !self.drum_output(track) {
+                 self.tracks[track].playing_slot.and_then(|slot|{
+                     let clip=&self.tracks[track].clips[slot];
+                     crate::shared_context::at(&clip.shared_events,kind as u8,self.tracks[track].pos_tick,clip.loop_start_ticks(),clip.length_ticks())
+@@ -6905,14 +6930,14 @@ impl Engine {
+                         if !n.rendered && self.song_clip_rest(ti) { return; }
+                         let mut n = n;
+                         let mut gate_override = gate_override;
+-                        if let Some(recipe)=self.tracks[ti].clips[self.recipe_slot(ti)].recipe.as_ref() {
++                        if let Some(recipe)=self.tracks[ti].clips[self.recipe_slot(ti)].recipe.as_ref().filter(|_|!self.drum_output(ti)) {
+                             let duration=gate_override.unwrap_or_else(||hb_window.map_or(n.gate.max(1),|window|window.duration(n.gate)));
+                             gate_override=Some(((duration as u64*recipe.gate as u64)/100).clamp(1,u32::MAX as u64) as u32);
+                         }
+                         let mut modified = modified;
+                         // Conductor/rendered notes and the active recording path remain exact.
+                         let config = self.variations[ti];
+-                        if config.amount > 0 && self.follower_inputs[ti].is_some() && !n.rendered
++                        if !self.drum_output(ti) && config.amount > 0 && self.follower_inputs[ti].is_some() && !n.rendered
+                             && !(self.recording && self.records_track(ti)) {
+                             let clock_slot = self.tracks[clock_track].playing_slot.unwrap_or(slot);
+                             let phase = self.source_positions[clock_track];
+@@ -6928,7 +6953,7 @@ impl Engine {
+                             modified = true;
+                         }
+                         let shape = self.song_shape();
+-                        if shape != SectionShape::default() && self.follower_inputs[ti].is_some() && !n.rendered
++                        if !self.drum_output(ti) && shape != SectionShape::default() && self.follower_inputs[ti].is_some() && !n.rendered
+                             && !(self.recording && self.records_track(ti)) {
+                             let clock_slot = self.tracks[clock_track].playing_slot.unwrap_or(slot);
+                             let phase = self.source_positions[clock_track];
+@@ -6960,7 +6985,7 @@ impl Engine {
+                             crate::recorded_actions::piano_emit(n.pitch, normal_emit, n.actions,
+                                 n.input_key, self.follower_inputs[ti], self.clip_transpose(source_track, slot))
+                         };
+-                        if !n.rendered && self.follower_inputs[ti].is_some() {
++                        if !self.drum_output(ti) && !n.rendered && self.follower_inputs[ti].is_some() {
+                             let (degree,target)=match (n.input_key,self.follower_inputs[ti]) {
+                                 (Some(source),Some(target)) if self.clip_transpose(source_track,slot)==source.transpose as i32=>source.role(n.pitch,target),
+                                 _=>(-1,-1),
+@@ -6976,11 +7001,10 @@ impl Engine {
+                             if gate.track == ti as u8 && gate.pitch == emit_pitch && gate.rendered == n.rendered
+                                 && (modified || hb_window.is_some() || hb_rhythm.enabled() || gate.hb_modified) {
+                                 let gate = self.gates.remove(index);
+-                                out.push(if gate.rendered {OutEvent::RenderedOff {track:gate.track,pitch:gate.pitch}}
+-                                    else {OutEvent::NoteOff {track:gate.track,pitch:gate.pitch}});
++                                out.push(gate.off_event());
+                             } else { index += 1; }
+                         }
+-                        if !n.rendered && source_track==ti {
++                        if !self.drum_output(ti) && !n.rendered && source_track==ti {
+                             let clip=&self.tracks[source_track].clips[slot];
+                             if let Ok(index)=clip.shared_events.binary_search_by_key(&(0,n.tick),|event|(event.kind,event.tick)) {
+                                 let event=clip.shared_events[index];
+@@ -6989,16 +7013,18 @@ impl Engine {
+                                 }
+                             }
+                         }
+-                        out.push(OutEvent::RecordedActions {track:ti as u8,pitch:emit_pitch,actions:if n.rendered {None} else {emitted_actions}});
+-                        out.push(if n.rendered {OutEvent::RenderedOn {track:ti as u8,pitch:emit_pitch,vel:n.vel}}
++                        if !self.drum_output(ti) {out.push(OutEvent::RecordedActions {track:ti as u8,pitch:emit_pitch,actions:if n.rendered {None} else {emitted_actions}});}
++                        out.push(if self.drum_output(ti) {OutEvent::DrumMidi{status:0x90,pitch:emit_pitch,value:n.vel}}
++                            else if n.rendered {OutEvent::RenderedOn {track:ti as u8,pitch:emit_pitch,vel:n.vel}}
+                             else {OutEvent::NoteOn {track:ti as u8,pitch:emit_pitch,vel:n.vel}});
+                         let mut pressure_index=0;
+                         while let Some(&(offset,value))=n.pressure.get(pressure_index) {
+                             if offset>0 { break; }
+-                            out.push(OutEvent::PolyPressure {track:ti as u8,pitch:emit_pitch,value});
++                            out.push(if self.drum_output(ti) {OutEvent::DrumMidi{status:0xa0,pitch:emit_pitch,value}} else {OutEvent::PolyPressure {track:ti as u8,pitch:emit_pitch,value}});
+                             pressure_index+=1;
+                         }
+                         self.gates.push(Gate {
++                            drum: self.drum_output(ti),
+                             clock_track: clock_track as u8,
+                             pressure:n.pressure.into_iter().map(|(offset,value)|
+                                 (hb_window.map_or(offset,|window| if offset==0 {0} else {window.duration(offset)}),value)).collect(),
+@@ -7075,6 +7101,7 @@ impl Engine {
+ 
+     pub fn source_route_set(&mut self, message: &str) -> bool {
+         let Some((actor, route))=crate::source_route::Route::parse(message) else {return false;};
++        if route.enabled && self.drum_output(actor) {return false;}
+         if self.source_routes[actor] != route {
+             let previous=self.source_routes[actor];
+             if previous.pitch!=route.pitch || previous.rhythm!=route.rhythm || previous.alignment!=route.alignment || previous.enabled!=route.enabled {
+@@ -8814,3 +8841,63 @@ include!("song_sections_tests.rs");
+         assert_eq!(engine.tracks[0].clips[0].notes[0].actions,Some(actions));
+     }
+ }
++
++#[cfg(test)] mod drum_destination_tests {
++    use super::*;
++    use crate::{command::apply_batch,persist};
++    fn fixture(track:usize)->Engine {
++        let mut engine=Engine::new(44100,12000);
++        engine.link_enabled=false;
++        engine.tracks[track].active_mut().set_loop(0,16);
++        engine.tracks[track].active_mut().toggle_step(0,&[(38,101)]);
++        engine.tracks[track].active_mut().notes[0].gate=200;
++        engine.tracks[track].active_mut().notes[0].pressure=vec![(0,30),(2,77)];
++        engine.tracks[track].active_mut().transpose=12;
++        engine
++    }
++    #[test] fn destinations_preserve_samples_and_onset_owned_releases() {
++        for track in [4,8,12] {for rendered in [false,true] {
++            let mut engine=fixture(track);let mut output=Vec::new();
++            engine.tracks[track].active_mut().notes[0].rendered=rendered;
++            engine.tracks[track].active_mut().notes[0].input_key=Some(crate::follower_input::InputKey{root:0,scale:0,transpose:0});
++            assert!(engine.set_drum_output(track,true,&mut output));
++            engine.set_track_drum(track,false); // Later synth identity cannot cancel explicit routing.
++            engine.play();engine.step_tick(track,&mut output);
++            assert!(output.contains(&OutEvent::DrumMidi{status:0x90,pitch:38,value:101}));
++            assert!(output.contains(&OutEvent::DrumMidi{status:0xa0,pitch:38,value:30}));
++            assert!(!output.iter().any(|event|matches!(event,OutEvent::NoteOn{..}|OutEvent::RenderedOn{..}|OutEvent::RecordedActions{..}|OutEvent::InputRole{..})));
++            output.clear();engine.step_tick(track,&mut output);engine.step_tick(track,&mut output);
++            assert!(output.contains(&OutEvent::DrumMidi{status:0xa0,pitch:38,value:77}));
++            output.clear();assert!(engine.set_drum_output(track,false,&mut output));
++            assert_eq!(output.iter().filter(|event|matches!(event,OutEvent::DrumMidi{status:0x80,pitch:38,..})).count(),1);
++            output.clear();engine.stop(&mut output);
++            assert!(!output.iter().any(|event|matches!(event,OutEvent::DrumMidi{..})));
++            assert_eq!(engine.tracks[track].active().notes[0].pitch,38);
++        }}
++    }
++    #[test] fn legacy_load_invalid_routes_and_undo_are_safe() {
++        let mut engine=fixture(4);let mut output=Vec::new();
++        let original=persist::serialize(&engine);
++        apply_batch(&mut engine,"usnap 1;drumout 4 1;drumout 8 1;drumout 12 1",&mut output);
++        let saved=persist::serialize(&engine);assert_eq!(engine.drum_outputs,0x1110);
++        for track in [0,1,3,5,15,16,usize::MAX] {assert!(!engine.set_drum_output(track,true,&mut output));}
++        let mut restored=Engine::new(44100,12000);assert!(persist::load(&mut restored,&saved));assert_eq!(restored.drum_outputs,0x1110);
++        apply_batch(&mut engine,"uswap 1 2",&mut output);assert_eq!(engine.drum_outputs,0);
++        apply_batch(&mut engine,"uswap 2 3",&mut output);assert_eq!(engine.drum_outputs,0x1110);
++        assert!(persist::load(&mut restored,&original));assert_eq!(restored.drum_outputs,0);
++        assert!(restored.source_route_set("4 1 -1 -1 -1 -1 0"));
++        assert!(!restored.set_drum_output(4,true,&mut output));
++        assert!(restored.set_drum_output(8,true,&mut output));
++        assert!(!restored.source_route_set("8 1 -1 -1 -1 -1 0"));
++    }
++    #[test] fn stop_mute_scene_and_undo_release_the_drum_destination() {
++        for command in ["stop","mute 4 1","stoptrk 4","uswap 1 2"] {
++            let mut engine=fixture(4);let mut output=Vec::new();
++            apply_batch(&mut engine,"usnap 1;drumout 4 1",&mut output);
++            engine.play();engine.step_tick(4,&mut output);output.clear();
++            apply_batch(&mut engine,command,&mut output);
++            if command.starts_with("stoptrk") {for _ in 0..800 {engine.advance_block(128,&mut output);}}
++            assert!(output.contains(&OutEvent::DrumMidi{status:0x80,pitch:38,value:0}),"{command}: {output:?}");
++        }
++    }
++}
+diff --git a/engine/crates/seq-core/src/persist.rs b/engine/crates/seq-core/src/persist.rs
+index 8d155f07..a57d02eb 100644
+--- a/engine/crates/seq-core/src/persist.rs
++++ b/engine/crates/seq-core/src/persist.rs
+@@ -55,6 +55,7 @@ pub fn serialize(engine: &Engine) -> String {
+     for (actor, route) in engine.source_routes.iter().enumerate() {
+         if *route != Default::default() {s.push_str(&format!("sr {}\n",route.message(actor)));}
+     }
++    for track in [4,8,12] {if engine.drum_output(track) {s.push_str(&format!("drumout {} 1\n",track));}}
+     for (ti, t) in engine.tracks.iter().enumerate() {
+         s.push_str(&format!("tk {} {} {}\n", ti, t.active_clip, t.muted as u8));
+         if let Some(settings)=engine.recipe_bases[ti] {s.push_str(&format!("pb1 {} {}\n",ti,settings.wire()));}
+@@ -140,6 +141,7 @@ pub fn load(engine: &mut Engine, data: &str) -> bool {
+     if lines.next().map(str::trim) != Some(FORMAT_TAG) {
+         return false;
+     }
++    engine.drum_outputs=0;
+     engine.recipe_bases.fill(None);
+     engine.host_transport_attached = false;
+     engine.source_routes.fill(Default::default());
+@@ -230,6 +232,11 @@ pub fn load(engine: &mut Engine, data: &str) -> bool {
+                 }
+             }
+             Some("variation") => {engine.variation_set(&it.collect::<Vec<_>>().join(" "));}
++            Some("drumout") => {
++                if let (Some(track),Some("1"))=(it.next().and_then(|value|value.parse::<usize>().ok()),it.next()) {
++                    if [4,8,12].contains(&track) && !engine.source_routes[track].enabled {engine.drum_outputs |= 1 << track;}
++                }
++            }
+             Some("sr") => {engine.source_route_set(&it.collect::<Vec<_>>().join(" "));}
+             Some("swing") => {
+                 if let Some(v) = it.next().and_then(|x| x.parse::<u32>().ok()) {
+diff --git a/src/seq/clips-layout.ts b/src/seq/clips-layout.ts
+index 73d20be3..7f25301e 100644
+--- a/src/seq/clips-layout.ts
++++ b/src/seq/clips-layout.ts
+@@ -1,4 +1,5 @@
+ /** Presentation only: no chain-role, transport or scene mutations. */
++import { turnDrumOutput } from './drum-output.js';
+ import { appState } from '../app/state.js';
+ import { markUiStateDirty } from './ui-dirty.js';
+ 
+@@ -37,6 +38,7 @@ export function clipsRowTrack(rowFromBottom: number): number {
+ }
+ export function clipsKnobTrack(): number { return clipsRoleTrack(layout.knobRow); }
+ export function turnClipsSetting(knob: number, delta: number): void {
++    if (knob === 3) {turnDrumOutput(delta);return;}
+     if (!delta || knob < 0 || knob > 2) return;
+     const direction = Math.sign(delta);
+     if (knob < 2) {
+diff --git a/src/seq/clips-settings.ts b/src/seq/clips-settings.ts
+index 6391e4a3..5af0d7a3 100644
+--- a/src/seq/clips-settings.ts
++++ b/src/seq/clips-settings.ts
+@@ -1,4 +1,5 @@
+ /** Clips keeps its performance screen; setup uses the shared settings controller. */
++import { drumOutputLabel, turnDrumOutput } from './drum-output.js';
+ import {createSchwungPage, type SchwungPage} from '../renderer/schwung-page.js';
+ import {portFor} from '../track/registry.js';
+ import {appState} from '../app/state.js';
+@@ -6,7 +7,8 @@ import {clipsSnapshot, turnClipsSetting} from './clips-layout.js';
+ const controls=[
+     {key:'clips_row',name:'Top Pad Row',options:['Bank','Conductor','Drums']},
+     {key:'clips_touch',name:'Knob Touch Row',options:['Normal','Conductor','Drums']},
+-    {key:'clips_drums',name:'Drum Track',options:['5','9','13']}
++    {key:'clips_drums',name:'Drum Track',options:['5','9','13']},
++    {key:'clips_output',name:'Drum Clip Out',options:['Chain','Drum Ch 1']}
+ ];
+ let page:SchwungPage|null=null;
+ export function clipsSettingsPage():SchwungPage{
+@@ -19,6 +21,7 @@ export function clipsSettingsPage():SchwungPage{
+         if(bare==='ui_hierarchy')return JSON.stringify({levels:{root:{name:'Clips Settings',knobs:controls.map(control=>control.key),params:controls.map(control=>({key:control.key}))}}});
+         if(key.endsWith(':modulated'))return '0';
+         const index=controls.findIndex(control=>control.key===bare);if(index<0)return native.getParam(key);
++        if(index===3)return drumOutputLabel();
+         const layout=clipsSnapshot(),value=[layout.topRow,layout.knobRow,[4,8,12].indexOf(layout.drumTracks[appState.focusGroup])][index];
+         return controls[index].options[value];
+     };
+@@ -26,6 +29,7 @@ export function clipsSettingsPage():SchwungPage{
+         const index=controls.findIndex(control=>control.key===key.split(':').pop());if(index<0)return false;
+         const target=controls[index].options.indexOf(value),current=controls[index].options.indexOf(getParam(key)??'');
+         if(target<0||current<0)return false;
++        if(index===3){turnDrumOutput(target-current);return true;}
+         for(let step=0;step<Math.abs(target-current);step++)turnClipsSetting(index,Math.sign(target-current));
+         return true;
+     };
+diff --git a/src/seq/clips-view.ts b/src/seq/clips-view.ts
+index 85784fd6..0104ef23 100644
+--- a/src/seq/clips-view.ts
++++ b/src/seq/clips-view.ts
+@@ -86,7 +86,7 @@ export function clipsSlotStatus(track: number, slot: number): string {
+ export function renderClipsKnobs(): void {
+     const track = clipsKnobTrack();
+     const colors = Array.from({length: 8}, (_, slot) => {
+-        if (clipsPage === 1) return slot < 3 ? 120 : 0;
++        if (clipsPage === 1) return slot < 4 ? 120 : 0;
+         if (track < 0) return 0;
+         const state = seqState.session[track];
+         return state.queued === slot ? 120 : sessionCellColor({track,
+@@ -102,7 +102,7 @@ export function renderClips(): void {
+     drawHeader(clipsPage === 1 ? 'Clips Setup' : 'Clips', `Bank ${bank + 1}/4${seqState.recording ? ' REC' : ''}`);
+     const line = (y: number, text: string): void => fontPrint(2, y, fitHeaderText(text, 124), 1);
+     if (clipsPage === 1) {
+-        const settings=clipsSettingsPage();settings.ctl.revalue();settings.tick();settings.render('Clips');line(43,'Launch: bar / now');line(51,'Tap playing: relaunch');line(58,'Jog > Master / Back');
++        const settings=clipsSettingsPage();settings.ctl.revalue();settings.tick();settings.render('Clips');line(43,'Drum Out: clips only');line(51,'Launch: bar / now');line(58,'Jog > Master / Back');
+     } else {
+         line(12, 'Pads: ' + [3, 2, 1, 0].map(row => clipsRowTrack(row) + 1).join('/'));
+         const track = clipsKnobTrack();
+diff --git a/src/seq/constants.ts b/src/seq/constants.ts
+index cc1fc851..348be0d5 100644
+--- a/src/seq/constants.ts
++++ b/src/seq/constants.ts
+@@ -36,7 +36,7 @@ export const MAIN_PAGE_STEPS: Record<number, number> = { 4: 0, 6: 0, 8: 0 };
+  * build-dsp.sh fails the build when they diverge. The UI re-issues the DSP
+  * load until ping returns this exact version (fixes the fire-and-forget
+  * load race and stale engines after redeploy). */
+-export const ENGINE_VERSION = '0.71.0-part-library1';
++export const ENGINE_VERSION = '0.72.0-drum-output1';
+ export const ENGINE_DSP_PATH = '/data/UserData/schwung/modules/tools/movy/dsp.so';
+ 
+ /* Where the engine finds schwung's chain host, and where it may keep its own
+diff --git a/src/seq/drum-output.ts b/src/seq/drum-output.ts
+new file mode 100644
+index 00000000..bf53df92
+--- /dev/null
++++ b/src/seq/drum-output.ts
+@@ -0,0 +1,23 @@
++/** Clip-only routing: engine persistence and Undo own the actual destination. */
++import {appState} from '../app/state.js';
++import {seqState} from './state.js';
++import {clipsSnapshot} from './clips-layout.js';
++import {engineReady,seqCmdFlush} from './engine.js';
++import {undoableEdit} from '../undo/edit.js';
++import {seqEdit} from '../undo/record.js';
++import {seqToast} from './render.js';
++export function drumOutputTrack():number {return clipsSnapshot().drumTracks[appState.focusGroup];}
++export function drumOutputLabel():string {return seqState.drumOutputs&(1<<drumOutputTrack())?'Drum Ch 1':'Chain';}
++export function turnDrumOutput(delta:number):void {
++    if(!delta||!engineReady())return;
++    const track=drumOutputTrack(),enabled=delta>0;
++    if(enabled===!!(seqState.drumOutputs&(1<<track)))return;
++    if(enabled) {
++        const route=host_module_get_param('source_route_'+track)?.trim().split(/\s+/);
++        if(route?.[1]==='1'){seqToast('Disable Source Weaving first');return;}
++    }
++    undoableEdit('DRUM CLIP OUT','Track '+(track+1),()=>seqEdit('drumout '+track+' '+Number(enabled)));
++    seqCmdFlush();
++    if(enabled)seqState.drumOutputs|=1<<track;else seqState.drumOutputs&=~(1<<track);
++    appState.dirty=true;
++}
+diff --git a/src/seq/engine.ts b/src/seq/engine.ts
+index e52ff607..6bbaa6a0 100644
+--- a/src/seq/engine.ts
++++ b/src/seq/engine.ts
+@@ -321,6 +321,7 @@ function parseStatus(s: string): void {
+     /* Cleared each poll rather than only overwritten: an engine that predates
+      * the fields sends none of them, and last poll's numbers standing in for
+      * this one is exactly the meter lying. */
++    seqState.drumOutputs = 0;
+     seqState.cpuIdle = '';
+     seqState.cpuPressure = '';
+     seqState.cpuThread = '';
+@@ -338,7 +339,8 @@ function parseStatus(s: string): void {
+         if (eq <= 0) continue;
+         const key = kv.slice(0, eq);
+         const val = kv.slice(eq + 1);
+-        if (key === 'play') seqState.playing = val === '1';
++        if (key === 'drumout') seqState.drumOutputs = (Number(val)||0)&0x1110;
++        else if (key === 'play') seqState.playing = val === '1';
+         else if (key === 'tick') {
+             seqState.engineTick = Number(val) || 0;
+             visualClockSampleAt = Date.now();
+diff --git a/src/seq/state.ts b/src/seq/state.ts
+index e0ea8608..56acc3fd 100644
+--- a/src/seq/state.ts
++++ b/src/seq/state.ts
+@@ -8,6 +8,7 @@ import { TRACK_COUNT } from '../track/ref.js';
+ import { readPrefFullVelocity, writePrefFullVelocity } from './prefs.js';
+ 
+ export interface SeqUiState {
++    drumOutputs: number;
+     /* engine link */
+     engineOk: boolean;       // a status poll has succeeded this session
+     playing: boolean;        // transport running
+@@ -135,6 +136,7 @@ function emptySession(): SessionTrack[] {
+ 
+ function defaults(): SeqUiState {
+     return {
++        drumOutputs: 0,
+         engineOk: false,
+         playing: false,
+         engineTick: 0,
+diff --git a/src/undo/verbs.ts b/src/undo/verbs.ts
+index 62afbb96..5078f92d 100644
+--- a/src/undo/verbs.ts
++++ b/src/undo/verbs.ts
+@@ -21,7 +21,7 @@ export const UNDOABLE_VERBS: string[] = [
+     // automation edits
+     'aset', 'asetr', 'aclr', 'aclrs', 'aclrstep',
+     // set-level settings
+-    'mute', 'bpm', 'swing', 'source', 'variation', 'songsection', 'songsectionclear',
++    'drumout', 'mute', 'bpm', 'swing', 'source', 'variation', 'songsection', 'songsectionclear',
+     /* Retroactive capture writes the buffered phrase into the clip, and a
+      * tempo re-selection rewrites it — both are edits. `capclr`/`capdone` only
+      * touch the runtime input buffer and the overlay, so they stay control. */
