@@ -142,8 +142,9 @@ assert(module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_st
 assert(module.capabilities.ui_hierarchy.levels.arp_player.knobs.includes('arp_clear'));
 assert(!module.capabilities.ui_hierarchy.levels.follower_play_tools.knobs.includes('arp_clear'));
 assert(module.capabilities.ui_hierarchy.levels.chord_player.knobs.includes('strum_spread'));
-assert.equal(module.capabilities.ui_hierarchy.levels.chord_player.knobs.length,7);
+assert.equal(module.capabilities.ui_hierarchy.levels.chord_player.knobs.length,8);
 assert(module.capabilities.ui_hierarchy.levels.chord_player.knobs.includes('chord_extensions'));
+assert(module.capabilities.ui_hierarchy.levels.chord_player.knobs.includes('chord_register'));
 
 const { releasePerformanceTouch, performanceTouchActive } = await import('../dist/esm/renderer/schwung-page.js');
 const performanceSlot = focusKey('play_bypass');

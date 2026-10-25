@@ -94,6 +94,14 @@ const legacy=structuredClone(persistence);delete legacy.colorView;for(const slot
 chord.restoreChord(legacy);assert.equal(chord.chordSnapshot().colorView,0);assert(chord.chordSnapshot().slots.every(slot=>slot.enabled===1));
 console.log('Chord colors: native quality/intent families, binary chromatic brightness, actual harmony, matching knobs, bounded reads, disabled slots and legacy migration pass');
 
+// Queue membership comes from the same bank snapshot; both physical surfaces pulse.
+chord.setChordEnabled(true);colorPort=chord.chordPanelPort(3);colorPort.getParam('midi_fx1:chain_params');colorPort.setParam('midi_fx1:cp_play_mode','Queued');
+rows[1].push(1);bankFrame=frame(rows[3].slice(0,6));now+=300;chord.tickChord();
+assert(chord.chordSlotQueued(1));assert(!chord.chordSlotQueued(0));
+page=chord.chordPage();find('cp_slot_0');const {seqLedsInvalidate}=await import('../dist/esm/seq/led-cache.js');seqLedsInvalidate();ledPackets.length=0;for(let frame=0;frame<3;frame++){ledFrameReset();chord.paintChordSteps();}
+for(const address of [17,1,72])assert(ledPackets.some(packet=>packet[2]===address&&packet[3]===0&&(packet[1]&15)!==0),'queued step and both knob LED addresses pulse');
+chord.harmonyOff();assert(!chord.chordSlotQueued(1));
+
 // A regular step painter must recover after Chord Play's animated-address writer.
 {
  const leds=await import('../dist/esm/seq/led-cache.js');
@@ -123,7 +131,7 @@ chord.restoreChord(null);selectTrack(3);seqState.sessionMode=false;chord.setChor
 page=chord.chordPage();find('cp_slot_14');
 assert.equal(page.keyAt(7),'cp_off');chord.chordMidi([144,0,100]);chord.chordMidi([128,0,0]);
 assert.equal(engine.params.chord_select,'0,0,0,0,1,0,1,12,13,0');
-chord.chordMidi([144,7,100]);assert.equal(engine.params.chord_select,'off');chord.chordMidi([128,7,0]);
+chord.chordMidi([144,7,100]);assert.notEqual(engine.params.chord_select,'off');chord.chordMidi([128,7,0]);assert.equal(engine.params.chord_select,'off');
 chord.chordMidi([144,0,100]);assert.notEqual(engine.params.chord_select,'off','same chord remains a retrigger');chord.chordMidi([128,0,0]);
 const edited=chord.chordSnapshot();edited.slots[0].root=5;edited.slots[0].intent=0;chord.restoreChord(edited);chord.setChordEnabled(true);
 selectTrack(4);assert.equal(chord.chordSnapshot().slots[0].root,5,'manual definitions are global across melody tracks');
@@ -143,11 +151,11 @@ portFor(4).setParam('midi_fx1:sounding_key','C Major');
 seqState.playing=false;now+=250;
 const status=field=>statusPort.getParam('midi_fx1:cp_status_'+field);
 const untouched=writes.length;
-assert.equal(status('effective'),'F:A','uses the melody actor effective harmony, including native lookahead');
+assert.equal(status('effective'),'F/A','uses the melody actor effective harmony, including native lookahead');
 assert.equal(status('override'),'On');assert.equal(status('next'),'--','stopped transport never presents a cached next chord');
 assert.equal(status('handoff'),'Off button');
 seqState.playing=true;
-assert.equal(status('next'),'G7:B','transport changes invalidate the status cache immediately');
+assert.equal(status('next'),'G7/B','transport changes invalidate the status cache immediately');
 assert.equal(status('handoff'),'Next event');
 let statusReads=0;const owner=portFor(0),readMany=owner.getMany;
 owner.getMany=(...args)=>{statusReads++;return readMany(...args);};
@@ -182,7 +190,7 @@ try {
  find('cp_status_effective');page.ctl.state.touched=-1;page.ctl.state.peek=null;
  chord.renderChord();const overviewPixels=pixels.slice();
  assert(overviewPixels.slice(10*128,12*128).every(pixel=>pixel===0),'overview clears the underlying knob-box borders');
- clear_screen();const {fontPrint:print}=await import('../dist/esm/font/index.js');print(1,12,'Sounds F:A',1);
+ clear_screen();const {fontPrint:print}=await import('../dist/esm/font/index.js');print(1,12,'Sounds F/A',1);
  assert.deepEqual(overviewPixels.slice(12*128,17*128),pixels.slice(12*128,17*128),'overview uses full-width harmony text instead of truncated knob boxes');
  assert.equal(chord.chordContextTrail(),'Chord>Cond K8:Off');
  find('cp_slot_7');page.ctl.state.touched=-1;page.ctl.state.peek=null;

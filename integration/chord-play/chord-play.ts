@@ -7,6 +7,12 @@ import {recordParamOp,recordUiOp} from '../undo/record.js';
 import { returnPreviousInputView } from './router-buttons.js';
 import { sharedPanel } from './shared-panel.js';
 const followPanel=sharedPanel();
+import {TouchSequence} from './touch-sequence.js';
+const queuePhrase=new TouchSequence<number>();
+function beginQueuePhrase(control:number,index:number):void {if(setup.playMode&&portFor(conductorTrackForQueue()).getParam('midi_fx1:chord_queue_depth')==='Touch Phrase')queuePhrase.begin(control,index);}
+function conductorTrackForQueue():number {return setup.conductor;}
+import {queueFooterText,drawHarmonyFooter} from '../renderer/hb-footer.js';
+import {ANIM_PULSE_SLOW} from './colors.js';
 /** Chord slots choose conductor harmony; the comp actor owns rhythm and sound. */
 import { appState } from '../app/state.js';
 import { selectTrack } from '../track/focus.js';
@@ -40,9 +46,9 @@ const notes=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
 const qualities=['Auto','Major','Minor','Dim','Aug','Maj7','Dom7','Min7','Half Dim7','Dim7','MinMaj7','AugMaj7','Dom7b5'];
 const forms=['Auto','Power','Triad','Seventh','Ninth','Add9','Sixth','6/9','Eleventh','Thirteenth','Sus2','Sus4','Shell 7','Shell 9','Shell 6/9','Rootless 7','Rootless 9'];
 // Shared HB scale indices, presented through the native parameter metadata below.
-type Slot={root:number;quality:number;form:number;policy:number;tonic:number;scale:number;bass:number;intent:number;target:number;enabled:number};
+type Slot={range:number;root:number;quality:number;form:number;policy:number;tonic:number;scale:number;bass:number;intent:number;target:number;enabled:number};
 type Setup={playMode:number;directRender:string|null;conductor:number;comp:number;bass:number;bassClip:boolean;source:number;selected:number;colorView:number;slots:Slot[]};
-const defaultSlots=():Slot[]=>Array.from({length:21},(_,index)=>({root:0,quality:0,form:0,policy:index>=14?1:3,tonic:0,scale:1,bass:12,intent:index<7?1:index<14?12:13,target:index%7,enabled:1}));
+const defaultSlots=():Slot[]=>Array.from({length:21},(_,index)=>({root:0,quality:0,form:0,policy:index>=14?1:3,tonic:0,scale:1,bass:12,intent:index<7?1:index<14?12:13,target:index%7,enabled:1,range:0}));
 const fresh=():Setup=>({playMode:0,directRender:null,conductor:0,comp:2,bass:1,bassClip:false,source:0,selected:0,colorView:0,slots:defaultSlots()});
 let setup=fresh(),enabled=false,page:SchwungPage|null=null,pageTrack=-1,activeSlot=-1,route='';
 let conductorRenders=false;
@@ -54,7 +60,8 @@ function refreshBank():void{
     const changed=wire!==bankWire||owner!==bankOwner;
     if(!changed&&now>=bankPollAt&&now-bankPollAt<(now<bankUrgentUntil?16:seqState.playing?50:250))return;
     bankPollAt=now;const port=portFor(owner);
-    const output=port.getParam('midi_fx1:render_channel');conductorRenders=!!output&&output!=='Off'&&output!=='--';
+    const previousRender=conductorRenders,output=port.getParam('midi_fx1:render_channel');conductorRenders=!!output&&output!=='Off'&&output!=='--';
+    if(previousRender!==conductorRenders)bankPageDirty=true;
     if(changed){port.setParam('midi_fx1:hb_chord_bank',wire);bankWire=wire;bankOwner=owner;}
     const raw=port.getParam('midi_fx1:hb_chord_bank_snapshot');if(raw==='--'){bankStatus=null;activeSlot=-1;return;}
     const next=parseChordBank(raw);
@@ -65,6 +72,43 @@ export function chordSlotColor(index:number):number{
     const matching=bankStatus?setup.slots.findIndex((candidate,other)=>candidate.enabled&&matchesHarmony(bankStatus!.slots[other],bankStatus!.active)):-1;
     const selected=bankStatus?(setup.slots[activeSlot]?.enabled&&matchesHarmony(bankStatus.slots[activeSlot],bankStatus.active)?activeSlot:matching):-1;
     return chordColor(status,slot.intent,setup.colorView,index===selected,!!slot.enabled);
+}
+export function chordSlotQueued(index:number):boolean{return !!setup.playMode&&!!setup.slots[index]?.enabled&&!!bankStatus?.slots[index]?.queued;}
+/** Shared defaults are native; slot overrides travel with each selected chord. */
+const rangeTouches=new Map<number,{shift:boolean;moved:boolean}>();
+const rangeTurns=new Map<number,{at:number;accum:number}>();
+function chordEvent(slot:Slot):number[]{return [slot.root,slot.quality,slot.form,slot.policy,slot.tonic,slot.scale,slot.bass,...(slot.intent||slot.range?[slot.intent,slot.target]:[]),...(slot.range?[slot.range]:[])];}
+function soundTrack():number {return !chordActive()||setup.source===0&&conductorRenders?conductorTrackForQueue():setup.comp;}
+function defaultRegister():number{const value=portFor(soundTrack()).getParam('midi_fx1:chord_register');return value==='Conductor'?(Number(portFor(conductorTrackForQueue()).getParam('midi_fx1:chord_register'))||0):Number(value)||0;}
+function setChordRegister(index:number|null,value:number|null):void {
+    const native=portFor(conductorTrackForQueue());
+    if(index===null)portFor(soundTrack()).setParam('midi_fx1:chord_register',value===null&&soundTrack()!==conductorTrackForQueue()?'Conductor':String(value??0));
+    else {const slot=setup.slots[index];slot.range=value===null?0:Math.max(-3,Math.min(3,value))+4;native.setParam('midi_fx1:hb_chord_range',chordEvent(slot).join(','));setup.selected=index;}
+    statusCache=null;bankPollAt=-Infinity;markUiStateDirty();appState.dirty=true;
+    const range=value===null?(index===null?'0':'Default'):String(value>0?'+'+value:value);
+    seqToast((index===null?'All chords':bankStatus?.slots[index]?.name??'Chord')+' Range '+range+(value===null&&index!==null?'':' Oct'));
+}
+function rangeControlMidi(data:number[],surface:SchwungPage|null):boolean {
+    if(!surface||surface.ctl.hbNavigation?.isMenu())return false;
+    const type=data[0]&240,control=data[1],value=data[2],turn=type===176&&control>=71&&control<=78;
+    const knob=turn?control-71:control;if(knob<0||knob>7)return false;
+    const key=surface.keyAt(knob)??'',match=/^cp_slot_(\d+)$/.exec(key);
+    if(!match&&key!=='cp_off')return false;
+    const index=match?Number(match[1]):null,down=type===144&&value>0,up=type===128||(type===144&&!value),now=Date.now();
+    if(turn){
+        const touched=rangeTouches.get(knob);if(touched)touched.moved=true;
+        const previous=rangeTurns.get(knob),delta=value<64?value:value-128;
+        const gesture={at:now,accum:(previous&&now-previous.at<600?previous.accum:0)+delta};
+        const steps=Math.trunc(gesture.accum/4);gesture.accum-=steps*4;rangeTurns.set(knob,gesture);
+        if(steps){const base=index===null?defaultRegister():setup.slots[index].range?setup.slots[index].range-4:defaultRegister();setChordRegister(index,Math.max(-3,Math.min(3,base+steps)));}
+        return true;
+    }
+    if(down){rangeTouches.set(knob,{shift:appState.shiftHeld,moved:now-(rangeTurns.get(knob)?.at??-Infinity)<180});return index===null||appState.shiftHeld;}
+    if(up){const touch=rangeTouches.get(knob);rangeTouches.delete(knob);
+        if(touch&&!touch.moved&&now-(rangeTurns.get(knob)?.at??-Infinity)>=180){if(touch.shift)setChordRegister(index,null);else if(index===null)harmonyOff();}
+        return index===null||!!touch?.shift;
+    }
+    return false;
 }
 let styleTouch:{key:number;control:string;moved:boolean}|null=null;
 const touches=new Map<number,SchwungPage>(),steps=new Set<number>(),controls=new Set<number>();
@@ -87,11 +131,12 @@ export function restoreChord(value:unknown):void{
         setup.bassClip=input.bassClip===true;
         if(setup.comp===setup.conductor)setup.comp=setup.conductor===2?3:2;
         if([setup.conductor,setup.comp].includes(setup.bass))setup.bass=Array.from({length:16},(_,index)=>index).find(track=>![setup.conductor,setup.comp].includes(track))!;
-        setup.slots=setup.slots.map((slot,index)=>{const saved=input.slots?.[index];if(saved&&typeof saved==='object'&&saved.intent===undefined){slot.intent=0;slot.target=0;}if(saved&&typeof saved==='object')for(const key of Object.keys(slot) as (keyof Slot)[]){const number=saved[key],limit=key==='quality'||key==='bass'?12:key==='form'?16:key==='policy'?3:key==='scale'?19:key==='target'?6:key==='enabled'?1:key==='intent'?13:11;if(Number.isInteger(number)&&number>=0&&number<=limit&&(key!=='scale'||number>=1))slot[key]=number;}return slot;});
+        setup.slots=setup.slots.map((slot,index)=>{const saved=input.slots?.[index];if(saved&&typeof saved==='object'&&saved.intent===undefined){slot.intent=0;slot.target=0;}if(saved&&typeof saved==='object')for(const key of Object.keys(slot) as (keyof Slot)[]){const number=saved[key],limit=key==='quality'||key==='bass'?12:key==='form'?16:key==='policy'?3:key==='scale'?19:key==='target'?6:key==='enabled'?1:key==='range'?7:key==='intent'?13:11;if(Number.isInteger(number)&&number>=0&&number<=limit&&(key!=='scale'||number>=1))slot[key]=number;}return slot;});
     }
     page=null;route='';resetBank();
 }
 export function releaseChordTouches():void{
+    if(queuePhrase.active)send('chord_queue','commit');queuePhrase.cancel();rangeTouches.clear();rangeTurns.clear();
     cancelPartReview();cancelMotifLoader(performanceOwner(setup.conductor));styleTouch=null;
     for(const [slot,owner] of touches)if(!releasePerformanceTouch(slot,true))owner.knobTouch(slot,false);
     for(const slot of controls)releasePerformanceTouch(slot,true);
@@ -107,20 +152,21 @@ export function setChordEnabled(value:boolean):void{
 export function selectChordSlot(index:number):void{
     if(!chordActive()||!engineReady()||!Number.isInteger(index)||index<0||index>=setup.slots.length)return;
     const slot=setup.slots[index];if(!slot.enabled)return;setup.selected=index;if(!setup.playMode)activeSlot=index;
-    send(setup.playMode?'chord_queue':'chord_select',[setup.conductor,slot.root,slot.quality,slot.form,slot.policy,slot.tonic,slot.scale,slot.bass,...(slot.intent?[slot.intent,slot.target]:[])].join(','));
+    send(setup.playMode?'chord_queue':'chord_select',[setup.conductor,...chordEvent(slot)].join(','));
     statusCache=null;bankPollAt=-Infinity;bankUrgentUntil=Date.now()+100; // Refresh accepted harmony on the next frame, not after the idle poll interval.
     if(setup.playMode)seqToast('Queued '+performanceStatus('queue_count')+' / '+performanceStatus('queue_next'));
     markUiStateDirty();appState.dirty=true;
 }
 const enumeration=(key:string,name:string,options:string[])=>({key,name,type:'enum',options,options_as_string:true,default:options[0]});
 const actorPanels=():[string,number,string[]][]=>[
-    ['Conductor',setup.conductor,['follower_touch','operations_9_16','motion_operation','motif_play','motif_global','motif_load','motif_targets','global_transpose','explicit_key','secondary_scale','chord_player','chord_forms','arp_player','rhythm_generate','rhythm_edit']],
-    ['Comp',setup.comp,['chord_player','chord_forms','arp_player','follower_source','follower_play','rhythm_generate','rhythm_edit','motif_global','motion_operation','motion_timing','motion_conditions']],
+    ['Conductor',setup.conductor,['follower_touch','operations_9_16','motion_operation','motif_play','motif_global','motif_load','motif_targets','global_transpose','explicit_key','secondary_scale','chord_forms','rhythm_generate','rhythm_edit']],
+    ['Sound',soundTrack(),['chord_player','arp_player']],
+    ['Comp',setup.comp,['chord_forms','follower_source','follower_play','rhythm_generate','rhythm_edit','motif_global','motion_operation','motion_timing','motion_conditions']],
     ['Melody',appState.activeTrack.index,['follower_source','follower_play','track_scales','chord_player','arp_player','follower_touch','operations_9_16','motion_operation','motion_timing','motion_conditions']]
 ];
 function parameters(native:any[]):any[]{
     const scale=native.find(parameter=>parameter.key==='key_center_explicit_scale')?.options??['Major','Natural Minor','Dorian','Phrygian','Lydian','Mixolydian','Locrian'];
-    return [enumeration('cp_play_mode','Chord Selection',['Immediate','Queued']),...['current','next','count'].map(field=>({key:'cp_queue_'+field,name:field==='count'?'Queued Chords':field==='next'?'Queued Next':'Current Chord',type:'string',readOnly:true,access:'read'})),...statusFields.map((field,index)=>({key:'cp_status_'+field,name:statusNames[index],short_name:statusShort[index],type:'string',readOnly:true,access:'read'})),...partParameters(native),...Array.from({length:7},(_,index)=>({key:'cp_blank_'+index,name:' ',type:'string',readOnly:true})),{key:'cp_off',name:'Harmony Off',type:'string',readOnly:true},{key:'cp_reset',name:'Reset Chords',type:'string',readOnly:true},enumeration('cp_conductor','Conductor Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_bass_track','Bass Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_bass_source','Bass Input',['Existing Routing','Bass Clip']),enumeration('cp_comp','Comp Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_melody','Playing Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_source','Comp Input',['Conductor / Melody','Comp Clip','Follow Melody']),enumeration('cp_selected','Edit Chord',Array.from({length:21},(_,index)=>String(index+1))),enumeration('cp_colorView','Color By',['Quality + Scale','Intent + Scale','Scale Only']),enumeration('cp_intent','Chord Intent',chordIntents),enumeration('cp_target','Target Degree',chordDegrees),enumeration('cp_enabled','Chord Enabled',['Off','On']),{key:'cp_resolved',name:'Resolved Chord',type:'string',readOnly:true},{key:'cp_relation',name:'Scale Relation',type:'string',readOnly:true},
+    return [enumeration('cp_play_mode','Chord Selection',['Immediate','Queued']),...['current','next','count'].map(field=>({key:'cp_queue_'+field,name:field==='count'?'Queue Status':field==='next'?'Queued Next':'Current Chord',type:'string',readOnly:true,access:'read'})),...statusFields.map((field,index)=>({key:'cp_status_'+field,name:statusNames[index],short_name:statusShort[index],type:'string',readOnly:true,access:'read'})),...partParameters(native),...Array.from({length:7},(_,index)=>({key:'cp_blank_'+index,name:' ',type:'string',readOnly:true})),{key:'cp_off',name:'Range / Tap Off',short_name:'Range',type:'int',min:-3,max:3,step:1,default:0},{key:'cp_reset',name:'Reset Chords',type:'string',readOnly:true},enumeration('cp_conductor','Conductor Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_bass_track','Bass Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_bass_source','Bass Input',['Existing Routing','Bass Clip']),enumeration('cp_comp','Comp Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_melody','Playing Track',Array.from({length:16},(_,index)=>String(index+1))),enumeration('cp_source','Comp Input',['Conductor / Melody','Comp Clip','Follow Melody']),enumeration('cp_selected','Edit Chord',Array.from({length:21},(_,index)=>String(index+1))),enumeration('cp_colorView','Color By',['Quality + Scale','Intent + Scale','Scale Only']),enumeration('cp_intent','Chord Intent',chordIntents),enumeration('cp_target','Target Degree',chordDegrees),enumeration('cp_enabled','Chord Enabled',['Off','On']),{key:'cp_resolved',name:'Resolved Chord',type:'string',readOnly:true},{key:'cp_relation',name:'Scale Relation',type:'string',readOnly:true},
         enumeration('cp_root','Literal Root',notes),enumeration('cp_quality','Quality',qualities),enumeration('cp_form','Form',forms),enumeration('cp_policy','Scale Context',['Parent','Minimum Change','Explicit','Harmony Rules']),enumeration('cp_tonic','Scale Tonic',notes),enumeration('cp_scale','Scale',scale),enumeration('cp_bass','Bass',['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B','Root']),
         ...setup.slots.map((slot,index)=>enumeration('cp_slot_'+index,String(index+1),slot.intent?chordDegrees.map((_,degree)=>intentLabel(slot.intent,degree)):notes.flatMap(root=>qualities.map(quality=>root+' '+quality))))];
 }
@@ -135,8 +181,8 @@ export function chordPanelPort(track:number):TrackPort{
             const source=JSON.parse(text);metadata=parameters(source);
             const levels=JSON.parse(native.getParam('midi_fx1:ui_hierarchy')??'{"levels":{}}').levels;
             const aliases=actorPanels().filter(([name])=>name!=='Melody').flatMap(([,owner,panels])=>{
-                const keys=new Set(['key_center','parallel_mode','dominant_color','chord_timing','anticipation',...panels.flatMap(panel=>[...(levels[panel]?.knobs??[]),...(levels[panel]?.params??[]).map((item:any)=>item.key).filter(Boolean)])]);
-                return source.filter((entry:any)=>keys.has(entry.key)).map((entry:any)=>({...entry,key:'cp_track_'+owner+'_'+entry.key}));
+                const keys=new Set(['key_center','parallel_mode','dominant_color','chord_timing','anticipation','chord_queue_depth','chord_queue_end',...panels.flatMap(panel=>[...(levels[panel]?.knobs??[]),...(levels[panel]?.params??[]).map((item:any)=>item.key).filter(Boolean)])]);
+                return source.filter((entry:any)=>keys.has(entry.key)).map((entry:any)=>({...entry,...(entry.key==='chord_timing'?{name:'Queue Time',short_name:'Time'}:{}),key:'cp_track_'+owner+'_'+entry.key}));
             });
             return JSON.stringify([...source,...metadata,...aliases]);
         }
@@ -148,7 +194,7 @@ export function chordPanelPort(track:number):TrackPort{
         if(bare==='cp_play_mode')return setup.playMode?'Queued':'Immediate';
         if(bare.startsWith('cp_queue_'))return performanceStatus(bare.slice(3));
         if(bare.startsWith('cp_status_'))return performanceStatus(bare.slice(10));
-        if(bare==='cp_off')return 'OFF';
+        if(bare==='cp_off')return String(defaultRegister());
         const partValue=partRead(bare,partOwner(bare));if(partValue!==null)return partValue;
         if(bare==='cp_reset')return 'RESET';
         if(bare==='cp_resolved')return bankStatus?.slots[setup.selected]?.name??'--';
@@ -159,10 +205,11 @@ export function chordPanelPort(track:number):TrackPort{
         return meta.options[value]??meta.options[0];
     };
     const setParam=(key:string,value:string):boolean=>{
-        const target=alias(key);if(target)return portFor(target.track).setParam(target.key,value);
+        const target=alias(key);if(target){statusCache=null;return portFor(target.track).setParam(target.key,value);}
         const bare=key.split(':').pop()??'';const partResult=partWrite(bare,value,partOwner(bare));if(partResult!==null)return partResult;
         const meta=metadata.find(entry=>entry.key===bare);
         if(!meta)return native.setParam(key,value);
+        if(bare==='cp_off'){setChordRegister(null,Number(value));return true;}
         if(!meta.options)return false;
         const selected=meta.options.indexOf(value);if(selected<0)return false;
         if(bare==='cp_play_mode'){if(selected!==setup.playMode){send('chord_queue','off');setup.playMode=selected;statusCache=null;markUiStateDirty();appState.dirty=true;}return true;}
@@ -211,14 +258,14 @@ export function chordHierarchy(hierarchy:any):any{
             const key='cp_'+name+'_'+source,remap=(key:string)=>name==='Melody'?key:'cp_track_'+track+'_'+key;
             const knobs=(original.knobs??[]).filter((key:string)=>source!=='motif_load'||key!=='motif_load_even').map(remap);
             // Every surfaced control is a live alias into its owner, including defaults.
-            levels[key]={...original,name:name+' '+original.name,visible_if:undefined,knobs,params:(original.params??[]).filter((item:any)=>item.key).map((item:any)=>({...item,key:remap(item.key)}))};links.push({level:key});
+            levels[key]={...original,name:(name==='Sound'?'Sound '+(track===conductorTrackForQueue()?'Cond':'Comp')+' T'+(track+1):name)+' '+original.name,visible_if:undefined,knobs,params:(original.params??[]).filter((item:any)=>item.key).map((item:any)=>({...item,key:remap(item.key)}))};links.push({level:key});
         }
     }
     add('cp_Comp_live','Comp Performance',['cp_source','cp_style','cp_velocity','cp_gate','cp_form_live','cp_voicing_live','cp_register']);
     add('cp_comp_library','Comp Library',['cp_style','cp_load','cp_save','cp_user','cp_mapping','cp_gate','cp_register']);
     add('cp_bass_library','Bass Library',['bp_style','bp_velocity','bp_gate','bp_register','bp_mapping','bp_user','bp_save']);
     add('cp_setup','Chord Play Setup',['cp_conductor','cp_comp','cp_melody','cp_colorView','cp_reset','cp_bass_track','cp_bass_source']);
-    const rootKeys=['cp_play_mode','cp_track_'+setup.conductor+'_chord_timing','cp_track_'+setup.conductor+'_anticipation','cp_queue_current','cp_queue_next','cp_queue_count','cp_blank_0','cp_off'];
+    const rootKeys=['cp_play_mode','cp_track_'+setup.conductor+'_chord_timing','cp_track_'+setup.conductor+'_anticipation','cp_track_'+setup.conductor+'_chord_queue_end','cp_queue_next','cp_queue_count','cp_track_'+setup.conductor+'_chord_queue_depth','cp_off'];
     levels.root={name:'Chord Play',knobs:rootKeys,params:[...rootKeys.map(key=>({key})),...links]};
     // Reserve the same physical stop control on every page, retaining displaced settings.
     for(const link of [...links]){
@@ -247,7 +294,7 @@ export function tickChord():void{
     const followMelody=setup.source===2||(setup.source===0&&!conductorRenders);
     const next=[melody,setup.comp,followMelody?1:setup.source===0&&conductorRenders?2:0].join(',')+(setup.bassClip?','+setup.bass:'');
     if(next!==route){send('chord_route',next);route=next;}
-    if(bankPageDirty&&!touches.size&&!controls.size){const index=page?.pageIndex??0;page=null;chordPage().goToPage(index);bankPageDirty=false;}
+    if(bankPageDirty&&!touches.size&&!controls.size&&!steps.size&&!rangeTouches.size&&!queuePhrase.active){const current=chordPage(),level=current.ctl.page?.level,index=current.pageIndex,navigation=current.ctl.hbNavigation?.state();current.reload();const next=current.ctl.pages.findIndex((entry:any)=>entry.level===level);current.goToPage(next<0?index:next);current.ctl.hbNavigation?.restore(navigation);bankPageDirty=false;}
     if(page&&bankStatus)for(let index=0;index<setup.slots.length;index++){const meta=page.ctl.state.metaIndex.get('cp_slot_'+index);if(meta&&bankStatus.slots[index]){meta.label=meta.name=(index+1)+' '+bankStatus.slots[index].name;meta.short_name=meta.name;}}
     if(!settingsActive()){
         const current=chordPage(),values=()=>JSON.stringify((current.ctl.page?.keys??[]).map((key:string)=>current.ctl.state.values[key]));
@@ -258,16 +305,17 @@ export function tickChord():void{
 export function chordRecordCommand():string|null{return chordActive()?'jrec '+((1<<setup.conductor)|(1<<appState.activeTrack.index))+' '+(1<<setup.conductor):null;}
 export function chordMidi(data:number[],panels=true):boolean{
     const status=data[0]&240,key=data[1],value=data[2],down=status===144&&value>0,up=status===128||(status===144&&!value);
+    if(up&&queuePhrase.owns(key)){const phrase=queuePhrase.release(key);if(phrase!==null)send('chord_queue','commit');steps.delete(key);rangeTouches.delete(key);statusCache=null;return true;}
     if(up&&controls.delete(key)){releasePerformanceTouch(key);return true;}
     if(up&&touches.has(key)){
         touches.get(key)!.knobTouch(key,false);touches.delete(key);
         if(styleTouch?.key===key){const load=!styleTouch.moved,styleTouchKey=styleTouch.control;styleTouch=null;if(load){reviewStyle(styleTouchKey);partModalTouch(key,true);partModalTouch(key,false);}}
         return true;
     }
-    if(up&&steps.delete(key))return true;
+    if(up&&steps.delete(key)){rangeTouches.delete(key);return true;}
     if(!chordActive())return false;
     const conductorOwner=performanceOwner(setup.conductor),conductorTrack=setup.conductor;
-    const currentKey=page?.keyAt(key)??'',controlTarget=alias(currentKey);
+    const currentKey=page?.keyAt(key)??'',controlTarget=alias(currentKey);if(rangeControlMidi(data,page))return true;
     if((down||up)&&key<8&&motifLoaderTouch(conductorOwner,controlTarget?.track===setup.conductor?controlTarget.key:null,key,down,()=>chordActive()&&setup.conductor===conductorTrack)){
         if(key===7&&down)harmonyOff();return true;
     }
@@ -282,7 +330,7 @@ export function chordMidi(data:number[],panels=true):boolean{
     if((down||up)&&key<8&&partModalTouch(key,down)){if(key===7&&down)harmonyOff();return true;}
     if(partModalActive()&&status===176){if(key===51&&value)cancelPartReview();return true;}
     if((down||up)&&key<8){
-        if(key===7){if(down){steps.add(key);harmonyOff();}return true;}
+        if(key===7)return true;
         if(current.ctl.hbNavigation?.isMenu())return true;
         if(/^(cp|bp)_(load|save)$/.test(current.keyAt(key)??'')){
             if(down){reviewStyle(current.keyAt(key)!);partModalTouch(key,true);}return true;
@@ -302,7 +350,7 @@ export function chordMidi(data:number[],panels=true):boolean{
         if(down){touches.set(key,current);current.knobTouch(key,true);}return true;
     }
     if(status!==176)return false;
-    if(key===14){current.changePage(value<64?value:value-128);appState.dirty=true;return true;}
+    if(key===14||key===62||key===63){if(key===14||value)current.changePage(key===62?-1:key===63?1:value<64?value:value-128);appState.dirty=true;return true;}
     if(key===78)return true;
     if(key>=71&&key<=77){if(styleTouch?.key===key-71)styleTouch.moved=true;current.knobTurn(key-71,value<64?value:value-128);appState.dirty=true;return true;}
     if(key===MoveMainButton){if(value)current.click(appState.shiftHeld);return true;}
@@ -318,11 +366,11 @@ export function chordKnobLEDMask():number{
 }
 export function paintChordSteps():boolean{
     if(!chordActive())return false;
-    for(let index=0;index<16;index++){const slot=stepSlot(index),color=slot<0?123:chordSlotColor(slot);cachedSetAnimLED(16+index,color,color,0);}
+    for(let index=0;index<16;index++){const slot=stepSlot(index),color=slot<0?123:chordSlotColor(slot);cachedSetAnimLED(16+index,color,chordSlotQueued(slot)?0:color,chordSlotQueued(slot)?ANIM_PULSE_SLOW:0);}
     const current=!settingsActive()?page:null;
     const keys=Array.from({length:8},(_,knob)=>current?.keyAt(knob)??null),onBank=keys.some(key=>/^cp_slot_/.test(key??''));
     if(onBank){
-        for(let knob=0;knob<8;knob++){const index=knob===7?-1:Number(keys[knob]!.slice(8)),color=index<0?123:chordSlotColor(index);cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);}
+        for(let knob=0;knob<8;knob++){const index=knob===7?-1:Number(keys[knob]!.slice(8)),color=index<0?123:chordSlotColor(index);cachedSetAnimLED(knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0);cachedSetAnimLED(71+knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0,true);}
     }else if(bankKnobs){
         for(let knob=0;knob<8;knob++)if(!current||!(current.knobLEDMask&(1<<knob))){const color=keys[knob]?123:0;cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);}
     }
@@ -337,7 +385,7 @@ function contextVisible(current:SchwungPage):boolean {
 }
 export function chordContextTrail():string|null {
     const current=chordPage();if(!contextVisible(current))return null;
-    if(current.ctl.page?.level==='root')return setup.playMode?'Queue: '+performanceStatus('queue_count')+' / K8:Off':'Touch chords / K8:Off';
+    if(setup.playMode)return queueFooterText(performanceStatus('queue_next'),performanceStatus('queue_count'));if(current.ctl.page?.level==='root')return 'Touch chords / K8:Off';
     if(current.ctl.page?.level==='cp_overview')return 'Chord>Core K8:Off';
     if((current.ctl.page?.keys??[]).some((key:string)=>/^cp_slot_/.test(key))){
         const first=bankNames[Math.floor(stepSlot(0)/7)],second=bankNames[Math.floor(stepSlot(8)/7)];
@@ -356,7 +404,7 @@ export function renderChord():void{
         const lines=['Sounds '+performanceStatus('effective'),'Live '+live+(live==='On'?' / '+handoff:''),'Next '+performanceStatus('next'),'Key '+performanceStatus('key'),'Edit '+editingChord()];
         lines.forEach((line,index)=>printContext(12+index*9,line));
     }
-    const trail=chordContextTrail();if(trail){fill_rect(0,57,128,7,0);printContext(58,trail);}
+    const trail=chordContextTrail();if(trail){fill_rect(0,57,128,7,0);drawHarmonyFooter(trail);}
 }
 function printContext(y:number,line:string):void {
     if(fontWidth(line)>126){while(fontWidth(line+'~')>126)line=line.slice(0,-1);line+='~';}
@@ -377,10 +425,11 @@ function performanceStatus(field:string):string {
         const [effective,key]=melody.getMany(['midi_fx1:final_harmony','midi_fx1:sounding_key'],true);
         const queue=setup.playMode?(conductor.getParam('midi_fx1:hb_chord_queue_status')??'').split('|'):[];
         const queued=queue[0]==='cq1',count=queued?Number(queue[1]):0;
-        const live=active==='1';
-        statusCache={at:now,identity,values:{queue_current:queued?queue[3]:effective||'--',queue_next:queued?queue[4]:'--',queue_count:queued?String(count)+(count>=16?' Full':''):'0',effective:effective||'--',override:live?'On':active==='0'?'Off':'--',next:queued?queue[4]:seqState.playing?(next||'--'):'--',handoff:queued?(count?'Queued':'Hold'):live?(seqState.playing?'Next event':'Off button'):'--',key:key||'--'}};
+        const live=active==='1',waiting=queued&&queue[6]==='1',depth=queued?Number(queue[7]):Number(conductor.getParam('midi_fx1:chord_queue_depth'))||2;
+        const queueState=!setup.playMode?'Off':waiting||!queued?((queued&&queue[3]!=='--'?'Hold ':'Fill ')+count+(depth?'/'+depth:' Release')):(queue[8]==='1'?'Loop ':'Ready ')+count;
+        statusCache={at:now,identity,values:{queue_current:queued?queue[3]:!seqState.playing&&!live?'Off':effective||'--',queue_next:queued?queue[4]:'--',queue_count:queueState,effective:effective||'--',override:live?'On':active==='0'?'Off':'--',next:queued?queue[4]:seqState.playing?(next||'--'):'--',handoff:queued?queueState:live?(seqState.playing?'Next event':'Off button'):'--',key:key||'--'}};
     }
-    return (statusCache.values[field]??'--').replace(/\//g,':');
+    return statusCache.values[field]??'--';
 }
 
 /** Reset shared definitions only; routing and the selected melody track remain intact. */
@@ -388,8 +437,9 @@ export function resetChordDefaults():void{
     harmonyOff();setup.slots=defaultSlots();setup.selected=0;bankPageDirty=true;resetBank();
     markUiStateDirty();appState.dirty=true;seqToast('Chord defaults restored');
 }
-export function harmonyOff():void{
-    send('chord_select','off');activeSlot=-1;statusCache=null;bankPollAt=-Infinity;bankUrgentUntil=Date.now()+100;appState.dirty=true;
+export function harmonyOff(disableQueue=!seqState.playing):void{
+    queuePhrase.cancel();
+    send('chord_select','off');if(disableQueue&&setup.playMode){setup.playMode=0;markUiStateDirty();seqToast('Harmony / Queue Off');}activeSlot=-1;statusCache=null;bankPollAt=-Infinity;bankUrgentUntil=Date.now()+100;appState.dirty=true;
 }
 function stepSlot(index:number):number{
     if(index%8===7)return -1;

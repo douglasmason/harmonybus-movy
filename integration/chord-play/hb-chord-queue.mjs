@@ -9,7 +9,15 @@ const {seqCmdFlush}=await import('../dist/esm/seq/engine.js');
 const loader=await import('../dist/esm/renderer/hb-motif-loader.js');
 selectTrack(3);seqState.sessionMode=false;chord.restoreChord(null);chord.setChordEnabled(true);
 const page=chord.chordPage(),port=chord.chordPanelPort(3);port.getParam('midi_fx1:chain_params');
-page.goToPage(0);assert.equal(page.keyAt(0),'cp_play_mode');
+page.goToPage(0);assert.deepEqual(Array.from({length:8},(_,index)=>page.keyAt(index)),['cp_play_mode','cp_track_0_chord_timing','cp_track_0_anticipation','cp_track_0_chord_queue_end','cp_queue_next','cp_queue_count','cp_track_0_chord_queue_depth','cp_off']);
+assert.equal(page.ctl.metaAt(1).name,'Queue Time');
+const conductorControls=portFor(0);let clock=Date.now();Date.now=()=>clock;const flush=()=>{clock+=100;page.tick();};flush();page.knobTurn(1,4);page.knobTurn(6,4);page.knobTurn(3,4);flush();
+assert.equal(conductorControls.getParam('midi_fx1:chord_timing'),'1/16');
+assert.equal(conductorControls.getParam('midi_fx1:chord_queue_depth'),'3');
+assert.equal(conductorControls.getParam('midi_fx1:chord_queue_end'),'Loop');
+assert.equal(portFor(3).getParam('midi_fx1:chord_queue_depth'),'2');
+assert.equal(appState.activeTrack.index,3);
+const startPage=page.pageIndex;chord.chordMidi([176,63,127]);assert.notEqual(page.pageIndex,startPage);chord.chordMidi([176,62,127]);assert.equal(page.pageIndex,startPage);
 const core=page.ctl.hbNavigation.state().indices.map(index=>page.ctl.pages[index].level);
 assert(core.includes('cp_Conductor_follower_touch'));assert(core.includes('cp_Conductor_motif_play'));
 assert(!core.includes('cp_Conductor_motif_load'),'motif loading remains in Conductor settings');
@@ -26,6 +34,15 @@ assert.equal(chord.chordSnapshot().playMode,1);
 const saved=chord.chordSnapshot();chord.restoreChord(saved);assert.equal(chord.chordSnapshot().playMode,1);
 chord.setChordEnabled(true);assert(port.setParam('midi_fx1:cp_play_mode','Immediate'));
 assert(commands.some(([key,value])=>key==='chord_queue'&&value==='off'));
+
+// Off clears a stopped queue visibly; playback keeps Queued armed and hands back to the clip.
+port.setParam('midi_fx1:cp_play_mode','Queued');seqState.playing=true;chord.harmonyOff();assert.equal(chord.chordSnapshot().playMode,1);
+seqState.playing=false;chord.harmonyOff();assert.equal(chord.chordSnapshot().playMode,0);assert.equal(port.getParam('midi_fx1:cp_queue_count'),'Off');
+port.setParam('midi_fx1:cp_play_mode','Queued');
+conductorControls.setParam('midi_fx1:hb_chord_queue_status','cq1|1|-1|C|G7|1|1|3|0');
+const queuePage=chord.chordPage();queuePage.goToPage(0);
+assert.match(chord.chordContextTrail(),/Next G7.*Hold 1\/3/);
+chord.harmonyOff();
 
 // The shared motif loader gets an explicit conductor owner, while melody pads
 // retain their track. Confirm through the real Chord Play MIDI dispatcher.

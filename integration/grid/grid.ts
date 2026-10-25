@@ -114,10 +114,18 @@ export function gridPad(surface:string,index:number,down:boolean,velocity:number
     if(index<0||row>=height||assignment===undefined)return true;
     held.set(key,{track:watchedTrack(),assignment,tick:(view.page*width+index%width)*divisions[view.division],duration:divisions[view.division],velocity:Math.max(1,velocity),at:Date.now(),focus});return true;
 }
+function gridDestination(surface:string,horizontal:number,vertical:number,height=4,width=8):[number,number] {
+    const view=gridWindow(surface,width),last=Math.ceil((seqState.loopStart+Math.max(16,seqState.lenSteps))*24/(width*divisions[view.division]))-1;
+    return [Math.max(0,Math.min(last,view.page+horizontal)),Math.max(0,Math.min(32-height,view.lane+vertical))];
+}
+export function gridCanNavigate(horizontal:number,vertical:number):boolean {
+    const view=gridWindow('move'),[page,lane]=gridDestination('move',horizontal,vertical);
+    return page!==view.page||lane!==view.lane;
+}
 export function gridNavigate(surface:string,horizontal:number,vertical:number,height=4,width=8):void {
-    const view=gridWindow(surface,width);
-    if(horizontal){view.follow=false;view.page=Math.max(0,Math.min(Math.ceil((seqState.loopStart+Math.max(16,seqState.lenSteps))*24/(width*divisions[view.division]))-1,view.page+horizontal));}
-    if(vertical)view.lane=Math.max(0,Math.min(32-height,view.lane+vertical));
+    const view=gridWindow(surface,width),[page,lane]=gridDestination(surface,horizontal,vertical,height,width);
+    if(horizontal){view.follow=false;view.page=page;}
+    if(vertical)view.lane=lane;
     appState.dirty=true;
 }
 function focusRow(assignment:number,tick:number,duration:number):void {
