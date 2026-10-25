@@ -549,6 +549,10 @@ static void test_chord_play(void){
 }
 #endif
 
+#ifdef HB_TEST_PART_LIBRARY
+#include "part_library_audio.h"
+#endif
+
 int main(int argc,char **argv){
     assert(argc==4);
     void *handle=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL);
@@ -571,6 +575,9 @@ int main(int argc,char **argv){
         snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:boundary_buffer_ms",track);set(parameter,"0 ms");
         snprintf(parameter,sizeof(parameter),"ch%d:mix",track);set(parameter,"1,0,1,0,0");
     }
+#ifdef HB_TEST_PART_LIBRARY
+    if(getenv("HB_PART_ONLY")){test_part_library();api->destroy_instance(instance);return 0;}
+#endif
     /* Physical pads 68,69,70 map to C-E-G. */
     for(int mode=0;mode<2;mode++)for(int track=0;track<2;track++){
         snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:chord_mode",track);set(parameter,mode?"Scale Root":"Off");
@@ -716,6 +723,9 @@ int main(int argc,char **argv){
     test_drum_fill_output();
 #ifdef HB_TEST_CHORD_PLAY
     test_chord_play();
+#endif
+#ifdef HB_TEST_PART_LIBRARY
+    test_part_library();
 #endif
     api->destroy_instance(instance);return 0;
 }

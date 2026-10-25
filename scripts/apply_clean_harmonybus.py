@@ -629,6 +629,8 @@ def main() -> int:
     patch_chord_play(root)
     from patch_clips_view import patch_clips_view
     patch_clips_view(root)
+    from patch_part_library import patch_part_library
+    patch_part_library(root)
     print("HarmonyBus clean integration applied")
     return 0
 
