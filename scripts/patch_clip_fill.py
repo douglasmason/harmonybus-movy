@@ -46,6 +46,8 @@ def patch_clip_fill(root: Path) -> None:
     source = source.replace("if(index===3)return drumOutputLabel();", "if(index===4)return 'Off';\n        if(index===3)return drumOutputLabel();")
     source = source.replace('if(index===3){turnDrumOutput', 'if(index===4){setFillActive(target===1);return true;}\n        if(index===3){turnDrumOutput')
     path.write_text(source)
+    path = root / 'src/undo/verbs.ts'
+    path.write_text(replace_once(path.read_text(), "'pload',", "'clipfill', 'pload',"))
     path = root / 'src/seq/session.ts'
     source = "import {fillCell} from './clips-fill.js';\n"+path.read_text()
     source = replace_once(source,'    sessionLaunchCell(cell.track, cell.slot);','    if(fillCell(cell.track,cell.slot))return;\n    sessionLaunchCell(cell.track, cell.slot);')
