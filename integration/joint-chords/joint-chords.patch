@@ -112,7 +112,7 @@ new file mode 100644
 +        self.chord_step_input.map_or_else(||"--".into(),|(serial,track,pitch,_)|format!("{serial},{track},{pitch}"))
 +    }
 +    pub fn chord_step_add(&mut self,track:usize,slot:usize,step:u32,serial:u32){
-+        if self.playing||self.recording||self.count_in_left>0||step>=256||track>=self.tracks.len(){return;}
++        if self.playing||self.recording||self.count_in_left>0||self.pending_rec||step>=256||track>=self.tracks.len(){return;}
 +        let Some((captured,owner,pitch,actions))=self.chord_step_input else{return;};
 +        if serial!=captured||track!=owner||self.tracks[track].active_clip!=slot{return;}
 +        let clip=self.tracks[track].active_mut();
@@ -160,8 +160,8 @@ new file mode 100644
 +        apply_batch(&mut engine,"addp 0 0 0 65 80;usnap 99",&mut out);let serial=capture(&mut engine,0,60);
 +        apply_batch(&mut engine,&format!("cadd 0 0 0 {serial};ucommit 99"),&mut out);
 +        assert!(engine.tracks[0].active().notes[0].actions.is_some());
-+        apply_batch(&mut engine,"uswap 99",&mut out);assert_eq!(engine.tracks[0].active().notes[0].pitch,65);
-+        apply_batch(&mut engine,"uswap 99",&mut out);assert_eq!(engine.tracks[0].active().notes[0].pitch,60);assert!(engine.tracks[0].active().notes[0].actions.is_some());
++        apply_batch(&mut engine,"uswap 99 100",&mut out);assert_eq!(engine.tracks[0].active().notes[0].pitch,65);
++        apply_batch(&mut engine,"uswap 100 99",&mut out);assert_eq!(engine.tracks[0].active().notes[0].pitch,60);assert!(engine.tracks[0].active().notes[0].actions.is_some());
 +    }
 +}
 diff --git a/engine/crates/seq-core/src/command.rs b/engine/crates/seq-core/src/command.rs
