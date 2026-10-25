@@ -5,11 +5,41 @@ import json
 from patch_responsive_persistence import replace_once
 
 
+def generate_catalog(assets: Path, fields: list[dict[str, Any]]) -> str:
+    """Compile the one authored catalog into static native data, without runtime parsing."""
+    catalog: dict[str, list[dict[str, Any]]] = json.loads((assets / 'catalog.json').read_text())
+    map_key_to_index: dict[str, int] = {field['key']: index for index, field in enumerate(fields)}
+    lines: list[str] = ['// Generated from catalog.json; edit that source instead.']
+    for kind, entries in catalog.items():
+        names: str = ','.join(json.dumps(entry['recipe']) for entry in entries)
+        lines.append(f"pub const {'NAMES' if kind == 'comp' else 'BASS_NAMES'}:[&str;{len(entries)}]=[{names}];")
+        lines.append(f'const {kind.upper()}:&[Pattern]=&[')
+        for entry in entries:
+            notes: list[list[int]] = entry['notes']
+            steps: int = entry['steps']
+            if not 1 <= steps <= 256 or not notes or len(notes) > 512:
+                raise ValueError('Invalid catalog clip size')
+            for step, gate, pitch, velocity in notes:
+                if not (0 <= step < steps and 1 <= gate <= steps * 24 and 0 <= pitch <= 127 and 1 <= velocity <= 127):
+                    raise ValueError('Invalid catalog note')
+            overrides: list[str] = []
+            for key, value in entry['settings'].items():
+                index: int = map_key_to_index[key]
+                if not fields[index]['min'] <= value <= fields[index]['max']:
+                    raise ValueError('Invalid catalog renderer setting')
+                overrides.append(f'({index},{value})')
+            encoded_notes: str = ','.join('(' + ','.join(map(str, note)) + ')' for note in notes)
+            lines.append(f"Pattern{{name:{json.dumps(entry['recipe'])},steps:{steps},notes:&[{encoded_notes}],settings:&[{','.join(overrides)}]}},")
+        lines.append('];')
+    return '\n'.join(lines) + '\n'
+
+
 def patch_part_library(root: Path) -> None:
     """Add the versioned preset format, native loader, and Chord Play access."""
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/part-library'
     core: Path = root / 'engine/crates/seq-core/src'
     fields: list[dict[str, Any]] = json.loads((assets / 'settings.json').read_text())
+    (core / 'part_catalog_data.rs').write_text(generate_catalog(assets, fields))
     keys: str = ','.join(json.dumps(field['key']) for field in fields)
     defaults: str = ','.join(str(field['default']) for field in fields)
     limits: str = ','.join(f"({field['min']},{field['max']})" for field in fields)
@@ -125,7 +155,17 @@ impl Settings {{
     source = source.replace('fields[2]>1', 'fields[2]>2').replace('fields[2]!=0));if next==self.chord', 'fields[2] as u8));if next==self.chord')
     source = source.replace('return if follow {', 'return if follow==1 {')
     source = source.replace('let output=if source {', 'let output=if self.chord.is_some_and(|(_,comp,mode)|comp==track&&mode==2) {None} else if source {')
+    source = replace_once(source, '    chord: Option<(usize,usize,u8)>,', '    chord: Option<(usize,usize,u8)>,\n    chord_bass:Option<usize>,')
+    source = replace_once(source, 'Self {chord:None,', 'Self {chord_bass:None,chord:None,')
+    source = replace_once(source, 'self.chord=None;return true;', 'self.chord=None;self.chord_bass=None;return true;')
+    source = replace_once(source, 'if fields.len()!=3||', 'if !matches!(fields.len(),3|4)||')
+    source = replace_once(source, 'let next=Some((fields[0],fields[1],fields[2] as u8));if next==self.chord{return false;}self.chord=next;true', '''let bass=fields.get(3).copied();
+        if bass.is_some_and(|track|track>=16||track==fields[0]||track==fields[1]){return false;}
+        let next=Some((fields[0],fields[1],fields[2] as u8));if next==self.chord&&bass==self.chord_bass{return false;}self.chord=next;self.chord_bass=bass;true''')
+    source = replace_once(source, '|(target,_)|target==comp)', '|(target,_)|target==comp||Some(target)==self.chord_bass)')
+    source = replace_once(source, 'else if self.chord.is_some_and(|(_,comp,_)|comp==track) {Some(pitch)}', 'else if self.chord.is_some_and(|(_,comp,_)|comp==track)||self.chord_bass==Some(track) {Some(pitch)}')
     source += "\n#[cfg(test)] mod part_route_tests {use super::*;#[test] fn direct_chords_suppress_clip_attacks_without_losing_old_releases(){let mut links=JointLinks::new();links.set_chord(\"3,2,0\");assert_eq!(links.playback_pitch(2,60,true),Some(60));links.set_chord(\"3,2,2\");assert_eq!(links.playback_pitch(2,60,false),Some(60));assert_eq!(links.playback_pitch(2,60,true),None);assert_eq!(links.playback_pitch(2,60,false),None);links.set_chord(\"3,2,0\");assert_eq!(links.playback_pitch(2,60,true),Some(60));}}\n"
+    source += (assets / 'bass_route_tests.rs').read_text()
     path.write_text(source)
     path = root / 'engine/crates/movy-dsp/src/hb_loop.rs'
     source = replace_once(path.read_text(), '    hash(&mut revision, 0x48424c4f4f5032);', '''    hash(&mut revision, 0x48424c4f4f5033);
@@ -135,10 +175,11 @@ impl Settings {{
     path.write_text(path.read_text().replace("'mload',", "'mload', 'pload', 'pshape',"))
     for relative in ('src/seq/constants.ts', 'engine/crates/movy-dsp/src/lib.rs'):
         path = root / relative
-        path.write_text(path.read_text().replace('0.71.0-chord-play2', '0.71.0-part-library1'))
+        path.write_text(path.read_text().replace('0.71.0-chord-play2', '0.71.0-part-library2'))
     for filename in ('part-library.ts', 'part-controls.ts', 'part-storage.ts'):
         (root / 'src/seq' / filename).write_text((assets / filename).read_text())
     (root / 'src/seq/part-settings.json').write_text((assets / 'settings.json').read_text())
+    (root / 'src/seq/part-catalog.json').write_text((assets / 'catalog.json').read_text())
     path = root / 'src/undo/ui-fields.ts'
     source = "import { chordCompState, restoreChordCompState } from '../seq/chord-play.js';\n" + path.read_text()
     source = source.replace("'defaultQuant';", "'defaultQuant' | 'chordComp';")
@@ -146,5 +187,5 @@ impl Settings {{
     source = replace_once(source, 'export function writeUiField(f: UiField, v: string): void {', "export function writeUiField(f: UiField, v: string): void {\n    if(f==='chordComp'){restoreChordCompState(v);return;}")
     path.write_text(source)
     path = root / 'build/browser.mjs'
-    path.write_text(replace_once(path.read_text(), '    entryPoints: [', "    entryPoints: [\n        resolve(root, 'src/seq/part-library.ts'),\n        resolve(root, 'src/seq/part-controls.ts'),"))
+    path.write_text(replace_once(path.read_text(), '    entryPoints: [', "    entryPoints: [\n        resolve(root, 'src/seq/part-library.ts'),\n        resolve(root, 'src/seq/part-storage.ts'),\n        resolve(root, 'src/seq/part-controls.ts'),"))
     (root / 'browser-test/hb-part-library.mjs').write_text((assets / 'hb-part-library.mjs').read_text())
