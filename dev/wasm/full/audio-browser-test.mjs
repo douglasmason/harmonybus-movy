@@ -1,0 +1,55 @@
+import assert from 'node:assert/strict';
+import {chromium} from '../../local/node_modules/playwright/index.mjs';
+import {serve} from '../serve.mjs';
+const server=serve(0,process.env.WASM_PACKAGED?new URL('../build/site/',import.meta.url):null);
+await new Promise(resolve=>server.once('listening',resolve));
+const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+try{
+ const context=await browser.newContext();const page=await context.newPage(),errors=[];
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.goto(`http://127.0.0.1:${server.address().port}/joint?engine=wasm`);
+ await page.waitForFunction(()=>globalThis.__joint?.page().ready);
+ if(!await page.locator('#audio').isVisible())await page.locator('details').first().locator('summary').click();
+ await page.locator('#audio').click();
+ await page.waitForFunction(()=>__joint.monitor.enabled&&__joint.monitor.stats.rendered>0);
+ assert.equal(await page.evaluate(()=>__joint.monitor.context.sampleRate),44100);
+ assert.equal(await page.evaluate(()=>__wasmRead('ch0:synth:name')),'NuSaw');
+ assert.equal((await page.evaluate(()=>__wasmStats())).audioClock,true);
+ await context.setOffline(true);
+ const pad=page.getByRole('button',{name:'Pad 1',exact:true});
+ await pad.focus();await page.keyboard.down('Space');
+ await page.waitForFunction(()=>{const monitor=__joint.monitor;const samples=new Float32Array(monitor.analyser.fftSize);monitor.analyser.getFloatTimeDomainData(samples);return samples.some(value=>Math.abs(value)>.001);});
+ const before=await page.evaluate(async()=>({engine:await __wasmStats(),time:__joint.monitor.context.currentTime,rendered:__joint.monitor.stats.rendered,underruns:__joint.monitor.stats.underruns}));
+ await page.evaluate(()=>{const until=performance.now()+900;while(performance.now()<until){}});
+ await page.waitForTimeout(50);
+ const after=await page.evaluate(async()=>({engine:await __wasmStats(),time:__joint.monitor.context.currentTime,rendered:__joint.monitor.stats.rendered,underruns:__joint.monitor.stats.underruns}));
+ assert(after.rendered-before.rendered>20000,'worklet consumes PCM during page stall');
+ const engineSeconds=(after.engine.blocksProcessed-before.engine.blocksProcessed)*128/44100;
+ assert(Math.abs(engineSeconds-(after.time-before.time))<.12,'engine advances once per consumed audio, without timer double stepping');
+ console.log('Browser timing with lighting during 900 ms page stall:',JSON.stringify({engineSeconds,audioSeconds:after.time-before.time,consumedFrames:after.rendered-before.rendered,underrunFrames:after.underruns-before.underruns}));
+ // Mix is applied by the production chain, not by a page-thread oscillator.
+ await page.evaluate(()=>{for(let actor=0;actor<4;actor++)__joint.monitor.mix(actor,.6,true);});
+ await page.waitForFunction(()=>{const samples=new Float32Array(2048);__joint.monitor.analyser.getFloatTimeDomainData(samples);return samples.every(value=>Math.abs(value)<.0001);});
+ await page.evaluate(()=>{for(let actor=0;actor<4;actor++)__joint.monitor.mix(actor,.6,false);});
+ await page.waitForFunction(()=>{const samples=new Float32Array(2048);__joint.monitor.analyser.getFloatTimeDomainData(samples);return samples.some(value=>Math.abs(value)>.001);});
+ await page.keyboard.up('Space');await page.locator('#stop').click();
+ await page.waitForFunction(()=>{const monitor=__joint.monitor;const samples=new Float32Array(monitor.analyser.fftSize);monitor.analyser.getFloatTimeDomainData(samples);return samples.every(value=>Math.abs(value)<.0001);});
+ await page.locator('#record').click();await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Recording');
+ await pad.focus();await page.keyboard.down('Space');await page.waitForTimeout(300);await page.keyboard.up('Space');await page.locator('#stop').click();
+ await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('Saved on this device'));
+ await page.locator('#play').click();await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Playing');
+ await page.waitForFunction(()=>{const samples=new Float32Array(2048);__joint.monitor.analyser.getFloatTimeDomainData(samples);return samples.some(value=>Math.abs(value)>.001);});
+ await page.evaluate(()=>__joint.monitor.context.suspend());
+ await page.waitForFunction(async()=>!(await __wasmStats()).audioClock);
+ await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Stopped');
+ assert.equal(await page.evaluate(()=>__joint.monitor.enabled),false);
+ // Re-enable without a network connection; reject stale buffers from old stream.
+ await page.locator('#audio').click();
+ await page.waitForFunction(()=>__joint.monitor.enabled&&__joint.monitor.stats.rendered>0);
+ await pad.focus();await page.keyboard.down('Space');
+ await page.waitForFunction(()=>{const samples=new Float32Array(2048);__joint.monitor.analyser.getFloatTimeDomainData(samples);return samples.some(value=>Math.abs(value)>.001);});
+ await page.evaluate(()=>dispatchEvent(new Event('blur')));await page.keyboard.up('Space');
+ await page.waitForFunction(async()=>!__joint.monitor.enabled&&!(await __wasmStats()).audioClock);
+ assert.deepEqual(errors,[]);
+ console.log('PASS compiled NuSaw PCM: AudioWorklet output offline, page stall, single audio clock, Stop silence and context suspension cleanup');
+}finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

@@ -1,0 +1,25 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HB · Browser engine feasibility</title>
+<style>body{background:#14191c;color:#e4eee9;font:17px system-ui;max-width:800px;margin:32px auto;padding:0 20px}button{font:inherit;padding:14px;margin:5px;background:#315447;color:white;border:1px solid #75a98b;border-radius:8px}pre{white-space:pre-wrap;max-height:400px;overflow:auto}button:disabled{opacity:.4}</style>
+<h1>HarmonyBus inside the browser</h1>
+<p>Actual compiled HB C and Movy Rust sequencer. Static files only; no native processor connection.</p>
+<p>This is a deterministic MIDI feasibility test, not the full Joint Play host. No audio or real-time clock yet.</p>
+<p id="status">Loading WebAssembly…</p>
+<div><button id="seed" disabled>Create clip & play</button><button id="step" disabled>Advance ~1/16</button><button id="stop" disabled>Stop</button></div>
+<p>The clip plays a C-major conductor chord and follower input D. The output below comes from HB’s actual mapping.</p>
+<pre id="output" aria-live="polite"></pre>
+<script type="module">
+import {createEngine} from './engine.mjs';
+try {
+ const engine=await createEngine(); window.engine=engine;
+ const output=document.querySelector('#output');
+ function show(result){output.textContent=JSON.stringify(result,null,2);}
+ document.querySelector('#seed').onclick=()=>show(engine.command('link 0;clipdel 0;clipdel 1;tog 0 0 60 100 64 100 67 100;tog 1 1 62 100;play'));
+ document.querySelector('#step').onclick=()=>{const result={source:[],output:[]};for(let block=0;block<44;block++){const next=engine.advance(128);result.source.push(...next.source);result.output.push(...next.output);}show(result);};
+ document.querySelector('#stop').onclick=()=>show(engine.command('stop'));
+ addEventListener('blur',()=>engine.command('stop'));
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)engine.command('stop');});
+ document.querySelectorAll('button').forEach(button=>button.disabled=false);
+ document.querySelector('#status').textContent='Ready · both engines executing locally as WebAssembly';
+} catch(error){document.querySelector('#status').textContent=String(error);throw error;}
+</script></html>

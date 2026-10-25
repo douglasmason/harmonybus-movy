@@ -1,0 +1,62 @@
+name: Native HB development host
+on:
+  pull_request:
+    paths:
+      - 'dev/local/**'
+      - 'dev/wasm/**'
+      - 'scripts/**'
+      - 'integration/**'
+      - 'tests/full_chain_audio.c'
+      - '.github/workflows/local-processor.yml'
+  push:
+    branches: [dev/local-current-20261021, dev/browser-audio-sessions-20261022]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-and-browser:
+    # Match the pinned Playwright release instead of drifting to unsupported OS images.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check lighting projection
+        run: node --test dev/local/lighting-test.mjs dev/local/performance-test.mjs
+      - name: Pin Rust toolchain
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup default 1.99.1
+      - name: Build production processor and compare native/API behavior
+        run: bash dev/local/setup.sh
+      - name: Install test browser
+        run: dev/local/node_modules/.bin/playwright install --with-deps chromium --only-shell
+      - name: Exercise production browser controls
+        run: |
+          node dev/local/browser-test.cjs
+          node dev/local/joint-browser-test.cjs
+      - name: Install WebAssembly toolchains
+        run: |
+          rustup target add wasm32-unknown-unknown wasm32-unknown-emscripten
+          git clone --depth 1 --branch 4.0.10 https://github.com/emscripten-core/emsdk.git /tmp/emsdk
+          /tmp/emsdk/emsdk install 4.0.10
+          /tmp/emsdk/emsdk activate 4.0.10
+      - name: Compare browser-only compiled engines with native builds
+        run: |
+          source /tmp/emsdk/emsdk_env.sh
+          bash dev/wasm/prepare.sh
+          node --test dev/wasm/test.mjs
+          node dev/wasm/browser-test.mjs
+          node --test dev/wasm/full/lighting-test.mjs dev/wasm/full/test.mjs dev/wasm/full/pcm-worklet-test.mjs dev/wasm/full/pcm-monitor-test.mjs dev/wasm/full/session-test.mjs dev/wasm/full/service-test.mjs
+          node dev/wasm/full/browser-test.mjs
+          node dev/wasm/package.mjs
+          WASM_PACKAGED=1 node dev/wasm/full/browser-test.mjs
+          WASM_PACKAGED=1 node dev/wasm/full/audio-browser-test.mjs
+          WASM_PACKAGED=1 node dev/wasm/full/performance-browser-test.mjs
+          WASM_PACKAGED=1 node dev/wasm/full/session-browser-test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: browser-joint-static
+          path: dev/wasm/build/site
