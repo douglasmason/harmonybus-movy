@@ -648,6 +648,8 @@ def main() -> int:
         version_path.write_text(version_path.read_text().replace('0.76.0-joint-chords1', '0.77.0-conductor-fill1'))
     from patch_device_startup import patch_device_startup
     patch_device_startup(root)
+    from patch_drum_gesture import patch_drum_gesture
+    patch_drum_gesture(root)
     print("HarmonyBus clean integration applied")
     return 0
 
