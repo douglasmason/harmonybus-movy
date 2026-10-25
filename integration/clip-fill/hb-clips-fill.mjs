@@ -20,7 +20,8 @@ globalThis.host_module_set_param_blocking=(key,value)=>{commands.push([key,value
 seqState.sessionMode=true;seqState.recording=false;seqState.countingIn=false;appState.currentView=VIEW_KNOBS;appState.focusGroup=0;
 layout.setClipsPage(1);view.clipsMidi([176,75,1]);assert(fill.fillActive());assert.equal(layout.clipsPage,0);assert.equal(reads,1);
 for(let count=0;count<10;count++){fill.renderFill();fill.fillTick();}assert.equal(reads,1,'drawing and ticking do not reread sources');
-view.clipsMidi([176,72,1]);assert.equal(reads,2);assert(commands.every(([,value])=>!value.includes('clipfill')),'browsing is read-only');
+view.clipsMidi([176,72,1]);assert.equal(reads,1,'turns are coalesced');
+const previousNow=Date.now;Date.now=()=>previousNow()+80;fill.fillTick();Date.now=previousNow;assert.equal(reads,2);assert(commands.every(([,value])=>!value.includes('clipfill')),'browsing is read-only');
 sessionPad(68,68);
 const write=commands.find(([key,value])=>key==='cmd'&&value.includes('clipfill'))?.[1];
 assert(write?.includes('clipfill 3 0 def 1_1_2_0_1_0 abc '),write);

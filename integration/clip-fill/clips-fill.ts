@@ -11,19 +11,20 @@ import {fitHeaderText} from '../renderer/header.js';
 import {clipsPage,setClipsPage} from './clips-layout.js';
 import fields from './part-settings.json';
 let active=false,choices=[1,0,2,0,1,0],keep=false;
-let preview='',request='',generation=0,set:string|null=null,peekUntil=0,message='';
+let preview='',request='',generation=0,set:string|null=null,peekUntil=0,message='',refreshAt=0;
 export function fillActive():boolean{return active&&seqState.sessionMode&&clipsPage===0;}
 const get=(key:string):string=>String(host_module_get_param(key)??'');
 export function setFillActive(enabled:boolean):void {
-    active=enabled;message='';if(enabled){setClipsPage(0);refresh();}appState.dirty=true;
+    active=enabled;message='';refreshAt=0;if(enabled){setClipsPage(0);refresh();}appState.dirty=true;
 }
 function refresh():void {
-    request=choices.join('_');generation=engineGeneration();set=currentSetUuid();
+    refreshAt=0;request=choices.join('_');generation=engineGeneration();set=currentSetUuid();
     preview=engineReady()?get('fill_preview_'+request):'error:Engine unavailable';
     peekUntil=Date.now()+1800;message='';appState.dirty=true;
 }
 export function fillTick():void{
     if(active&&(!seqState.sessionMode||set!==currentSetUuid()||generation!==engineGeneration())){active=false;appState.dirty=true;}
+    if(fillActive()&&refreshAt&&Date.now()>=refreshAt)refresh();
     if(peekUntil&&Date.now()>=peekUntil){peekUntil=0;appState.dirty=true;}
 }
 export function fillMidi(data:number[]):boolean {
@@ -34,7 +35,7 @@ export function fillMidi(data:number[]):boolean {
     if(key===51||key===14||key===MoveMainButton){if(value)setFillActive(false);return true;}
     if(key<71||key>78)return false;
     if(!value)return true;const knob=key-71,direction=value<64?1:-1;
-    if(knob<6){const bounds=[15,7,15,7,16,1];choices[knob]=Math.max(knob===4?1:0,Math.min(bounds[knob],choices[knob]+direction));refresh();}
+    if(knob<6){const bounds=[15,7,15,7,16,1];choices[knob]=Math.max(knob===4?1:0,Math.min(bounds[knob],choices[knob]+direction));refreshAt=Date.now()+70;preview='error:Preparing preview';message='';appState.dirty=true;}
     else if(knob===6){keep=direction>0;appState.dirty=true;}
     else setFillActive(false);
     return true;
