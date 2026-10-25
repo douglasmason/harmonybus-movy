@@ -96,7 +96,9 @@ impl Engine {
     tests: Path = assets / 'source_engine_tests.rs'
     if tests.exists():
         source += '\n' + tests.read_text()
+    source += '\n' + (assets / 'source_expression_fit_tests.rs').read_text()
     source += '\n' + (assets / 'source_instrument_tests.rs').read_text()
+    source += '\n' + (assets / 'source_instrument_fit_tests.rs').read_text()
     source += '\n' + (assets / 'source_hb_tests.rs').read_text()
     source += '\n' + (assets / 'source_operations_tests.rs').read_text()
     source = replace_once(source, '.or_else(||clip.operation_intervals.iter().rev().find_map(|interval|interval.window(pos,slot,clip.loop_start_ticks(),clip.length_ticks())));', '.or_else(||self.source_gesture_window(ti,slot,pos));')
@@ -164,8 +166,13 @@ impl Engine {
     source = replace_once(source, "        root.params.push({level:'joint_rhythm_'+role});", '''        const sourceLevel='joint_sources_'+role;
         const allSourceKeys=sourceKeys(role);
         const routeKeys=allSourceKeys.slice(0,8);
-        const automationKeys=allSourceKeys.slice(8,12);
-        const gestureKeys=allSourceKeys.slice(16);
+        const automationKeys=[...allSourceKeys.slice(8,12),allSourceKeys[19]];
+        const gestureKeys=allSourceKeys.slice(16,18);
+        const expressionKeys=[...allSourceKeys.slice(6,8),allSourceKeys[18]];
+        const expressionLevel='joint_source_expression_'+role;
+        hierarchy.levels[expressionLevel]={name:name+' Source Expression',knobs:expressionKeys,params:expressionKeys.map(key=>({key}))};
+        hierarchy.levels['joint_actor_'+role].params.push({level:expressionLevel});
+        root.params.push({level:expressionLevel});
         const gestureLevel='joint_source_gestures_'+role;
         hierarchy.levels[gestureLevel]={name:name+' Clip Gestures',knobs:gestureKeys,params:gestureKeys.map(key=>({key}))};
         hierarchy.levels['joint_actor_'+role].params.push({level:gestureLevel});
@@ -179,7 +186,7 @@ impl Engine {
         hierarchy.levels[automationLevel]={name:name+' Source Automation',knobs:automationKeys,params:automationKeys.map(key=>({key}))};
         hierarchy.levels['joint_actor_'+role].params.push({level:automationLevel});
         root.params.push({level:automationLevel});
-        hierarchy.levels[sourceLevel]={name:name+' Sources',knobs:routeKeys,params:routeKeys.map(key=>({key}))};
+        hierarchy.levels[sourceLevel]={name:name+' Sources',knobs:routeKeys,params:[...routeKeys.map(key=>({key})),{level:expressionLevel}]};
         hierarchy.levels['joint_actor_'+role].params.push({level:sourceLevel});
         root.params.push({level:sourceLevel});
         root.params.push({level:'joint_rhythm_'+role});''')

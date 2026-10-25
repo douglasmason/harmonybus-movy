@@ -1,0 +1,76 @@
+name: Drum sample pitch regression
+on:
+  push:
+    branches: [main]
+    paths:
+      - integration/drum-pitch/**
+      - scripts/patch_drum_pitch.py
+      - integration/drum-fill/**
+      - scripts/patch_drum_fill.py
+      - scripts/apply_clean_harmonybus.py
+      - scripts/patch_idle_probe.py
+      - tests/full_chain_audio.c
+      - docs/drum-fill.md
+      - .github/workflows/drum-pitch.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - integration/drum-pitch/**
+      - scripts/patch_drum_pitch.py
+      - integration/drum-fill/**
+      - scripts/patch_drum_fill.py
+      - scripts/apply_clean_harmonybus.py
+      - scripts/patch_idle_probe.py
+      - tests/full_chain_audio.c
+      - docs/drum-fill.md
+      - .github/workflows/drum-pitch.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: drum-pitch-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+env:
+  SOURCE_VERSION: 0.34.1-hbclean.233
+  HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
+  SCHWUNG_ROOT: ${{ github.workspace }}/schwung
+  SCHWUNG: ${{ github.workspace }}/schwung
+  HB_MODULE: ${{ github.workspace }}/harmonybus/modules/harmonybus/module.json
+jobs:
+  verify-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare pinned sources
+        run: |
+          git clone https://github.com/DimaDake/schwung-movy.git movy
+          git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
+          git clone https://github.com/douglasmason/harmonybus.git harmonybus
+          git -C harmonybus checkout 7712c10508623392dc6d91dc34842f1bdf8a4aa0
+          git clone https://github.com/charlesvestal/schwung.git schwung
+          git -C schwung checkout a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
+          python3 scripts/apply_clean_harmonybus.py movy
+      - name: Browser and real shared-controller regressions
+        working-directory: movy
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build:browser
+          node browser-test/logic.mjs
+          for suite in hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
+            node "browser-test/$suite.mjs"
+          done
+          # Legacy app-loop fails unchanged on the pre-routing hbclean.209 baseline.
+          # Dedicated Joint/session and full logic suites cover the current UI.
+          node browser-test/device-scripts.mjs
+          node ../tests/field_lfo_ui.mjs .
+          if test -f ../tests/field_routes_ui.mjs; then node ../tests/field_routes_ui.mjs .; fi
+      - name: Native sequencer, DSP and full production chain
+        run: |
+          cargo test --manifest-path movy/engine/Cargo.toml -p seq-core -p movy-dsp
+          bash scripts/test_full_chain_audio.sh movy harmonybus schwung
+          cargo test --release --manifest-path movy/engine/Cargo.toml -p seq-core source_routing_benchmark -- --ignored --nocapture --test-threads=1 | tee source-benchmark.txt
+          cargo test --release --manifest-path movy/engine/Cargo.toml -p movy-dsp hb_loop_snapshot_benchmark -- --ignored --nocapture --test-threads=1 | tee -a source-benchmark.txt

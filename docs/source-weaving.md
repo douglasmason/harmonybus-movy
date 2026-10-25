@@ -313,3 +313,143 @@ load Gesture Source = Own. Donor reads are raw, non-recursive and bounded to the
 existing 4096-interval limit. Only playing-slot/phase scheduling metadata is
 snapshotted; no musical cache is introduced. The older source-cache scaffold
 remains inactive and harmonic lookahead hashing remains unchanged.
+
+## Lookahead content identity (Movy 223)
+
+Edits to recorded Grid holds, shared key/context timelines, trigger conditions,
+or automation lane targets/bases now change the existing harmonic lookahead
+content identity. This prevents an old learned timeline from being reused merely
+because the notes stayed unchanged. Undo and save/load retain deterministic
+identity, while playback counters remain excluded. Existing cached timelines
+relearn under the expanded identity on first use; no save conversion is required.
+
+This release preserves Song Sections 222 and Field overview 221. It adds no
+selectors or caches and does not remove tick-level hashing. Full mutation-counter
+optimization and forecast eligibility for independently woven loops remain open,
+alongside Fit to Window. Desktop verification does not establish Move latency.
+
+## Woven conductor forecast eligibility (Movy 225)
+
+A conductor with Source Weaving On and any source reference outside its own
+playing track/clip now reports **Non-repeating** to the existing HarmonyBus
+lookahead engine. Its destination loop is not proof of the combined source
+cycle. Learned-loop prediction is suspended and HB follows observed harmony;
+source playback, accepted attacks, automation and note releases keep their
+existing owners. Woven followers do not suspend a separate conductor's forecast.
+
+This is deliberately conservative, including expression/instrument-only routes
+and donors that currently match the actor's length. Donor stop/mute/missing clips
+and recording fallback do not temporarily re-enable predictions. An available
+empty destination is still reported as non-repeating when it has independent
+routes, since it can sound borrowed notes. A stopped/muted/missing destination
+retains the existing inactive behavior.
+
+Own/Off, or references explicitly naming the actor's own playing clip, retain
+normal eligibility. Switching back permits the existing own-content cache to be
+reused; it does not clone or rewrite a timeline. Stopped opening previews also
+withhold own notes for an independent route instead of presenting those notes as
+the woven result. No source setting or save format changes.
+
+The guard uses the existing nonperiodic protocol and HB cache lifecycle. It does
+not calculate a donor LCM or simulate future accepted attacks: sequential pitch
+cursors, conditions and operation timelines need more than length arithmetic.
+Accurate woven forecasts, other dynamic-reader eligibility, revision-based hash
+optimization and Fit to Window remain future work. No hardware test is implied.
+
+## Fit to Window pitch alignment (Movy 226)
+
+In an actor's Sources panel, **Alignment → Fit to Window** maps the actor's
+current loop position proportionally into the Pitch Source's loop. For example,
+a two-bar pitch phrase spans one bar when the actor's loop is one bar. This is
+pitch selection at existing accepted rhythm attacks, not time-stretching audio
+or generating extra attacks. Sequential and Timeline retain their prior behavior.
+
+The mapped tick is `pitch_start + floor(actor_offset * pitch_length / actor_length)`.
+Both loop starts are respected; the window is half-open and wraps with the actor.
+The last pitch/chord group at or before that tick is selected; before the first
+group, the last group carries across the loop boundary, matching Timeline.
+Rests/failed rhythm conditions produce no notes, but do not freeze the actor phase.
+Pitch-donor speed and relaunch phase do not affect this mapping. Actor speed and
+relaunch do, through its existing transport position. Unequal loops are fitted
+only for pitch; no lengths, rates or recorded notes are modified.
+
+Rhythm still owns attack timing, conditions and gate durations. Expression,
+instrument automation, HB Render automation, note operations, Grid holds and
+recorded gestures retain their existing independent phase/ownership rules.
+Changing alignment or source affects subsequent attacks; sounding notes retain
+their release and pressure owners. This setting does not stretch held operations.
+Pitch/rhythm donors must still be playing and unmuted; unavailable material is
+silent. An empty actor clip remains usable with foreign pitch and rhythm sources.
+Actor recording uses its own playback path; Source Weaving Off restores that path.
+
+The existing route/undo/save field now accepts alignment 2. Old values 0 and 1
+load unchanged. New Fit routes require Movy 226 or newer; older readers reject
+that route instead of interpreting it as another mode. Source Preview displays
+**Weave Fit**, and its Pitch phase displays the fitted selection position;
+raw donor phase remains available in native diagnostics. Woven conductor forecast
+suspension remains in effect: fitting pitch alone does not prove the entire
+performance repeats at the actor's loop length. Accurate woven forecasting and
+fitting other dimensions are not implemented.
+
+## Independent expression alignment (Movy 229)
+
+**Source Expression → Expression Alignment** offers **Timeline** (the default)
+and **Fit to Window**, independently of pitch alignment. The panel reuses the
+Expression Source/Clip controls and shows the selected expression phase. Its
+source and clip shortcuts remain on the existing Sources panel.
+
+Timeline samples the donor's own loop position. Fit maps the actor's loop progress
+into the expression donor's loop using the same proportional mapping as pitch
+Fit. At each accepted rhythm attack, the last raw note at or before that phase
+supplies velocity and its pressure curve; before the first onset, the last note
+carries across the boundary. Chord ties use the last stored note, as before.
+This fits **which expression note is selected**. The selected pressure curve
+plays from its beginning with the existing note-relative rhythm clock; its
+internal timing is not stretched. Pressure after note release remains discarded.
+
+Actor speed, loop length and relaunch determine fitted progress; donor speed and
+relaunch phase affect Timeline only. Source/mode changes and edits affect later
+attacks without resetting Sequential pitch progression. Existing sounding notes
+keep their pressure and release owners. Missing, stopped or muted expression
+sources silence new woven attacks without consuming Sequential pitches. An
+available empty expression clip supplies velocity 100 and no pressure curve.
+Own expression remains the actor's existing path; recording and Source Weaving
+Off use ordinary own playback. No held-operation, automation or harmony state is
+copied or fitted by this setting.
+
+Native/UI undo and saves retain expression alignment. Older routes default to
+Timeline and keep their nineteen-field encoding. Only enabled expression Fit
+adds a twentieth field; those routes require this release or newer. Woven
+conductor prediction remains conservatively suspended with independent donors.
+Precise forecasts and fitted automation/operation timelines remain unfinished.
+
+## Instrument automation alignment (Movy 230)
+
+**Source Automation → Instrument Alignment** offers **Timeline** (default) and
+**Fit to Window** independently of pitch, expression and HB Render automation.
+Fit maps the actor's loop progress into the instrument donor's loop, then uses
+the existing stepped parameter-lock reader. A two-bar cutoff pattern can therefore
+span a one-bar actor clip. Source Preview marks the fitted Instrument phase.
+
+Values resolve before notes on each master tick, including during rests and when
+the actor runs slower than its donor. Existing value-change suppression prevents
+repeated parameter writes. Fit follows actor speed, phase and relaunch; the donor
+still must be playing and unmuted, but its own speed/relaunch phase does not control
+the fitted read. Timeline retains the donor's independent clock. Both modes use
+exact synth target-label matching, existing lock carry/note-reset rules and bases.
+Fit samples the existing steps without interpolation; compression can skip short
+regions, and expansion can hold a value longer. It does not replay every crossed
+lock or add a new clock.
+
+Source/mode changes and edits resolve through existing invalidation before later
+attacks. Unavailable donors or unmatched targets restore the actor's own timeline;
+a matching donor lane with no locks supplies its donor base. Own, Source Weaving
+Off and actor recording restore own automation. Actor mute/stop and transport stop
+restore the actor's base. Sounding notes retain their pressure and release owners.
+Instrument fitting does not stretch notes, pressure curves, HB automation or held
+operations, and does not overwrite lane assignments or stored parameter bases.
+
+Native/UI undo and saves retain this mode. Old routes default to Timeline;
+new instrument Fit adds an optional twenty-first field and requires this release
+or newer. Routes using only older modes keep their prior encoding. Independent
+sources still suspend learned conductor forecasts under the existing safeguard.

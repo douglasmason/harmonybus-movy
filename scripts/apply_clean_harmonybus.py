@@ -619,6 +619,18 @@ def main() -> int:
     patch_field_lfo(root)
     from patch_song_sections import patch_song_sections
     patch_song_sections(root)
+    from patch_section_shaping import patch_section_shaping
+    patch_section_shaping(root)
+    from patch_section_participation import patch_section_participation
+    patch_section_participation(root)
+    from patch_drum_fill import patch_drum_fill
+    patch_drum_fill(root)
+    from patch_chord_play import patch_chord_play
+    patch_chord_play(root)
+    from patch_clips_view import patch_clips_view
+    patch_clips_view(root)
+    from patch_part_library import patch_part_library
+    patch_part_library(root)
     print("HarmonyBus clean integration applied")
     return 0
 

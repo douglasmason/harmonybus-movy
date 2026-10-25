@@ -1,3 +1,5 @@
+> Movy hbclean.244 adds the Comp Library and Chord Play controls for style, velocity, note length, form, voicing, and register. Seven mapped styles and eight user slots retain clip settings and automation. Requires HarmonyBus 0.2.294. See [comp library controls](docs/comp-library.md).
+
 > Movy hbclean.202 adds opt-in stock FM-1 USB MIDI input with shared surface note ownership. Pair with HarmonyBus 0.2.281. FM-1 MIDI channel defaults OFF. No firmware change is needed.
 
 > Movy hbclean.201 pairs with HarmonyBus 0.2.279 for independent motif pitch material and generated rhythm. Existing bass clips provide looping motifs; Clip + Guide keeps comp rhythm while melody guides the next attack. Held generated notes finish their current gate, and rhythm-filled clips use existing arp ordering on written attacks. Includes Grid Sequencer from hbclean.200.

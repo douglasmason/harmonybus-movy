@@ -1,4 +1,7 @@
-import { routesOpen, setFieldRoutesOpen, resetFieldRoutes, tickFieldRoutes, selectedFieldRoute, stepFieldRoute, fieldRoutesSnapshot, fieldRouteStatus } from './field-routes.js';
+import { returnPreviousInputView } from './router-buttons.js';
+import { sharedPanel } from './shared-panel.js';
+const followPanel=sharedPanel();
+import { routesOpen, setFieldRoutesOpen, resetFieldRoutes, tickFieldRoutes, selectedFieldRoute, stepFieldRoute, fieldRoutesSnapshot, fieldRouteStatus, fieldRouteFreshness } from './field-routes.js';
 import { selectTrack } from '../track/focus.js';
 import { LFO_CHAIN_INDEX } from '../chain/config.js';
 import { VIEW_KNOBS } from '../app/state.js';
@@ -40,7 +43,7 @@ function fieldPage():SchwungPage{
         if(hierarchy.levels.field)hierarchy.levels.root={...hierarchy.levels.field,name:'Field Play'};
         return hierarchy;
     }});
-    return page;
+    return followPanel(page);
 }
 /** Last-pressed wins; releasing it restores another held gesture or baseline. */
 export function fieldPad(source:string,index:number,down:boolean,width=8,height=4,clear=appState.shiftHeld):boolean{
@@ -117,14 +120,16 @@ export function fieldColors(source:string,width=8,height=4):number[]{
         return [1,2,13,14,15][Math.min(4,Math.floor(level*5/128))];
     });
 }
-export function paintField():void{
+export function paintField(force=false):boolean {
+    if(force)paint.fill(-1);
     const colors=fieldColors('move');
     const changes=colors.flatMap((color,index)=>color===paint[index]?[]:[{note:68+index,color}]);
     for(const change of sendPadLedFrame(changes))paint[change.note-68]=change.color;
+    return colors.every((value,index)=>paint[index]===value);
 }
 /** Remote and Move navigation share this controller; editing remains in the LFO page. */
 export function openFieldRoute():boolean {
-    const route=selectedFieldRoute();if(!route)return false;
+    const route=selectedFieldRoute();if(!route||fieldRouteFreshness(route.track)!=='fresh')return false;
     const model=appState.trackModels[route.track]?.[LFO_CHAIN_INDEX];if(!model)return false;
     setFieldEnabled(false);selectTrack(route.track);seqState.sessionMode=false;
     model.reset();model.changePage(route.slot-1);
@@ -148,8 +153,8 @@ export function renderField():void{
             fontPrint(2,14,`F${route.channel} ${Math.round(outputs[route.channel-1].value*100)}% > T${route.track+1} LFO${route.slot}`,1);
             fontPrint(2,24,`${route.target||'No target'} ${route.parameter}`.slice(0,25),1);
             fontPrint(2,34,`${fieldRouteStatus(route)} ${Math.round(route.depth*100)}% ${route.bipolar?'Bi':'Uni'}`,1);
-            fontPrint(2,44,`B ${fieldReadout(route.base)} > E ${fieldReadout(route.effective)}`,1);
-        }else fontPrint(2,24,snapshot.scanned<snapshot.total?'Scanning routes...':'No Field LFO routes',1);
+            fontPrint(2,44,fieldRouteFreshness(route.track)==='fresh'?`B ${fieldReadout(route.base)} > E ${fieldReadout(route.effective)}`:'Waiting for route data',1);
+        }else fontPrint(2,24,snapshot.scanned<snapshot.total?'Scanning routes...':snapshot.tracks.some(track=>track.freshness!=='fresh')?'Route data unavailable':'No Field LFO routes',1);
         fontPrint(2,56,'Jog: route Press: LFO',1);return;
     }
     if(outputView&&!settingsOpen){
@@ -187,7 +192,7 @@ export function fieldMidi(data:number[]):boolean{
     if((type===144||type===128)&&key<8){fieldPage().knobTouch(key,type===144&&value>0);return true;}
     if(type===176&&key===14){fieldPage().changePage(value<64?value:value-128);appState.dirty=true;return true;}
     if(type===176&&key===MoveMainButton){if(value)fieldPage().click(appState.shiftHeld);appState.dirty=true;return true;}
-    if(type===176&&key===51){if(value&&fieldPage().back()?.action==='exit')setFieldEnabled(false);return true;}
+    if(type===176&&key===51){if(value&&fieldPage().back()?.action==='exit')returnPreviousInputView();return true;}
     return false;
 }
 /** Remote UI uses the same event contract. Polling this snapshot is read-only. */

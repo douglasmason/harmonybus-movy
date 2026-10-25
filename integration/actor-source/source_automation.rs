@@ -31,7 +31,17 @@ impl Engine {
             if !routed.iter().any(|enabled|*enabled) && self.source_automation_mask[actor]==0 {continue;}
             let own=self.tracks[actor].playing_slot.and_then(|slot|
                 self.source_automation_phase(ClipRef{track:actor,slot})).map(|(reference,step,cycle)|(reference.slot,step,cycle));
-            let donors=std::array::from_fn(|dimension|if routed[dimension] {sources[dimension].and_then(|reference|self.source_automation_phase(reference))} else {None});
+            let donors=std::array::from_fn(|dimension|if routed[dimension] {sources[dimension].and_then(|reference| {
+                let phase=self.source_automation_phase(reference)?;
+                if dimension!=0 || !route.instrument_fit {return Some(phase);}
+                let (slot,_,cycle)=own?;
+                let actor_clip=&self.tracks[actor].clips[slot];
+                let donor_clip=&self.tracks[reference.track].clips[reference.slot];
+                let position=crate::source_route::fitted_phase(self.source_positions[actor],
+                    actor_clip.loop_start_ticks(),actor_clip.length_ticks(),
+                    donor_clip.loop_start_ticks(),donor_clip.length_ticks());
+                Some((reference,(position/TICKS_PER_STEP) as u16,cycle))
+            })} else {None});
             let phase=AutomationPhase{own,donors,routed};
             if self.source_automation_seen[actor]==Some(phase) {continue;}
             self.source_automation_seen[actor]=Some(phase);

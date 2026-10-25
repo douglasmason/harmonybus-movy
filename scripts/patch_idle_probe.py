@@ -1,5 +1,6 @@
 """Install a bounded hands-off callback isolation test without changing the host."""
 import json
+import os
 from pathlib import Path
 from patch_responsive_persistence import replace_once
 
@@ -55,7 +56,7 @@ def patch_idle_probe(root: Path) -> None:
     for kind, key in [('MIDI','"midi"'),('WRITE','cstr(key)'),('READ','cstr(key)')]:
         source = replace_once(source, f'        instance.chains.thread_profile.done(thread_profile::{kind},', f'        instance.idle_probe.request(profile_start);\n        instance.chains.thread_profile.done(thread_profile::{kind},')
     source = replace_once(source, '    fn thread_profile_lifecycle_preserves_deadline_and_stops_on_exit()', '    fn idle_probe_lifecycle_and_real_callback_bypass() {\n        let _lock = crate::midi_out::test_guard();\n        let mut instance = Instance::new();\n        instance.set_param("cmd","icapture");\n        assert!(instance.idle_probe.active);\n        let mut audio = [0i16;256];\n        instance.render(&mut audio);\n        let normal_blocks=instance.blocks;\n        instance.idle_probe.test_elapsed(21);\n        instance.render(&mut audio);\n        assert_eq!(instance.blocks,normal_blocks,"minimal phase skips musical callback body");\n        assert!(audio.iter().any(|value|*value!=0),"tone still renders in minimal phase");\n        instance.idle_probe.test_elapsed(41);\n        instance.render(&mut audio);\n        assert_eq!(instance.blocks,normal_blocks+1,"normal phase restores without UI");\n        instance.set_param("cmd","non 0 60 100");\n        assert!(instance.idle_probe.aborted);assert!(!instance.idle_probe.active);\n        assert_eq!(instance.tone_check.state,3);\n        instance.set_param("cmd","icapture");instance.set_param("state","movy1\\n");\n        assert!(!instance.idle_probe.active);\n        instance.set_param("cmd","icapture");instance.set_param("cmd","aprof_off");\n        assert!(!instance.idle_probe.active);\n        instance.set_param("cmd","icapture");instance.idle_probe.test_elapsed(60);\n        instance.render(&mut audio);\n        assert!(!instance.idle_probe.active);assert!(!instance.idle_probe.aborted);\n    }\n    #[test]\n    fn thread_profile_lifecycle_preserves_deadline_and_stops_on_exit()')
-    version: str = json.loads((repository / 'release.json').read_text())['version']
+    version: str = os.environ.get('SOURCE_VERSION') or json.loads((repository / 'release.json').read_text())['version']
     source = source.replace('workerbuild=0.34.1-hbclean.189', 'workerbuild=' + version)
     path.write_text(source)
     path = native / 'audio_profile.rs'

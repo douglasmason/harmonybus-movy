@@ -19,15 +19,15 @@ checkout() {
   fi
 }
 checkout movy https://github.com/DimaDake/schwung-movy.git 5c01a4fe7745b730ee98111194fc64328ea2659b
-checkout harmonybus https://github.com/douglasmason/harmonybus.git b907f48b0d6d24598c4b903e4d2e59e9b759ec38
-checkout schwung https://github.com/charlesvestal/schwung.git e877ed64b2b727f5f928c7faa87fef1e12171286
+checkout harmonybus https://github.com/douglasmason/harmonybus.git d0fa77f762fe2628ca0be818c9de4bf0b6e84326
+checkout schwung https://github.com/charlesvestal/schwung.git a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
 # Always patch a pristine export: the integration patch stack is not idempotent.
 # The cached source checkout and any local edits are left untouched.
 PREPARED="$(mktemp -d "$SOURCES/movy-prepared.XXXXXX")"
 trap 'rm -rf "$PREPARED"' EXIT
 git -C "$SOURCES/movy" archive HEAD | tar -x -C "$PREPARED"
 git -C "$PREPARED" init -q
-HARMONYBUS_ROOT="$SOURCES/harmonybus" python3 "$ROOT/scripts/apply_clean_harmonybus.py" "$PREPARED"
+SCHWUNG_ROOT="$SOURCES/schwung" HARMONYBUS_ROOT="$SOURCES/harmonybus" python3 "$ROOT/scripts/apply_clean_harmonybus.py" "$PREPARED"
 npm ci --no-audit --no-fund --prefix "$PREPARED"
 npm ci --no-audit --no-fund --prefix "$ROOT/dev/local"
 bash "$ROOT/dev/local/build.sh" "$PREPARED" "$SOURCES/harmonybus" "$SOURCES/schwung"

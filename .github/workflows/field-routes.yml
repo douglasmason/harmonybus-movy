@@ -1,7 +1,7 @@
 name: Field routing overview verification and package
 on:
   push:
-    branches: [feature/field-routing-overview-20261022]
+    branches: [feature/field-route-status-20261022]
   workflow_dispatch:
 permissions:
   contents: read
@@ -9,7 +9,7 @@ concurrency:
   group: field-routes-${{ github.ref }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.221
+  SOURCE_VERSION: 0.34.1-hbclean.232
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -27,7 +27,7 @@ jobs:
           git clone https://github.com/DimaDake/schwung-movy.git movy
           git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
           git clone https://github.com/douglasmason/harmonybus.git harmonybus
-          git -C harmonybus checkout b907f48b0d6d24598c4b903e4d2e59e9b759ec38
+          git -C harmonybus checkout 7712c10508623392dc6d91dc34842f1bdf8a4aa0
           git clone https://github.com/charlesvestal/schwung.git schwung
           git -C schwung checkout a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
           python3 scripts/apply_clean_harmonybus.py movy
@@ -38,7 +38,7 @@ jobs:
           npm run typecheck
           npm run build:browser
           node browser-test/logic.mjs
-          for suite in hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
+          for suite in hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
             node "browser-test/$suite.mjs"
           done
           # Legacy app-loop fails unchanged on the pre-routing hbclean.209 baseline.
@@ -52,9 +52,10 @@ jobs:
           bash scripts/test_full_chain_audio.sh movy harmonybus schwung
           cargo test --release --manifest-path movy/engine/Cargo.toml -p seq-core source_routing_benchmark -- --ignored --nocapture --test-threads=1 | tee source-benchmark.txt
       - name: ARM toolchain
+        timeout-minutes: 5
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          sudo apt-get -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o Acquire::Retries=2 update -qq
+          sudo apt-get -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o Acquire::Retries=2 install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
           sudo ln -sf /usr/bin/aarch64-linux-gnu-gcc /usr/local/bin/aarch64-unknown-linux-gnu-gcc
           sudo ln -sf /usr/bin/aarch64-linux-gnu-nm /usr/local/bin/aarch64-unknown-linux-gnu-nm
           sudo ln -sf /usr/bin/aarch64-linux-gnu-strip /usr/local/bin/aarch64-unknown-linux-gnu-strip
@@ -81,7 +82,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: field-routes-221
+          name: field-status-232
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS

@@ -1,3 +1,4 @@
+import { returnPreviousInputView } from './router-buttons.js';
 /** Session's multi-track instrument. Tracks own sound and harmony; this module
  * owns only role allocation, gestures, geometry and cached preview requests. */
 import { appState } from '../app/state.js';
@@ -139,8 +140,9 @@ export function syncJoint(send:(key:string,value:string)=>void, now=Date.now()):
     actor.sounding=output?.startsWith('po1')?output.split(',').slice(1).map(Number).filter(note=>Number.isInteger(note)&&note>=0&&note<128):[];
 }
 
-export function paintJointPads(): void {
-    if(!jointActive())return;
+export function paintJointPads(force=false):boolean {
+    if(force)colors.fill(-1);
+    if(!jointActive())return false;
     const next=new Array(32).fill(0) as number[];
     for(const actor of actors){
         if(!actor.view)continue;
@@ -168,6 +170,7 @@ export function paintJointPads(): void {
     }
     const changes=next.flatMap((color,index)=>color===colors[index]?[]:[{index,note:68+index,color}]);
     for(const change of sendPadLedFrame(changes))colors[change.index]=change.color;
+    return next.every((value,index)=>colors[index]===value);
 }
 
 export function jointRecordCommand(): string | null {
@@ -190,7 +193,7 @@ export function jointMidi(data:number[]): boolean {
         // DSP already dispatched and recorded this physical gesture.
         return true;
     }
-    if(status===0xb0&&key===51&&value){if(jointPage().back()?.action==='exit')setJointEnabled(false);return true;}
+    if(status===0xb0&&key===51&&value){if(jointPage().back()?.action==='exit')returnPreviousInputView();return true;}
     if(status===0xb0&&key===14){const delta=value<64?value:value-128;if(delta)jointPage().changePage(delta);appState.dirty=true;return true;}
     if(status===0xb0&&key===MoveMainButton){if(value)jointPage().click(appState.shiftHeld);appState.dirty=true;return true;}
     if(status===0xb0&&key===86){if(value)recToggle(baseTrack());return true;}

@@ -275,3 +275,182 @@ fixture checks eight repeated attacks and paired releases through Movy → Schwu
 → HB. UI controls use the same native route and undo queue, on a separate panel
 within the eight-knob limit. Fit to Window, additional HB automation categories
 and the lookahead edit/record/load revision audit remain unfinished.
+
+## Movy 223: close stored lookahead identity gaps
+
+Refreshed to main 84b270f (Song Sections 222), preserving Field overview 221,
+with HB b907f48 (0.2.289). The producer still reads public Clip/Track fields at
+musical ticks and stopped refreshes. There is no complete existing clip-content
+revision counter to substitute: `dirty` is a save/UI flag, playback mutates flags,
+recording writes directly, and undo/load replace content. HB's separate rendering
+keys and lane revisions do not cover these Movy mutations.
+
+Concrete omissions fixed in the existing content hash: Grid gate start/end/lane,
+shared context tick/kind/on/a/b/c, all trigger fields, and track automation lane
+assignment, full target label and base. Counts and label lengths delimit the new
+collections; a content-schema marker prevents reuse of old persisted hashes.
+Notes, locks, key identity and timed gesture intervals keep their existing hash
+coverage. Fired/cycle/current automation values remain runtime state, not content.
+
+| Mutation path | Current coverage / evidence |
+| --- | --- |
+| Grid editor commands | Existing gtog mutates raw gates; new hash changes immediately |
+| Shared context recording/replacement | Existing shared_capture and sorted record update raw events; regression checks both |
+| Trigger edits | Full step/lane/probability/A/B/invert identity; nonperiodic activity rule unchanged |
+| Automation assignments/base | Existing auto_label/auto_base reflected without relying on emitted current value |
+| Undo/redo | Existing usnap/uswap restores content identity, not a monotonic counter |
+| Save/load | Same serialized content recreates the same hash; no new save fields |
+| Copy/launch | Content copied by existing clip clone; slot identity remains part of the hash |
+| Mute/stop and relaunch | Existing activity/phase owner remains authoritative; mute does not mutate stored identity |
+| Ordinary playback | Existing wrap test and runtime-field regression keep content identity stable |
+
+This is a bounded correctness increment, not a completed cache redesign. It adds
+some hash work and includes an explicit release benchmark for the producer.
+A future optimization must first centralize or notify all public mutations,
+including note capture/tails, edits, variation, context, load/undo, duplication and
+launch timing. Do not use `dirty` as a complete cache revision and do not activate
+the old source adapter cache. Pressure remains outside this harmonic projection.
+
+Separate unresolved eligibility work: multi-source weaving cannot be assumed to
+repeat at the destination clip period; recursive key context, live/automatic
+reader gestures and stochastic rendering also need explicit forecast semantics.
+This release fixes stored identity omissions only; it does not claim those
+forecasts are now complete. Fit to Window remains unimplemented.
+
+## Movy 225: conservative woven forecast eligibility
+
+The existing producer described only the destination clip's period/revision,
+including when raw foreign pitches/rhythm made an empty destination audible.
+HB already interprets `active=2` as non-repeating, clears composed prediction
+knowledge and detaches the active per-clip learner while retaining reusable own
+content entries. Reuse that protocol; do not add a cache, a simulated scheduler
+or an LCM-based claim about accepted attacks.
+
+`Route::has_independent_sources` checks all eight references against the actor's
+current slot. Source Weaving Off and None/explicit Own references remain eligible;
+any independent reference remains conservative across donor loss and actor
+recording fallback. Actor mute/stop/missing clips still return inactive. Empty
+own note material cannot hide an independently routed conductor. The same pure
+predicate suppresses incorrect stopped opening previews using the selected
+startup slot. HB's role filter means woven followers do not block conductors.
+
+Five DSP regressions cover dimension/alignment combinations, own/foreign slot
+identity, empty and missing material, recording, read-only playback neutrality,
+paired stop events, undo/save/load and stopped previews. The production audio
+fixture verifies actual metadata-to-HB Non-repeating status with audible borrowed
+notes and paired releases, followed by normal own learning eligibility. An
+isolated test reuses HB's production learning harness to prove a ready own cache
+is suspended on active=2, restored on active=1, and unaffected by woven followers;
+it runs under UBSan. The larger audio fixture is not used to assert a particular
+learning time because its earlier tests intentionally exercise dynamic HB state.
+
+This establishes honest suspension, not accurate multi-source forecasts. Keep
+revision hashing and its 223 coverage; other live/automatic/stochastic rendering
+eligibility remains distinct. Integrated published Song Section shaping 224 (main a339c51) without conflicts;
+the combined release gates include its audio fixtures and the Field route UI checks.
+
+## Movy 226: pitch Fit to Window
+
+Refreshed Movy d434948 / HB b907f48. Precise forecasts cannot be derived from
+length LCM alone: sequential cursor, conditions and reader operations are stateful.
+Keep 225 suspension and use the existing accepted-attack raw pitch reader for a
+bounded, usable alignment increment. No forecast simulator or cache was added.
+
+Replace Route's internal boolean with an explicit three-value Alignment enum;
+the seventh serialized field retains 0/1 and gains 2. Native parsing rejects
+other values atomically. Existing persistence and undo remain authoritative.
+The phase function uses u64 multiplication of u32 offsets/lengths and integer
+flooring. Actor position comes from the pre-track master-tick snapshot, so track
+iteration cannot shift pitch selection. Source notes are read raw under MAX_NOTES.
+The normal last-onset/chord selection and emit_clip_note path are reused.
+
+Only pitch phase changes: actor-relative loop progress selects into the donor
+window. Source availability, recording bypass, automation-before-note order,
+key/render identity, expression/operation clocks and rhythm gate ownership retain
+the existing paths. Alignment/source changes reset the Sequential cursor but do
+not flush current gates or pressure owners. Source-donor relaunch phase is ignored
+by Fit; actor relaunch follows the actor's ordinary reset. Edits are read on the
+next accepted attack. Old saved routes remain compatible; new value 2 requires
+this release and is rejected by older builds. Diagnostics add alignment and a
+selection_phase_ticks field while preserving the prior timeline boolean and raw
+phase fields; the Source Preview uses the fitted phase for its pitch display.
+
+Regression coverage includes real scheduler chord/rest selection, faster/slower
+donor clocks and track order, slow actor versus rhythm-owned releases, nonzero
+loop windows, floor/wrap bounds, source-mute pressure/off retention, mode changes,
+empty actors, raw edits, save/undo, recording and legacy modes. Production audio
+compares Timeline and Fit with identical rhythm material and paired releases.
+The existing explicit scheduler benchmark also runs both phase-based modes.
+No hardware deployment or latency claim.
+
+## Movy 229: expression alignment without another reader or owner
+
+Built initially from published Movy 226 / HB289, with concurrent Field and
+Participation work checked separately before integration. Reuse fitted_phase and
+factor the existing source_phase_note into a phase wrapper and source_note_at.
+Only the explicit expression donor lookup receives fitted actor phase; pitch
+alignment, Sequential cursor resets, source availability and all emission paths
+stay authoritative. Bounded raw note reads still happen only at accepted attacks.
+There is no expression timeline cache, copied clip or separate pressure owner.
+
+A default-false expression_fit flag appends an optional twentieth route field.
+Canonical output remains nineteen fields unless Fit is selected. Parsing accepts
+only 0/1 for the extension and preserves gesture fields in both lengths. Save,
+undo and UI commands use existing route ownership. Diagnostics add expression_fit
+and reuse selection_phase_ticks for the fitted expression readout. The Source
+Expression panel shares the same native source/clip keys as existing shortcuts.
+
+Pressure curves are immutable per-note copies already retained by existing gates.
+Fit changes the expression note selected at attack, not pressure point timing.
+Held notes survive mode/source changes; rhythm-clock timing and termination remain
+unchanged. A donor restart does not restart fitted actor progress; an actor
+restart does. Missing/stopped/muted donors block new attacks; available empty
+expression is neutral. Recording/Off bypasses routing. No operations or parameter
+values are written back. Older modes/saves stay unchanged; new Fit routes require
+the new reader. Woven forecast eligibility remains the 225 conservative rule.
+
+Six native regressions cover independent modes, both track orders and donor rates,
+actor/donor relaunch, nonzero windows, source loss, neutral empty material, retained
+pressure/release ownership, edits, pitch-cursor continuity, save/undo/recording,
+legacy parsing and gesture preservation. Shared-controller tests cover alignment,
+readback and fitted phase display. The production audio fixture compares 40/40
+Timeline velocities with 40/80 fitted velocities under the same Sequential pitch
+and rhythm material, including paired releases. The explicit scheduler benchmark
+now includes fitted expression. No physical deployment or latency claim.
+
+Integrated concurrent Clip Participation 228 (e49a5fb), preserving its follower
+rests and live-note ownership. Final verification uses the combined source tree.
+
+## Movy 230: fit instrument automation with the existing value owner
+
+Refreshed published Movy229 / HB289. source_automation_tick already runs before
+track iteration, matches exact destination synth labels, reads effective_at and
+owns changes through track.auto_cur. Reuse these paths. For instrument_fit only,
+replace the donor step in the existing AutomationPhase watermark with the actor's
+proportionally mapped source step, plus the actor cycle. HB Render keeps its donor
+phase. Including the mapped step allows a long source to advance inside one actor
+step, without adding another value cache. Reads remain bounded by existing lanes
+and locks; there is no interpolation, new scheduler or persistent raw pointer.
+
+The fitted position uses the shared pre-track source_positions snapshot. Source
+availability remains independently checked. Actor loop/rate/relaunch controls
+mapping; donor relaunch phase is irrelevant to Fit. Existing edit/route/launch
+invalidation still forces re-evaluation, while auto_cur suppresses duplicate CCs.
+Recording/Off/Own and source failure retain the old restoration rules. Mute and
+stop restore destination bases, and gate/pressure owners are untouched.
+
+Route field 21 is optional instrument_fit 0/1. Field20 retains expression_fit;
+canonical messages stay19/20 unless instrument Fit is selected. Validation rejects
+other values atomically. The existing Source Automation panel has room for the
+new independent control; its native preview shares fitted phase diagnostics.
+No additional panel or parameter state is needed.
+
+Seven native regressions exercise pre-note order in both track orders, fitted
+updates inside actor steps and rests, unequal rates, HB-phase independence,
+availability/recording/Off/Own, relaunch/nonzero loops, command edits/auditions,
+base restoration/releases and legacy/save/undo/extensions. The production chain
+fixture checks the probe's actual cutoff at its second attack (91 Timeline versus
+72 fitted), paired releases and stop base restoration. The existing instrument
+benchmark includes Fit. Browser typecheck, logic and shared-controller tests run
+locally; native/full-chain and ARM gates run in CI because the refreshed local
+runtime lacks Rust. No physical device deployment or latency claim.
