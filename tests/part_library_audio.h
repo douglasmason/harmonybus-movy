@@ -1,18 +1,20 @@
 /* Production-chain regression: imported input follows changing harmony and
  * recalls settings/automation before playback, including after Set restore. */
 static const char *part_baseline="1,1,0,0,2,16,8,0,0,0,0,0,0,0,2,1,2,0,0,100,0,0,0,0,0,0,1,0";
-static void load_part(const char *kind,const char *choice){
+static void load_part_track(int track,const char *kind,const char *choice){
     render(2); /* Set-load/input-context reconciliation precedes UI preview. */
-    char info[256],signature[64],result[256];unsigned slot;
-    assert(api->get_param(instance,"motif_clip_info_2",info,sizeof(info))>0);
+    char info[256],signature[64],result[256],parameter[64];unsigned slot;
+    snprintf(parameter,sizeof(parameter),"motif_clip_info_%d",track);
+    assert(api->get_param(instance,parameter,info,sizeof(info))>0);
     assert(sscanf(info,"%u,%63[^,]",&slot,signature)==2);
     static char command[40000];
-    snprintf(command,sizeof(command),"pload 2 %u %s %s %s %s",slot,signature,kind,choice,part_baseline);
+    snprintf(command,sizeof(command),"pload %d %u %s %s %s %s",track,slot,signature,kind,choice,part_baseline);
     set("cmd",command);render(2);
     assert(api->get_param(instance,"part_result",result,sizeof(result))>0);
     if(strncmp(result,"Loaded",6))fprintf(stderr,"part import: %s\n",result);
     assert(!strncmp(result,"Loaded",6));
 }
+static void load_part(const char *kind,const char *choice){load_part_track(2,kind,choice);}
 static void test_part_library(void){
     set("cmd","stop");render(8);set("chtracks","1");set("ch2:mix","1,0,0,0,0");set("ch0:mix","1,0,0,0,0");
     set("chord_select","off");set("chord_route","3,2,0");
@@ -52,4 +54,35 @@ static void test_part_library(void){
     char info[256];assert(api->get_param(instance,"part_info_2",info,sizeof(info))>0&&strstr(info,"|75|"));
     set("chord_select","off");render(16);
     puts("Comp library: production mapped playback, harmonic changes, user automation mapping and Set recall pass");
+    set("state","movy1\nbpm 12000\nlink 0\ntk 1 0 0\ncl 1 0 16 0 \n");
+    set("ch1:mix","1,0,0,0,0");set("ch1:midi_fx1:render_channel","2");set("ch1:midi_fx1:play_bypass","Off");
+    set("joint_links","0,1,1,-2,-1,0;4,0,0,0,0,0;8,0,0,0,0,0;12,0,0,0,0,0");
+    set("chord_route","3,2,0,1");load_part_track(1,"bass","0");
+    set("ch1:midi_fx1:render_velocity_percent","50");
+    for(int pass=0;pass<2;pass++){
+        set("ch1:midi_fx1:travel_map",pass?"Closest Split":"Relative");
+        /* The 84-tick opening bass gate ends before beat two at 96 ticks.
+           Begin counting in that rest, so no pre-count note-off is included. */
+        set("cmd","play");render(156);
+        set("chord_select",pass?"0,2,1,0,1,0,1,12":"0,10,1,0,1,0,1,12");render(8);
+        sent_on=sent_off=0;rendered_mask=0;source_velocity_count=0;capture_source_velocity=1;
+        memset(routed_channel_on,0,sizeof(routed_channel_on));
+        render(850);set("cmd","stop");render(16);capture_source_velocity=0;
+        unsigned expected=pass?((1u<<2)|(1u<<9)):((1u<<10)|(1u<<5));
+        fprintf(stderr,"bass preset mapping %d on=%d off=%d mask=%x expected=%x\n",pass,sent_on,sent_off,rendered_mask,expected);
+        assert(sent_on>=4&&sent_on==sent_off&&rendered_mask==expected);
+        assert(routed_channel_on[1]==(unsigned)sent_on);
+        assert(source_velocity_count>0);for(int index=0;index<source_velocity_count;index++)assert(source_velocities[index]>0&&source_velocities[index]<=54);
+    }
+    set("cmd","alabel 1 5 synth:cutoff;abase 1 5 33;aset 1 5 0 91;pshape 1 0 gate 60;pshape 1 0 register -12");
+    assert(api->get_param(instance,"part_export_1",entry,sizeof(entry))>0&&strncmp(entry,"error:",6));
+    set("state","movy1\nbpm 12000\nlink 0\ntk 1 0 0\ncl 1 0 16 0 \n");
+    load_part_track(1,"user",entry);set("cmd","play");render(2);
+    assert(field_get("ch1:synth:cutoff")==91);set("cmd","stop");render(4);
+    assert(api->get_param(instance,"state",saved,sizeof(saved))>0);
+    set("ch1:midi_fx1:render_velocity_percent","110");set("state",saved);render(4);
+    assert(field_get("ch1:midi_fx1:render_velocity_percent")==50);
+    assert(api->get_param(instance,"part_info_1",info,sizeof(info))>0&&strstr(info,"|-12|60|"));
+    set("chord_select","off");render(16);
+    puts("Bass library: both mappings, changing harmony, exclusive clip routing, scaled velocity, paired releases and user recall pass");
 }

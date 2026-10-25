@@ -14,6 +14,6 @@ Presets retain clip timing, note lengths, register, note actions, pressure, trig
 
 After editing a loaded style, choose User Slot and Save User in Comp Library, then confirm. The eight user entries persist across Sets and module updates. Saving over a user slot explicitly replaces that entry; clip Undo does not restore the global user library. Set save/open, clip duplication, and Undo retain clip recipes. Existing unstyled clips keep their prior track defaults.
 
-This release delivers the comping category. Drum, conductor, and bass categories are follow-up work; melody remains lowest priority. Future comp, bass, and melody entries must retain Relative or Closest Split input mapping.
+This release delivers the comping category. The [Bass Library](bass-library.md) extends the same system in hbclean.245. Drum and conductor categories remain follow-up work; melody remains lowest priority. Comp, bass, and melody entries must retain Relative or Closest Split input mapping.
 
 Verification covers real controller touch/turn behavior, UI logic, native sequencer/DSP, mapped playback through the production Movy → chain → HarmonyBus path, automation remapping, persistence, Undo, and ARM packaging. Physical Move playback still needs verification after installation.

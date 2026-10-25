@@ -1,7 +1,7 @@
 name: Chord Play verification and package
 on:
   push:
-    branches: [main, work/comp-style-library]
+    branches: [main, work/bass-style-library]
     paths:
       - integration/drum-output/**
       - scripts/patch_drum_output.py
@@ -12,6 +12,7 @@ on:
       - scripts/patch_part_library.py
       - tests/part_library_audio.h
       - docs/comp-library.md
+      - docs/bass-library.md
       - integration/chord-play/**
       - integration/grid/**
       - scripts/patch_grid.py
@@ -37,6 +38,7 @@ on:
       - scripts/patch_part_library.py
       - tests/part_library_audio.h
       - docs/comp-library.md
+      - docs/bass-library.md
       - integration/chord-play/**
       - integration/grid/**
       - scripts/patch_grid.py
@@ -159,7 +161,7 @@ jobs:
           if metadata['version'] != '0.34.1-hbclean.246':
               raise SystemExit('Expected Movy 246 before chord context release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Drum clip destinations" --notes-file docs/drum-output.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Chord Play harmony and performance context" --notes-file docs/chord-play.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)

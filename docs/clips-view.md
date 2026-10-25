@@ -17,15 +17,16 @@ selection and other overlays retain ownership of their navigation.
 1. **Row:** Bank (original mapping), Conductor (track 1), or Drums.
 2. **Touch:** Normal (touching or turning opens the existing Master controls), Conductor clips, or Drum clips.
 3. **Drum track:** track 5, 9 or 13, remembered separately for each bank.
+4. **Drum Clip Out:** Chain or Drum Ch 1 for that selected source (Movy 245). This changes clip output only; see [Drum clip destinations](drum-output.md).
 
-The other knobs are inactive in Setup. Row and Touch are independent per-Set
+Knobs 5–8 are inactive in Setup. Row and Touch are independent per-Set
 preferences. Defaults remain Bank/Normal, preserving the existing routing and
 track presentation. Default drum sources are 5/5/9/13 across the four banks.
 These preferences persist through the existing Set UI serializer and autosave.
 
 The overview lists all four actual pad-row track numbers. An assigned touch row
 identifies its track and shows eight clip columns: P playing, Q queued,
-S selected, + content, - empty. REC in the header reports the existing recording
+a box around the selected slot, a dot for content, and blank space for an empty slot. REC in the header reports the existing recording
 state; it is not a claim that every displayed row is recording. The knob LEDs
 use the existing LED budget/cache. Launch touches are deduplicated until release.
 
@@ -46,11 +47,11 @@ immediately. Tapping a playing clip queues a relaunch. These are displayed as
 behavior, not editable settings: the engine does not currently expose alternative
 launch grids or playing-clip tap policies. Empty clips retain stock stop behavior.
 
-This is a presentation layer, not a routing migration. Selecting Drums does not
+The row assignments are a presentation layer. Selecting Drums for a row does not
 rewrite the track's chain, change MIDI channels, convert pitches, or remove other
-conductors in a saved Set. Configure the selected source as drums separately;
-the dedicated fully Movy-hosted drum output remains the work described in
-`drum-destination.md`. No physical Move or deployed browser Site is updated.
+conductors in a saved Set. Use the separate Drum Clip Out control to enable channel-1 output explicitly.
+It preserves live pad behavior and chain settings. See [Drum clip destinations](drum-output.md)
+for routing, persistence, Undo and validation. No physical Move or deployed browser Site is updated.
 
 ## Verification
 
@@ -60,6 +61,6 @@ release across modes, Master ownership and return, invalid persistence values,
 actual Set UI roundtrip, status rendering and footer width. It renders production
 screens to `artifacts/clips-performance.png` and `artifacts/clips-settings.png`.
 
-Local validation against Movy 241 / HB `475e02f`: TypeScript, full logic checks,
-ten focused UI suites and the device JavaScript bundle passed. Native/ARM CI and
-publication have not run for this change.
+The Movy 245 verification includes TypeScript, full browser logic, 27 focused UI
+suites, 809 native tests, production-chain MIDI/audio tests and ARM packaging.
+The setup page is rendered using the shared knob-settings controller.
