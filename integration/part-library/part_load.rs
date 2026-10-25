@@ -6,18 +6,23 @@ impl Engine {
     }
     fn part_load_checked(&mut self,message:&str,out:&mut Vec<OutEvent>)->Result<(),&'static str>{
         let fields:Vec<_>=message.split_whitespace().collect();
-        if fields.len()!=7 {return Err("Incomplete preset");}
+        if fields.len()!=7 && fields.len()!=8 {return Err("Incomplete preset");}
+        let keep_weaving=match fields.get(7).copied().unwrap_or("own") {
+            "own"=>false,"keep"=>true,_=>return Err("Invalid source routing choice"),
+        };
         let track=fields[1].parse::<usize>().map_err(|_|"Invalid track")?;
         let slot=fields[2].parse::<usize>().map_err(|_|"Invalid clip")?;
         if self.part_recording_busy() {return Err("Finish recording first");}
-        if track>=self.tracks.len()||self.track_is_drum(track){return Err("Select a melodic comp track");}
+        if track>=self.tracks.len()||self.track_is_drum(track){return Err("Select a melodic track");}
         let target=&self.tracks[track];
-        if target.active_clip!=slot||target.playing_slot.is_some_and(|playing|playing!=slot) {return Err("Select the playing comp clip");}
+        if target.active_clip!=slot||target.playing_slot.is_some_and(|playing|playing!=slot) {return Err("Select the playing clip");}
         let info=self.motif_clip_info(track);let signature=info.split(',').nth(1).unwrap_or("");
         if signature!=fields[3] {return Err("Clip changed - preview again");}
         let baseline=Settings::parse(fields[6]).ok_or("Incomplete track settings")?;
-        let (mut clip,donor)=if fields[4]=="stock" {
-            (crate::part_catalog::comp(fields[5].parse().map_err(|_|"Invalid style")?).ok_or("Unknown style")?,None)
+        let (mut clip,donor)=if matches!(fields[4],"stock"|"bass") {
+            let choice=fields[5].parse().map_err(|_|"Invalid style")?;
+            let clip=if fields[4]=="bass" {crate::part_catalog::bass(choice)}else{crate::part_catalog::comp(choice)};
+            (clip.ok_or("Unknown style")?,None)
         }else if fields[4]=="user" {
             let text=decode(fields[5]).ok_or("Invalid saved preset")?;
             if !text.starts_with("part1\n") {return Err("Unsupported preset version");}
@@ -53,14 +58,15 @@ impl Engine {
         target.clips[slot]=clip;target.lane_label=labels;target.lane_assigned=assigned;target.lane_base=bases;
         target.last_auto_step=-1;target.auto_cur=[-1;8];
         if target.playing_slot==Some(slot){target.pos_tick=target.clips[slot].loop_start_ticks();}
-        self.source_routes[track]=Default::default();self.source_automation_invalidate();
+        if !keep_weaving {self.source_route_set(&crate::source_route::Route::default().message(track));}
+        self.source_automation_invalidate();
         out.push(OutEvent::RecipeLanes{track:track as u8});
         self.ensure_selected_playing(track);self.recipe_tick(out);Ok(())
     }
     pub fn part_export(&self,track:usize)->String {
         let Some(target)=self.tracks.get(track) else{return "error:Invalid track".into();};
         if self.recording {return "error:Finish recording first".into();}
-        let clip=target.active();if !valid(clip,&target.lane_label){return "error:Load a mapped comp style first".into();}
+        let clip=target.active();if !valid(clip,&target.lane_label){return "error:Load a mapped style first".into();}
         let mut preset=Engine::new(48000,12000);
         preset.tracks[0].clips[0]=clip.clone();
         preset.tracks[0].lane_label=target.lane_label.clone();preset.tracks[0].lane_assigned=target.lane_assigned;preset.tracks[0].lane_base=target.lane_base;

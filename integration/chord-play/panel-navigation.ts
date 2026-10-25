@@ -14,7 +14,7 @@ export function panelNavigation(ctl:any,enabled:()=>boolean,modeName:()=>string)
         if(/^cp_(Conductor|Comp|Melody)_/.test(level))return level.split('_')[1];
         if(level==='joint_comp_weave')return 'Comp';
         if(/^joint_(actor|rhythm|weave|conditions)_/.test(level))return ['Root','Bass','Comp','Melody'][Number(level.split('_').slice(-1)[0])]??'Actors';
-        if(level==='root'||/^cp_(bank|edit|intent|bass_edit|scale_controls|comp_library|setup)/.test(level)||/^approach_bank_|^harm_play_|^pitch_play$|^secondary$|^follower_touch$|^operations_9_16$|^motion_/.test(level))return 'Core';
+        if(level==='root'||/^cp_(bank|edit|intent|bass_edit|scale_controls|comp_library|bass_library|setup)/.test(level)||/^approach_bank_|^harm_play_|^pitch_play$|^secondary$|^follower_touch$|^operations_9_16$|^motion_/.test(level))return 'Core';
         if(/diagnostic|status|follower_this|next_harm|follower_root/.test(level))return 'Diagnostics';
         if(/defaults/.test(level))return 'Defaults';
         if(/display|joint_pads/.test(level))return 'Display';

@@ -27,3 +27,53 @@ partModalTouch(1,true);partModalTouch(1,false);assert(partModalActive(),'opening
 partModalTouch(1,true);partModalTouch(1,false);assert(!partModalActive());
 globalThis.host_module_get_param=oldGet;
 console.log('Comp library: main controls, exclusive routing, selectors and deliberate loading pass');
+
+// Bass reuses the page controller but owns its track, choices and global slots.
+const {userParts,saveUserPart}=await import('../dist/esm/seq/part-storage.js');
+const oldRead=globalThis.host_read_file,oldWrite=globalThis.host_write_file;
+let stored=JSON.stringify({version:1,entries:[{payload:'abcd',synth:'probe'}]});
+globalThis.host_read_file=()=>stored;globalThis.host_write_file=(_path,text)=>{stored=text;};
+assert.equal(userParts('comp')[0].payload,'abcd');assert.equal(userParts('bass')[0],null);
+assert(saveUserPart(0,{payload:'1234',synth:'probe'},'bass'));
+assert.equal(JSON.parse(stored).version,2);assert.equal(JSON.parse(stored).comp[0].payload,'abcd');
+assert.equal(JSON.parse(stored).bass[0].payload,'1234');
+globalThis.host_write_file=()=>{};
+assert.equal(saveUserPart(1,{payload:'5678',synth:'probe'},'bass'),false);
+assert.equal(userParts('bass')[1],null,'a failed write does not change accepted slots');
+globalThis.host_read_file=oldRead;globalThis.host_write_file=oldWrite;
+const compChoiceBefore=partRead('cp_style',2);
+assert(partWrite('bp_style','Octaves',1));assert.equal(partRead('bp_style',1),'Octaves');
+assert.equal(partRead('cp_style',2),compChoiceBefore,'bass browsing leaves comp choice intact');
+assert.equal(partWrite('bp_style','Registers',1),false);
+chord.restoreChord(null);chord.setChordEnabled(true);page=chord.chordPage();
+const bassPage=page.ctl.pages.findIndex(entry=>entry.keys?.includes('bp_style'));assert(bassPage>=0);page.goToPage(bassPage);
+assert.deepEqual(Array.from({length:8},(_,index)=>page.keyAt(index)),['bp_style','bp_velocity','bp_gate','bp_register','bp_mapping','bp_user','bp_save','cp_off']);
+const bassPort=chord.chordPanelPort(3);bassPort.getParam('midi_fx1:chain_params');
+assert.equal(bassPort.setParam('midi_fx1:cp_bass_track','3'),false,'bass cannot overwrite the comp actor');
+assert(bassPort.setParam('midi_fx1:bp_velocity','61'));assert.equal(portFor(1).getParam('midi_fx1:render_velocity_percent'),'61');
+assert.equal(bassPort.getMany(['midi_fx1:bp_velocity'],true)[0],'61');
+const beforeBass=chord.chordCompState();chord.setChordBassClip(true);chord.tickChord();
+assert(chord.chordSnapshot().bassClip);assert.equal(chord.chordSnapshot().source,0);
+chord.restoreChordCompState(beforeBass);assert.equal(chord.chordSnapshot().bassClip,false);
+globalThis.host_module_get_param=key=>key==='motif_clip_info_1'?'0,abc,16,0,4,1':oldGet(key);
+page=chord.chordPage();page.goToPage(bassPage);
+chord.chordMidi([0x90,0,127]);chord.chordMidi([0xb0,71,1]);chord.chordMidi([0x80,0,0]);assert(!partModalActive());
+chord.chordMidi([0x90,0,127]);chord.chordMidi([0x80,0,0]);assert(partModalActive());cancelPartReview();
+globalThis.host_module_get_param=oldGet;
+console.log('Bass library: independent controls, mapped choices, category migration, failed writes, track protection and routing Undo pass');
+
+// Load review explicitly chooses source routing and rejects stale route previews.
+const commandWrites=[];const originalBlocking=globalThis.host_module_set_param_blocking;
+let sourceRoute='1 1 -1 -1 2 0 0',activated=0;
+globalThis.host_module_set_param_blocking=(key,value)=>{commandWrites.push([key,value]);return originalBlocking?.(key,value);};
+globalThis.host_module_get_param=key=>key==='motif_clip_info_1'?'0,abc,16,0,4,1':key==='source_route_1'?sourceRoute:key==='part_result'?'Loaded - Undo available':oldGet(key);
+const openReview=()=>{preparePart({track:1,conductor:0,kind:'bass',activate:()=>activated++},0);partModalTouch(0,true);partModalTouch(0,false);};
+openReview();partModalTouch(2,true);partModalTouch(2,false);assert(drawPartReview());
+partModalTouch(0,true);partModalTouch(0,false);
+assert(commandWrites.some(([key,value])=>key==='cmd'&&/pload 1 0 abc bass 0 .* keep/.test(value)));assert.equal(activated,1);
+commandWrites.length=0;openReview();partModalTouch(0,true);partModalTouch(0,false);
+assert(commandWrites.some(([key,value])=>key==='cmd'&&/pload 1 0 abc bass 0 .* own/.test(value)));
+commandWrites.length=0;openReview();sourceRoute='1 0 -1 -1 2 0 0';partModalTouch(0,true);partModalTouch(0,false);
+assert(!commandWrites.some(([key,value])=>key==='cmd'&&value.includes('pload')),'route changes invalidate the review');
+globalThis.host_module_get_param=oldGet;globalThis.host_module_set_param_blocking=originalBlocking;
+console.log('Library weaving: explicit own/keep choice, activation after acknowledgement and stale-route rejection pass');
