@@ -77,3 +77,7 @@ Extracted components may serve existing live weaving or the shared prepared-plan
 The user does not need to save or manually extract a clip before selecting it. Every dimension picker includes saved library material and clips from the current Set, identified by track/slot and a content preview. Selecting a clip as a rhythm or pitch source automatically projects that dimension through the same source adapter. Save to Library is an optional persistence action, never a prerequisite for reuse.
 
 For live weaving, retain existing clip references so later edits follow the established playback rules; no temporary library entry or copied clip is required. For Fill/Generate/Remix, capture a stable prepared projection of the chosen clips, their source identities and revisions. Preview and commit use the same result; a relevant source edit invalidates that review or requires explicit regeneration. Library snapshots remain independent of the original clip. These are explicit live-reference and prepared-content semantics, not two extraction implementations.
+
+## Implemented first increment: 248
+
+[Clip Fill](clip-fill.md) now exposes independent existing-clip pitch and rhythm sources directly in Clips View, temporary source-note previews, Sequential/Fit pitch selection, target length and pad-to-replace with Undo. It reuses live weaving's onset selection. No new user-library saving workflow was added. The release document states its current source/mapping restrictions; general drum-lane extraction, richer browser controls and generation remain follow-up work.
