@@ -52,7 +52,7 @@ Repeat tiles a phrase at its original rate; Fit changes its timing to a target w
 
 Conductor material describes harmony and defaults to direct conductor MIDI. Optional comp interpretation uses a separate mapped comp clip for rhythm and voicing. Selecting a progression must not silently enable comp playback or suppress conductor output. Comp, bass and melody entries require Relative or Closest Split input mapping. Drums use their exact sample-note mapping. A future multi-part style can reference several ordinary entries; it does not need another arrangement engine.
 
-This document describes the next interaction and consolidation work. The full Clips View Fill mode, general Repeat/Fit placement and richer browser content browser are not implemented in hbclean.245.
+This document describes the next interaction and consolidation work. The full Clips View Fill mode, general Repeat/Fit placement and richer browser content browser are not implemented in hbclean.246.
 
 ## Relationship to merged Source Weaving
 

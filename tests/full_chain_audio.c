@@ -471,6 +471,8 @@ static void test_source_weaving(void){
     puts("source weaving: actual Movy/chain/HB melody, conductor root and comp with paired releases pass");
 }
 
+#include "drum_destination_audio.h"
+
 static void test_drum_fill_output(void){
     set("cmd","stop");render(32);set("chtracks","0");
     set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 16 0 \n");
@@ -721,6 +723,7 @@ int main(int argc,char **argv){
     test_diagnostic_tone();
     test_field_lfos();
     test_drum_fill_output();
+    test_drum_destination();
 #ifdef HB_TEST_CHORD_PLAY
     test_chord_play();
 #endif
