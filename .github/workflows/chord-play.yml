@@ -1,7 +1,7 @@
 name: Chord Play verification and package
 on:
   push:
-    branches: [main, work/conductor-clip-fill]
+    branches: [main, fix/device-startup-order]
     paths:
       - integration/single-conductor/**
       - scripts/patch_single_conductor.py
@@ -21,6 +21,9 @@ on:
       - docs/comp-library.md
       - docs/bass-library.md
       - integration/joint-chords/**
+      - scripts/patch_device_startup.py
+      - scripts/test_device_startup.py
+      - docs/device-startup-fix.md
       - scripts/patch_joint_chords.py
       - tests/joint_chords_audio.h
       - docs/joint-chords.md
@@ -61,6 +64,9 @@ on:
       - docs/comp-library.md
       - docs/bass-library.md
       - integration/joint-chords/**
+      - scripts/patch_device_startup.py
+      - scripts/test_device_startup.py
+      - docs/device-startup-fix.md
       - scripts/patch_joint_chords.py
       - tests/joint_chords_audio.h
       - docs/joint-chords.md
@@ -87,7 +93,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.252
+  SOURCE_VERSION: 0.34.1-hbclean.253
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -157,6 +163,8 @@ jobs:
           path.write_text(json.dumps(metadata, indent=2) + '\n')
           PY
           npm run build:device --prefix movy
+          make -C schwung/libs/quickjs/quickjs-2025-04-26 -j2 qjs
+          python3 scripts/test_device_startup.py movy schwung
           bash movy/scripts/build-dsp.sh
           mkdir -p package/movy/configs
           cp movy/module.json movy/ui.js movy/dist/dsp.so package/movy/
@@ -167,7 +175,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: conductor-fill-252
+          name: device-startup-253
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -187,10 +195,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.251':
-              raise SystemExit('Expected Movy 251 before conductor Fill release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.252':
+              raise SystemExit('Expected Movy 252 before startup fix; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Conductor clip Fill" --notes-file docs/clip-fill.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Device startup fix" --notes-file docs/device-startup-fix.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -203,7 +211,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.251':
+          if metadata['version'] != '0.34.1-hbclean.252':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
