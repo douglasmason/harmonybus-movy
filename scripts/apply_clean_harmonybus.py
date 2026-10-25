@@ -650,6 +650,8 @@ def main() -> int:
     patch_device_startup(root)
     from patch_drum_gesture import patch_drum_gesture
     patch_drum_gesture(root)
+    from patch_performance_controls import patch_performance_controls
+    patch_performance_controls(root)
     print("HarmonyBus clean integration applied")
     return 0
 

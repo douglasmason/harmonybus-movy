@@ -168,10 +168,10 @@ for(const [slot,label] of [[0,'Home 9:Parallel'],[7,'Parallel 9:Blues'],[14,'Blu
 chord.selectChordSlot(8);now+=250;chord.tickChord();
 for(const key of ['cp_selected','cp_policy']){
  find(key);page.ctl.state.touched=-1;page.ctl.state.peek=null;
- assert.match(chord.chordContextTrail(),/^Chord>Core P2 /,'editor and scale context retain the same selected chord identity');
+ assert.match(chord.chordContextTrail(),/^Chord>Cond P2 /,'editor and scale context retain the same selected chord identity');
  page.ctl.state.touched=0;assert.equal(chord.chordContextTrail(),null,'context never overwrites a touched control overlay');page.ctl.state.touched=-1;
 }
-find('cp_status_effective');assert.equal(page.ctl.hbNavigation.state().category,'Core');assert.equal(page.keyAt(7),'cp_off');
+find('cp_status_effective');assert.equal(page.ctl.hbNavigation.state().category,'Conductor');assert.equal(page.keyAt(7),'cp_off');
 console.log('Performance context: native effective/next, stopped suppression, live expiry, bounded reads, step mappings and shared edit identity pass');
 
 // Exercise the complete renderer: context must not corrupt the category bar or overlays.
@@ -184,7 +184,7 @@ try {
  assert(overviewPixels.slice(10*128,12*128).every(pixel=>pixel===0),'overview clears the underlying knob-box borders');
  clear_screen();const {fontPrint:print}=await import('../dist/esm/font/index.js');print(1,12,'Sounds F:A',1);
  assert.deepEqual(overviewPixels.slice(12*128,17*128),pixels.slice(12*128,17*128),'overview uses full-width harmony text instead of truncated knob boxes');
- assert.equal(chord.chordContextTrail(),'Chord>Core K8:Off');
+ assert.equal(chord.chordContextTrail(),'Chord>Cond K8:Off');
  find('cp_slot_7');page.ctl.state.touched=-1;page.ctl.state.peek=null;
  chord.renderChord();const bankPixels=pixels.slice(),trail=chord.chordContextTrail();
  clear_screen();const {fontPrint}=await import('../dist/esm/font/index.js');fontPrint(1,58,trail,1);

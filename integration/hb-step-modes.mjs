@@ -61,9 +61,10 @@ appState.shiftHeld=true;page.knobTouch(resetSlot,true);page.knobTouch(resetSlot,
 assert(writes.slice(beforeReset).some(([,key,value])=>key==='midi_fx1:track_defaults_reset'&&value==='0'),'Reset uses the selected zero-based track identity');
 page.goToPage(0);
 assert(order('follower_explicit_root')<order('chord_mode'));
-assert.equal(order('key_center_tonic'),2,'Set Live Key follows Key & Scale');
-assert.equal(order('chord_mode'),4,'Chords follows Main, Global, Set Live Key and Follower Root');
-assert.equal(order('arp_playback'),6,'Arp / Strum follows Chord Forms');
+assert.equal(order('current_harmony'),1,'Harmony & Pads immediately follows Main');
+assert.equal(order('key_center_tonic'),3,'Set Live Key follows Key & Scale');
+assert.equal(order('chord_mode'),5,'Chords follows Main, Harmony & Pads, Global, Set Live Key and Follower Root');
+assert.equal(order('arp_playback'),7,'Arp / Strum follows Chord Forms');
 for(const key of ['defaults_editor'])
     assert.equal(order(key),-1,'Role Defaults panel removed');
 assert(order('render_channel')<order('chord_mode'));
@@ -84,7 +85,7 @@ try {
     const firstOps=order('motion_control_1');
     assert(firstOps>=0);
     assert.equal(order('monitor_status'),-1,'Diagnostics stay in Steps setup');
-    assert.equal(order('pad_display'),-1,'Pad Colors moved to Set pages');
+    assert.equal(order('pad_display'),order('current_harmony'),'The display selector stays with the visible harmony status');
     assert.equal(order('fpath_0_0_0'),-1,'Note diagnostics stay in Steps setup');
     assert(!has(page,'target_scale_major'),'Scale setup does not clutter Perform');
     down();assert.equal(hbPerformancePage(),null,'Copy held exposes native input step editing');

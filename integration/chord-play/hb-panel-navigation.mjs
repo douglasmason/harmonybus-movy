@@ -8,7 +8,10 @@ const {settingsPage}=await import('../dist/esm/seq/hb-settings.js');
 let page=chordPage(),navigation=page.ctl.hbNavigation;
 page.goToPage(0);
 assert.deepEqual(navigation.state().groups,['Conductor','Comp','Melody','Libraries','Setup']);
-const coreCount=navigation.state().indices.length;assert(coreCount>=7);
+const coreLevels=navigation.state().indices.map(index=>page.ctl.pages[index].level);
+assert.deepEqual(coreLevels,['root','cp_bank_0','cp_bank_1','cp_bank_2','cp_scale_controls','cp_Conductor_follower_touch','cp_Conductor_operations_9_16','cp_Conductor_motif_play'],
+ 'Chord Play keeps exactly eight playing panels; editors and overflow remain in Settings');
+const coreCount=coreLevels.length;
 for(let index=0;index<coreCount;index++)page.changePage(1);
 const origin=page.pageIndex;page.changePage(-1);assert(!navigation.isMenu());assert.equal(page.pageIndex,origin);page.changePage(1);
 assert(navigation.isMenu());

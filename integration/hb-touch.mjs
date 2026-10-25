@@ -161,7 +161,7 @@ port.getParam = originalGet;
 assert.equal(module.capabilities.ui_hierarchy.levels.follower_play.knobs.length, 7);
 console.log('HB performance release: no polling during touch, direct captured release, no duplicate Off pass');
 
-assert(!page.ctl.pages.some(candidate=>candidate.keys?.includes('pad_display')),'Movy owns Pad Colors under Shift + Step 9');
+assert.deepEqual(page.ctl.pages.filter(candidate=>candidate.keys?.includes('pad_display')).map(candidate=>candidate.level),['harmony_status'],'Harmony & Pads exposes the existing display selector without duplicating the full Pad Colors editor');
 assert.equal(module.capabilities.ui_hierarchy.levels.pad_display.knobs.length,8,'Standalone HB retains Pad Colors');
 assert.equal(values.get('pad_play_color'),'Green');
 assert.equal(values.get('pad_pulse_shape'),'None');
@@ -920,7 +920,7 @@ assert.deepEqual(module.capabilities.chain_params.find(p=>p.key==='pad_chord_for
 const formKeys=['conductor_default_chord_form','follower_default_chord_form','pad_chord_form','pad_next_chord_form','detected_chord_form','track_chord_form','pad_next_pulse','pad_adjacent_shading'];
 assert.deepEqual(module.capabilities.ui_hierarchy.levels.chord_forms.knobs,formKeys);
 for(const key of formKeys){
-    assert.equal(page.ctl.pages.filter(candidate=>candidate.keys?.includes(key)).length,1,key+' appears on exactly one page');
+    assert.equal(page.ctl.pages.filter(candidate=>candidate.level!=='harmony_status'&&candidate.keys?.includes(key)).length,1,key+' appears on exactly one editing page, apart from the status shortcut');
     assert(focusKey(key)>=0,key+' is reachable');
 }
 assert(!module.capabilities.ui_hierarchy.levels.pad_chord_form,'No stranded Pad Harmony page');
