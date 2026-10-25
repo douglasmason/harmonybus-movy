@@ -19,13 +19,14 @@ try{
  const pad=page.getByRole('button',{name:'Pad 1',exact:true});
  await pad.focus();await page.keyboard.down('Space');
  await page.waitForFunction(()=>{const monitor=__joint.monitor;const samples=new Float32Array(monitor.analyser.fftSize);monitor.analyser.getFloatTimeDomainData(samples);return samples.some(value=>Math.abs(value)>.001);});
- const before=await page.evaluate(async()=>({engine:await __wasmStats(),time:__joint.monitor.context.currentTime,rendered:__joint.monitor.stats.rendered}));
+ const before=await page.evaluate(async()=>({engine:await __wasmStats(),time:__joint.monitor.context.currentTime,rendered:__joint.monitor.stats.rendered,underruns:__joint.monitor.stats.underruns}));
  await page.evaluate(()=>{const until=performance.now()+900;while(performance.now()<until){}});
  await page.waitForTimeout(50);
- const after=await page.evaluate(async()=>({engine:await __wasmStats(),time:__joint.monitor.context.currentTime,rendered:__joint.monitor.stats.rendered}));
+ const after=await page.evaluate(async()=>({engine:await __wasmStats(),time:__joint.monitor.context.currentTime,rendered:__joint.monitor.stats.rendered,underruns:__joint.monitor.stats.underruns}));
  assert(after.rendered-before.rendered>20000,'worklet consumes PCM during page stall');
  const engineSeconds=(after.engine.blocksProcessed-before.engine.blocksProcessed)*128/44100;
  assert(Math.abs(engineSeconds-(after.time-before.time))<.12,'engine advances once per consumed audio, without timer double stepping');
+ console.log('Browser timing with lighting during 900 ms page stall:',JSON.stringify({engineSeconds,audioSeconds:after.time-before.time,consumedFrames:after.rendered-before.rendered,underrunFrames:after.underruns-before.underruns}));
  // Mix is applied by the production chain, not by a page-thread oscillator.
  await page.evaluate(()=>{for(let actor=0;actor<4;actor++)__joint.monitor.mix(actor,.6,true);});
  await page.waitForFunction(()=>{const samples=new Float32Array(2048);__joint.monitor.analyser.getFloatTimeDomainData(samples);return samples.every(value=>Math.abs(value)<.0001);});

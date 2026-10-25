@@ -15,7 +15,8 @@ permissions:
   contents: read
 jobs:
   native-and-browser:
-    runs-on: ubuntu-latest
+    # Match the pinned Playwright release instead of drifting to unsupported OS images.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
