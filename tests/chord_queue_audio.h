@@ -75,11 +75,12 @@ static void test_chord_queue(void){
     if(register_low!=55||register_high!=62)fprintf(stderr,"queued G range %d..%d\n",register_low,register_high);
     assert(register_low==55&&register_high==62);
     set("cmd","stop");render(16);assert(sent_on==sent_off);capture_register=0;
-    set("cmd","jrec 1 1");render(8);
+    set("cmd","jrec 1 1");render(800); /* Finish the production record count-in. */
     set("chord_queue","0,0,1,2,1,0,1,12,0,0,5");render(200);
     api->get_param(instance,"state",saved,sizeof(saved));assert(!strstr(saved,"\nra 0 "));
     set("chord_queue","commit");render(250);set("cmd","stop");render(16);
     api->get_param(instance,"state",saved,sizeof(saved));const char *recorded=strstr(saved,"\nra 0 ");
+    if(!recorded)fprintf(stderr,"missing range take: %s\n",saved);
     unsigned long long descriptor=0;assert(recorded&&sscanf(recorded,"\nra 0 %*d %*d %*u,%llu",&descriptor)==1);
     assert(descriptor&(1ULL<<46));assert((descriptor&0xffffbfff00000000ULL)==0xc858001f00000000ULL);
     set("state",saved);render(8);capture_register=1;register_low=128;register_high=-1;
