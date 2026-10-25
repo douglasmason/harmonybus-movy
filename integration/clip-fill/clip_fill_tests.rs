@@ -80,6 +80,11 @@ fn conductor_write(engine:&mut Engine,request:&str,out:&mut Vec<OutEvent>)->Stri
     assert_eq!(engine.tracks[0].playing_slot,None);assert_eq!(engine.tracks[0].active_clip,0);
     let saved=crate::persist::serialize(&engine);let mut restored=Engine::new(48000,12000);assert!(crate::persist::load(&mut restored,&saved));
     assert_eq!(restored.tracks[0].clips[5].notes[0].actions,Some(actions));
+    assert_eq!(restored.tracks[0].clips[5].recipe.as_ref().unwrap().settings,conductor_settings());
+    restored.tracks[0].active_clip=5;
+    assert!(restored.recipe_edit_param(0,"render_velocity_percent","85"));
+    assert_eq!(restored.tracks[0].clips[5].recipe.as_ref().unwrap().settings.0[19],85);
+    assert!(!restored.recipe_edit_param(0,"track_role","Follower"));
     apply_batch(&mut engine,"ucommit 71;uswap 71 72",&mut out);assert_eq!(engine.undo_snapshot(),before);
     write(&mut engine,"1_3_4_2_1_0",&mut out);assert!(engine.part_result.contains("conductor destination"));
 }
