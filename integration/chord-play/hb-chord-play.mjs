@@ -131,7 +131,7 @@ chord.restoreChord(null);selectTrack(3);seqState.sessionMode=false;chord.setChor
 page=chord.chordPage();find('cp_slot_14');
 assert.equal(page.keyAt(7),'cp_off');chord.chordMidi([144,0,100]);chord.chordMidi([128,0,0]);
 assert.equal(engine.params.chord_select,'0,0,0,0,1,0,1,12,13,0');
-chord.chordMidi([144,7,100]);assert.equal(engine.params.chord_select,'off');chord.chordMidi([128,7,0]);
+chord.chordMidi([144,7,100]);assert.notEqual(engine.params.chord_select,'off');chord.chordMidi([128,7,0]);assert.equal(engine.params.chord_select,'off');
 chord.chordMidi([144,0,100]);assert.notEqual(engine.params.chord_select,'off','same chord remains a retrigger');chord.chordMidi([128,0,0]);
 const edited=chord.chordSnapshot();edited.slots[0].root=5;edited.slots[0].intent=0;chord.restoreChord(edited);chord.setChordEnabled(true);
 selectTrack(4);assert.equal(chord.chordSnapshot().slots[0].root,5,'manual definitions are global across melody tracks');

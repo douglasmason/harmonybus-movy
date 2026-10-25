@@ -133,8 +133,8 @@ def patch_native(root: Path) -> None:
     source = replace_once(source, 'pub fn parse(message:', '''/// Reserved silent harmony descriptor. It is never an executable operation.
 pub fn chord_selection(actions:&Actions)->bool {
     let word=actions[0];
-    let intent=word&0xffffc01f00000000==0xc859001f00000000 && (1..=10).contains(&((word>>37)&15)) && (word>>41)&15<12;
-    (word&0xffffffff00000000==0xc858001f00000000||intent) && word&1!=0 && (word&4095).count_ones()>=2 &&
+    let intent=word&0xffff801f00000000==0xc859001f00000000 && (1..=10).contains(&((word>>37)&15)) && (word>>41)&15<12;
+    (word&0xffffbfff00000000==0xc858001f00000000||intent) && word&1!=0 && (word&4095).count_ones()>=2 &&
         (word>>12)&4095!=0 && (word>>24)&15<12 && (word>>28)&15<12 && actions[1..].iter().all(|word|*word==0)
 }
 pub fn parse(message:''')
@@ -174,6 +174,7 @@ pub fn parse(message:''')
         if key=="cmd" && val.split(';').any(|command|matches!(command.split_whitespace().next(),Some("stop"|"reset"))){self.clear_chord_queue();self.release_chord_selection();}''')
     source = replace_once(source, '            "joint_links" => {', '''            "chord_queue" => {
                 if val=="off" {self.clear_chord_queue();}
+                else if val=="commit" {if let Some(track)=self.chord_queue {self.chains.set_param(track,"midi_fx1:hb_chord_queue","commit");self.tick_chord_queue();}}
                 else if let Some(selection)=chord_selection::Selection::parse(val){
                     self.abort_idle_input();
                     if self.chord_queue.is_some_and(|track|track!=selection.track){self.clear_chord_queue();self.release_chord_selection();}

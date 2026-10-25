@@ -37,7 +37,7 @@
         assert_eq!(engine.joint_overwrite_mask,0); // A later take starts clean.
     }
     #[test] fn silent_conductor_selections_record_save_copy_and_replay_before_notes(){
-        for descriptor in [0xc858001f00000000u64|0x91|(0xab5<<12),0xc859001f00000000u64|0x491|(0xab5<<12)|(2<<37)|(5<<41)] {
+        for descriptor in [0xc858001f00000000u64|0x91|(0xab5<<12),0xc859001f00000000u64|0x491|(0xab5<<12)|(2<<37)|(5<<41)].into_iter().flat_map(|word|[word,word|(1<<46)]) {
         let mut engine=Engine::new(48000,12000);
         engine.tracks[0].clips[0].set_loop(0,4);engine.tracks[0].playing_slot=Some(0);
         engine.playing=true;engine.recording=true;engine.rec_track=0;

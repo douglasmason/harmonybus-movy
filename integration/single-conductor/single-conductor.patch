@@ -286,7 +286,7 @@ index b0197e8b..ee398db8 100644
          if(setup.comp===setup.conductor)setup.comp=setup.conductor===2?3:2;
          if([setup.conductor,setup.comp].includes(setup.bass))setup.bass=Array.from({length:16},(_,index)=>index).find(track=>![setup.conductor,setup.comp].includes(track))!;
 @@ -159,7 +161,8 @@ export function chordPanelPort(track:number):TrackPort{
-         if(!meta)return native.setParam(key,value);
+         if(bare==='cp_off'){setChordRegister(null,Number(value));return true;}
          if(!meta.options)return false;
          const selected=meta.options.indexOf(value);if(selected<0)return false;
 +        if(bare==='cp_conductor'&&singleConductor()&&selected!==0){seqToast('Session conductor: Track 1');return false;}

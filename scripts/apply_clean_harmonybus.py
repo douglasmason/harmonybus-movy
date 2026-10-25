@@ -652,6 +652,8 @@ def main() -> int:
     patch_drum_gesture(root)
     from patch_performance_controls import patch_performance_controls
     patch_performance_controls(root)
+    from patch_navigation_lights import patch_navigation_lights
+    patch_navigation_lights(root)
     print("HarmonyBus clean integration applied")
     return 0
 

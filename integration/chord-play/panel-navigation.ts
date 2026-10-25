@@ -20,6 +20,7 @@ export function panelNavigation(ctl:any,enabled:()=>boolean,modeName:()=>string)
         if(/Grid|Field/.test(mode()))return 'Core';
         if(mode()==='Chord Play'){
             if(chordPlayMain.has(level))return 'Core';
+            if(/^cp_Sound_/.test(level))return 'Sound';
             if(/^cp_(comp_library|bass_library)/.test(level))return 'Libraries';
             if(level==='cp_setup')return 'Setup';
             if(/^cp_Comp_/.test(level))return 'Comp';
@@ -43,7 +44,7 @@ export function panelNavigation(ctl:any,enabled:()=>boolean,modeName:()=>string)
         if(/follower|travel|mapping/.test(level))return 'Mapping';
         return name==='Play Setup'?'Core':'Other Settings';
     }
-    const groups=():string[]=>[...new Set<string>((ctl.pages??[]).map(group))].filter(name=>name!=='Core');
+    const groups=():string[]=>[...new Set<string>((ctl.pages??[]).map(group))].filter(name=>name!=='Core').sort((a,b)=>a==='Sound'?-1:b==='Sound'?1:0);
     let previousMode='';
     const available=():boolean=>{if(previousMode!==mode()){previousMode=mode();category='Core';menu=false;}return enabled()&&groups().length>0;};
     const indices=():number[]=>(ctl.pages??[]).flatMap((page:any,index:number)=>group(page)===category?[index]:[]);
@@ -51,7 +52,8 @@ export function panelNavigation(ctl:any,enabled:()=>boolean,modeName:()=>string)
     function close():void {menu=false;jump(Math.max(0,Math.min(ctl.pages.length-1,returnIndex)),{remember:false});category=group(ctl.page);appState.dirty=true;}
     function open():void {returnIndex=ctl.pageIndex;if(category==='Core')coreReturnIndex=returnIndex;const names=groups();choice=Math.max(0,names.indexOf(category));menu=true;appState.dirty=true;}
     ctl.onJog=(delta:number,options:any={})=>{
-        if(!available()||modal())return jog(delta,options);
+        if(!available()||ctl.state.pickerOpen||ctl.state.menuEntered)return jog(delta,options);
+        ctl.state.peek=null;ctl.state.hintLines=null;
         if(menu){if(delta<0){if(choice===0)close();else choice--;}else if(delta>0)choice=Math.min(groups().length-1,choice+1);appState.dirty=true;return ctl.pageIndex;}
         const pages=indices(),position=pages.indexOf(ctl.pageIndex),next=position+Math.sign(delta);
         if(next>=pages.length&&category==='Core'){open();return ctl.pageIndex;}
@@ -61,6 +63,15 @@ export function panelNavigation(ctl:any,enabled:()=>boolean,modeName:()=>string)
     ctl.goToPage=(index:number,options:any={})=>{available();const result=jump(index,options);category=group(ctl.page);menu=false;return result;};
     const navigation={
         restore(state:any):void {returnIndex=Number.isInteger(state?.returnIndex)?state.returnIndex:ctl.pageIndex;coreReturnIndex=Number.isInteger(state?.coreReturnIndex)?state.coreReturnIndex:0;if(state&&groups().includes(state.category)){category=state.category;menu=!!state.menu;choice=Math.max(0,groups().indexOf(category));}else if(state?.menu){category='Core';menu=true;choice=Math.max(0,Math.min(groups().length-1,state.choice??0));}},
+        canMove(direction:number):boolean {
+            const bound=(index:number,count:number)=>direction<0?index>0:index<count-1;
+            if(ctl.state.pickerOpen)return bound(ctl.state.pickerIndex,ctl.state.pickerEntries.length);
+            if(ctl.state.menuEntered&&ctl.page?.entries)return bound(ctl.menuIndex(),ctl.page.entries.length);
+            if(!available())return bound(ctl.pageIndex,ctl.pages.length);
+            if(menu)return direction<0||choice<groups().length-1;
+            const pages=indices(),position=pages.indexOf(ctl.pageIndex);
+            return direction<0?position>0:position<pages.length-1||category==='Core';
+        },
         active:available,
         isMenu:()=>available()&&menu,
         click():boolean {if(!available()||modal())return false;if(menu){category=groups()[choice]??'Core';menu=false;const first=indices()[0];if(first!==undefined)jump(first,{remember:false});}else open();appState.dirty=true;return true;},

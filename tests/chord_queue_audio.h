@@ -61,5 +61,22 @@ static void test_chord_queue(void){
     before=sent_on;render(700);assert((unsigned)sent_on>before);
     set("cmd","stop");render(16);assert(sent_on==sent_off);
     api->get_param(instance,"state",saved,sizeof(saved));assert(strstr(saved,"\nra 0 "));
+    /* Touch Phrase is committed through the production host, with range
+       carried by the queued note and serialized selection descriptor. */
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 64 0 \n");render(8);
+    set("ch0:midi_fx1:chord_queue_depth","Touch Phrase");set("ch0:midi_fx1:chord_queue_end","Hold");
+    set("ch0:midi_fx1:chord_register","0");set("ch0:midi_fx1:chord_inversion","Root");set("ch0:midi_fx1:chord_voicing","Close");
+    set("chord_queue","0,0,1,2,1,0,1,12,0,0,5");set("chord_queue","0,7,1,2,1,0,1,12,0,0,3");
+    sent_on=sent_off=0;render(16);assert(!sent_on);
+    capture_register=1;register_low=128;register_high=-1;
+    set("chord_queue","commit");render(8);assert(register_low==72&&register_high==79);
+    register_low=128;register_high=-1;set("cmd","play");render(200);assert(register_low==55&&register_high==62);
+    set("cmd","stop");render(16);assert(sent_on==sent_off);capture_register=0;
+    set("cmd","jrec 1 1");render(8);
+    set("chord_queue","0,0,1,2,1,0,1,12,0,0,5");render(200);
+    api->get_param(instance,"state",saved,sizeof(saved));assert(!strstr(saved,"\nra 0 "));
+    set("chord_queue","commit");render(250);set("cmd","stop");render(16);
+    api->get_param(instance,"state",saved,sizeof(saved));assert(strstr(saved,"c858401f"));
+    set("ch0:midi_fx1:chord_queue_depth","2");
     puts("Queued Chord Play: stopped preload survives start, scheduled MIDI, empty hold, refill, balanced releases and activation recording pass");
 }

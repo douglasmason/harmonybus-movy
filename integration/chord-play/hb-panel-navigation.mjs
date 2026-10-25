@@ -7,7 +7,7 @@ const {portFor}=await import('../dist/esm/track/registry.js');
 const {settingsPage}=await import('../dist/esm/seq/hb-settings.js');
 let page=chordPage(),navigation=page.ctl.hbNavigation;
 page.goToPage(0);
-assert.deepEqual(navigation.state().groups,['Conductor','Comp','Melody','Libraries','Setup']);
+assert.deepEqual(navigation.state().groups,['Sound','Conductor','Comp','Melody','Libraries','Setup']);
 const coreLevels=navigation.state().indices.map(index=>page.ctl.pages[index].level);
 assert.deepEqual(coreLevels,['root','cp_bank_0','cp_bank_1','cp_bank_2','cp_scale_controls','cp_Conductor_follower_touch','cp_Conductor_operations_9_16','cp_Conductor_motif_play'],
  'Chord Play keeps exactly eight playing panels; editors and overflow remain in Settings');
@@ -22,12 +22,12 @@ assert.equal(reads,0,'category browsing/rendering never loads candidate panels')
 port.getParam=read;port.setParam=write;
 const choice=navigation.state().choice;for(let index=0;index<30;index++)page.changePage(1);assert.equal(navigation.state().choice,navigation.state().groups.length-1,'right stops at last item');
 while(navigation.state().choice>choice)page.changePage(-1);assert(navigation.isMenu(),'left moves within the list');
-page.click();assert.equal(navigation.state().category,'Comp');
+page.changePage(1);page.click();assert.equal(navigation.state().category,'Comp');
 for(let index=0;index<40;index++)page.changePage(1);
 assert.equal(navigation.state().category,'Comp');assert(page.ctl.page.level.startsWith('cp_Comp_'));
 selectTrack(4);const other=chordPage();assert.equal(other.ctl.page.name,page.ctl.page.name);assert.equal(other.ctl.hbNavigation.state().category,'Comp');
 other.back();assert(other.ctl.hbNavigation.isMenu());selectTrack(0);assert(chordPage().ctl.hbNavigation.isMenu(),'track change preserves category-list location');
-page=chordPage();navigation=page.ctl.hbNavigation;page.changePage(-1);assert(navigation.isMenu());assert.equal(navigation.state().choice,0);page.changePage(-1);assert(!navigation.isMenu());assert.equal(navigation.state().category,'Comp');
+page=chordPage();navigation=page.ctl.hbNavigation;while(navigation.state().choice>0)page.changePage(-1);assert(navigation.isMenu());assert.equal(navigation.state().choice,0);page.changePage(-1);assert(!navigation.isMenu());assert.equal(navigation.state().category,'Comp');
 const settings=settingsPage();assert(settings.ctl.pages.some(candidate=>candidate.keys?.includes('track_role')));
 assert(!settings.ctl.pages.some(candidate=>candidate.keys?.includes('chord_mode')),'HB Settings does not duplicate musical chord controls');
 assert(settings.ctl.hbNavigation.state().groups.includes('Diagnostics'));

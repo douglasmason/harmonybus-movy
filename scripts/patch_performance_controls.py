@@ -64,6 +64,7 @@ def patch_performance_controls(root: Path) -> None:
     path = root / 'src/seq/chord-play.ts'
     source = path.read_text().replace('import {beginHbLaneTouch}', 'import {beginHbLaneTouch,paintHbPerformance}')
     source = source.replace('Chord>Core ', 'Chord>Cond ')
+    source = source.replace('function conductorTrackForQueue():number {return setup.conductor;}', 'function conductorTrackForQueue():number {return conductorTrack();}')
     source = replace_once(source, 'export function paintChordSteps():boolean{', '''export function chordOperationOwner():PerformancePort|null {
     if(!chordActive()||!page||page.ctl.hbNavigation?.isMenu())return null;
     for(const key of page.ctl.page?.keys??[]){
@@ -84,5 +85,7 @@ export function paintChordSteps():boolean{
         path.write_text(path.read_text().replace('0.78.0-drum-gesture1','0.80.0-chord-queue2'))
     for filename in ('hb-performance-controls.mjs',):
         (root / 'browser-test' / filename).write_text((assets / filename).read_text())
+    for name in ('hb-chord-range.mjs','hb-navigation-lights.mjs'):
+        (root / 'browser-test' / name).write_text((assets.parent / 'chord-play' / name).read_text())
     path = root / 'build/browser.mjs'
     path.write_text(replace_once(path.read_text(), '    entryPoints: [', "    entryPoints: [\n        resolve(root, 'src/renderer/hb-performance.ts'),"))

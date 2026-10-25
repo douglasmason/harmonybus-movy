@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 static int sent_on,sent_off,rejected;
+static int capture_register,register_low=128,register_high=-1;
 static unsigned routed_channel_on[16];
 static int source_velocity_check;
 static int drum_output_check;
@@ -34,6 +35,7 @@ static int send_packet(const uint8_t *packet,int length){
         assert(edge_count<128);
         edges[edge_count++]=(packet[1]&0xf0)==0x90&&packet[3]?1:0;
     }
+    if(capture_register&&(packet[1]&0xff)==0x92&&packet[3]){if(packet[2]<register_low)register_low=packet[2];if(packet[2]>register_high)register_high=packet[2];}
     if((packet[1]&0xf0)==0x90&&packet[3]){routed_channel_on[packet[1]&15]++;if(source_velocity_check)assert(packet[3]==source_velocity_check);sent_on++;rendered_mask|=1u<<(packet[2]%12);}
     if((packet[1]&0xf0)==0x80||((packet[1]&0xf0)==0x90&&!packet[3]))sent_off++;
     return 4;
