@@ -1,5 +1,16 @@
 # Chord banks and performance context
 
+With HarmonyBus 0.2.302 and Movy hbclean.263, Quality + Scale uses the harmony's
+implied family from its full resolved chord scale: major amber, minor blue,
+dominant coral, and magenta for any dissonant implied 1-3-5 foundation, including
+diminished, augmented, whole-tone and altered collections. This takes precedence
+over dominant character in the seventh. G, G5 and Gsus4 in C-major
+context therefore share a dominant hue; the same G5 in G-major context is
+major. The chord name continues to show the selected expression. Unknown or
+ambiguous context stays grey. Active harmony remains white, and chromatic
+brightness still depends on the selected chord tones. Knobs and steps match.
+See [implied harmony quality](https://github.com/douglasmason/harmonybus/blob/main/docs/implied-quality.md).
+
 Movy 0.34.1-hbclean.251 adds [hold-Record chord step entry and Joint conductor knobs](joint-chords.md).
 
 The first panel exposes Immediate/Queued mode, Chord Grid, Anticipation, current
