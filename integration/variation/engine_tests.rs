@@ -52,6 +52,34 @@
         assert_eq!(config.apply(123,90,24,true),Some((90,24)));
         assert_eq!(config.apply(123,90,24,false),None);
     }
+    #[test] fn independent_locks_preserve_configured_depths_and_legacy_sessions() {
+        let (actor, mut config)=crate::variation::Variation::parse("1 100 100 100 100 42").unwrap();
+        assert_eq!(actor,1);
+        assert_eq!(config.locks,0,"older saves default to all dimensions varying");
+        assert_eq!(config.message(actor),"1 100 100 100 100 42 0");
+        assert_eq!(config.apply(0x12345678,90,24,false),None);
+        // Locking all dimensions changes only the output policy, not stored depths.
+        config.locks=7;
+        assert_eq!(config.apply(0x12345678,90,24,false),Some((90,24)));
+        assert_eq!((config.gate,config.velocity,config.omit),(100,100,100));
+        assert_eq!(crate::variation::Variation::parse(&config.message(actor)).unwrap().1,config);
+        // Locking only omissions leaves the other controls free to vary.
+        config.locks=4;
+        let varied=config.apply(0x12345678,90,24,false).unwrap();
+        assert!(varied.0!=90||varied.1!=24);
+        // Unlocking restores exactly the original deterministic realization.
+        config.locks=0;
+        assert_eq!(config.apply(0x12345678,90,24,false),None);
+        assert!(crate::variation::Variation::parse("1 100 50 30 0 1 8").is_none());
+        assert!(crate::variation::Variation::parse("1 100 50 30 0 1 1 0").is_none());
+        let mut engine=fixture();
+        engine.variation_set("1 70 25 45 20 17 5");
+        let saved=crate::persist::serialize(&engine);
+        let mut restored=Engine::new(48000,12000);
+        assert!(crate::persist::load(&mut restored,&saved));
+        assert_eq!(restored.variations[1],engine.variations[1]);
+        assert_eq!(restored.variations[1].locks,5);
+    }
     #[test] fn source_weaving_uses_destination_variation_once() {
         let mut engine=fixture();
         engine.source_route_set("1 1 2 0 3 0 1 -1 -1 -1 -1");

@@ -10,6 +10,13 @@ The selected quartet determines which native track owns the settings.
 | 3 | Velocity depth: maximum proportional accent change | 30% |
 | 4 | Omit depth: fraction of eligible attacks omitted at full amount | 0% |
 | 5 | Reroll / Seed: turn to choose another saved variation (1–256) | 1 |
+| 6 | Gate: Vary / Lock note duration while keeping Gate Depth | Vary |
+| 7 | Dynamics: Vary / Lock velocity while keeping Velocity Depth | Vary |
+| 8 | Omissions: Vary / Lock attack omissions while keeping Omit Depth | Vary |
+
+Each lock only masks the corresponding variation dimension at note emission; it does not reset its depth. Locked Gate preserves authored or woven durations, locked Dynamics preserves velocities, and locked Omissions suppresses stochastic skips. Existing downbeat and operation safeguards remain in force. Pitch and onset times remain invariant in every setting. Unlocking restores the identical deterministic output for the saved seed and current depth settings. The locks are saved with the Set and participate in the same Undo path as other variation controls.
+
+Legacy saved sessions without a lock mask load as **Vary** in all three dimensions. There is no new playback clock, pattern engine, clip rewrite or MIDI note ownership path.
 
 Amount zero is an exact bypass for subsequent attacks. Existing sounding gates
 finish normally. Gate, velocity and omission depths can each be set to zero.
