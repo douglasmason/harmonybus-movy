@@ -86,6 +86,17 @@ static void test_chord_queue(void){
     set("state",saved);render(8);capture_register=1;register_low=128;register_high=-1;
     set("cmd","play");render(600);assert(register_low==72&&register_high==79);
     set("cmd","stop");render(16);capture_register=0;
+    /* Automatic overlap uses the same bridge with an ordinary numeric depth. */
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 64 0 \n");render(8);
+    set("ch0:midi_fx1:chord_queue_depth","4");sent_on=sent_off=0;
+    set("chord_queue","begin,0");set("chord_queue","0,0,1,2,1,0,1,12");render(200);assert(!sent_on);
+    set("chord_queue","end");render(200);assert(!sent_on);
+    set("chord_queue","begin,0");set("chord_queue","0,7,1,2,1,0,1,12");set("chord_queue","0,5,1,2,1,0,1,12");
+    render(200);assert(!sent_on);set("chord_queue","commit");render(16);assert(sent_on>0);queue_status(2,"C","G");
+    set("chord_select","off");render(16);assert(sent_on==sent_off);
+    set("ch0:midi_fx1:chord_queue_depth","1");sent_on=sent_off=0;
+    set("chord_queue","begin,0");set("chord_queue","0,0,1,2,1,0,1,12");render(200);assert(!sent_on);
+    set("chord_queue","end");render(16);assert(sent_on>0);set("chord_select","off");render(16);assert(sent_on==sent_off);
     set("ch0:midi_fx1:chord_queue_depth","2");
     puts("Queued Chord Play: stopped preload survives start, scheduled MIDI, empty hold, refill, balanced releases and activation recording pass");
 }

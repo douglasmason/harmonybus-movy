@@ -39,8 +39,32 @@ export function fitFooter(text:string):string {
     while(text&&fontWidth(text+'~')>126)text=text.slice(0,-1);
     return text+'~';
 }
-export function queueFooterText(next:string,status:string):string {
-    return fitFooter('Next '+chordLabel(next)+'  '+status);
+export function queueFooterText(next:string,status:string,snapshot=''):string {
+    const fields=snapshot.split('|'),cursor=Number(fields[9]),count=Number(fields[10]);
+    const names=fields.slice(11),loop=fields[8]==='1'&&fields[6]==='0';
+    if(fields[0]!=='cq1'||!Number.isInteger(count)||count<1||count>17||names.length!==count||!Number.isInteger(cursor)||cursor< -1||cursor>=count)
+        return fitFooter('Next '+chordLabel(next)+'  '+status);
+    const token=(index:number)=>index===cursor?'['+names[index]+']':names[index];
+    const jump=loop&&cursor>=0&&next!=='--'&&next!==names[(cursor+1)%count]?' >'+next:'';
+    const full=(loop?'Loop ':status+' ')+names.map((_,index)=>token(index)).join(' ')+jump;
+    if(fontWidth(full)<=126)return full;
+    const anchor=Math.max(0,cursor),prefix=loop?'L'+(cursor+1)+'/'+count+' ':status+' ';
+    let left=anchor,right=anchor;
+    const index=(value:number)=>(value+count)%count;
+    const line=(start:number,end:number)=>prefix+Array.from({length:end-start+1},(_,offset)=>token(index(start+offset))).join(' ')+jump;
+    // Keep the sounding chord visible. Add its next and previous neighbors,
+    // wrapping only for Loop; position changes come from native activation.
+    for(let step=0;step<count-1;step++){
+        const forward=step%2===0;
+        let start=left,end=right;
+        if(forward&&(loop||right<count-1))end++;
+        else if(loop||left>0)start--;
+        else if(right<count-1)end++;
+        else break;
+        if(fontWidth(line(start,end))>126)break;
+        left=start;right=end;
+    }
+    return fitFooter(line(left,right));
 }
 export function harmonyFooterText(mode:number,track:number,data?:readonly number[]):string{
     const prefix=(mode?'P'+mode:'S')+' T'+(track+1);

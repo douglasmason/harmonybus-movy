@@ -20,6 +20,17 @@ try{
     assert.equal(chordLabel('D7','V/V'),'V/V');
     assert.equal(harmonyLabel(0,2,mask(2,[0,4,7,10]),2,7),'V/V');
     assert.equal(queueFooterText('G7','Hold 1/4'),'Next G7  Hold 1/4');
+    const queue=(cursor,names)=>'cq1|2|4|C|G|1|0|2|1|'+cursor+'|'+names.length+'|'+names.join('|');
+    assert.equal(queueFooterText('G','Loop 2',queue(0,['C','G'])),'Loop [C] G');
+    assert.equal(queueFooterText('C','Loop 2',queue(1,['C','C'])),'Loop C [C]');
+    assert.equal(queueFooterText('F','Loop 3',queue(1,['C','C','F'])),'Loop C [C] F');
+    assert.equal(queueFooterText('C','Loop 3',queue(1,['C','G','F'])),'Loop C [G] F >C','a newly appended chord must not mislabel the already scheduled next chord');
+    const names=['C','Dm7','Em7','F','G7','Am','Bdim','C7'];
+    const middle=queueFooterText('G7','Loop 8',queue(3,names));assert.match(middle,/L4\/8/);assert.match(middle,/Em7 \[F\] G7/);
+    const last=queueFooterText('C','Loop 8',queue(7,names));assert.match(last,/L8\/8/);assert.match(last,/Bdim \[C7\] C/);
+    const first=queueFooterText('Dm7','Loop 8',queue(0,names));assert.match(first,/L1\/8/);assert.match(first,/C7 \[C\] Dm7/);
+    assert.equal(queueFooterText('G7','Hold 1/4','cq1|1|-1|C|G7|1|1|4|0|0|2|C|G7'),'Hold 1/4 [C] G7');
+    assert.equal(queueFooterText('G7','Hold 1/4','cq1|1|-1|C|G7|1|1|4|0|0|16|C'),'Next G7  Hold 1/4','incomplete snapshots never invent a loop');
     assert.equal(harmonyFooterText(1,3),'P1 T4');
     const pixels=[];globalThis.fill_rect=(...args)=>pixels.push(args);
     drawHarmonyFooter('P1 T4 C Maj ii7  >  V7');const minorPixels=JSON.stringify(pixels);pixels.length=0;
