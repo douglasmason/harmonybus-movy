@@ -47,12 +47,12 @@ page.click();assert.equal(page.pageIndex,setupIndex,'single-page Setup reopens i
 console.log('Panel categories: core boundary, restricted jog, read-free menus, inert knobs, back trail and track continuity pass');
 // Render through Movy's outer chrome, not just the isolated parameter page.
 const {renderKnobsView}=await import('../dist/esm/renderer/knob-view.js');
-const {drawHeader}=await import('../dist/esm/renderer/header.js');
+const {drawHeader,drawBankBar}=await import('../dist/esm/renderer/header.js');
 const {fontPrint,fontWidth}=await import('../dist/esm/font/index.js');
 const {schwungPageFor}=await import('../dist/esm/renderer/schwung-grid.js');
 const pixels=new Uint8Array(128*64),oldClear=globalThis.clear_screen,oldFill=globalThis.fill_rect;
 globalThis.clear_screen=()=>pixels.fill(0);
-globalThis.fill_rect=(x,y,width,height,color)=>{for(let row=Math.max(0,y);row<Math.min(64,y+height);row++)for(let column=Math.max(0,x);column<Math.min(128,x+width);column++)pixels[row*128+column]=color?1:0;};
+globalThis.fill_rect=(x,y,width,height,color)=>{x=Math.trunc(x);y=Math.trunc(y);width=Math.trunc(width);height=Math.trunc(height);for(let row=Math.max(0,y);row<Math.min(64,y+height);row++)for(let column=Math.max(0,x);column<Math.min(128,x+width);column++)pixels[row*128+column]=color?1:0;};
 try {
  for(const current of [schwungPageFor(0,'midi_fx1'),chordPage()]){
   current.goToPage(0);current.ctl.state.touched=-1;current.ctl.state.peek=null;
@@ -62,7 +62,7 @@ try {
   assert.deepEqual(pixels.slice(128*9,128*10),widgetBorder,'chrome preserves the shared renderer’s complete top widget border');
   const expectedBar=pixels.slice(128*7,128*9);
   current.knobTouch(0,true);clear_screen();drawHeader('HarmonyBus','T1');
-  const {drawBankBar}=await import('../dist/esm/renderer/header.js');drawBankBar(current.pageIndex,current.pageCount);current.render('HarmonyBus');
+  drawBankBar(current.pageIndex,current.pageCount);current.render('HarmonyBus');
   assert.deepEqual(pixels.slice(128*7,128*9),expectedBar,'knob touch never reveals full internal panel count');
   current.knobTouch(0,false);current.ctl.state.peek=null;current.ctl.state.touched=-1;
   const vm={moduleName:'HarmonyBus',bankName:'T4',bankIndex:0,bankCount:30,rows:[],toast:null,overlay:null};
@@ -71,6 +71,32 @@ try {
   clear_screen();drawHeader('Chord Play','C1 P3 M8');current.render('Chord Play');
   assert.deepEqual(pixels.slice(0,128*7),expected,'category count replaces the complete Chord Play route header');
  }
+ const {renderChord}=await import('../dist/esm/seq/chord-play.js');
+ const current=chordPage();current.goToPage(0);
+ const corePages=current.ctl.hbNavigation.state().indices;
+ for(const pageIndex of [...corePages,setupIndex]){
+  current.goToPage(pageIndex);
+  const groupPages=current.ctl.hbNavigation.state().indices;
+  const position=groupPages.indexOf(pageIndex),count=groupPages.length;
+  const segments=new Uint8Array(128),selected=new Uint8Array(128);
+  if(count>1){
+   const area=128-(count-1);
+   for(let index=0;index<count;index++){
+    const start=Math.floor(index*area/count)+index,end=Math.floor((index+1)*area/count)+index;
+    segments.fill(1,start,end);if(index===position)selected.fill(1,start,end);
+   }
+  }
+  for(const touched of [-1,0]){
+   current.ctl.state.touched=touched;current.ctl.state.peek=null;
+   clear_screen();current.ctl.render({fillRect:fill_rect,print:fontPrint,textWidth:fontWidth},{title:'Chord Play',bands:{header:false,bank:false,footer:false}});
+   const widgetTop=pixels.slice(128*9,128*10);
+   renderChord();
+   assert.deepEqual(pixels.slice(128*9,128*10),widgetTop,`${current.ctl.page.level}: outer indicator leaves no stray row below the group bar`);
+   assert.deepEqual(pixels.slice(128*7,128*8),segments,`${current.ctl.page.level}: one solid segment per group page`);
+   assert.deepEqual(pixels.slice(128*8,128*9),selected,`${current.ctl.page.level}: only the selected segment is double height`);
+  }
+ }
+ current.ctl.state.touched=-1;
 }finally{globalThis.clear_screen=oldClear;globalThis.fill_rect=oldFill;}
 console.log('Category header pixels: outer app labels and route values are fully replaced');
 // Route Back through the real MIDI dispatcher from a normal HB track panel.
