@@ -2,7 +2,7 @@ import {appState} from './state.js';
 import {seqState} from '../seq/state.js';
 import {panelSpec,PANEL_LAYOUT_VERSION,normalizedMode} from '../renderer/panel-catalog.js';
 import {InteractionLog,type UsageContext} from './interaction-log.js';
-export const USAGE_SOFTWARE='0.34.1-hbclean.258';
+export const USAGE_SOFTWARE='0.34.1-hbclean.259';
 export const USAGE_REPORT_PATH='/data/UserData/schwung/movy-interface-report.json';
 export const USAGE_PATHS=['/data/UserData/schwung/movy-interface-usage-a.json','/data/UserData/schwung/movy-interface-usage-b.json'];
 export const interactionLog=new InteractionLog();
@@ -46,9 +46,15 @@ export function recordUsageInput(data:number[],before:UsageContext,after:UsageCo
 export function initInterfaceUsage():void{
     if(initialized)return;initialized=true;
     const candidates:any[]=[];
-    for(const path of USAGE_PATHS){try{const text=typeof host_read_file==='function'?host_read_file(path):null;if(text&&text.length<=2000000){const value=JSON.parse(text);if(value.schema===1&&value.layout===PANEL_LAYOUT_VERSION&&Number.isSafeInteger(value.generation)&&value.generation>=0)candidates.push(value);}}catch{}}
+    for(const path of USAGE_PATHS){try{const text=typeof host_read_file==='function'?host_read_file(path):null;if(text&&text.length<=2000000){const value=JSON.parse(text);if(value.schema===1&&Number.isSafeInteger(value.layout)&&value.layout>0&&value.layout<=PANEL_LAYOUT_VERSION&&Number.isSafeInteger(value.generation)&&value.generation>=0)candidates.push(value);}}catch{}}
     candidates.sort((a,b)=>b.generation-a.generation);
-    for(const value of candidates)if(interactionLog.restore(value.history)){generation=value.generation;break;}
+    for(const value of candidates)if(interactionLog.restore(value.history)){
+        generation=value.generation;
+        // Retain the logging preference, but don't mix navigation costs from
+        // different layouts. The prior journal/report remains on disk until saved.
+        if(value.layout!==PANEL_LAYOUT_VERSION){interactionLog.clear();dirty=true;}
+        break;
+    }
     lastSave=Date.now();
 }
 export function usageValue(key:string):string|null{

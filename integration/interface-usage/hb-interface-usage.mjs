@@ -14,10 +14,11 @@ snapshot=resumed.snapshot();assert.equal(snapshot.events.length,USAGE_LIMITS.eve
 assert(!resumed.restore({enabled:true,events:[],rows:[{}]}));resumed.enabled=false;const before=resumed.snapshot().events.length;resumed.record(context,'gesture','ignored');assert.equal(resumed.snapshot().events.length,before);
 
 await import('../dist/esm/app/globals.js');
+const {PANEL_LAYOUT_VERSION}=await import('../dist/esm/renderer/panel-catalog.js');
 const usage=await import('../dist/esm/app/interface-usage.js');const {seqState}=await import('../dist/esm/seq/state.js');
 const files=new Map(),writes=[];globalThis.host_read_file=path=>files.get(path)??null;globalThis.host_write_file=(path,text)=>{writes.push(path);files.set(path,text);};
 const seed=new InteractionLog('previous-boot');seed.record(context,'gesture','old-control','observed',1);
-files.set(usage.USAGE_PATHS[0],JSON.stringify({schema:1,layout:2,generation:2,history:seed.snapshot()}));
+files.set(usage.USAGE_PATHS[0],JSON.stringify({schema:1,layout:PANEL_LAYOUT_VERSION,generation:2,history:seed.snapshot()}));
 files.set(usage.USAGE_PATHS[1],'{interrupted');
 usage.initInterfaceUsage();assert.equal(usage.interactionLog.snapshot().events[0].control,'old-control','recover the prior verified generation');let now=Date.now()+70000;
 usage.recordUsageInput([144,16,100],context,context,now);usage.recordUsageInput([160,16,127],context,context,now+10);usage.recordUsageInput([128,16,0],context,context,now+300);
@@ -25,9 +26,19 @@ assert.equal(usage.interactionLog.snapshot().events.at(-1).duration,300);assert.
 usage.usageAction('usage_export',true);seqState.playing=true;seqState.recording=false;usage.tickInterfaceUsage(now+4000);assert.equal(writes.length,0,'never write during playback');
 seqState.playing=false;seqState.recording=true;usage.tickInterfaceUsage(now+5000);assert.equal(writes.length,0,'never write during recording');
 seqState.recording=false;usage.tickInterfaceUsage(now+6000);assert(writes.includes(usage.USAGE_REPORT_PATH));
-const report=JSON.parse(files.get(usage.USAGE_REPORT_PATH));assert.equal(report.layout,2);assert(!JSON.stringify(report).includes('velocity'));assert.equal(usage.usageValue('usage_status'),'Report saved');
+const report=JSON.parse(files.get(usage.USAGE_REPORT_PATH));assert.equal(report.layout,PANEL_LAYOUT_VERSION);assert(!JSON.stringify(report).includes('velocity'));assert.equal(usage.usageValue('usage_status'),'Report saved');
 usage.recordUsageInput([176,14,1],context,{...context,panel:'next'},now+7000);usage.usageAction('usage_export',true);const saved=writes.length;usage.tickInterfaceUsage(now+7100);assert.equal(writes.length,saved,'defer during interaction');usage.tickInterfaceUsage(now+11000);assert(writes.includes(usage.USAGE_PATHS[0])&&writes.includes(usage.USAGE_PATHS[1]),'alternate recovery generations');
 usage.recordUsageInput([144,17,100],context,context,now+12000);usage.usageAction('usage_export',true);const heldWrites=writes.length;usage.tickInterfaceUsage(now+16000);assert.equal(writes.length,heldWrites,'held gestures block saves');usage.recordUsageInput([128,17,0],context,context,now+16500);
 usage.usageAction('usage_clear',true);usage.tickInterfaceUsage(now+20000);for(const path of [...usage.USAGE_PATHS,usage.USAGE_REPORT_PATH])assert.equal(JSON.parse(files.get(path)).history.events.length,0);
 let fail=true;globalThis.host_write_file=(path,text)=>{if(!fail)files.set(path,text);};usage.usageAction('usage_export',true);usage.tickInterfaceUsage(now+21000);assert.equal(usage.usageValue('usage_status'),'Save failed');fail=false;usage.tickInterfaceUsage(now+22000);assert.equal(usage.usageValue('usage_status'),'Save failed','failure is throttled');usage.tickInterfaceUsage(now+82000);assert.equal(usage.usageValue('usage_status'),'Report saved');
 console.log('Usage: burst aggregation, session continuity, bounds, corruption refusal, stopped/idle writes, export, clear and retry pass');
+const {spawnSync}=await import('node:child_process');seed.enabled=false;
+const upgraded=spawnSync(process.execPath,['--input-type=module'],{encoding:'utf8',input:`
+import assert from 'node:assert/strict';
+import {installEnv} from './browser-test/env.mjs';installEnv();await import('./dist/esm/app/globals.js');
+const usage=await import('./dist/esm/app/interface-usage.js');
+globalThis.host_read_file=()=>${JSON.stringify(JSON.stringify({schema:1,layout:PANEL_LAYOUT_VERSION-1,generation:50,history:seed.snapshot()}))};
+usage.initInterfaceUsage();
+assert.equal(usage.interactionLog.enabled,false,'a layout update preserves logging Off');
+assert.equal(usage.interactionLog.snapshot().events.length,0,'old navigation costs are not attributed to the new layout');
+`});assert.equal(upgraded.status,0,upgraded.stderr);

@@ -17,12 +17,12 @@ const lights=()=>{packets.length=0;seqLedsInvalidate();for(const cc of [54,55,62
 const expect=(cc,active)=>assert.equal(lights().get(cc),active?WHITE_DIM:WHITE_OFF,'button '+cc);
 setSettingsOpen(false);grid.setGridEnabled(false);selectTrack(3);seqState.sessionMode=false;appState.currentView=VIEW_KNOBS;seqState.loopMode=false;
 chord.restoreChord(null);chord.setChordEnabled(true);let page=chord.chordPage();page.goToPage(0);
-expect(62,false);expect(63,true);chord.chordMidi([176,63,127]);assert.equal(page.pageIndex,1);expect(62,true);
+expect(62,false);expect(63,true);chord.chordMidi([176,63,127]);assert.equal(page.ctl.page.level,'cp_bank_0');expect(62,true);
 for(let step=0;step<8;step++)chord.chordMidi([176,63,127]);assert(page.ctl.hbNavigation.isMenu());
 for(let step=0;step<20;step++)chord.chordMidi([176,63,127]);expect(63,false);expect(62,true);
 while(page.ctl.hbNavigation.state().choice>0)chord.chordMidi([176,62,127]);expect(62,true);
 chord.chordMidi([176,62,127]);assert(!page.ctl.hbNavigation.isMenu());
-const sound=page.ctl.pages.findIndex(entry=>entry.level==='cp_Sound_chord_player');page.goToPage(sound);expect(62,false);
+const sound=page.ctl.pages.findIndex(entry=>entry.level==='cp_Sound_output');page.goToPage(sound);expect(62,false);
 for(let step=0;step<20;step++)chord.chordMidi([176,63,127]);expect(63,false);
 page.ctl.state.peek={key:'cp_off',at:Date.now()};chord.chordMidi([176,62,127]);assert.equal(page.ctl.hbNavigation.state().category,'Sound','temporary parameter overlay cannot escape the category');
 chord.setChordEnabled(false);grid.setGridEnabled(true);seqState.loopStart=0;seqState.lenSteps=64;

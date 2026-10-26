@@ -11,7 +11,8 @@ def patch_chord_play(root: Path) -> None:
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/chord-play'
     (root / 'browser-test/hb-chord-play.mjs').write_text((assets / 'hb-chord-play.mjs').read_text())
     (root / 'browser-test/hb-chord-queue.mjs').write_text((assets / 'hb-chord-queue.mjs').read_text())
-    for name in ('chord-play.ts', 'chord-colors.ts', 'hb-settings.ts'):
+    (root / 'browser-test/hb-chord-settings.mjs').write_text((assets / 'hb-chord-settings.mjs').read_text())
+    for name in ('chord-play.ts', 'chord-colors.ts', 'chord-settings-layout.ts', 'hb-settings.ts'):
         (root / 'src/seq' / name).write_text((assets / name).read_text())
     path: Path = root / 'src/seq/router-buttons.ts'
     source: str = "import { chordEnabled, setChordEnabled } from './chord-play.js';\nimport { settingsOpen, setSettingsOpen } from './hb-settings.js';\n" + path.read_text()
