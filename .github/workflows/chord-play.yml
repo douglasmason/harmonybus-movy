@@ -1,7 +1,7 @@
-name: Chord Play verification and package
+name: Performance and clip content verification
 on:
   push:
-    branches: [main, work/chord-queue-depth]
+    branches: [main, work/drum-clip-fill]
     paths:
       - integration/harmonybus.ref
       - integration/single-conductor/**
@@ -19,6 +19,7 @@ on:
       - integration/part-library/**
       - scripts/patch_part_library.py
       - tests/part_library_audio.h
+      - tests/drum_clip_fill_audio.h
       - docs/comp-library.md
       - docs/bass-library.md
       - integration/joint-chords/**
@@ -70,6 +71,7 @@ on:
       - integration/part-library/**
       - scripts/patch_part_library.py
       - tests/part_library_audio.h
+      - tests/drum_clip_fill_audio.h
       - docs/comp-library.md
       - docs/bass-library.md
       - integration/joint-chords/**
@@ -109,7 +111,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.256
+  SOURCE_VERSION: 0.34.1-hbclean.257
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -191,7 +193,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: chord-queue-256
+          name: performance-257
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -202,7 +204,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "v$SOURCE_VERSION" >/dev/null 2>&1; then
-            echo 'This Chord Play version is already published; installer unchanged'
+            echo 'This performance version is already published; installer unchanged'
             exit 0
           fi
           git fetch origin main
@@ -211,10 +213,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.255':
-              raise SystemExit('Expected Movy 255 before queue release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.256':
+              raise SystemExit('Expected Movy 256 before drum clip fill release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Queue timing, looping and visible queued chords" --notes-file docs/chord-queue.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Drum Clip Fill" --notes-file docs/clip-fill.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -227,7 +229,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.255':
+          if metadata['version'] != '0.34.1-hbclean.256':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
@@ -235,5 +237,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add release.json
-          git commit -m "Publish verified Chord Play $SOURCE_VERSION [skip ci]"
+          git commit -m "Publish verified Drum Clip Fill $SOURCE_VERSION [skip ci]"
           git push origin HEAD:main

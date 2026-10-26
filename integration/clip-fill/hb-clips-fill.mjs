@@ -9,9 +9,9 @@ const {sessionPad}=await import('../dist/esm/seq/session.js');
 const {seqState}=await import('../dist/esm/seq/state.js');
 const {appState,VIEW_KNOBS}=await import('../dist/esm/app/state.js');
 const originalGet=globalThis.host_module_get_param,originalWrite=globalThis.host_module_set_param_blocking;
-let reads=0,result='Filled - Undo available';const commands=[];
+let reads=0,result='Filled - Undo available',drumPreview=false;const commands=[];
 globalThis.host_module_get_param=key=>{
- if(key.startsWith('fill_preview_')){reads++;return 'abc|384|3|0,24,60,100;96,48,64,90;288,24,67,80';}
+ if(key.startsWith('fill_preview_')){reads++;return drumPreview?'abc|384|5|0,24,36,117;0,24,38,73;96,48,42,41;192,24,46,100;288,24,49,90|drums|36,38,42,46,49':'abc|384|3|0,24,60,100;96,48,64,90;288,24,67,80|melodic|60,64,67';}
  if(key.startsWith('fill_target_'))return 'def';
  if(key==='part_result')return result;
  return originalGet(key);
@@ -38,6 +38,27 @@ Date.now=()=>previousNow()+80;fill.fillTick();Date.now=previousNow;
 fill.fillCell(0,5);
 assert(commands.some(([,value])=>value.includes('clipfill 0 5 def 1_1_2_0_1_2 abc ')),'Original phrase uses same preview/write path and actual conductor cell');
 assert(!commands.some(([,value])=>/\blaunch\b/.test(value)),'conductor fill does not launch');
+
+// Drum sources automatically use Original, and do not require an HB destination.
+drumPreview=true;seqState.drumOutputs=(1<<4)|(1<<8);commands.length=0;
+view.clipsMidi([176,71,1]);view.clipsMidi([176,71,1]);view.clipsMidi([176,71,1]);
+Date.now=()=>previousNow()+80;fill.fillTick();Date.now=previousNow;
+const readsBeforeDrumDraw=reads;fill.renderFill();
+assert(pixels.slice(14*128+21,18*128).some(Boolean),'first drum lane is plotted');
+const firstLanePage=pixels.slice();view.clipsMidi([176,76,1]);fill.renderFill();
+assert.notDeepEqual(pixels,firstLanePage,'knob 6 pages distinct drum lanes');
+assert.equal(reads,readsBeforeDrumDraw,'lane paging and drawing use the cached preview');
+const drumPng=new PNG({width:512,height:256});
+view.clipsMidi([176,76,127]);fill.renderFill();
+for(let row=0;row<256;row++)for(let col=0;col<512;col++){const offset=(row*512+col)*4,value=pixels[Math.floor(row/4)*128+Math.floor(col/4)];drumPng.data[offset]=drumPng.data[offset+1]=drumPng.data[offset+2]=value;drumPng.data[offset+3]=255;}
+writeFileSync('artifacts/drum-clip-fill.png',PNG.sync.write(drumPng));
+fill.fillCell(8,5);
+assert(commands.some(([,value])=>value.includes('clipfill 8 5 def 4_1_2_0_1_2 abc drums own')),'drums use raw kit addresses and the same undoable command');
+assert(seqState.session[8].exist&(1<<5));assert(!commands.some(([,value])=>/\blaunch\b/.test(value)));
+commands.length=0;fill.fillCell(2,5);assert(!commands.some(([,value])=>value.includes('clipfill')),'drums cannot replace melodic content');
+result='error:Source changed - preview again';seqState.session[8].exist=0;fill.fillCell(8,5);assert.equal(seqState.session[8].exist,0);
+view.clipsMidi([176,72,1]);commands.length=0;fill.fillCell(8,5);assert(!commands.some(([,value])=>value.includes('clipfill')),'pending source preview blocks writes');
+seqState.drumOutputs=0;drumPreview=false;
 view.clipsMidi([176,51,127]);assert(!fill.fillActive());
 fill.setFillActive(true);seqState.sessionMode=false;fill.fillTick();seqState.sessionMode=true;assert(!fill.fillActive(),'mode changes disarm writes');
 globalThis.host_module_get_param=originalGet;globalThis.host_module_set_param_blocking=originalWrite;

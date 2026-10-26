@@ -13,6 +13,7 @@ static int capture_register,register_low=128,register_high=-1;
 static unsigned routed_channel_on[16];
 static int source_velocity_check;
 static int drum_output_check;
+static int drum_clip_capture,drum_clip_packet_count,drum_clip_packets[128][3];
 static int capture_source_velocity,source_velocity_count,source_velocities[16];
 static int capture_edges,edge_count,edges[128];
 static int move_play_presses,move_play_releases;
@@ -24,6 +25,11 @@ static double position(void){return beat;}
 static int clock_status(void){return 0;}
 static int send_packet(const uint8_t *packet,int length){
     if(length!=4){rejected++;return 0;}
+    if(drum_clip_capture&&((packet[1]&0xf0)==0x90||(packet[1]&0xf0)==0x80)){
+        assert((packet[1]&15)==0&&drum_clip_packet_count<128);
+        for(int field=0;field<3;field++)drum_clip_packets[drum_clip_packet_count][field]=packet[field+1];
+        drum_clip_packet_count++;
+    }
     if(drum_output_check&&((packet[1]&0xf0)==0x90||(packet[1]&0xf0)==0x80)){
         assert((packet[1]&15)==0);assert(packet[2]==38);
         if((packet[1]&0xf0)==0x90&&packet[3])assert(packet[3]==101);
@@ -474,6 +480,7 @@ static void test_source_weaving(void){
 }
 
 #include "drum_destination_audio.h"
+#include "drum_clip_fill_audio.h"
 #include "single_conductor_audio.h"
 
 static void test_drum_fill_output(void){
@@ -743,6 +750,7 @@ int main(int argc,char **argv){
     test_field_lfos();
     test_drum_fill_output();
     test_drum_destination();
+    test_drum_clip_fill();
 #ifdef HB_TEST_CHORD_PLAY
     test_chord_play();
 #ifdef HB_TEST_CHORD_QUEUE
