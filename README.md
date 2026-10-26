@@ -1,3 +1,5 @@
+> Movy hbclean.268 adds Smart approach bank choices backed by the shared HarmonyBus operation catalog. Includes the A/B Fill memories and UI performance improvements. See [Smart approaches](docs/relative-operations.md).
+
 > Movy hbclean.267 reduces unchanged Chord Play work, separates queue and overview polling, and measures the complete UI tick. Mixed-case settings and the existing musical controls remain included. See [UI overhead measurements and limits](docs/ui-overhead.md).
 
 > Movy hbclean.249 uses one session conductor on track 1 in new Sets. Existing Sets can adopt it with the stopped, undoable Conductor control on Clips Setup knob 6. Joint Root follows track 1 across all four banks; drum output stays explicit. Includes Clip Fill, the bass library and Chord Play context changes. See [single conductor](docs/single-conductor.md).

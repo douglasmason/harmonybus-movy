@@ -6,6 +6,7 @@ from patch_responsive_persistence import replace_once
 def patch_approach_mode(root: Path) -> None:
     """Install controls while preserving Perform lane assignments."""
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/approach'
+    (root / 'src/operation-catalog.ts').write_text((assets.parent / 'operation-catalog.ts').read_text())
     (root / 'src/renderer/hb-approach.ts').write_text((assets / 'hb-approach.ts').read_text())
     (root / 'src/renderer/hb-choice-order.ts').write_text((assets / 'hb-choice-order.ts').read_text())
     path: Path = root / 'src/renderer/hb-performance.ts'
@@ -181,7 +182,7 @@ def patch_approach_mode(root: Path) -> None:
     source=path.read_text().replace('            updateKnobLEDs(vm);\n', '            updateKnobLEDs(vm,[VIEW_KNOBS,VIEW_CHAIN].includes(appState.currentView)&&!stepPageState.selected?touchPage?.knobLEDMask??0:0);\n')
     path.write_text(source)
     path=root/'build/browser.mjs'
-    source=path.read_text().replace("resolve(root, 'src/renderer/hb-motif.ts'),", "resolve(root, 'src/renderer/hb-motif.ts'),\n        resolve(root, 'src/renderer/hb-approach.ts'),")
+    source=path.read_text().replace("resolve(root, 'src/renderer/hb-motif.ts'),", "resolve(root, 'src/renderer/hb-motif.ts'),\n        resolve(root, 'src/renderer/hb-approach.ts'),\n        resolve(root, 'src/renderer/hb-choice-order.ts'),")
     path.write_text(source)
     path = root / 'engine/crates/seq-core/src/recorded_actions.rs'
     source = path.read_text().replace('8063| (127u64<<13)', '8063| (4095u64<<43) | (127u64<<13)')
