@@ -9,9 +9,9 @@ const {sessionPad}=await import('../dist/esm/seq/session.js');
 const {seqState}=await import('../dist/esm/seq/state.js');
 const {appState,VIEW_KNOBS}=await import('../dist/esm/app/state.js');
 const originalGet=globalThis.host_module_get_param,originalWrite=globalThis.host_module_set_param_blocking;
-let reads=0,result='Filled - Undo available',drumPreview=false;const commands=[];
+let reads=0,result='Filled - Undo available',drumPreview=false,stalePreview=false;const commands=[];
 globalThis.host_module_get_param=key=>{
- if(key.startsWith('fill_preview_')){reads++;return drumPreview?'abc|384|5|0,24,36,117;0,24,38,73;96,48,42,41;192,24,46,100;288,24,49,90|drums|36,38,42,46,49':'abc|384|3|0,24,60,100;96,48,64,90;288,24,67,80|melodic|60,64,67';}
+ if(key.startsWith('fill_preview_')){reads++;return drumPreview?'abc|384|5|0,24,36,117;0,24,38,73;96,48,42,41;192,24,46,100;288,24,49,90|drums|36,38,42,46,49':(stalePreview?'bcd':'abc')+'|384|3|0,24,60,100;96,48,64,90;288,24,67,80|melodic|60,64,67';}
  if(key.startsWith('fill_target_'))return 'def';
  if(key==='part_result')return result;
  return originalGet(key);
@@ -40,6 +40,31 @@ commands.length=0;sessionPad(68,68);
 assert(commands.some(([,value])=>value.includes('clipfill 3 0 def 1_1_2_0_1_0_1_1 abc ')),
     'phase and pitch variants use the same preview/write/Undo path');
 assert(commands.some(([,value])=>value.includes('ucommit')),'variation writes are undoable');
+
+// Two A/B memories capture both source picks and independent phase controls,
+// but recall remains a read-only preview until the ordinary pad write.
+commands.length=0;appState.shiftHeld=true;view.clipsMidi([176,75,1]);appState.shiftHeld=false;// save A (P1 R1)
+const beforeSaveReads=reads;fill.renderFill();assert.equal(reads,beforeSaveReads,'save A makes no native reads');
+appState.shiftHeld=true;view.clipsMidi([176,71,1]);appState.shiftHeld=false;// draft P2 R1
+appState.shiftHeld=true;view.clipsMidi([176,76,1]);appState.shiftHeld=false;// save B too early
+Date.now=()=>previousNow()+80;fill.fillTick();Date.now=previousNow;
+appState.shiftHeld=true;view.clipsMidi([176,76,1]);appState.shiftHeld=false;// save valid B
+stalePreview=true;
+const beforeStaleRead=reads;appState.shiftHeld=true;view.clipsMidi([176,77,1]);appState.shiftHeld=false;// attempt recall A
+assert.equal(reads,beforeStaleRead+1,'recall checks donor fingerprint exactly once');
+stalePreview=false;
+commands.length=0;sessionPad(68,68);
+assert(commands.some(([,value])=>value.includes('clipfill 3 0 def 1_1_2_0_1_0_2_1 abc ')),
+    'stale bookmark refusal keeps the current draft untouched');
+commands.length=0;appState.shiftHeld=true;view.clipsMidi([176,77,1]);appState.shiftHeld=false;// recall A
+sessionPad(68,68);
+assert(commands.some(([,value])=>value.includes('clipfill 3 0 def 1_1_2_0_1_0_1_1 abc ')),
+    'recall A commits exactly the original source and variation');
+commands.length=0;appState.shiftHeld=true;view.clipsMidi([176,78,1]);appState.shiftHeld=false;// recall B
+sessionPad(68,68);
+assert(commands.some(([,value])=>value.includes('clipfill 3 0 def 1_1_2_0_1_0_2_1 abc ')),
+    'recall B preserves the separate draft variation');
+appState.shiftHeld=true;view.clipsMidi([176,77,1]);appState.shiftHeld=false;// back to P1 R1
 commands.length=0;appState.shiftHeld=true;
 view.clipsMidi([176,71,127]);view.clipsMidi([176,73,127]);appState.shiftHeld=false;
 Date.now=()=>previousNow()+80;fill.fillTick();Date.now=previousNow;
