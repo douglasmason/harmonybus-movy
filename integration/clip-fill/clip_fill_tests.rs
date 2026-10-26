@@ -27,6 +27,52 @@ fn write(engine:&mut Engine,request:&str,out:&mut Vec<OutEvent>)->String {
     assert_eq!(clip.notes.iter().filter(|note|note.pitch==67).map(|note|note.tick).collect::<Vec<_>>(),vec![384,480,672]);
     assert_eq!(clip.length_steps,32);
 }
+#[test] fn pitch_and_rhythm_rotation_are_independent_previewed_and_undoable(){
+    let mut engine=setup();let mut output=Vec::new();
+    let original=engine.fill_preview("1_3_4_2_1_0");
+    assert_eq!(original,engine.fill_preview("1_3_4_2_1_0_0_0"),
+        "zero phase offsets are exactly backward compatible");
+    let pitch_preview=engine.fill_preview("1_3_4_2_1_0_1_0");
+    let rhythm_preview=engine.fill_preview("1_3_4_2_1_0_0_1");
+    let both_preview=engine.fill_preview("1_3_4_2_1_0_1_1");
+    assert_ne!(pitch_preview,original);assert_ne!(rhythm_preview,original);
+    assert_ne!(both_preview,pitch_preview);assert_ne!(both_preview,rhythm_preview);
+    assert_eq!(engine.tracks[2].clips[5].notes.len(),0,"previews never write");
+    let snapshot=engine.undo_snapshot();
+    apply_batch(&mut engine,"usnap 91",&mut output);
+    write(&mut engine,"1_3_4_2_1_0_1_1",&mut output);
+    apply_batch(&mut engine,"ucommit 91",&mut output);
+    assert!(engine.part_result.starts_with("Filled"));
+    let clip=&engine.tracks[2].clips[5];
+    assert_eq!(clip.notes.iter().map(|n|(n.tick,n.pitch)).collect::<Vec<_>>(),
+        vec![(24,67),(120,60),(120,64),(312,67)]);
+    assert_eq!(clip.notes[1].actions,None);
+    assert_eq!(clip.notes[0].actions,Some([7;52]),"recorded note operations travel with their pitch group");
+    assert!(clip.notes.iter().all(|n|n.input_key==InputKey::new(2,1)));
+    apply_batch(&mut engine,"uswap 91 92",&mut output);
+    assert_eq!(engine.undo_snapshot(),snapshot,"one Undo restores original clip and routing");
+    assert_eq!(engine.fill_preview("1_3_4_2_1_0"),original);
+    assert!(engine.fill_preview("1_3_4_2_1_2_1_0").contains("Original"));
+    assert!(engine.fill_preview("1_3_4_2_1_0_16_0").contains("rotation"));
+    assert!(engine.fill_preview("1_3_4_2_1_0_1").contains("Invalid sources"));
+    assert!(engine.fill_preview("4_2_4_2_1_2_0_1").contains("Original"),
+        "drum Original mode never alters kit lane identity implicitly");
+}
+#[test] fn rotated_fit_retains_group_alignment_and_stale_signature_protection(){
+    let mut engine=setup();let mut output=Vec::new();
+    let preview=engine.fill_preview("1_3_4_2_2_1_1_2");
+    assert!(!preview.starts_with("error:"),"{preview}");
+    let command=format!("clipfill 2 5 {} 1_3_4_2_2_1_1_2 {} {} own",
+        engine.fill_target("2_5"),preview.split('|').next().unwrap(),Settings::comp().wire());
+    engine.tracks[4].clips[2].notes[0].gate+=1;
+    let before=engine.undo_snapshot();apply_batch(&mut engine,&command,&mut output);
+    assert!(engine.part_result.contains("Source changed"));
+    assert_eq!(engine.undo_snapshot(),before);
+    let request="1_3_4_2_2_1_1_2";
+    write(&mut engine,request,&mut output);
+    assert!(engine.part_result.starts_with("Filled"));
+    assert!(engine.tracks[2].clips[5].notes.iter().all(|n|n.input_key==InputKey::new(2,1)));
+}
 #[test] fn stale_sources_destination_recording_and_capacity_reject_atomically(){
     let mut engine=setup();let mut out=Vec::new();let command=write(&mut engine,"1_3_4_2_1_0",&mut out);
     let before=engine.undo_snapshot();apply_batch(&mut engine,&command,&mut out);assert!(engine.part_result.contains("Destination changed"));assert_eq!(engine.undo_snapshot(),before);
