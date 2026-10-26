@@ -18,9 +18,17 @@ struct Plan {clip:Clip, signature:u64, drum:bool}
 impl Engine {
     fn fill_plan(&self,request:&str)->Result<Plan,&'static str>{
         let fields:Vec<usize>=request.split('_').map(str::parse).collect::<Result<_,_>>().map_err(|_|"Invalid sources")?;
-        if fields.len()!=6 {return Err("Invalid sources");}
-        let [pitch_track,pitch_slot,rhythm_track,rhythm_slot,bars,alignment]=fields[..] else {unreachable!()};
-        if bars==0||bars>16||alignment>2 {return Err("Invalid length or alignment");}
+        if fields.len()!=6&&fields.len()!=8 {return Err("Invalid sources");}
+        let [pitch_track,pitch_slot,rhythm_track,rhythm_slot,bars,alignment]=fields[..6] else {unreachable!()};
+        // Optional edit-time phase offsets. The legacy six-field request remains identical.
+        let pitch_rotation=fields.get(6).copied().unwrap_or(0);
+        let rhythm_rotation=fields.get(7).copied().unwrap_or(0);
+        if bars==0||bars>16||alignment>2||pitch_rotation>15||rhythm_rotation>15 {
+            return Err("Invalid length, alignment or rotation");
+        }
+        if alignment==2&&(pitch_rotation!=0||rhythm_rotation!=0) {
+            return Err("Original phrases keep their authored pitch and rhythm");
+        }
         let source=|track:usize,slot:usize| self.tracks.get(track).and_then(|track|track.clips.get(slot)).ok_or("Invalid clip");
         let original_pitch=source(pitch_track,pitch_slot)?;
         let rhythm=if alignment==2 {original_pitch}else{source(rhythm_track,rhythm_slot)?};
@@ -37,7 +45,10 @@ impl Engine {
         let mut attacks=BTreeMap::<u32,(u32,u8)>::new();
         for note in &rhythm.notes {
             if note.vel==0||note.tick<rhythm.loop_start_ticks()||note.tick>=rhythm.loop_end_ticks(){continue;}
-            let attack=attacks.entry(note.tick-rhythm.loop_start_ticks()).or_insert((1,note.vel));
+            // Rotate the source's rhythm within its own loop, not against the destination
+            // bars. Ties, gaps, accents and their existing gate lengths remain authored.
+            let phase=(note.tick-rhythm.loop_start_ticks()+rhythm_rotation as u32*TICKS_PER_STEP)%rhythm_length;
+            let attack=attacks.entry(phase).or_insert((1,note.vel));
             attack.0=attack.0.max(note.gate);attack.1=attack.1.max(note.vel);
         }
         if attacks.is_empty()&&alignment!=2{return Err("Rhythm clip has no attacks");}
@@ -62,12 +73,21 @@ impl Engine {
                 }
             }
         } else {
+        // Rotate pitch groups, never individual chord notes. Keep the shared onset
+        // selector and source-key/operation identities used by live weaving.
+        let onsets:Vec<u32>=pitch.notes.iter()
+            .filter(|note|note.vel>0&&note.tick>=pitch.loop_start_ticks()&&note.tick<pitch.loop_end_ticks())
+            .map(|note|note.tick).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
+        if onsets.is_empty(){return Err("Pitch clip has no notes");}
         // Repeat rhythm at authored rate. Fit maps the pitch phrase into the target window.
         for cycle in (0..duration).step_by(rhythm_length as usize) {
             for (&offset,&(gate,velocity)) in &attacks {
                 let tick=cycle+offset;if tick>=duration{break;}
                 let phase=(alignment==1).then(||crate::source_route::fitted_phase(tick,0,duration,pitch.loop_start_ticks(),pitch.length_ticks()));
-                let onset=pitch_onset(&pitch,phase,previous).ok_or("Pitch clip has no notes")?;previous=Some(onset);
+                let base_onset=pitch_onset(&pitch,phase,previous).ok_or("Pitch clip has no notes")?;
+                previous=Some(base_onset);
+                let position=onsets.binary_search(&base_onset).map_err(|_|"Pitch clip changed")?;
+                let onset=onsets[(position+pitch_rotation)%onsets.len()];
                 for source_note in pitch.notes.iter().filter(|note|note.tick==onset&&note.vel>0) {
                     if clip.notes.len()>=MAX_NOTES{return Err("Clip note capacity exceeded");}
                     let mut note=source_note.clone();note.input_key=note.input_key.or(pitch.input_key);
