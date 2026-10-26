@@ -27,6 +27,25 @@ const write=commands.find(([key,value])=>key==='cmd'&&value.includes('clipfill')
 assert(write?.includes('clipfill 3 0 def 1_1_2_0_1_0 abc '),write);
 assert(commands.filter(([key])=>key==='cmd').map(([,value])=>value).join(';').includes('ucommit'),'single Undo edit');
 assert(!commands.some(([,value])=>/\blaunch\b/.test(value)),'filling never launches');assert(seqState.session[3].exist&1);
+// Shift+K1/K3 independently vary pitch-group order and rhythm phase. The
+// selected donor clips are unchanged, and browsing never writes MIDI or clips.
+commands.length=0;appState.shiftHeld=true;
+view.clipsMidi([176,71,1]);view.clipsMidi([176,73,1]);appState.shiftHeld=false;
+const readsBeforeVariant=reads;
+fill.renderFill();fill.fillTick();assert.equal(reads,readsBeforeVariant,'variation browsing is coalesced');
+fill.fillCell(3,0);assert(!commands.some(([,value])=>value.includes('clipfill')),'pending variation cannot write');
+Date.now=()=>previousNow()+80;fill.fillTick();Date.now=previousNow;
+assert.equal(reads,readsBeforeVariant+1);
+commands.length=0;sessionPad(68,68);
+assert(commands.some(([,value])=>value.includes('clipfill 3 0 def 1_1_2_0_1_0_1_1 abc ')),
+    'phase and pitch variants use the same preview/write/Undo path');
+assert(commands.some(([,value])=>value.includes('ucommit')),'variation writes are undoable');
+commands.length=0;appState.shiftHeld=true;
+view.clipsMidi([176,71,127]);view.clipsMidi([176,73,127]);appState.shiftHeld=false;
+Date.now=()=>previousNow()+80;fill.fillTick();Date.now=previousNow;
+commands.length=0;sessionPad(68,68);
+assert(commands.some(([,value])=>value.includes('clipfill 3 0 def 1_1_2_0_1_0 abc ')),
+    'zero offsets restore exact original six-field request');
 commands.length=0;seqState.recording=true;sessionPad(69,68);assert(!commands.some(([,value])=>value.includes('clipfill')));seqState.recording=false;
 result='error:Source changed - preview again';seqState.session[3].exist=0;sessionPad(68,68);assert.equal(seqState.session[3].exist,0,'failed writes cannot claim success');
 const pixels=new Uint8Array(128*64);globalThis.clear_screen=()=>pixels.fill(0);globalThis.fill_rect=(x,y,width,height,color)=>{for(let row=Math.max(0,y);row<Math.min(64,y+height);row++)for(let col=Math.max(0,x);col<Math.min(128,x+width);col++)pixels[row*128+col]=color?255:0;};
