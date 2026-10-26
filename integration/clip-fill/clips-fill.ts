@@ -152,7 +152,14 @@ export function renderFill():boolean {
         line(55,`${notes.filter(note=>visibleLanes.includes(note[2])).length}/${count} hits 6:${lanePage+1}/${Math.max(1,Math.ceil(lanes.length/4))}`);
         return true;
     }
-    const memoryLabels=` A${memories[0]?'+':'-'} B${memories[1]?'+':'-'}`;
+    const memoryLabel=(slot:number):string=>{
+        const saved=memories[slot];
+        if(!saved)return '-';
+        return saved.keep===keep&&saved.pitchRotation===pitchRotation&&
+            saved.rhythmRotation===rhythmRotation&&
+            saved.choices.every((value,index)=>choices[index]===value)?'*':'+';
+    };
+    const memoryLabels=` A${memoryLabel(0)} B${memoryLabel(1)}`;
     line(1,drum?'FILL DRUM'+memoryLabels:`FILL P${pitchRotation} R${rhythmRotation}`+memoryLabels);
     line(12,`1/2 ${drum?'Drums':'Pitch'} T${choices[0]+1} C${choices[1]+1}`);
     line(22,drum||choices[5]===2?'3/4 Rhythm: original':`3/4 Rhythm T${choices[2]+1} C${choices[3]+1}`);
