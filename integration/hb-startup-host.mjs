@@ -59,5 +59,6 @@ for(const key of ['travel_map','conductor_key_travel','follower_key_travel']){
     const parameter=module.capabilities.chain_params.find(p=>p.key===key);
     for(const choice of choices)assert(parameter.options.includes(choice),key+' exposes '+choice);
 }
-assert.equal(module.capabilities.chain_params.find(p=>p.key==='travel_map').default,'None');
+const travel=module.capabilities.chain_params.find(p=>p.key==='travel_map');
+assert.equal(travel.default??travel.options[0],'None','compact metadata preserves the effective default');
 console.log('Approach defaults, saved layouts, and shared travel menu choices verified');
