@@ -143,6 +143,9 @@ fn drum_command(engine:&Engine,request:&str,track:usize,slot:usize)->String {
 }
 #[test] fn drum_fill_undo_save_and_silent_groove_use_existing_clip_ownership(){
     let mut engine=drum_setup();let mut out=Vec::new();
+    // Use a persisted-valid source and selection; loading intentionally drops
+    // harmonic input attached to rendered notes and selects an existing clip.
+    engine.tracks[4].clips[2].notes[0].rendered=false;engine.tracks[8].active_clip=5;
     engine.tracks[8].clips[5].add_note_raw(0,0,12,55,99);let before=engine.undo_snapshot();
     apply_batch(&mut engine,"usnap 81",&mut out);
     let command=drum_command(&engine,"4_2_99_99_2_2",8,5);apply_batch(&mut engine,&command,&mut out);
