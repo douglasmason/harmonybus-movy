@@ -6,7 +6,10 @@ export const chordDegrees=['I','II','III','IV','V','VI','VII'];
 const intentSymbols=['','Degree','ii','V','vii dim','subV','IV','VI','bIII','iv','bVI','bVII','Parallel','Blues'];
 export function intentLabel(intent:number,degree:number):string{return intent===1?chordDegrees[degree]:intentSymbols[intent]+'/'+chordDegrees[degree];}
 // Native Move palette: hue-matched moderate/strong pairs; active is true white.
-const qualityColors:readonly (readonly [number,number])[]=[[123,122],[77,7],[97,17],[115,26],[65,1],[69,3],[85,11]];
+// Major amber, minor blue, dominant coral; dissonant 1-3-5 foundations magenta.
+// Every voicing uses its resolved chord scale's implied native family. Gray means the
+// context itself is unresolved, not that a third or seventh was left out.
+const qualityColors:readonly (readonly [number,number])[]=[[123,122],[77,7],[97,17],[65,1],[115,26],[115,26],[115,26]];
 const intentColors:readonly (readonly [number,number])[]=[[123,122],[81,9],[109,23],[95,16],[77,7]];
 export function chordColor(status:ChordStatus|undefined,intent:number,view:number,active:boolean,enabled:boolean):number{
     if(!enabled)return 0;
