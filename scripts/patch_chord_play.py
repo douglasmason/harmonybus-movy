@@ -133,7 +133,11 @@ def patch_native(root: Path) -> None:
     source: str = path.read_text()
     source = replace_once(source, 'pub fn parse(message:', '''/// Reserved silent harmony descriptor. It is never an executable operation.
 pub fn chord_selection(actions:&Actions)->bool {
-    let word=actions[0];
+    let mut word=actions[0];
+    if word>>56==0xc9 {
+        if word&(1<<46)==0 {return false;}
+        word=(word&0x0000ffffffffffff)|if word&(1<<55)!=0 {0xc859001f00000000} else {0xc858001f00000000};
+    }
     let intent=word&0xffff801f00000000==0xc859001f00000000 && (1..=10).contains(&((word>>37)&15)) && (word>>41)&15<12;
     (word&0xffffbfff00000000==0xc858001f00000000||intent) && word&1!=0 && (word&4095).count_ones()>=2 &&
         (word>>12)&4095!=0 && (word>>24)&15<12 && (word>>28)&15<12 && actions[1..].iter().all(|word|*word==0)

@@ -22,6 +22,7 @@ export function panelNavigation(ctl:any,enabled:()=>boolean,modeName:()=>string)
         ctl.state.peek=null;ctl.state.hintLines=null;
         if(menu){if(delta<0){if(choice===0)close();else choice--;}else if(delta>0)choice=Math.min(groups().length-1,choice+1);appState.dirty=true;return ctl.pageIndex;}
         const pages=indices(),position=pages.indexOf(ctl.pageIndex),next=position+Math.sign(delta);
+        if(next<0&&category!=='Core'){open();return ctl.pageIndex;}
         if(next>=pages.length&&category==='Core'){open();return ctl.pageIndex;}
         if(next>=0&&next<pages.length)jump(pages[next],{remember:false});
         appState.dirty=true;return ctl.pageIndex;
@@ -36,7 +37,7 @@ export function panelNavigation(ctl:any,enabled:()=>boolean,modeName:()=>string)
             if(!available())return bound(ctl.pageIndex,ctl.pages.length);
             if(menu)return direction<0||choice<groups().length-1;
             const pages=indices(),position=pages.indexOf(ctl.pageIndex);
-            return direction<0?position>0:position<pages.length-1||category==='Core';
+            return direction<0?position>0||category!=='Core':position<pages.length-1||category==='Core';
         },
         active:available,
         isMenu:()=>available()&&menu,
@@ -47,7 +48,8 @@ export function panelNavigation(ctl:any,enabled:()=>boolean,modeName:()=>string)
             if(!available()||menu)return;
             const pages=indices(),position=Math.max(0,pages.indexOf(ctl.pageIndex));
             // Touch overlays keep category-scoped chrome; never expose all HB pages.
-            fill_rect(0,8,128,2,0);drawBankBar(position,pages.length);
+            // Shared widgets begin at y=9. Clear only the chrome at y=7..8.
+            fill_rect(0,7,128,2,0);drawBankBar(position,pages.length,false,undefined,true);
             if(modal()||ctl.state.touched>=0)return;
             fill_rect(0,0,128,7,0);drawHeader(ctl.page.level==='root'?mode():ctl.pageLabel(),(position+1)+'/'+pages.length);
             fill_rect(0,57,128,7,0);fontPrint(1,58,mode()+' > '+category,1);

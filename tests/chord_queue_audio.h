@@ -86,6 +86,24 @@ static void test_chord_queue(void){
     set("state",saved);render(8);capture_register=1;register_low=128;register_high=-1;
     set("cmd","play");render(600);assert(register_low==72&&register_high==79);
     set("cmd","stop");render(16);capture_register=0;
+    /* Top-note ranges survive Rust recording and replay without changing owner. */
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 64 0 \n");render(8);
+    set("cmd","jrec 1 1");render(800);
+    set("chord_queue","0,0,1,2,1,0,1,12,0,0,84");set("chord_queue","commit");render(250);
+    set("cmd","stop");render(16);api->get_param(instance,"state",saved,sizeof(saved));
+    recorded=strstr(saved,"\nra 0 ");descriptor=0;
+    assert(recorded&&sscanf(recorded,"\nra 0 %*d %*d %*u,%llu",&descriptor)==1);
+    assert(descriptor>>56==0xc9&&((descriptor>>48)&127)==76&&(descriptor&(1ULL<<46)));
+    set("state",saved);render(8);capture_register=1;register_low=128;register_high=-1;
+    set("cmd","play");render(600);assert(register_low==67&&register_high==76);
+    set("cmd","stop");render(16);capture_register=0;
+    set("ch0:midi_fx1:chord_voicing","Root Below");capture_register=1;register_low=128;register_high=-1;
+    set("cmd","play");render(600);assert(register_low==60&&register_high==76);
+    set("cmd","stop");render(16);register_low=128;register_high=-1;sent_on=sent_off=0;
+    set("chord_select","0,0,1,2,1,0,1,12,0,0,75");render(8);
+    assert(register_low==60&&register_high==67&&sent_on==3);
+    set("chord_select","off");render(16);assert(sent_on==sent_off);capture_register=0;
+    set("ch0:midi_fx1:chord_voicing","Close");
     /* Automatic overlap uses the same bridge with an ordinary numeric depth. */
     set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 64 0 \n");render(8);
     set("ch0:midi_fx1:chord_queue_depth","4");sent_on=sent_off=0;

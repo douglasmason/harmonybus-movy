@@ -23,6 +23,10 @@ port.getParam=read;port.setParam=write;
 const choice=navigation.state().choice;for(let index=0;index<30;index++)page.changePage(1);assert.equal(navigation.state().choice,navigation.state().groups.length-1,'right stops at last item');
 while(navigation.state().choice>choice)page.changePage(-1);assert(navigation.isMenu(),'left moves within the list');
 while(navigation.state().choice<navigation.state().groups.indexOf('Comp'))page.changePage(1);page.click();assert.equal(navigation.state().category,'Comp');
+assert(navigation.canMove(-1),'first group panel advertises the return to its settings list');
+const compChoice=navigation.state().groups.indexOf('Comp');page.changePage(-1);
+assert(navigation.isMenu());assert.equal(navigation.state().choice,compChoice,'left returns to the selected group');
+page.click();assert.equal(page.pageIndex,navigation.state().indices[0]);
 for(let index=0;index<40;index++)page.changePage(1);
 assert.equal(navigation.state().category,'Comp');assert(page.ctl.page.level.startsWith('cp_Comp_'));
 selectTrack(4);const other=chordPage();assert.equal(other.ctl.page.name,page.ctl.page.name);assert.equal(other.ctl.hbNavigation.state().category,'Comp');
@@ -33,10 +37,18 @@ assert(!settings.ctl.pages.some(candidate=>candidate.keys?.includes('chord_mode'
 assert(settings.ctl.hbNavigation.state().groups.includes('Diagnostics'));
 const missing=page.ctl.pages.findIndex(candidate=>candidate.level==='cp_Melody_track_scales');page.goToPage(missing);
 assert.equal(navigation.state().category,'Melody Mapping','direct panel jumps select their category too');
+const setupIndex=page.ctl.pages.findIndex(candidate=>candidate.level==='cp_setup');page.goToPage(setupIndex);
+assert.equal(navigation.state().indices.length,1);assert(navigation.canMove(-1));
+assert.equal(page.ctl.state.metaIndex.get('cp_reset').writeOnly,true,'Reset uses the shared action button');
+assert.deepEqual(page.ctl.page.keys.slice(0,7),['cp_conductor','cp_bass_track','cp_comp','cp_melody','cp_bass_source','cp_colorView','cp_reset']);
+for(const [key,label] of [['cp_conductor','Cond'],['cp_bass_track','Bass'],['cp_comp','Comp'],['cp_melody','Mel']])assert.equal(page.ctl.state.metaIndex.get(key).short_name,label);
+page.changePage(-1);assert(navigation.isMenu());assert.equal(navigation.state().groups[navigation.state().choice],'Setup');
+page.click();assert.equal(page.pageIndex,setupIndex,'single-page Setup reopens in place');
 console.log('Panel categories: core boundary, restricted jog, read-free menus, inert knobs, back trail and track continuity pass');
 // Render through Movy's outer chrome, not just the isolated parameter page.
 const {renderKnobsView}=await import('../dist/esm/renderer/knob-view.js');
 const {drawHeader}=await import('../dist/esm/renderer/header.js');
+const {fontPrint,fontWidth}=await import('../dist/esm/font/index.js');
 const {schwungPageFor}=await import('../dist/esm/renderer/schwung-grid.js');
 const pixels=new Uint8Array(128*64),oldClear=globalThis.clear_screen,oldFill=globalThis.fill_rect;
 globalThis.clear_screen=()=>pixels.fill(0);
@@ -44,11 +56,14 @@ globalThis.fill_rect=(x,y,width,height,color)=>{for(let row=Math.max(0,y);row<Ma
 try {
  for(const current of [schwungPageFor(0,'midi_fx1'),chordPage()]){
   current.goToPage(0);current.ctl.state.touched=-1;current.ctl.state.peek=null;
+  clear_screen();current.ctl.render({fillRect:fill_rect,print:fontPrint,textWidth:fontWidth},{title:'HarmonyBus',bands:{header:false,bank:false,footer:false}});
+  const widgetBorder=pixels.slice(128*9,128*10);assert(widgetBorder.some(Boolean),'fixture draws a top widget border');
   clear_screen();current.render('HarmonyBus');const expected=pixels.slice(0,128*7);
-  const expectedBar=pixels.slice(128*8,128*10);
+  assert.deepEqual(pixels.slice(128*9,128*10),widgetBorder,'chrome preserves the shared renderer’s complete top widget border');
+  const expectedBar=pixels.slice(128*7,128*9);
   current.knobTouch(0,true);clear_screen();drawHeader('HarmonyBus','T1');
   const {drawBankBar}=await import('../dist/esm/renderer/header.js');drawBankBar(current.pageIndex,current.pageCount);current.render('HarmonyBus');
-  assert.deepEqual(pixels.slice(128*8,128*10),expectedBar,'knob touch never reveals full internal panel count');
+  assert.deepEqual(pixels.slice(128*7,128*9),expectedBar,'knob touch never reveals full internal panel count');
   current.knobTouch(0,false);current.ctl.state.peek=null;current.ctl.state.touched=-1;
   const vm={moduleName:'HarmonyBus',bankName:'T4',bankIndex:0,bankCount:30,rows:[],toast:null,overlay:null};
   renderKnobsView(vm,false,3,()=>current.render('HarmonyBus'));

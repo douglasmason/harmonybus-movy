@@ -16,6 +16,17 @@
             for pitch in [24,48,60,84,108] {assert_eq!(parse(&format!("ra4,{}",payload(pitch,actions))),Some((pitch,actions)));}
         }
     }
+    #[test] fn top_note_ranges_round_trip_without_changing_the_note_owner() {
+        for base in [0xc858001f00000000u64|0x91|(0xab5<<12),0xc859001f00000000u64|0x491|(0xab5<<12)|(2<<37)|(5<<41)] {
+            for top in 0..128u64 {
+                let intent=(base>>48)&1;
+                let mut actions=[0;LANES+1];actions[0]=(base&0x0000ffffffffffff)|0xc900000000000000|(intent<<55)|(top<<48)|(1<<46);
+                assert!(chord_selection(&actions));
+                assert_eq!(parse(&format!("ra4,{}",payload(60,actions))),Some((60,actions)));
+                actions[0]&=!(1<<46);assert!(!chord_selection(&actions));
+            }
+        }
+    }
     #[test] fn functional_snapshots_keep_intent_and_reject_reserved_bits(){
         let mut actions=[0;LANES+1];actions[0]=0xc859001f00000000|0x491|(0xab5<<12)|(2<<37)|(5<<41);
         assert!(chord_selection(&actions));

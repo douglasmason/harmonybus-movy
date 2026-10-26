@@ -86,18 +86,27 @@ export function chordSlotColor(index:number):number{
 export function chordSlotQueued(index:number):boolean{return !!setup.playMode&&!!setup.slots[index]?.enabled&&!!bankStatus?.slots[index]?.queued;}
 /** Shared defaults are native; slot overrides travel with each selected chord. */
 const rangeTouches=new Map<number,{shift:boolean;moved:boolean}>();
-const rangeTurns=new Map<number,{at:number}>();
+const rangeTurns=new Map<number,{at:number;remainder:number;identity:string}>();
 function chordEvent(slot:Slot):number[]{return [slot.root,slot.quality,slot.form,slot.policy,slot.tonic,slot.scale,slot.bass,...(slot.intent||slot.range?[slot.intent,slot.target]:[]),...(slot.range?[slot.range]:[])];}
 function soundTrack():number {return !chordActive()||setup.source===0&&conductorRenders?conductorTrackForQueue():setup.comp;}
 function soundPath():string{return soundTrack()===setup.conductor?'C'+(setup.conductor+1)+'>'+conductorOutput:'Comp T'+(setup.comp+1);}
-function defaultRegister():number{const value=portFor(soundTrack()).getParam('midi_fx1:chord_register');return value==='Conductor'?(Number(portFor(conductorTrackForQueue()).getParam('midi_fx1:chord_register'))||0):Number(value)||0;}
+function defaultRegister():number{const raw=portFor(soundTrack()).getParam('midi_fx1:hb_chord_range_top'),value=Number(raw);return raw!==null&&raw!==''&&Number.isInteger(value)&&value>=0&&value<=127?value:67;}
+const topNoteName=(note:number):string=>notes[note%12]+(Math.floor(note/12)-1);
+function nextRangeTop(base:number,direction:number,index:number|null):number {
+    const native=Number(portFor(soundTrack()).getParam('midi_fx1:hb_chord_range_mask'));
+    const mask=native>0&&native<4096?native:index===null?0:bankStatus?.slots[index]?.mask??0;
+    for(let candidate=base+direction;candidate>=0&&candidate<=127;candidate+=direction)
+        if(!mask||(mask&(1<<(candidate%12))))return candidate;
+    return base;
+}
 function setChordRegister(index:number|null,value:number|null):void {
+    if(value!==null&&(!Number.isInteger(value)||value<0||value>127))return;
     const native=portFor(conductorTrackForQueue());
-    if(index===null)portFor(soundTrack()).setParam('midi_fx1:chord_register',value===null&&soundTrack()!==conductorTrackForQueue()?'Conductor':String(value??0));
-    else {const slot=setup.slots[index];slot.range=value===null?0:Math.max(-3,Math.min(3,value))+4;native.setParam('midi_fx1:hb_chord_range',chordEvent(slot).join(','));setup.selected=index;}
+    if(index===null)portFor(soundTrack()).setParam('midi_fx1:chord_register',value===null?(soundTrack()!==conductorTrackForQueue()?'Conductor':'0'):'Top '+value);
+    else {const slot=setup.slots[index];slot.range=value===null?0:Math.max(0,Math.min(127,value))+8;native.setParam('midi_fx1:hb_chord_range',chordEvent(slot).join(','));setup.selected=index;}
     statusCache=null;bankPollAt=-Infinity;markUiStateDirty();appState.dirty=true;
-    const range=value===null?(index===null?'0':'Default'):String(value>0?'+'+value:value);
-    seqToast((index===null?'All chords':bankStatus?.slots[index]?.name??'Chord')+' Range '+range+(value===null&&index!==null?'':' Oct'));
+    const range=value===null?'Default':'Top '+topNoteName(value);
+    seqToast((index===null?'All chords':bankStatus?.slots[index]?.name??'Chord')+' '+range);
 }
 function rangeControlMidi(data:number[],surface:SchwungPage|null):boolean {
     if(!surface||surface.ctl.hbNavigation?.isMenu())return false;
@@ -108,9 +117,13 @@ function rangeControlMidi(data:number[],surface:SchwungPage|null):boolean {
     const index=match?Number(match[1]):null,down=type===144&&value>0,up=type===128||(type===144&&!value),now=Date.now();
     if(turn){
         const touched=rangeTouches.get(knob);if(touched)touched.moved=true;
-        const steps=value<64?value:value-128;
-        rangeTurns.set(knob,{at:now});
-        if(steps){const base=index===null?defaultRegister():setup.slots[index].range?setup.slots[index].range-4:defaultRegister();setChordRegister(index,Math.max(-3,Math.min(3,base+steps)));}
+        const raw=value<64?value:value-128,identity=(surface.ctl.page?.level??'')+':'+key+':'+soundTrack();
+        const previous=rangeTurns.get(knob);
+        let remainder=previous&&previous.identity===identity&&now-previous.at<500&&Math.sign(previous.remainder)===Math.sign(raw)?previous.remainder:0;
+        remainder+=Math.max(-4,Math.min(4,raw));
+        const steps=Math.trunc(remainder/4);remainder-=steps*4;
+        rangeTurns.set(knob,{at:now,remainder,identity});
+        if(steps){const range=index===null?0:setup.slots[index].range,base=range>=8?range-8:defaultRegister(),next=nextRangeTop(base,Math.sign(steps),index);if(next!==base)setChordRegister(index,next);}
         return true;
     }
     if(down){rangeTouches.set(knob,{shift:appState.shiftHeld,moved:now-(rangeTurns.get(knob)?.at??-Infinity)<180});return index===null||appState.shiftHeld;}
@@ -141,7 +154,7 @@ export function restoreChord(value:unknown):void{
         setup.bassClip=input.bassClip===true;
         if(setup.comp===setup.conductor)setup.comp=setup.conductor===2?3:2;
         if([setup.conductor,setup.comp].includes(setup.bass))setup.bass=Array.from({length:16},(_,index)=>index).find(track=>![setup.conductor,setup.comp].includes(track))!;
-        setup.slots=setup.slots.map((slot,index)=>{const saved=input.slots?.[index];if(saved&&typeof saved==='object'&&saved.intent===undefined){slot.intent=0;slot.target=0;}if(saved&&typeof saved==='object')for(const key of Object.keys(slot) as (keyof Slot)[]){const number=saved[key],limit=key==='quality'||key==='bass'?12:key==='form'?16:key==='policy'?3:key==='scale'?19:key==='target'?6:key==='enabled'?1:key==='range'?7:key==='intent'?13:11;if(Number.isInteger(number)&&number>=0&&number<=limit&&(key!=='scale'||number>=1))slot[key]=number;}return slot;});
+        setup.slots=setup.slots.map((slot,index)=>{const saved=input.slots?.[index];if(saved&&typeof saved==='object'&&saved.intent===undefined){slot.intent=0;slot.target=0;}if(saved&&typeof saved==='object')for(const key of Object.keys(slot) as (keyof Slot)[]){const number=saved[key],limit=key==='quality'||key==='bass'?12:key==='form'?16:key==='policy'?3:key==='scale'?19:key==='target'?6:key==='enabled'?1:key==='range'?135:key==='intent'?13:11;if(Number.isInteger(number)&&number>=0&&number<=limit&&(key!=='scale'||number>=1))slot[key]=number;}return slot;});
     }
     page=null;route='';resetBank();
 }
@@ -191,6 +204,11 @@ export function chordPanelPort(track:number):TrackPort{
             const source=JSON.parse(text);metadata=parameters(source);
             metadata.push({key:'cp_sound_path',name:'Sound Owner / Output',short_name:'Sounds',type:'string',readOnly:true,access:'read'});
             for(const entry of metadata){
+                const shortNames:Record<string,string>={cp_conductor:'Cond',cp_bass_track:'Bass',cp_comp:'Comp',cp_melody:'Mel',cp_bass_source:'Bass In',cp_colorView:'Color',cp_reset:'Reset'};
+                if(shortNames[entry.key])entry.short_name=shortNames[entry.key];
+                if(entry.key==='cp_melody')entry.name='Melody Track';
+                if(entry.key==='cp_reset'){entry.type='int';entry.min=0;entry.max=1;entry.access='write';delete entry.readOnly;}
+                if(entry.key==='cp_off'){entry.type='string';entry.readOnly=true;}
                 if(entry.key==='cp_source'){entry.name='Chord Sound Source';entry.short_name='Source';}
                 if(/^[cb]p_gate$/.test(entry.key)){entry.name='Stored Clip Note Length %';entry.short_name='Length';}
                 if(/^[cb]p_register$/.test(entry.key)){entry.name='Stored Clip Pitch Shift';entry.short_name='Shift';}
@@ -210,10 +228,10 @@ export function chordPanelPort(track:number):TrackPort{
         if(bare==='cp_play_mode')return setup.playMode?'Queued':'Immediate';
         if(bare.startsWith('cp_queue_'))return performanceStatus(bare.slice(3));
         if(bare.startsWith('cp_status_'))return performanceStatus(bare.slice(10));
-        if(bare==='cp_off')return String(defaultRegister());
+        if(bare==='cp_off')return topNoteName(defaultRegister());
         if(bare==='cp_sound_path')return soundPath();
         const partValue=partRead(bare,partOwner(bare));if(partValue!==null)return partValue;
-        if(bare==='cp_reset')return 'RESET';
+        if(bare==='cp_reset')return 'Tap';
         if(bare==='cp_resolved')return bankStatus?.slots[setup.selected]?.name??'--';
         if(bare==='cp_relation')return !slot.enabled?'Off':bankStatus?(bankStatus.slots[setup.selected]?.chromatic?'Chromatic':'Diatonic'):'--';
         let value=bare==='cp_colorView'?setup.colorView:bare==='cp_melody'?appState.activeTrack.index:bare==='cp_conductor'?setup.conductor:bare==='cp_comp'?setup.comp:bare==='cp_bass_track'?setup.bass:bare==='cp_bass_source'?Number(setup.bassClip):bare==='cp_source'?setup.source:bare==='cp_selected'?setup.selected:slot[bare.slice(3) as keyof Slot];
@@ -226,6 +244,7 @@ export function chordPanelPort(track:number):TrackPort{
         const bare=key.split(':').pop()??'';const partResult=partWrite(bare,value,partOwner(bare));if(partResult!==null)return partResult;
         const meta=metadata.find(entry=>entry.key===bare);
         if(!meta)return native.setParam(key,value);
+        if(bare==='cp_reset')return true; // The owned touch below fires this action once.
         if(bare==='cp_off'){setChordRegister(null,Number(value));return true;}
         if(!meta.options)return false;
         const selected=meta.options.indexOf(value);if(selected<0)return false;
@@ -290,7 +309,7 @@ export function chordHierarchy(hierarchy:any):any{
     }
     add('cp_comp_library','Comp Library',['cp_style','cp_load','cp_save','cp_user','cp_mapping','cp_gate','cp_register']);
     add('cp_bass_library','Bass Library',['bp_style','bp_velocity','bp_gate','bp_register','bp_mapping','bp_user','bp_save']);
-    add('cp_setup','Chord Play Setup',['cp_conductor','cp_comp','cp_melody','cp_colorView','cp_reset','cp_bass_track','cp_bass_source']);
+    add('cp_setup','Chord Play Setup',['cp_conductor','cp_bass_track','cp_comp','cp_melody','cp_bass_source','cp_colorView','cp_reset']);
     const rootKeys=['cp_play_mode','cp_track_'+setup.conductor+'_chord_timing','cp_track_'+setup.conductor+'_anticipation','cp_track_'+setup.conductor+'_chord_queue_end','cp_queue_next','cp_queue_count','cp_track_'+setup.conductor+'_chord_queue_depth','cp_off'];
     compactChordSettings(levels,links);
     levels.cp_comp_library.name='Comp T'+(setup.comp+1)+' Clip';
@@ -356,7 +375,7 @@ export function chordMidi(data:number[],panels=true):boolean{
         if(/^(cp|bp)_(load|save)$/.test(current.keyAt(key)??'')){
             if(down){reviewStyle(current.keyAt(key)!);partModalTouch(key,true);}return true;
         }
-        if(current.keyAt(key)==='cp_reset'){if(down){steps.add(key);resetChordDefaults();}return true;}
+        if(current.keyAt(key)==='cp_reset'){if(down){touches.set(key,current);current.knobTouch(key,true);current.ctl.state.triggerFiredAt.cp_reset=[Date.now()];resetChordDefaults();}return true;}
         const match=/^cp_slot_(\d+)$/.exec(current.keyAt(key)??'');
         if(match){if(down){steps.add(key);selectChordSlot(Number(match[1]));}return true;}
         const target=alias(current.keyAt(key)??'');
