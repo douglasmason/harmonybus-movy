@@ -1,4 +1,4 @@
-> Movy hbclean.265 preserves mixed case throughout settings, including chord notation, labels and values. It packages the same corrected shared UI for browser and device. See [mixed-case settings](docs/settings-case.md).
+> Movy hbclean.267 reduces unchanged Chord Play work, separates queue and overview polling, and measures the complete UI tick. Mixed-case settings and the existing musical controls remain included. See [UI overhead measurements and limits](docs/ui-overhead.md).
 
 > Movy hbclean.249 uses one session conductor on track 1 in new Sets. Existing Sets can adopt it with the stopped, undoable Conductor control on Clips Setup knob 6. Joint Root follows track 1 across all four banks; drum output stays explicit. Includes Clip Fill, the bass library and Chord Play context changes. See [single conductor](docs/single-conductor.md).
 

@@ -1,4 +1,4 @@
-name: Shared settings and performance verification
+name: UI overhead and performance verification
 on:
   push:
     branches: [main]
@@ -44,6 +44,9 @@ on:
       - integration/settings-case/**
       - scripts/patch_settings_case.py
       - docs/settings-case.md
+      - integration/ui-overhead/**
+      - scripts/patch_ui_overhead.py
+      - docs/ui-overhead.md
       - integration/grid/**
       - scripts/patch_grid.py
       - scripts/patch_panel_navigation.py
@@ -103,6 +106,9 @@ on:
       - integration/settings-case/**
       - scripts/patch_settings_case.py
       - docs/settings-case.md
+      - integration/ui-overhead/**
+      - scripts/patch_ui_overhead.py
+      - docs/ui-overhead.md
       - integration/grid/**
       - scripts/patch_grid.py
       - scripts/patch_panel_navigation.py
@@ -125,7 +131,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.265
+  SOURCE_VERSION: 0.34.1-hbclean.267
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -154,7 +160,7 @@ jobs:
           npm run typecheck
           npm run build:browser
           node browser-test/logic.mjs
-          for suite in hb-settings-case hb-chord-settings hb-panel-catalog hb-interface-usage hb-footer-test hb-performance-controls hb-drum-gesture hb-conductor-content hb-joint-chords hb-chord-queue hb-chord-range hb-navigation-lights hb-single-conductor hb-clips-fill hb-part-library hb-clips-view hb-panel-navigation hb-chord-play hb-chord-pad-feedback hb-pad-colors hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
+          for suite in hb-ui-overhead hb-ui-tick-overhead hb-settings-case hb-chord-settings hb-panel-catalog hb-interface-usage hb-footer-test hb-performance-controls hb-drum-gesture hb-conductor-content hb-joint-chords hb-chord-queue hb-chord-range hb-navigation-lights hb-single-conductor hb-clips-fill hb-part-library hb-clips-view hb-panel-navigation hb-chord-play hb-chord-pad-feedback hb-pad-colors hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
             node "browser-test/$suite.mjs"
           done
           # Legacy app-loop fails unchanged on the pre-routing hbclean.209 baseline.
@@ -207,7 +213,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: shared-settings-265
+          name: ui-overhead-267
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -227,10 +233,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.264':
-              raise SystemExit('Expected Movy 264 before mixed-case settings release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.266':
+              raise SystemExit('Expected Movy 266 before UI overhead release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Mixed-case Shared Settings" --notes-file docs/settings-case.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Chord Play UI Overhead" --notes-file docs/ui-overhead.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -243,7 +249,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.264':
+          if metadata['version'] != '0.34.1-hbclean.266':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
@@ -251,5 +257,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add release.json
-          git commit -m "Publish verified Mixed-case Settings $SOURCE_VERSION [skip ci]"
+          git commit -m "Publish verified UI Overhead $SOURCE_VERSION [skip ci]"
           git push origin HEAD:main
