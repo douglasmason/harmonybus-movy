@@ -57,7 +57,7 @@ page.knobTurn(2,4);flush();
 assert.notEqual(comp.getParam('midi_fx1:render_velocity_percent'),compVelocity);
 assert.equal(conductor.getParam('midi_fx1:render_velocity_percent'),conductorVelocity);
 assert.equal(appState.activeTrack.index,3);assert.equal(chord.chordSnapshot().playMode,queue);
-assert.equal(port.getParam('midi_fx1:cp_off'),String(Number(conductor.getParam('midi_fx1:chord_register'))||0),'inherited range resolves through the conductor');
+assert.equal(port.getParam('midi_fx1:cp_off'),'G4','inherited range shows its resolved top note');
 assert.equal(port.getParam('midi_fx1:cp_track_2_chord_register'),'Conductor','explicit inheritance remains visible');
 chord.setChordCompSource(0);flush();assert.match(page.ctl.page.name,/Sound Cond T1/);
 conductor.setParam('midi_fx1:render_channel','4');flush();assert.equal(port.getParam('midi_fx1:cp_sound_path'),'C1>4');

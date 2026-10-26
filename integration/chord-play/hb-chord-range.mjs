@@ -10,6 +10,7 @@ setSettingsOpen(false);selectTrack(3);seqState.sessionMode=false;seqState.playin
 chord.restoreChord(null);chord.setChordEnabled(true);
 const conductor=portFor(0),comp=portFor(2);
 conductor.setParam('midi_fx1:render_channel','3');conductor.setParam('midi_fx1:chord_register','0');comp.setParam('midi_fx1:chord_register','Conductor');
+conductor.setParam('midi_fx1:hb_chord_range_top','67');comp.setParam('midi_fx1:hb_chord_range_top','67');conductor.setParam('midi_fx1:hb_chord_range_mask','145');comp.setParam('midi_fx1:hb_chord_range_mask','145');
 let now=Date.now()+1000;Date.now=()=>now;chord.tickChord();
 let page=chord.chordPage();
 const find=key=>{page=chord.chordPage();const index=page.ctl.pages.findIndex(entry=>entry.keys?.includes(key));assert(index>=0,key);page.goToPage(index);page.ctl.state.peek=null;page.ctl.state.touched=-1;};
@@ -17,25 +18,27 @@ const midi=data=>{now+=250;return chord.chordMidi(data);};
 const commands=[],oldSet=globalThis.host_module_set_param_blocking;
 globalThis.host_module_set_param_blocking=(key,value)=>{commands.push([key,value]);return oldSet?.(key,value);};
 find('cp_slot_0');const definition=chord.chordSnapshot().slots[0];
-midi([144,0,100]);const before=commands.length;midi([176,71,1]);midi([128,0,0]);
-const ranged=chord.chordSnapshot().slots[0];assert.equal(ranged.range,5);assert.equal(ranged.target,definition.target);
+midi([144,0,100]);const before=commands.length;midi([176,71,4]);midi([128,0,0]);
+const ranged=chord.chordSnapshot().slots[0];assert.equal(ranged.range,80);assert.equal(ranged.target,definition.target);
 assert(!commands.slice(before).some(([key])=>key==='chord_select'||key==='chord_queue'),'turning an accepted choice adds no attack');
-assert.match(conductor.getParam('midi_fx1:hb_chord_range'),/,5$/);
+assert.match(conductor.getParam('midi_fx1:hb_chord_range'),/,80$/);
 const offBefore=commands.filter(([key,value])=>key==='chord_select'&&value==='off').length;
-midi([144,7,100]);midi([176,78,1]);midi([128,7,0]);
-assert.equal(conductor.getParam('midi_fx1:chord_register'),'1');assert.equal(comp.getParam('midi_fx1:chord_register'),'Conductor');
+midi([144,7,100]);midi([176,78,4]);midi([128,7,0]);
+assert.equal(conductor.getParam('midi_fx1:chord_register'),'Top 72');assert.equal(comp.getParam('midi_fx1:chord_register'),'Conductor');
 assert.equal(commands.filter(([key,value])=>key==='chord_select'&&value==='off').length,offBefore,'range turn cannot fire Off');
+// Sub-threshold motion is accumulated; reversed or new-page residue cannot jump a range.
+const slowStart=commands.length;now+=600;chord.chordMidi([176,71,1]);now+=10;chord.chordMidi([176,71,1]);now+=10;chord.chordMidi([176,71,1]);assert.equal(commands.length,slowStart);now+=10;chord.chordMidi([176,71,1]);assert.equal(chord.chordSnapshot().slots[0].range,84);
 appState.shiftHeld=true;midi([144,0,100]);midi([128,0,0]);assert.equal(chord.chordSnapshot().slots[0].range,0);
 midi([144,7,100]);midi([128,7,0]);appState.shiftHeld=false;assert.equal(conductor.getParam('midi_fx1:chord_register'),'0');
 // A late touch sensor report following the encoder turn is also suppressed.
-now+=500;chord.chordMidi([176,78,1]);now+=10;chord.chordMidi([144,7,100]);now+=10;chord.chordMidi([128,7,0]);
+now+=500;chord.chordMidi([176,78,4]);now+=10;chord.chordMidi([144,7,100]);now+=10;chord.chordMidi([128,7,0]);
 assert.equal(commands.filter(([key,value])=>key==='chord_select'&&value==='off').length,offBefore);
 midi([144,7,100]);assert.equal(commands.filter(([key,value])=>key==='chord_select'&&value==='off').length,offBefore);
 midi([128,7,0]);assert.equal(commands.filter(([key,value])=>key==='chord_select'&&value==='off').length,offBefore+1);
 find('cp_track_0_chord_quality');assert.match(page.ctl.page.name,/Sound Cond T1/);
 chord.setChordCompSource(1);now+=300;chord.tickChord();find('cp_track_2_chord_quality');assert.match(page.ctl.page.name,/Sound Comp T3/);
-const samePage=page;find('cp_slot_0');midi([144,7,100]);midi([176,78,1]);midi([128,7,0]);
-assert.equal(comp.getParam('midi_fx1:chord_register'),'2');assert.equal(conductor.getParam('midi_fx1:chord_register'),'1');
+const samePage=page;find('cp_slot_0');midi([144,7,100]);midi([176,78,4]);midi([128,7,0]);
+assert.equal(comp.getParam('midi_fx1:chord_register'),'Top 72');assert.equal(conductor.getParam('midi_fx1:chord_register'),'Top 72');
 appState.shiftHeld=true;midi([144,7,100]);midi([128,7,0]);appState.shiftHeld=false;assert.equal(comp.getParam('midi_fx1:chord_register'),'Conductor');
 chord.setChordCompSource(0);now+=300;chord.tickChord();assert.equal(chord.chordPage(),samePage,'route changes preserve the controller and current panel');
 assert.equal(appState.activeTrack.index,3);
@@ -66,5 +69,11 @@ midi([144,0,100]);assert.equal(chord.chordSnapshot().selected,14);midi([128,16,0
 assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value==='commit').length,0);
 midi([128,0,0]);assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value==='commit').length,1);
 assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value.startsWith('0,')).length,3);
+// Reset uses the shared button press animation and fires once per tap.
+find('cp_reset');commands.length=0;const resetSlot=page.ctl.page.keys.indexOf('cp_reset');
+midi([144,resetSlot,100]);assert(page.ctl.state.triggerFiredAt.cp_reset.length>0);
+assert.equal(page.ctl.state.touched,resetSlot);midi([128,resetSlot,0]);
+assert.equal(commands.filter(([key,value])=>key==='chord_select'&&value==='off').length,1);
+assert(!page.ctl.state.touchOrder.includes(resetSlot));
 globalThis.host_module_set_param_blocking=oldSet;
 console.log('Chord range and Touch Phrase: owner routing, preserved focus, safe Off/reset, no extra attacks, overlap and sequential release pass');

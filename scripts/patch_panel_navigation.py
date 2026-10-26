@@ -6,6 +6,17 @@ from patch_responsive_persistence import replace_once
 def patch_panel_navigation(root: Path) -> None:
     """Keep shared page data intact while changing its navigation and chrome."""
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/chord-play'
+    path: Path = root / 'src/renderer/header.ts'
+    source: str = path.read_text()
+    source = replace_once(source, 'dottedFirst = false, groups?: number[],', 'dottedFirst = false, groups?: number[], compact = false,')
+    source = replace_once(source, '    if (bankCount <= 1) return;', '    if (bankCount <= 1) return;\n    const barY = compact ? BAR_Y - 1 : BAR_Y;')
+    start: int = source.index('export function drawBankBar(')
+    end: int = source.find('\nexport ', start + 1)
+    if end < 0:
+        end = len(source)
+    body: str = source[start:end].replace(', BAR_Y,', ', barY,').replace('const h    = b === bankIndex ? 2 : 1;', 'const h    = !compact && b === bankIndex ? 2 : 1;').replace('if (dottedFirst && b === 0)', 'if ((compact && b !== bankIndex) || (dottedFirst && b === 0))')
+    source = source[:start] + body + source[end:]
+    path.write_text(source)
     (root / 'src/renderer/panel-navigation.ts').write_text((assets / 'panel-navigation.ts').read_text())
     (root / 'src/renderer/panel-catalog.ts').write_text((assets / 'panel-catalog.ts').read_text())
     path: Path = root / 'src/renderer/schwung-page.ts'

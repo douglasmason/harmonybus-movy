@@ -22,7 +22,7 @@ for(let step=0;step<8;step++)chord.chordMidi([176,63,127]);assert(page.ctl.hbNav
 for(let step=0;step<20;step++)chord.chordMidi([176,63,127]);expect(63,false);expect(62,true);
 while(page.ctl.hbNavigation.state().choice>0)chord.chordMidi([176,62,127]);expect(62,true);
 chord.chordMidi([176,62,127]);assert(!page.ctl.hbNavigation.isMenu());
-const sound=page.ctl.pages.findIndex(entry=>entry.level==='cp_Sound_output');page.goToPage(sound);expect(62,false);
+const sound=page.ctl.pages.findIndex(entry=>entry.level==='cp_Sound_output');page.goToPage(sound);expect(62,true);
 for(let step=0;step<20;step++)chord.chordMidi([176,63,127]);expect(63,false);
 page.ctl.state.peek={key:'cp_off',at:Date.now()};chord.chordMidi([176,62,127]);assert.equal(page.ctl.hbNavigation.state().category,'Sound','temporary parameter overlay cannot escape the category');
 chord.setChordEnabled(false);grid.setGridEnabled(true);seqState.loopStart=0;seqState.lenSteps=64;
