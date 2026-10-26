@@ -15,13 +15,50 @@ let active=false,choices=[1,0,2,0,1,0],keep=false;
 let pitchRotation=0,rhythmRotation=0;
 let preview='',request='',generation=0,set:string|null=null,peekUntil=0,message='',refreshAt=0;
 let lanePage=0;
+type FillSnapshot={
+    choices:number[]; keep:boolean; pitchRotation:number; rhythmRotation:number;
+    request:string; preview:string; generation:number; set:string|null;
+};
+// The two memories belong to the current Fill session only. Neither stores a
+// rendered clip nor creates a second note scheduler or Undo history.
+let memories:[FillSnapshot|null,FillSnapshot|null]=[null,null];
 const sourceIsDrum=():boolean=>drumFillTrack(choices[0]);
+const validPreview=():boolean=>!refreshAt&&/^[0-9a-f]+\|/.test(preview)&&
+    generation===engineGeneration()&&set===currentSetUuid();
+function fillMemory(slot:number,save:boolean):void{
+    const name=slot===0?'A':'B';
+    if(save){
+        if(!validPreview()||!engineReady()){seqToast('Finish preview before saving '+name);return;}
+        memories[slot]={
+            choices:[...choices],keep,pitchRotation,rhythmRotation,
+            request,preview,generation,set,
+        };
+        message='Saved '+name;seqToast('Fill '+name+' saved');
+    }else{
+        const saved=memories[slot];
+        if(!saved){seqToast('Fill '+name+' empty');return;}
+        if(!engineReady()||saved.set!==currentSetUuid()||saved.generation!==engineGeneration()){
+            seqToast('Fill '+name+' belongs to another set');return;
+        }
+        // Recompute once on an explicit recall. A stale donor must never be
+        // silently substituted for the exact material the user bookmarked.
+        const current=get('fill_preview_'+saved.request);
+        if(current!==saved.preview){seqToast('Fill '+name+' source changed');return;}
+        choices=[...saved.choices];keep=saved.keep;
+        pitchRotation=saved.pitchRotation;rhythmRotation=saved.rhythmRotation;
+        request=saved.request;preview=current;
+        generation=engineGeneration();set=currentSetUuid();refreshAt=0;
+        lanePage=0;peekUntil=Date.now()+1800;
+        message='Recalled '+name;seqToast('Fill '+name+' recalled');
+    }
+    appState.dirty=true;
+}
 const previewLanes=():number[]=>preview.startsWith('error:')?[]:(preview.split('|')[5]??'').split(',').filter(Boolean).map(Number);
 export function fillActive():boolean{return active&&seqState.sessionMode&&clipsPage===0;}
 const get=(key:string):string=>String(host_module_get_param(key)??'');
 export function setFillActive(enabled:boolean):void {
     active=enabled;message='';refreshAt=0;
-    if(enabled){pitchRotation=0;rhythmRotation=0;setClipsPage(0);refresh();}
+    if(enabled){pitchRotation=0;rhythmRotation=0;memories=[null,null];setClipsPage(0);refresh();}
     appState.dirty=true;
 }
 function refresh():void {
@@ -48,6 +85,13 @@ export function fillMidi(data:number[]):boolean {
     if(key===51||key===14||key===MoveMainButton){if(value)setFillActive(false);return true;}
     if(key<71||key>78)return false;
     if(!value)return true;const knob=key-71,direction=value<64?1:-1;
+    if(appState.shiftHeld&&knob>=4){
+        if(knob===4)fillMemory(0,true);     // Shift+5: store A.
+        else if(knob===5)fillMemory(1,true);// Shift+6: store B.
+        else if(knob===6)fillMemory(0,false);// Shift+7: recall A.
+        else fillMemory(1,false);          // Shift+8: recall B.
+        return true;
+    }
     if(sourceIsDrum()&&(knob===2||knob===3))return true;
     if(sourceIsDrum()&&knob===5){lanePage=Math.max(0,Math.min(Math.ceil(previewLanes().length/4)-1,lanePage+direction));peekUntil=Date.now()+1800;appState.dirty=true;return true;}
     if(knob<2)lanePage=0;
@@ -108,7 +152,15 @@ export function renderFill():boolean {
         line(55,`${notes.filter(note=>visibleLanes.includes(note[2])).length}/${count} hits 6:${lanePage+1}/${Math.max(1,Math.ceil(lanes.length/4))}`);
         return true;
     }
-    line(1,drum?'FILL DRUM ORIGINAL':`FILL P${pitchRotation} R${rhythmRotation} SHIFT1/3`);
+    const memoryLabel=(slot:number):string=>{
+        const saved=memories[slot];
+        if(!saved)return '-';
+        return saved.keep===keep&&saved.pitchRotation===pitchRotation&&
+            saved.rhythmRotation===rhythmRotation&&
+            saved.choices.every((value,index)=>choices[index]===value)?'*':'+';
+    };
+    const memoryLabels=` A${memoryLabel(0)} B${memoryLabel(1)}`;
+    line(1,drum?'FILL DRUM'+memoryLabels:`FILL P${pitchRotation} R${rhythmRotation}`+memoryLabels);
     line(12,`1/2 ${drum?'Drums':'Pitch'} T${choices[0]+1} C${choices[1]+1}`);
     line(22,drum||choices[5]===2?'3/4 Rhythm: original':`3/4 Rhythm T${choices[2]+1} C${choices[3]+1}`);
     line(32,drum?`5 ${choices[4]} bars 6 Lane view`:`5 ${choices[4]} bars  6 ${['Sequence','Fit pitch','Original'][choices[5]]}`);
@@ -117,10 +169,10 @@ export function renderFill():boolean {
         const notes=(encoded??'').split(';').filter(Boolean).map(note=>note.split(',').map(Number));
         const low=Math.min(...notes.map(note=>note[2])),span=Math.max(1,Math.max(...notes.map(note=>note[2]))-low);
         for(const [tick,gate,pitch] of notes){const left=Math.floor(tick*126/Number(duration));fill_rect(left,49-Math.round(9*(pitch-low)/span),Math.max(1,Math.min(127-left,Math.floor(gate*126/Number(duration)))),2,1);}
-        line(57,`${count} notes | 8 Exit`);
+        line(57,`${count} notes | Sh 5/6 Save 7/8 Load`);
     }else{
         line(43,`7 ${keep?'Keep weaving':'Own content'} / 8 Exit`);
-        line(54,message|| (preview.startsWith('error:')?preview.slice(6):'Touch knob: preview'));
+        line(54,message|| (preview.startsWith('error:')?preview.slice(6):'Sh 5/6 Save 7/8 Recall'));
     }
     return true;
 }
