@@ -1,4 +1,6 @@
-# Chord Play UI overhead — Movy 266
+# Chord Play UI overhead — Movy 267
+
+This update includes the A/B Fill memories from 266.
 
 Chord Play reuses its 21-slot request until a definition changes and compares
 incoming native snapshot text before parsing it. Edits, reset, restore,
@@ -27,7 +29,7 @@ The regression uses the real browser build and shared controller with a mock
 host, unchanged snapshots, a hidden overview and 100 ticks over one simulated
 second. These are work counts, not device timing or audio measurements.
 
-| Work per simulated second | 265, playing | 266, playing |
+| Work per simulated second | 265/266, playing | 267, playing |
 | --- | ---: | ---: |
 | 21-slot request builds | 100 | 0 |
 | Bank snapshot parses | 20 | 0 |
