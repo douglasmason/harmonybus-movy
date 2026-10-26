@@ -1,0 +1,252 @@
+--- a/src/seq/chord-play.ts
++++ b/src/seq/chord-play.ts
+@@ -19,7 +19,7 @@
+ }
+ function endQueuePhrase(length:number):void {
+     const phrase=length>1||portFor(conductorTrackForQueue()).getParam('midi_fx1:chord_queue_depth')==='Touch Phrase';
+-    send('chord_queue',phrase?'commit':'end');statusCache=null;
++    send('chord_queue',phrase?'commit':'end');invalidateStatus();
+ }
+ function conductorTrackForQueue():number {return conductorTrack();}
+ import {queueFooterText,drawHarmonyFooter} from '../renderer/hb-footer.js';
+@@ -56,6 +56,9 @@
+ const statusNames=['Sounding Harmony','Live Override','Recorded Next','Return To Conductor','Sounding Key','Editing Chord','Edit Scale Relation'];
+ const statusShort=['Sounds','Live','Next','Return','Key','Editing','Scale'];
+ let statusCache:{at:number;identity:string;values:Record<string,string>}|null=null;
++type QueueStatus={at:number;identity:string;raw:string;valid:boolean;current:string;next:string;state:string};
++let queueCache:QueueStatus|null=null;
++function invalidateStatus():void {statusCache=null;queueCache=null;}
+ const notes=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+ const qualities=['Auto','Major','Minor','Dim','Aug','Maj7','Dom7','Min7','Half Dim7','Dim7','MinMaj7','AugMaj7','Dom7b5'];
+ const forms=['Auto','Power','Triad','Seventh','Ninth','Add9','Sixth','6/9','Eleventh','Thirteenth','Sus2','Sus4','Shell 7','Shell 9','Shell 6/9','Rootless 7','Rootless 9'];
+@@ -83,19 +86,35 @@
+     if(bankStatus)for(let index=0;index<setup.slots.length;index++){const meta=surface.ctl.state.metaIndex.get('cp_slot_'+index);if(meta&&bankStatus.slots[index]){const slot=setup.slots[index];if(meta.chordName!==bankStatus.slots[index].name||meta.chordIntent!==slot.intent||meta.chordTarget!==slot.target)Object.assign(meta,chordLabelMetadata(index,slot.intent,slot.target,bankStatus.slots[index]));}}
+ }
+ let bankStatus:ChordBankStatus|null=null,bankWire='',bankOwner=-1,bankPollAt=-Infinity,bankKnobs=false,bankPageDirty=false,bankUrgentUntil=-Infinity;
++let bankDefinitionsDirty=true,bankPayload='',bankRaw:string|null=null,routingPollAt=-Infinity;
+ const slotPayload=(slot:Slot):string=>[slot.root,slot.quality,slot.form,slot.policy,slot.tonic,slot.scale,slot.bass,slot.intent,slot.target].join(',');
+-function resetBank():void{statusCache=null;conductorRenders=false;conductorOutput='Off';bankStatus=null;bankWire='';bankOwner=-1;bankPollAt=-Infinity;bankUrgentUntil=-Infinity;bankPageDirty=false;}
++function resetBank():void{
++    invalidateStatus();conductorRenders=false;conductorOutput='Off';bankStatus=null;
++    bankWire='';bankOwner=-1;bankPollAt=-Infinity;bankUrgentUntil=-Infinity;bankPageDirty=false;
++    bankDefinitionsDirty=true;bankPayload='';bankRaw=null;routingPollAt=-Infinity;
++}
+ function refreshBank():void{
+-    const now=Date.now(),wire=setup.slots.map(slotPayload).join(';'),owner=conductorTrack();
+-    const changed=wire!==bankWire||owner!==bankOwner;
++    const now=Date.now(),owner=conductorTrack();
++    if(bankDefinitionsDirty){bankPayload=setup.slots.map(slotPayload).join(';');bankDefinitionsDirty=false;}
++    const changed=bankPayload!==bankWire||owner!==bankOwner;
++    const port=portFor(owner);
++    // Routing can change outside this panel. Keep a bounded poll, and invalidate
++    // it immediately for local edits/Undo; musical snapshots retain their rate.
++    if(owner!==bankOwner||now<routingPollAt||now-routingPollAt>=250){
++        routingPollAt=now;
++        const previousRender=conductorRenders,previousOutput=conductorOutput,output=port.getParam('midi_fx1:render_channel');
++        conductorRenders=!!output&&output!=='Off'&&output!=='--';conductorOutput=conductorRenders?output!:'Off';
++        if(previousRender!==conductorRenders)bankPageDirty=true;
++        if(previousOutput!==conductorOutput)appState.dirty=true;
++    }
+     if(!changed&&now>=bankPollAt&&now-bankPollAt<(now<bankUrgentUntil?16:seqState.playing?50:250))return;
+-    bankPollAt=now;const port=portFor(owner);
+-    const previousRender=conductorRenders,output=port.getParam('midi_fx1:render_channel');conductorRenders=!!output&&output!=='Off'&&output!=='--';conductorOutput=conductorRenders?output!:'Off';
+-    if(previousRender!==conductorRenders)bankPageDirty=true;
+-    if(changed){port.setParam('midi_fx1:hb_chord_bank',wire);bankWire=wire;bankOwner=owner;}
+-    const raw=port.getParam('midi_fx1:hb_chord_bank_snapshot');if(raw==='--'){bankStatus=null;activeSlot=-1;return;}
++    bankPollAt=now;
++    if(changed){port.setParam('midi_fx1:hb_chord_bank',bankPayload);bankWire=bankPayload;bankOwner=owner;bankRaw=null;}
++    const raw=port.getParam('midi_fx1:hb_chord_bank_snapshot');
++    if(raw==='--'){if(bankStatus)appState.dirty=true;bankStatus=null;bankRaw=null;activeSlot=-1;return;}
++    if(raw===bankRaw&&bankStatus)return;
+     const next=parseChordBank(raw);
+-    if(next&&JSON.stringify(next)!==JSON.stringify(bankStatus)){bankStatus=next;appState.dirty=true;}
++    if(next){bankRaw=raw;bankStatus=next;appState.dirty=true;}
+ }
+ export function chordSlotColor(index:number):number{
+     const slot=setup.slots[index],status=bankStatus?.slots[index];
+@@ -124,7 +143,7 @@
+     const native=portFor(conductorTrackForQueue());
+     if(index===null)portFor(soundTrack()).setParam('midi_fx1:chord_register',value===null?(soundTrack()!==conductorTrackForQueue()?'Conductor':'0'):'Top '+value);
+     else {const slot=setup.slots[index];slot.range=value===null?0:Math.max(0,Math.min(127,value))+8;native.setParam('midi_fx1:hb_chord_range',chordEvent(slot).join(','));setup.selected=index;}
+-    statusCache=null;bankPollAt=-Infinity;markUiStateDirty();appState.dirty=true;
++    invalidateStatus();bankPollAt=-Infinity;markUiStateDirty();appState.dirty=true;
+     const range=value===null?'Default':'Top '+topNoteName(value);
+     seqToast((index===null?'All chords':bankStatus?.slots[index]?.name??'Chord')+' '+range);
+ }
+@@ -202,7 +221,7 @@
+     const entered=control!==undefined&&chordStepPress(control,conductorTrack(),payload);
+     if(!entered&&control!==undefined)beginQueuePhrase(control,index);
+     if(!entered)send(setup.playMode?'chord_queue':'chord_select',payload);
+-    statusCache=null;bankPollAt=-Infinity;bankUrgentUntil=Date.now()+100; // Refresh accepted harmony on the next frame, not after the idle poll interval.
++    invalidateStatus();bankPollAt=-Infinity;bankUrgentUntil=Date.now()+100; // Refresh accepted harmony on the next frame, not after the idle poll interval.
+     if(setup.playMode&&!entered)seqToast('Queued '+performanceStatus('queue_count')+' / '+performanceStatus('queue_next'));
+     markUiStateDirty();appState.dirty=true;
+ }
+@@ -269,7 +288,7 @@
+         return meta.options[value]??meta.options[0];
+     };
+     const setParam=(key:string,value:string):boolean=>{
+-        const target=alias(key);if(target){statusCache=null;return portFor(target.track).setParam(target.key,value);}
++        const target=alias(key);if(target){invalidateStatus();if(target.key.endsWith('render_channel'))routingPollAt=-Infinity;return portFor(target.track).setParam(target.key,value);}
+         const bare=key.split(':').pop()??'';const partResult=partWrite(bare,value,partOwner(bare));if(partResult!==null)return partResult;
+         const content=conductorContentWrite(bare,value);if(content!==null)return content;
+         const meta=metadata.find(entry=>entry.key===bare);
+@@ -279,7 +298,7 @@
+         if(!meta.options)return false;
+         const selected=meta.options.indexOf(value);if(selected<0)return false;
+         if(bare==='cp_conductor'&&singleConductor()&&selected!==0){seqToast('Session conductor: Track 1');return false;}
+-        if(bare==='cp_play_mode'){if(selected!==setup.playMode){send('chord_queue','off');setup.playMode=selected;statusCache=null;markUiStateDirty();appState.dirty=true;}return true;}
++        if(bare==='cp_play_mode'){if(selected!==setup.playMode){send('chord_queue','off');setup.playMode=selected;invalidateStatus();markUiStateDirty();appState.dirty=true;}return true;}
+         if(['cp_melody','cp_comp','cp_conductor','cp_bass_track'].includes(bare)){
+             const assignments={cp_melody:appState.activeTrack.index,cp_comp:setup.comp,cp_conductor:setup.conductor,cp_bass_track:setup.bass};
+             const others=Object.entries(assignments).filter(([key])=>key!==bare).map(([,track])=>track);
+@@ -291,9 +310,9 @@
+         else if(bare==='cp_source'){setChordCompSource(selected);}
+         else if(bare==='cp_selected')setup.selected=selected;
+         else if(bare==='cp_colorView')setup.colorView=selected;
+-        else if(bare==='cp_intent'){const slot=setup.slots[setup.selected];slot.intent=selected;if(selected){slot.quality=0;slot.policy=3;}bankPageDirty=true;}
+-        else if(bare.startsWith('cp_slot_')){const index=Number(bare.slice(8));setup.selected=index;if(setup.slots[index].intent)setup.slots[index].target=selected;else{setup.slots[index].root=Math.floor(selected/13);setup.slots[index].quality=selected%13;}}
+-        else setup.slots[setup.selected][bare.slice(3) as keyof Slot]=selected+(bare==='cp_scale'?1:0);
++        else if(bare==='cp_intent'){bankDefinitionsDirty=true;const slot=setup.slots[setup.selected];slot.intent=selected;if(selected){slot.quality=0;slot.policy=3;}bankPageDirty=true;}
++        else if(bare.startsWith('cp_slot_')){bankDefinitionsDirty=true;const index=Number(bare.slice(8));setup.selected=index;if(setup.slots[index].intent)setup.slots[index].target=selected;else{setup.slots[index].root=Math.floor(selected/13);setup.slots[index].quality=selected%13;}}
++        else {bankDefinitionsDirty=true;setup.slots[setup.selected][bare.slice(3) as keyof Slot]=selected+(bare==='cp_scale'?1:0);}
+         markUiStateDirty();appState.dirty=true;return true;
+     };
+     return {track:native.track,bulkReads:native.bulkReads,getParam,setParam,
+@@ -363,7 +382,7 @@
+     const melody=appState.activeTrack.index;
+     if(melody===setup.comp||melody===setup.conductor||melody===setup.bass){setChordEnabled(false);seqToast('Choose distinct tracks');return;}
+     refreshBank();
+-    if(setup.playMode)performanceStatus('queue_snapshot');
++    if(setup.playMode)queueStatus();
+     const followMelody=setup.source===2||(setup.source===0&&!conductorRenders);
+     const next=[melody,setup.comp,followMelody?1:setup.source===0&&conductorRenders?2:0].join(',')+(setup.bassClip?','+setup.bass:'');
+     if(next!==route){send('chord_route',next);route=next;}
+@@ -378,7 +397,7 @@
+ export function chordRecordCommand():string|null{return chordActive()?'jrec '+((1<<setup.conductor)|(1<<appState.activeTrack.index))+' '+(1<<setup.conductor):null;}
+ export function chordMidi(data:number[],panels=true,surface?:SchwungPage):boolean{
+     const status=data[0]&240,key=data[1],value=data[2],down=status===144&&value>0,up=status===128||(status===144&&!value);
+-    if(up&&queuePhrase.owns(key)){const phrase=queuePhrase.release(key);if(phrase!==null)endQueuePhrase(phrase.length);steps.delete(key);rangeTouches.delete(key);statusCache=null;return true;}
++    if(up&&queuePhrase.owns(key)){const phrase=queuePhrase.release(key);if(phrase!==null)endQueuePhrase(phrase.length);steps.delete(key);rangeTouches.delete(key);invalidateStatus();return true;}
+     if(up&&conductorPhraseTouch('',key,false)){steps.delete(key);return true;}
+     if(up&&controls.delete(key)){releasePerformanceTouch(key);return true;}
+     if(up&&touches.has(key)){
+@@ -505,21 +524,40 @@
+     const index=setup.selected,name=bankStatus?.slots[index]?.name??'--';
+     return bankNames[Math.floor(index/7)][0]+(index%7+1)+' '+name.replace(/\//g,':');
+ }
+-/** Read existing HB state only while this overview is visible; never infer harmony or timing. */
++/** Queue feedback is live even when the harmony overview is hidden. */
++function queueStatus():QueueStatus {
++    const now=Date.now(),identity=conductorTrack()+':'+setup.playMode;
++    if(!queueCache||queueCache.identity!==identity||now<queueCache.at||now-queueCache.at>=100){
++        const conductor=portFor(conductorTrack());
++        const raw=setup.playMode?(conductor.getParam('midi_fx1:hb_chord_queue_status')??''):'';
++        if(queueCache?.identity===identity&&queueCache.raw===raw&&queueCache.valid){queueCache.at=now;return queueCache;}
++        const queue=raw.split('|'),valid=queue[0]==='cq1',count=valid?Number(queue[1]):0;
++        const waiting=valid&&queue[6]==='1',depth=valid?Number(queue[7]):setup.playMode?(Number(conductor.getParam('midi_fx1:chord_queue_depth'))||2):0;
++        const state=!setup.playMode?'Off':waiting||!valid?((valid&&queue[3]!=='--'?'Hold ':'Fill ')+count+(depth?'/'+depth:' Release')):(queue[8]==='1'?'Loop ':'Ready ')+count;
++        // The full wire includes the cursor: repeated identical chords still repaint.
++        if(queueCache?.raw!==raw||queueCache.state!==state)appState.dirty=true;
++        queueCache={at:now,identity,raw,valid,current:valid?queue[3]:'--',next:valid?queue[4]:'--',state};
++    }
++    return queueCache;
++}
++/** Overview data is fetched only when a visible control or overview requests it. */
+ function performanceStatus(field:string):string {
+     if(field==='editing')return editingChord();
+     if(field==='relation')return !setup.slots[setup.selected].enabled?'Off':bankStatus?(bankStatus.slots[setup.selected]?.chromatic?'Chromatic':'Diatonic'):'--';
++    const queue=queueStatus();
++    if(field==='queue_snapshot')return queue.raw;
++    if(field==='queue_next')return queue.next;
++    if(field==='queue_count')return queue.state;
++    if(field==='queue_current'&&queue.valid)return queue.current;
++    if(field==='next'&&queue.valid)return queue.next;
++    if(field==='handoff'&&queue.valid)return queue.state;
+     const now=Date.now(),identity=conductorTrack()+':'+appState.activeTrack.index+':'+seqState.playing+':'+setup.playMode;
+     if(!statusCache||statusCache.identity!==identity||now<statusCache.at||now-statusCache.at>=100){
+         const conductor=portFor(conductorTrack()),melody=portFor(appState.activeTrack.index);
+         const [active,next]=conductor.getMany(['midi_fx1:hb_chord_active','midi_fx1:next_harmony'],true);
+         const [effective,key]=melody.getMany(['midi_fx1:final_harmony','midi_fx1:sounding_key'],true);
+-        const queue=setup.playMode?(conductor.getParam('midi_fx1:hb_chord_queue_status')??'').split('|'):[];
+-        const queued=queue[0]==='cq1',count=queued?Number(queue[1]):0;
+-        const live=active==='1',waiting=queued&&queue[6]==='1',depth=queued?Number(queue[7]):Number(conductor.getParam('midi_fx1:chord_queue_depth'))||2;
+-        const queueState=!setup.playMode?'Off':waiting||!queued?((queued&&queue[3]!=='--'?'Hold ':'Fill ')+count+(depth?'/'+depth:' Release')):(queue[8]==='1'?'Loop ':'Ready ')+count;
+-        const snapshot=queue.join('|');if(statusCache?.values.queue_snapshot!==snapshot)appState.dirty=true;
+-        statusCache={at:now,identity,values:{queue_snapshot:snapshot,queue_current:queued?queue[3]:!seqState.playing&&!live?'Off':effective||'--',queue_next:queued?queue[4]:'--',queue_count:queueState,effective:effective||'--',override:live?'On':active==='0'?'Off':'--',next:queued?queue[4]:seqState.playing?(next||'--'):'--',handoff:queued?queueState:live?(seqState.playing?'Next event':'Off button'):'--',key:key||'--'}};
++        const live=active==='1';
++        statusCache={at:now,identity,values:{queue_current:!seqState.playing&&!live?'Off':effective||'--',effective:effective||'--',override:live?'On':active==='0'?'Off':'--',next:seqState.playing?(next||'--'):'--',handoff:live?(seqState.playing?'Next event':'Off button'):'--',key:key||'--'}};
+     }
+     return statusCache.values[field]??'--';
+ }
+@@ -533,7 +571,8 @@
+     queuePhrase.cancel();
+     // Clearing musical content never changes the user's Immediate/Queued choice.
+     if(bankStatus)for(const slot of bankStatus.slots)slot.queued=false;
+-    send('chord_select','off');activeSlot=-1;statusCache=null;bankPollAt=-Infinity;bankUrgentUntil=Date.now()+100;appState.dirty=true;
++    bankRaw=null; // Local queue clearing must not suppress the next native snapshot.
++    send('chord_select','off');activeSlot=-1;invalidateStatus();bankPollAt=-Infinity;bankUrgentUntil=Date.now()+100;appState.dirty=true;
+ }
+ function stepSlot(index:number):number{
+     if(index%8===7)return -1;
+@@ -556,7 +595,7 @@
+ function partOwner(key:string):number{return key.startsWith('bp_')?setup.bass:['cp_velocity','cp_form_live','cp_voicing_live'].includes(key)?soundTrack():setup.comp;}
+ export function chordCompState():string{return JSON.stringify({source:setup.source,directRender:setup.directRender,bassClip:setup.bassClip});}
+ export function restoreChordCompState(value:string):void{
+-    try {const state=JSON.parse(value);if(Number.isInteger(state.source)&&state.source>=0&&state.source<3){setup.source=state.source;setup.bassClip=state.bassClip===true;setup.directRender=typeof state.directRender==='string'?state.directRender:null;route='';markUiStateDirty();}}catch{}
++    try {const state=JSON.parse(value);if(Number.isInteger(state.source)&&state.source>=0&&state.source<3){setup.source=state.source;setup.bassClip=state.bassClip===true;setup.directRender=typeof state.directRender==='string'?state.directRender:null;route='';routingPollAt=-Infinity;markUiStateDirty();}}catch{}
+ }
+ export function setChordCompSource(source:number):void{
+     const change=():void=>{
+@@ -565,7 +604,7 @@
+         if(source!==0&&old!=='Off')setup.directRender=old;
+         const next=source===0?(setup.directRender??old):'Off';
+         if(next!==old){recordParamOp(setup.conductor,key,old,next);port.setParam(key,next);}
+-        setup.source=source;route='';bankPollAt=-Infinity;
++        setup.source=source;route='';routingPollAt=-Infinity;bankPollAt=-Infinity;
+         recordUiOp('chordComp',before,chordCompState());markUiStateDirty();appState.dirty=true;
+     };
+     if(groupOpen())change();else undoableEdit('COMP INPUT','Chord Play',change);
+--- a/src/app/tick.ts
++++ b/src/app/tick.ts
+@@ -405,18 +405,21 @@
+ let paintedModeRevision=0;
+ let padSweepPending=false;
+ export function tick(): void {
++    perfProbeEnter();
++    perfPhase('priority');
+     ledFrameReset();
+     if(paintedModeRevision!==inputModeLedRevision){paintedModeRevision=inputModeLedRevision;invalidateLedCachesOnResume();padSweepPending=true;}
+     if(padSweepPending||chordActive())paintPriorityPads();
+-    tickFm1();
+-    tickSettings();
+-    tickChord();
+-    tickField();
+-    tickLaunchpad();
+-    tickPreviewTest();
+-    perfProbeEnter();
++    perfPhase('fm1');tickFm1();
++    perfPhase('settings');tickSettings();
++    perfPhase('chords');tickChord();
++    perfPhase('field');tickField();
++    perfPhase('launchpad');tickLaunchpad();
++    perfPhase('preview');tickPreviewTest();
++    perfPhase('feedback');
+     tickBody();
+     /* Outside tickBody so the parked early-return is still accounted for. */
++    perfPhase('usage');tickInterfaceUsage();
++    perfPhaseEnd();
+     perfProbeTick();
+-    tickInterfaceUsage();
+ }
+@@ -531,7 +534,9 @@
+     if(globalThis.overtakeParked!==true&&sessionReady()&&!seqState.sessionMode&&appState.initLedsDone&&
+        (appState.trackModels[appState.activeTrack.index]?.[1]?.getDrumPadCount()??0)===0){
+         if(!jointActive())refreshHarmonyPads(appState.activeTrack.index);
+-        paintMelodicPads();
++        // Chord Play already paints before control traffic and reconciles at
++        // the end of this tick. Avoid a third full color calculation here.
++        if(!chordActive())paintMelodicPads();
+     }
+     // Tell the engine which tracks are drum tracks (it suppresses clip transpose
+     // on those). Queued as a command, so it rides the same batch as everything
