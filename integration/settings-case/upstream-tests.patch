@@ -1,0 +1,193 @@
+diff --git a/browser-test/logic/declarations.mjs b/browser-test/logic/declarations.mjs
+index 08f4d5cd..a3237681 100644
+--- a/browser-test/logic/declarations.mjs
++++ b/browser-test/logic/declarations.mjs
+@@ -116,9 +116,9 @@ _log('\nTest: a declared short_name beats movy’s abbreviation');
+     const m = bootModel(preset);
+     for (let i = 0; i < 4; i++) m.tick();
+     const rows = m.getViewModel().rows[0];
+-    eq('the declared label is drawn as typed', rows[0].shortName, 'PITCH');
++    eq('the declared label is drawn as typed', rows[0].shortName, 'Pitch');
+     eq('the full name still names the header', rows[0].fullName, 'Osc 1 Pitch');
+-    eq('an undeclared sibling is still abbreviated', rows[1].shortName !== 'PITCH', true);
++    eq('an undeclared sibling is still abbreviated', rows[1].shortName !== 'Pitch', true);
+ }
+ 
+ _log('\nTest: short_name precedence — the LEVEL overrides the parameter');
+@@ -140,7 +140,7 @@ _log('\nTest: short_name precedence — the LEVEL overrides the parameter');
+     const m = bootModel(preset);
+     for (let i = 0; i < 4; i++) m.tick();
+     eq('the level’s short_name wins on its page',
+-       m.getViewModel().rows[0][0].shortName, 'AMT');
++       m.getViewModel().rows[0][0].shortName, 'Amt');
+ }
+ 
+ _log('\nTest: a short_name too wide for the cell is fitted, not overflowed');
+@@ -150,10 +150,10 @@ _log('\nTest: a short_name too wide for the cell is fitted, not overflowed');
+     const wide = 'Resonance Amount Wide';
+     const out = dedupShortNames([{ label: 'Filter Resonance', shortLabel: wide }], LABEL_BUDGET);
+     eq('the drawn label fits the cell', fontWidth(out[0]) <= LABEL_BUDGET, true);
+-    eq('and it is not the raw declaration', out[0] !== wide.toUpperCase(), true);
++    eq('and it is not the raw declaration', out[0] !== wide, true);
+ 
+     const fitting = dedupShortNames([{ label: 'Noise Level', shortLabel: 'Noise' }], LABEL_BUDGET);
+-    eq('one that fits is drawn exactly as typed', fitting[0], 'NOISE');
++    eq('one that fits is drawn exactly as typed', fitting[0], 'Noise');
+ }
+ 
+ /* ── focus_param — what movy writes into it ─────────────────────────────── */
+diff --git a/browser-test/logic/envelope.mjs b/browser-test/logic/envelope.mjs
+index 462c7421..710c3ae5 100644
+--- a/browser-test/logic/envelope.mjs
++++ b/browser-test/logic/envelope.mjs
+@@ -214,9 +214,9 @@ _log('\n── Envelope viewmodel ──');
+     const vm = m.getViewModel();
+     eq('test8: line1 is envelope', !!vm.envelopeLines?.[1], true);
+     eq('test8: line0 not envelope', !!vm.envelopeLines?.[0], false);
+-    eq('test8: line1 col0 = Atk', vm.rows[1][0]?.shortName, 'ATK');
+-    eq('test8: line1 col3 = Rel', vm.rows[1][3]?.shortName, 'REL');
+-    eq('test8: line0 col0 = Freq', vm.rows[0][0]?.shortName, 'FREQ');
++    eq('test8: line1 col0 = Atk', vm.rows[1][0]?.shortName, 'Atk');
++    eq('test8: line1 col3 = Rel', vm.rows[1][3]?.shortName, 'Rel');
++    eq('test8: line0 col0 = Freq', vm.rows[0][0]?.shortName, 'Freq');
+ }
+ // test16: no ADSR → no envelope
+ {
+@@ -242,8 +242,8 @@ _log('\n── Envelope knob↔screen mapping (rearrange) ──');
+     m.changePage(1);                       // preset page is 0; Main is 1
+     const vm = m.getViewModel();
+     eq('obxd: line0 is envelope', !!vm.envelopeLines?.[0], true);
+-    eq('obxd: top-left cell = Attack', vm.rows[0][0]?.shortName, 'ATTACK');
+-    eq('obxd: bottom-left cell = Cutoff', vm.rows[1][0]?.shortName, 'CUTOFF');
++    eq('obxd: top-left cell = Attack', vm.rows[0][0]?.shortName, 'Attack');
++    eq('obxd: bottom-left cell = Cutoff', vm.rows[1][0]?.shortName, 'Cutoff');
+ 
+     // Touch physical knob 0 → top-left (attack) highlights, not the param that
+     // used to live at page index 0 (cutoff, now bottom-left).
+diff --git a/browser-test/logic/knob-input.mjs b/browser-test/logic/knob-input.mjs
+index febcb09c..92113e24 100644
+--- a/browser-test/logic/knob-input.mjs
++++ b/browser-test/logic/knob-input.mjs
+@@ -275,7 +275,7 @@ _log('\nTest: a suppressed param still learns its value once');
+   m.setNoRefreshKeys(['octave']);
+   m.reload();
+   for (let i = 0; i < 40; i++) m.tick();          // plenty of refresh cursors
+-  const oct = m.getViewModel().rows.flat().find(c => c && c.shortName === 'OCT');
++  const oct = m.getViewModel().rows.flat().find(c => c && c.shortName === 'Oct');
+   eq('suppressed param shows its value, not "..."', oct.displayValue, '+2');
+   eq('suppressed param arc is not pinned at minimum', oct.normalizedValue > 0, true);
+   const info = m.getKnobParamInfo(0);
+@@ -284,7 +284,7 @@ _log('\nTest: a suppressed param still learns its value once');
+   env.setParams({ ...MOCK_SYNTHS.test_steps, 'synth:octave': '-3' });
+   for (let i = 0; i < 40; i++) m.tick();
+   eq('read-back stays suppressed once seeded',
+-    m.getViewModel().rows.flat().find(c => c && c.shortName === 'OCT').displayValue, '+2');
++    m.getViewModel().rows.flat().find(c => c && c.shortName === 'Oct').displayValue, '+2');
+ }
+ 
+ _log('\nTest: a numeric cell keeps its sign, and +/1 sit right in the box');
+diff --git a/browser-test/logic/model-params.mjs b/browser-test/logic/model-params.mjs
+index 71939029..767b8266 100644
+--- a/browser-test/logic/model-params.mjs
++++ b/browser-test/logic/model-params.mjs
+@@ -37,10 +37,10 @@ function assertUnique(tag, labels, names) {
+     const osc = ["Wave 1","Wave 2","Wave 3","Wave 4","Shape 1","Shape 2","Shape 3","Shape 4"];
+     const n = dedup(osc);
+     assertUnique('osc', osc, n);
+-    eq('osc: Wave 1 → WAVE1', n[0], 'WAVE1');
+-    eq('osc: Wave 4 → WAVE4', n[3], 'WAVE4');
+-    eq('osc: Shape 1 → SHAP1', n[4], 'SHAP1');
+-    eq('osc: Shape 3 → SHAP3', n[6], 'SHAP3');
++    eq('osc: Wave 1 → WAVE1', n[0], 'Wave 1');
++    eq('osc: Wave 4 → WAVE4', n[3], 'Wave4');
++    eq('osc: Shape 1 → SHAP1', n[4], 'Shap1');
++    eq('osc: Shape 3 → SHAP3', n[6], 'Shap3');
+ }
+ {
+     // chordism Delay — persisting collisions after one strip (TONE, MOD).
+@@ -48,10 +48,10 @@ function assertUnique(tag, labels, names) {
+                    "Delay Tone Lo","Delay Mode","Delay Mod Rate","Delay Mod Depth"];
+     const n = dedup(delay);
+     assertUnique('delay', delay, n);
+-    eq('delay: Tone Hi → TONEHI', n[3], 'TONEHI');
+-    eq('delay: Tone Lo → TONLO', n[4], 'TONLO');
+-    eq('delay: Mod Rate → RATE',  n[6], 'RATE');
+-    eq('delay: Mod Depth → DEPTH', n[7], 'DEPTH');
++    eq('delay: Tone Hi → TONEHI', n[3], 'ToneHi');
++    eq('delay: Tone Lo → TONLO', n[4], 'TonLo');
++    eq('delay: Mod Rate → RATE',  n[6], 'Rate');
++    eq('delay: Mod Depth → DEPTH', n[7], 'Depth');
+ }
+ {
+     // chordism Ctrl Src — deep prefix ("Ctrl to ...") + a ≤2 tail ("FM").
+@@ -59,10 +59,10 @@ function assertUnique(tag, labels, names) {
+                   "Ctrl to Vibrato","Ctrl to Shape","Ctrl to FM"];
+     const n = dedup(ctrl);
+     assertUnique('ctrl', ctrl, n);
+-    eq('ctrl: to Cutoff → CUTOFF', n[2], 'CUTOFF');
++    eq('ctrl: to Cutoff → CUTOFF', n[2], 'Cutoff');
+     // "Ctrl to FM" already shortens to a unique "TO FM" — a non-colliding name,
+     // so it must be left unchanged (per the no-baseline-shift rule).
+-    eq('ctrl: to FM → TO FM',     n[6], 'TO FM');
++    eq('ctrl: to FM → TO FM',     n[6], 'to FM');
+ }
+ {
+     // chordism Morph — a 4-way MORPH collision with no shared leading word.
+@@ -70,7 +70,7 @@ function assertUnique(tag, labels, names) {
+                    "Pan Morph","Pan Int","Pan Morph LFO Rate","Pan Morph LFO Depth"];
+     const n = dedup(morph);
+     assertUnique('morph', morph, n);
+-    eq('morph: plain Morph → MORPH', n[0], 'MORPH');
++    eq('morph: plain Morph → MORPH', n[0], 'Morph');
+ }
+ {
+     // surge Amp Envelope — DECAY vs DECAY SHAPE.
+@@ -78,13 +78,13 @@ function assertUnique(tag, labels, names) {
+                  "Amp EG Attack Shape","Amp EG Decay Shape","Amp EG Release Shape","Amp EG Envelope Mode"];
+     const n = dedup(amp);
+     assertUnique('amp', amp, n);
+-    eq('amp: Decay → DECAY', n[1], 'DECAY');
++    eq('amp: Decay → DECAY', n[1], 'Decay');
+     /* The two shapes and Release Shape read as one family of initials rather
+      * than one of them claiming the word SHAPE outright — the four envelope
+      * params are what a page is read for, and they keep their own names. */
+     eq('amp: Decay Shape → DS',   n[5], 'DS');
+     eq('amp: Attack Shape → AS',  n[4], 'AS');
+-    eq('amp: Attack keeps its name', n[0], 'ATTACK');
++    eq('amp: Attack keeps its name', n[0], 'Attack');
+ }
+ {
+     // surge Oscillator 1 — WIDTH 1/2 with a deep common prefix.
+@@ -92,8 +92,8 @@ function assertUnique(tag, labels, names) {
+                       "Osc 1 Width 2","Osc 1 Sub Mix","Osc 1 Sync","Osc 1 Unison Detune"];
+     const n = dedup(surgeOsc);
+     assertUnique('surgeOsc', surgeOsc, n);
+-    eq('surgeOsc: Width 1 → WIDTH1', n[3], 'WIDTH1');
+-    eq('surgeOsc: Width 2 → WIDTH2', n[4], 'WIDTH2');
++    eq('surgeOsc: Width 1 → WIDTH1', n[3], 'Width1');
++    eq('surgeOsc: Width 2 → WIDTH2', n[4], 'Width2');
+ }
+ {
+     // palette Main — AMOUNT/MACRO ×4 with a distinguishing "FXn" head word.
+@@ -114,7 +114,7 @@ function assertUnique(tag, labels, names) {
+     // Non-colliding labels keep their plain autoShorten form.
+     const plain = ["Cutoff", "Reso", "Drive", "Volume"];
+     eq('non-colliding unchanged', JSON.stringify(dedup(plain)),
+-        JSON.stringify(["CUTOFF", "RESO", "DRIVE", "VOLUM"]));
++        JSON.stringify(["Cutoff", "Reso", "Drive", "Volume"]));
+ }
+ 
+ _log('\nTest: colliding page renders unique shortNames through the model');
+diff --git a/browser-test/logic/undo-params.mjs b/browser-test/logic/undo-params.mjs
+index 116962cd..beb2b3e0 100644
+--- a/browser-test/logic/undo-params.mjs
++++ b/browser-test/logic/undo-params.mjs
+@@ -150,7 +150,7 @@ export async function run() {
+     eq('firing the randomiser is not an ungrouped edit', takeUndoViolation(), '');
+     eq('and it records an entry', undoDepth(), 1);
+     const e = peekUndo();
+-    eq('named after the randomiser', e.verb, 'RND KIT');
++    eq('named after the randomiser', e.verb, 'Rnd Kit');
+     eq('carrying a param dump in place of the blob', e.stateOp?.oldParams?.length > 0, true);
+     eq('with no state blob', e.stateOp?.oldState, '');
+ 

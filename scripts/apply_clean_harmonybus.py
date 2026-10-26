@@ -661,6 +661,8 @@ def main() -> int:
     patch_interface_usage(root)
     from patch_chord_labels import patch_chord_labels
     patch_chord_labels(root)
+    from patch_settings_case import patch_settings_case
+    patch_settings_case(root)
     print("HarmonyBus clean integration applied")
     return 0
 
