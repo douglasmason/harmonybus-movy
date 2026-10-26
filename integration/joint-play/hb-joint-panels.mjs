@@ -290,7 +290,7 @@ const variations=new Map();
 globalThis.host_module_get_param=key=>key.startsWith('variation_')?(variations.get(Number(key.slice(10)))??`${key.slice(10)} 0 50 30 0 1`):nativeGet(key);
 globalThis.host_module_set_param_blocking=(key,value,timeout)=>{
  if(key==='cmd')for(const command of value.split(';'))if(command.startsWith('variation ')){
-  const fields=command.slice(10).split(' ').map(Number);assert.equal(fields.length,6);variations.set(fields[0],fields.join(' '));
+  const fields=command.slice(10).split(' ').map(Number);assert.equal(fields.length,7);assert(fields[6]>=0&&fields[6]<=7);variations.set(fields[0],fields.join(' '));
  }
  return nativeSet?.(key,value,timeout);
 };
@@ -305,6 +305,9 @@ for(const group of [0,3]){
   page.knobTurn(3,4);flush(page);assert.equal(variations.get(actor)?.split(' ')[4],'1');
   page.knobTurn(4,4);flush(page);const firstSeed=Number(variations.get(actor)?.split(' ')[5]);assert(firstSeed>1);
   page.knobTurn(4,4);flush(page);assert(Number(variations.get(actor)?.split(' ')[5])>firstSeed);
+  page.knobTurn(5,4);flush(page);assert.equal(variations.get(actor)?.split(' ')[6],'1','gate locked independently');
+  page.knobTurn(7,4);flush(page);assert.equal(variations.get(actor)?.split(' ')[6],'5','omit locked without clearing gate');
+  page.knobTurn(5,-4);flush(page);assert.equal(variations.get(actor)?.split(' ')[6],'4','gate unlocked with its depth intact');
   variations.set(actor,`${actor} 0 50 30 0 1`);flush(page);
   assert.equal(page.performanceGet(`joint_variation_${role}_amount`),'0');
  }
