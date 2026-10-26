@@ -59,8 +59,8 @@ without replacing a clip:
 | Shift + knob 7 | Recall A |
 | Shift + knob 8 | Recall B |
 
-The header shows `A+`/`B+` for occupied memories and `A-`/`B-` for
-empty ones. Each memory captures the pitch/rhythm source clips, target bar
+The header shows `A*`/`B*` when the current draft matches a memory,
+`A+`/`B+` for other saved memories, and `A-`/`B-` for empty ones. Each memory captures the pitch/rhythm source clips, target bar
 length, Sequence/Fit/Original selection, independent pitch/rhythm rotations,
 Source Weaving ownership choice, the exact preview response and its source
 fingerprint. Both slots reset when reopening Fill; they are deliberately
