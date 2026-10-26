@@ -424,7 +424,7 @@ diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
 @@ -47,11 +49,27 @@
  const fresh=():Setup=>({playMode:0,directRender:null,conductor:0,comp:2,bass:1,bassClip:false,source:0,selected:0,colorView:0,slots:defaultSlots()});
  let setup=fresh(),enabled=false,page:SchwungPage|null=null,pageTrack=-1,activeSlot=-1,route='';
- let conductorRenders=false;
+ let conductorRenders=false,conductorOutput='Off';
 +let jointConductor:number|null=null,jointSurface:SchwungPage|null=null;
 +const conductorTrack=():number=>jointConductor??setup.conductor;
 +const controlsActive=():boolean=>(enabled||jointConductor!==null)&&!seqState.sessionMode;
@@ -443,7 +443,7 @@ diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
 +}
  let bankStatus:ChordBankStatus|null=null,bankWire='',bankOwner=-1,bankPollAt=-Infinity,bankKnobs=false,bankPageDirty=false,bankUrgentUntil=-Infinity;
  const slotPayload=(slot:Slot):string=>[slot.root,slot.quality,slot.form,slot.policy,slot.tonic,slot.scale,slot.bass,slot.intent,slot.target].join(',');
- function resetBank():void{statusCache=null;conductorRenders=false;bankStatus=null;bankWire='';bankOwner=-1;bankPollAt=-Infinity;bankUrgentUntil=-Infinity;bankPageDirty=false;}
+ function resetBank():void{statusCache=null;conductorRenders=false;conductorOutput='Off';bankStatus=null;bankWire='';bankOwner=-1;bankPollAt=-Infinity;bankUrgentUntil=-Infinity;bankPageDirty=false;}
  function refreshBank():void{
 -    const now=Date.now(),wire=setup.slots.map(slotPayload).join(';'),owner=setup.conductor;
 +    const now=Date.now(),wire=setup.slots.map(slotPayload).join(';'),owner=conductorTrack();
@@ -547,9 +547,9 @@ diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
      add('cp_setup','Chord Play Setup',['cp_conductor','cp_comp','cp_melody','cp_colorView','cp_reset','cp_bass_track','cp_bass_source']);
 -    const rootKeys=['cp_play_mode','cp_track_'+setup.conductor+'_chord_timing','cp_track_'+setup.conductor+'_anticipation','cp_track_'+setup.conductor+'_chord_queue_end','cp_queue_next','cp_queue_count','cp_track_'+setup.conductor+'_chord_queue_depth','cp_off'];
 +    const rootKeys=['cp_play_mode','cp_track_'+conductorTrack()+'_chord_timing','cp_track_'+conductorTrack()+'_anticipation','cp_track_'+conductorTrack()+'_chord_queue_end','cp_queue_next','cp_queue_count','cp_track_'+conductorTrack()+'_chord_queue_depth','cp_off'];
-     levels.root={name:'Chord Play',knobs:rootKeys,params:[...rootKeys.map(key=>({key})),...links]};
-     // Reserve the same physical stop control on every page, retaining displaced settings.
-     for(const link of [...links]){
+     compactChordSettings(levels,links);
+     levels.cp_comp_library.name='Comp T'+(setup.comp+1)+' Clip';
+     levels.cp_bass_library.name='Bass T'+(setup.bass+1)+' Clip';
 @@ -251,7 +277,7 @@
      const next=[melody,setup.comp,followMelody?1:setup.source===0&&conductorRenders?2:0].join(',')+(setup.bassClip?','+setup.bass:'');
      if(next!==route){send('chord_route',next);route=next;}

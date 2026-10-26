@@ -1,5 +1,5 @@
 /** Stable panel identities and deliberate navigation policy, independent of labels. */
-export const PANEL_LAYOUT_VERSION = 2;
+export const PANEL_LAYOUT_VERSION = 3;
 export type PanelSpec = {id:string; group:string; order:number; owner:string; known:boolean};
 const shared:Record<string,string> = {};
 function register(group:string,levels:string[]):void {for(const level of levels)shared[level]=group;}
@@ -26,6 +26,7 @@ const chordCore=['root','cp_bank_0','cp_bank_1','cp_bank_2','cp_scale_controls',
 const playCore=['root','harmony_status','follower_touch','operations_9_16'];
 const motifCore=['root','approach_bank_0','approach_bank_1','harm_play_controls','follower_touch','operations_9_16','pitch_play','secondary','harmony_status'];
 const chord:Record<string,string>={cp_clips:'Conductor Content',cp_motifs:'Conductor Content',cp_edit:'Chord Editing',cp_edit_scale:'Chord Editing',cp_overview:'Conductor Settings',cp_comp_library:'Libraries',cp_bass_library:'Libraries',cp_setup:'Setup'};
+Object.assign(chord,{cp_Sound_output:'Sound',cp_Conductor_operation_details:'Conductor Settings',cp_Comp_operation_details:'Comp',cp_Melody_operation_details:'Melody Operations',cp_Melody_sound_details:'Melody Sound'});
 for(const family of ['Sound','Conductor','Comp','Melody']){
     for(const level of ['chord_player','arp_player','chord_forms','follower_source','follower_play','follower_touch','operations_9_16','motif_play','motif_global','motif_load','motif_targets','global_transpose','explicit_key','secondary_scale','rhythm_generate','rhythm_edit','motion_operation','motion_timing','motion_conditions','track_scales','live']){
         chord[`cp_${family}_${level}`]=family==='Sound'?'Sound':family==='Conductor'?(['motif_load','motif_targets','rhythm_generate','rhythm_edit'].includes(level)?'Conductor Content':'Conductor Settings'):family==='Melody'?(level.startsWith('motion_')||['follower_touch','operations_9_16'].includes(level)?'Melody Operations':['chord_player','arp_player'].includes(level)?'Melody Sound':'Melody Mapping'):'Comp';
