@@ -179,7 +179,7 @@ for(const key of ['cp_selected','cp_policy']){
  assert.match(chord.chordContextTrail(),/^Chord>Cond P2 /,'editor and scale context retain the same selected chord identity');
  page.ctl.state.touched=0;assert.equal(chord.chordContextTrail(),null,'context never overwrites a touched control overlay');page.ctl.state.touched=-1;
 }
-find('cp_status_effective');assert.equal(page.ctl.hbNavigation.state().category,'Conductor');assert.equal(page.keyAt(7),'cp_off');
+find('cp_status_effective');assert.equal(page.ctl.hbNavigation.state().category,'Conductor Settings');assert.equal(page.keyAt(7),'cp_off');
 console.log('Performance context: native effective/next, stopped suppression, live expiry, bounded reads, step mappings and shared edit identity pass');
 
 // Exercise the complete renderer: context must not corrupt the category bar or overlays.

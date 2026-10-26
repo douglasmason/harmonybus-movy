@@ -76,7 +76,7 @@ export function chordSlotColor(index:number):number{
 export function chordSlotQueued(index:number):boolean{return !!setup.playMode&&!!setup.slots[index]?.enabled&&!!bankStatus?.slots[index]?.queued;}
 /** Shared defaults are native; slot overrides travel with each selected chord. */
 const rangeTouches=new Map<number,{shift:boolean;moved:boolean}>();
-const rangeTurns=new Map<number,{at:number;accum:number}>();
+const rangeTurns=new Map<number,{at:number}>();
 function chordEvent(slot:Slot):number[]{return [slot.root,slot.quality,slot.form,slot.policy,slot.tonic,slot.scale,slot.bass,...(slot.intent||slot.range?[slot.intent,slot.target]:[]),...(slot.range?[slot.range]:[])];}
 function soundTrack():number {return !chordActive()||setup.source===0&&conductorRenders?conductorTrackForQueue():setup.comp;}
 function defaultRegister():number{const value=portFor(soundTrack()).getParam('midi_fx1:chord_register');return value==='Conductor'?(Number(portFor(conductorTrackForQueue()).getParam('midi_fx1:chord_register'))||0):Number(value)||0;}
@@ -97,9 +97,8 @@ function rangeControlMidi(data:number[],surface:SchwungPage|null):boolean {
     const index=match?Number(match[1]):null,down=type===144&&value>0,up=type===128||(type===144&&!value),now=Date.now();
     if(turn){
         const touched=rangeTouches.get(knob);if(touched)touched.moved=true;
-        const previous=rangeTurns.get(knob),delta=value<64?value:value-128;
-        const gesture={at:now,accum:(previous&&now-previous.at<600?previous.accum:0)+delta};
-        const steps=Math.trunc(gesture.accum/4);gesture.accum-=steps*4;rangeTurns.set(knob,gesture);
+        const steps=value<64?value:value-128;
+        rangeTurns.set(knob,{at:now});
         if(steps){const base=index===null?defaultRegister():setup.slots[index].range?setup.slots[index].range-4:defaultRegister();setChordRegister(index,Math.max(-3,Math.min(3,base+steps)));}
         return true;
     }

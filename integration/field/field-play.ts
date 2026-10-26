@@ -38,11 +38,17 @@ export function setFieldEnabled(value:boolean):void{
     // Immediately retire the native fast note map before another pad can arrive.
     if(engineReady()){syncPadRoute(fieldEngineSet);if(value){fieldEngineSet('joint_map','off');fieldEngineSet('joint_release','1');}}appState.dirty=true;
 }
-function fieldPage():SchwungPage{
-    if(!page)page=createSchwungPage(portFor(owner),'midi_fx1',{hierarchy:hierarchy=>{
-        if(hierarchy.levels.field)hierarchy.levels.root={...hierarchy.levels.field,name:'Field Play'};
-        return hierarchy;
-    }});
+export function fieldHierarchy(hierarchy:any):any{
+    const levels=hierarchy.levels;
+    if(!levels?.field)return hierarchy;
+    levels.root={...levels.field,name:'Field Play',visible_if:undefined};
+    const retained=new Set<string>();
+    const retain=(key:string):void=>{if(retained.has(key)||!levels[key])return;retained.add(key);for(const item of levels[key].params??[])if(item.level)retain(item.level);};
+    retain('root');for(const key of Object.keys(levels))if(!retained.has(key))delete levels[key];
+    return hierarchy;
+}
+export function fieldPage():SchwungPage{
+    if(!page)page=createSchwungPage(portFor(owner),'midi_fx1',{harmonyMode:3,hierarchy:fieldHierarchy});
     return followPanel(page);
 }
 /** Last-pressed wins; releasing it restores another held gesture or baseline. */

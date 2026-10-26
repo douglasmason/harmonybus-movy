@@ -656,7 +656,9 @@ def main() -> int:
     patch_navigation_lights(root)
     for relative_path in ('engine/crates/movy-dsp/src/lib.rs', 'src/seq/constants.ts'):
         version_path = root / relative_path
-        version_path.write_text(version_path.read_text().replace('0.80.0-chord-queue2', '0.81.0-drum-clip-fill1'))
+        version_path.write_text(version_path.read_text().replace('0.80.0-chord-queue2', '0.82.0-audible-range1'))
+    from patch_interface_usage import patch_interface_usage
+    patch_interface_usage(root)
     print("HarmonyBus clean integration applied")
     return 0
 
