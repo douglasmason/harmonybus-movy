@@ -134,7 +134,7 @@ try {
     page.knobTouch(4,false);appState.shiftHeld=false;
     page.goToPage(assignmentIndex);
     assert(!writes.slice(beforeSettings).some(([,key])=>key.endsWith(':performance_reset')||/^midi_fx1:approach_bank_/.test(key)),'Panel navigation preserves assignments and latches');
-    assert.equal(page.ctl.metaAt(0).options.length,61);
+    assert.equal(page.ctl.metaAt(0).options.length,63);
     assert.deepEqual(page.ctl.metaAt(0).options.slice(2,8),['Secondary II','Secondary III','Secondary IV','Secondary Fifth','Secondary VI','Secondary VII']);
     assert.deepEqual(page.ctl.metaAt(0).options.slice(-16),Array.from({length:16},(_,index)=>'User '+(index+1)));
     assert(page.ctl.metaAt(0).options.includes('Stock: vi-ii-V'));
@@ -142,6 +142,8 @@ try {
     assert(page.ctl.metaAt(0).options.includes('Secondary VII'));
     assert(page.ctl.metaAt(0).options.includes('Leading Tone'));
     assert(page.ctl.metaAt(0).options.includes('Upper Dim'));
+    assert(page.ctl.metaAt(0).options.includes('Smart Below'));
+    assert(page.ctl.metaAt(0).options.includes('Smart Above'));
     assert(!page.ctl.metaAt(0).options.includes('Scale Above'));
     assert(!page.ctl.metaAt(0).options.includes('Chromatic Below'));
     const {keyboardState: approachKeyboard}=await import('../dist/esm/keyboard/state.js');
