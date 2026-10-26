@@ -7,6 +7,7 @@ def patch_panel_navigation(root: Path) -> None:
     """Keep shared page data intact while changing its navigation and chrome."""
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/chord-play'
     (root / 'src/renderer/panel-navigation.ts').write_text((assets / 'panel-navigation.ts').read_text())
+    (root / 'src/renderer/panel-catalog.ts').write_text((assets / 'panel-catalog.ts').read_text())
     path: Path = root / 'src/renderer/schwung-page.ts'
     source: str = "import { panelNavigation } from './panel-navigation.js';\n" + path.read_text()
     source = source.replace('    let plannedStepMode = harmonyMode();', "    let plannedStepMode = harmonyMode();\n    let navigationMode='Play';")

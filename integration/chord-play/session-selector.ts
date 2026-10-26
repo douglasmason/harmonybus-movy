@@ -35,5 +35,5 @@ export function inputModeSelectorMidi(data:number[]):boolean{
     return false;
 }
 export function renderInputModeSelector():void{
-    if(inputModeSelectorOpen())renderBrowseView(inputModeNames.map((name,index)=>({name:(index===sessionPlayMode()?'* ':'  ')+name})),inputModeChoice,'Input Mode','Back:cancel Click:enter');
+    if(inputModeSelectorOpen())renderBrowseView(inputModeNames.map((name,index)=>({name:(index===sessionPlayMode()?'* ':'  ')+name})),inputModeChoice,'View','Back:cancel Click:enter');
 }

@@ -7,7 +7,7 @@ const {portFor}=await import('../dist/esm/track/registry.js');
 const {settingsPage}=await import('../dist/esm/seq/hb-settings.js');
 let page=chordPage(),navigation=page.ctl.hbNavigation;
 page.goToPage(0);
-assert.deepEqual(navigation.state().groups,['Sound','Conductor','Comp','Melody','Libraries','Setup']);
+assert.deepEqual(navigation.state().groups,['Sound','Conductor Content','Chord Editing','Conductor Settings','Comp','Melody Mapping','Melody Sound','Melody Operations','Libraries','Setup']);
 const coreLevels=navigation.state().indices.map(index=>page.ctl.pages[index].level);
 assert.deepEqual(coreLevels,['root','cp_bank_0','cp_bank_1','cp_bank_2','cp_scale_controls','cp_Conductor_follower_touch','cp_Conductor_operations_9_16','cp_Conductor_motif_play'],
  'Chord Play keeps exactly eight playing panels; editors and overflow remain in Settings');
@@ -22,7 +22,7 @@ assert.equal(reads,0,'category browsing/rendering never loads candidate panels')
 port.getParam=read;port.setParam=write;
 const choice=navigation.state().choice;for(let index=0;index<30;index++)page.changePage(1);assert.equal(navigation.state().choice,navigation.state().groups.length-1,'right stops at last item');
 while(navigation.state().choice>choice)page.changePage(-1);assert(navigation.isMenu(),'left moves within the list');
-page.changePage(1);page.click();assert.equal(navigation.state().category,'Comp');
+while(navigation.state().choice<navigation.state().groups.indexOf('Comp'))page.changePage(1);page.click();assert.equal(navigation.state().category,'Comp');
 for(let index=0;index<40;index++)page.changePage(1);
 assert.equal(navigation.state().category,'Comp');assert(page.ctl.page.level.startsWith('cp_Comp_'));
 selectTrack(4);const other=chordPage();assert.equal(other.ctl.page.name,page.ctl.page.name);assert.equal(other.ctl.hbNavigation.state().category,'Comp');
@@ -32,7 +32,7 @@ const settings=settingsPage();assert(settings.ctl.pages.some(candidate=>candidat
 assert(!settings.ctl.pages.some(candidate=>candidate.keys?.includes('chord_mode')),'HB Settings does not duplicate musical chord controls');
 assert(settings.ctl.hbNavigation.state().groups.includes('Diagnostics'));
 const missing=page.ctl.pages.findIndex(candidate=>candidate.level==='cp_Melody_track_scales');page.goToPage(missing);
-assert.equal(navigation.state().category,'Melody','direct panel jumps select their category too');
+assert.equal(navigation.state().category,'Melody Mapping','direct panel jumps select their category too');
 console.log('Panel categories: core boundary, restricted jog, read-free menus, inert knobs, back trail and track continuity pass');
 // Render through Movy's outer chrome, not just the isolated parameter page.
 const {renderKnobsView}=await import('../dist/esm/renderer/knob-view.js');

@@ -1,3 +1,4 @@
+import {usageParameters} from '../app/interface-usage.js';
 import { returnPreviousInputView } from './router-buttons.js';
 import { sharedPanel } from './shared-panel.js';
 const followPanel=sharedPanel();
@@ -22,7 +23,8 @@ export function setSettingsOpen(value:boolean,returnToSession=seqState.sessionMo
 }
 export function settingsHierarchy(hierarchy:any):any{
     const levels=hierarchy.levels;
-    const order=['follower_root','next_harm','grid_timing','role_defaults','conductor_chord_defaults','follower_chord_defaults','conductor_scale_defaults','follower_scale_defaults','chord_defaults_status','pad_display','shared_context','follower_this','diagnostics'];
+    levels.interface_usage={name:'Interface Usage',knobs:usageParameters.map(parameter=>parameter.key),params:usageParameters};
+    const order=['follower_root','next_harm','grid_timing','role_defaults','conductor_chord_defaults','follower_chord_defaults','conductor_scale_defaults','follower_scale_defaults','chord_defaults_status','pad_display','shared_context','follower_this','diagnostics','interface_usage'];
     const routing=['version','track_role','render_channel','receive_channel'];
     levels.root={...levels.root,name:'HB Settings',knobs:routing,params:[...routing.map((key:string)=>({key})),...order.filter(key=>levels[key]).map(level=>({level}))]};
     const retained=new Set<string>();

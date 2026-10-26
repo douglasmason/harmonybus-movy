@@ -16,8 +16,6 @@ def patch_performance_controls(root: Path) -> None:
     source = path.read_text().replace("const commonPanels = new Set(['root',", "const commonPanels = new Set(['root', 'harmony_status',")
     source = replace_once(source, "        if(key==='follower_this')return 500;", "        if(key==='harmony_status')return -1;\n        if(key==='follower_this')return 500;")
     path.write_text(source)
-    path = root / 'src/renderer/panel-navigation.ts'
-    path.write_text(replace_once(path.read_text(), "if(level==='root'||", "if(level==='root'||level==='harmony_status'||"))
     path = root / 'src/seq/hb-settings.ts'
     path.write_text(replace_once(path.read_text(), "const order=['follower_root'", "const order=['harmony_status','follower_root'"))
 

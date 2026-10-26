@@ -281,7 +281,7 @@ console.log('Approach lights: dark idle, solid white trigger/hold, smooth white 
             metadataReady = true;
             startupNow += 1001;
             startupPage.tick();
-            assert.equal(startupPage.ctl.state.chainParams.length, module.capabilities.chain_params.length);
+            assert.equal(startupPage.ctl.state.chainParams.filter(parameter=>!parameter.key.startsWith('usage_')).length, module.capabilities.chain_params.length);
             assert.equal(startupPage.ctl.state.pageIndex, 2, 'Metadata recovery preserves the selected panel');
             for (const key of ['version', 'render_channel', 'receive_channel']) {
                 const expected = module.capabilities.chain_params.find(parameter => parameter.key === key);
@@ -364,7 +364,7 @@ console.log('Startup hierarchy: late layout replaces generic pages and then stop
             ready=true;now+=1001;page.tick();
             assert.equal(page.ctl.state.metaIndex.get('version').type,'string','Recover read-only version widget');
             assert.equal(page.ctl.state.metaIndex.get('track_role').options_as_string,true,'Recover named enum writes');
-            assert.equal(page.ctl.state.chainParams.length,module.capabilities.chain_params.length);
+            assert.equal(page.ctl.state.chainParams.filter(parameter=>!parameter.key.startsWith('usage_')).length,module.capabilities.chain_params.length);
             const settled=reads;now+=1001;page.tick();assert.equal(reads,settled);
         }
     } finally {port.getParam=originalGet;Date.now=originalClock;}
