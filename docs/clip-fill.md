@@ -17,6 +17,36 @@ Rhythm repeats at its authored rate to the target duration; the final gate is cl
 
 Melodic Fill supports conductor destinations and follower destinations with Relative or Closest Split mapping. Pitch material must have saved input-key identity or a full recorded chord-selection descriptor and cannot be rendered/raw output. Chord-selection descriptors are conductor-only. Source rendering recipes are retained where present; otherwise the destination's mapped settings are used. A follower rendering recipe cannot be loaded onto a conductor, or vice versa. Rhythm quantization/speed overrides, rhythm conditions and live rhythm operations, and pitch shared/interval operations are rejected rather than silently baked incorrectly. Instrument automation, melodic expression timelines, drum-lane selection, built-in choices and generators are not yet extracted. Existing clips with ordinary source notes, including the stock bass/comp entries, are supported.
 
+## Preview-only pitch and rhythm rotation
+
+In **Sequence** or **Fit** mode, hold **Shift** and turn knob 1 to rotate the
+ordered pitch groups, or **Shift** and turn knob 3 to rotate rhythm attack
+positions by sixteenth-note divisions. The Fill header shows `P0 R0` at the
+original positions, with both controls independent and wrapping through 0–15.
+
+The pitch rotation changes which complete source chord/note group is selected
+at a rhythm attack. It never transposes notes, breaks simultaneous chords,
+rewrites scale degrees, alters recorded operations or bypasses the destination's
+HarmonyBus travel rules. The rhythm rotation shifts the donor pattern against
+its own loop, preserving each attack's authored accent/gate and repeating the
+result normally. Selecting `P0 R0` returns to the exact source combination.
+
+Rotations remain drafts until an ordinary destination pad is pressed. The
+same native Clip Fill builder computes both the preview and the subsequent
+atomic write; a changed source invalidates that preview. No background
+reroll, new scheduler, live MIDI, or extra scan of playing clips is involved.
+**One normal Undo** restores the clip and its Source Weaving routing.
+
+Original mode deliberately disables rotation in this first increment:
+it preserves conductor chord progression boundaries, motif landing intent,
+ties/rests and exact drum kit lane addresses. Drum Fill remains the existing
+whole-groove operation. A future source-aware groove rotator should explicitly
+define how ties, cross-loop gates and per-lane accents move before enabling it.
+
+The old six-field Fill request remains supported. Two optional phase fields
+are present only when either rotation is nonzero, so older users and saved
+clips continue to behave identically.
+
 ## Drum grooves
 
 Select an existing drum track/clip with knobs 1/2. Fill uses Original automatically:
