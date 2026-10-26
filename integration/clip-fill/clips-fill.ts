@@ -12,6 +12,7 @@ import {clipsPage,setClipsPage} from './clips-layout.js';
 import {drumFillTrack} from './clip-page.js';
 import fields from './part-settings.json';
 let active=false,choices=[1,0,2,0,1,0],keep=false;
+let pitchRotation=0,rhythmRotation=0;
 let preview='',request='',generation=0,set:string|null=null,peekUntil=0,message='',refreshAt=0;
 let lanePage=0;
 const sourceIsDrum=():boolean=>drumFillTrack(choices[0]);
@@ -19,10 +20,17 @@ const previewLanes=():number[]=>preview.startsWith('error:')?[]:(preview.split('
 export function fillActive():boolean{return active&&seqState.sessionMode&&clipsPage===0;}
 const get=(key:string):string=>String(host_module_get_param(key)??'');
 export function setFillActive(enabled:boolean):void {
-    active=enabled;message='';refreshAt=0;if(enabled){setClipsPage(0);refresh();}appState.dirty=true;
+    active=enabled;message='';refreshAt=0;
+    if(enabled){pitchRotation=0;rhythmRotation=0;setClipsPage(0);refresh();}
+    appState.dirty=true;
 }
 function refresh():void {
-    refreshAt=0;request=[...choices.slice(0,5),sourceIsDrum()?2:choices[5]].join('_');generation=engineGeneration();set=currentSetUuid();
+    refreshAt=0;
+    const original=sourceIsDrum()||choices[5]===2;
+    const values=[...choices.slice(0,5),original?2:choices[5]];
+    // Keep default six-field requests byte-for-byte compatible.
+    request=(original||(!pitchRotation&&!rhythmRotation)?values:[...values,pitchRotation,rhythmRotation]).join('_');
+    generation=engineGeneration();set=currentSetUuid();
     preview=engineReady()?get('fill_preview_'+request):'error:Engine unavailable';
     lanePage=Math.min(lanePage,Math.max(0,Math.ceil(previewLanes().length/4)-1));
     peekUntil=Date.now()+1800;message='';appState.dirty=true;
@@ -43,6 +51,13 @@ export function fillMidi(data:number[]):boolean {
     if(sourceIsDrum()&&(knob===2||knob===3))return true;
     if(sourceIsDrum()&&knob===5){lanePage=Math.max(0,Math.min(Math.ceil(previewLanes().length/4)-1,lanePage+direction));peekUntil=Date.now()+1800;appState.dirty=true;return true;}
     if(knob<2)lanePage=0;
+    if(appState.shiftHeld&&(knob===0||knob===2)){
+        if(sourceIsDrum()||choices[5]===2){seqToast('Rotate: choose Sequence or Fit');return true;}
+        if(knob===0)pitchRotation=(pitchRotation+direction+16)%16;
+        else rhythmRotation=(rhythmRotation+direction+16)%16;
+        refreshAt=Date.now()+70;preview='error:Preparing preview';message='';appState.dirty=true;
+        return true;
+    }
     if(knob<6){const bounds=[15,7,15,7,16,2];choices[knob]=Math.max(knob===4?1:0,Math.min(bounds[knob],choices[knob]+direction));refreshAt=Date.now()+70;preview='error:Preparing preview';message='';appState.dirty=true;}
     else if(knob===6){keep=direction>0;appState.dirty=true;}
     else setFillActive(false);
@@ -93,7 +108,7 @@ export function renderFill():boolean {
         line(55,`${notes.filter(note=>visibleLanes.includes(note[2])).length}/${count} hits 6:${lanePage+1}/${Math.max(1,Math.ceil(lanes.length/4))}`);
         return true;
     }
-    line(1,'FILL - pads REPLACE');
+    line(1,drum?'FILL DRUM ORIGINAL':`FILL P${pitchRotation} R${rhythmRotation} SHIFT1/3`);
     line(12,`1/2 ${drum?'Drums':'Pitch'} T${choices[0]+1} C${choices[1]+1}`);
     line(22,drum||choices[5]===2?'3/4 Rhythm: original':`3/4 Rhythm T${choices[2]+1} C${choices[3]+1}`);
     line(32,drum?`5 ${choices[4]} bars 6 Lane view`:`5 ${choices[4]} bars  6 ${['Sequence','Fit pitch','Original'][choices[5]]}`);
