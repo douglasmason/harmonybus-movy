@@ -9,7 +9,15 @@ import { sharedPanel } from './shared-panel.js';
 const followPanel=sharedPanel();
 import {TouchSequence} from './touch-sequence.js';
 const queuePhrase=new TouchSequence<number>();
-function beginQueuePhrase(control:number,index:number):void {if(setup.playMode&&portFor(conductorTrackForQueue()).getParam('midi_fx1:chord_queue_depth')==='Touch Phrase')queuePhrase.begin(control,index);}
+function beginQueuePhrase(control:number,index:number):void {
+    if(!setup.playMode)return;
+    if(!queuePhrase.active)send('chord_queue','begin,'+conductorTrackForQueue());
+    queuePhrase.begin(control,index);
+}
+function endQueuePhrase(length:number):void {
+    const phrase=length>1||portFor(conductorTrackForQueue()).getParam('midi_fx1:chord_queue_depth')==='Touch Phrase';
+    send('chord_queue',phrase?'commit':'end');statusCache=null;
+}
 function conductorTrackForQueue():number {return setup.conductor;}
 import {queueFooterText,drawHarmonyFooter} from '../renderer/hb-footer.js';
 import {ANIM_PULSE_SLOW} from './colors.js';
@@ -138,7 +146,7 @@ export function restoreChord(value:unknown):void{
     page=null;route='';resetBank();
 }
 export function releaseChordTouches():void{
-    if(queuePhrase.active)send('chord_queue','commit');queuePhrase.cancel();rangeTouches.clear();rangeTurns.clear();
+    if(queuePhrase.active)endQueuePhrase(queuePhrase.length);queuePhrase.cancel();rangeTouches.clear();rangeTurns.clear();
     cancelPartReview();cancelMotifLoader(performanceOwner(setup.conductor));styleTouch=null;
     for(const [slot,owner] of touches)if(!releasePerformanceTouch(slot,true))owner.knobTouch(slot,false);
     for(const slot of controls)releasePerformanceTouch(slot,true);
@@ -303,6 +311,7 @@ export function tickChord():void{
     const melody=appState.activeTrack.index;
     if(melody===setup.comp||melody===setup.conductor||melody===setup.bass){setChordEnabled(false);seqToast('Choose distinct tracks');return;}
     refreshBank();
+    if(setup.playMode)performanceStatus('queue_snapshot');
     const followMelody=setup.source===2||(setup.source===0&&!conductorRenders);
     const next=[melody,setup.comp,followMelody?1:setup.source===0&&conductorRenders?2:0].join(',')+(setup.bassClip?','+setup.bass:'');
     if(next!==route){send('chord_route',next);route=next;}
@@ -317,7 +326,7 @@ export function tickChord():void{
 export function chordRecordCommand():string|null{return chordActive()?'jrec '+((1<<setup.conductor)|(1<<appState.activeTrack.index))+' '+(1<<setup.conductor):null;}
 export function chordMidi(data:number[],panels=true):boolean{
     const status=data[0]&240,key=data[1],value=data[2],down=status===144&&value>0,up=status===128||(status===144&&!value);
-    if(up&&queuePhrase.owns(key)){const phrase=queuePhrase.release(key);if(phrase!==null)send('chord_queue','commit');steps.delete(key);rangeTouches.delete(key);statusCache=null;return true;}
+    if(up&&queuePhrase.owns(key)){const phrase=queuePhrase.release(key);if(phrase!==null)endQueuePhrase(phrase.length);steps.delete(key);rangeTouches.delete(key);statusCache=null;return true;}
     if(up&&controls.delete(key)){releasePerformanceTouch(key);return true;}
     if(up&&touches.has(key)){
         touches.get(key)!.knobTouch(key,false);touches.delete(key);
@@ -397,7 +406,7 @@ function contextVisible(current:SchwungPage):boolean {
 }
 export function chordContextTrail():string|null {
     const current=chordPage();if(!contextVisible(current))return null;
-    if(setup.playMode)return queueFooterText(performanceStatus('queue_next'),performanceStatus('queue_count'));if(current.ctl.page?.level==='root')return 'Touch chords / K8:Off';
+    if(setup.playMode)return queueFooterText(performanceStatus('queue_next'),performanceStatus('queue_count'),performanceStatus('queue_snapshot'));if(current.ctl.page?.level==='root')return 'Touch chords / K8:Off';
     if(current.ctl.page?.level==='cp_overview')return 'Chord>Core K8:Off';
     if((current.ctl.page?.keys??[]).some((key:string)=>/^cp_slot_/.test(key))){
         const first=bankNames[Math.floor(stepSlot(0)/7)],second=bankNames[Math.floor(stepSlot(8)/7)];
@@ -439,7 +448,8 @@ function performanceStatus(field:string):string {
         const queued=queue[0]==='cq1',count=queued?Number(queue[1]):0;
         const live=active==='1',waiting=queued&&queue[6]==='1',depth=queued?Number(queue[7]):Number(conductor.getParam('midi_fx1:chord_queue_depth'))||2;
         const queueState=!setup.playMode?'Off':waiting||!queued?((queued&&queue[3]!=='--'?'Hold ':'Fill ')+count+(depth?'/'+depth:' Release')):(queue[8]==='1'?'Loop ':'Ready ')+count;
-        statusCache={at:now,identity,values:{queue_current:queued?queue[3]:!seqState.playing&&!live?'Off':effective||'--',queue_next:queued?queue[4]:'--',queue_count:queueState,effective:effective||'--',override:live?'On':active==='0'?'Off':'--',next:queued?queue[4]:seqState.playing?(next||'--'):'--',handoff:queued?queueState:live?(seqState.playing?'Next event':'Off button'):'--',key:key||'--'}};
+        const snapshot=queue.join('|');if(statusCache?.values.queue_snapshot!==snapshot)appState.dirty=true;
+        statusCache={at:now,identity,values:{queue_snapshot:snapshot,queue_current:queued?queue[3]:!seqState.playing&&!live?'Off':effective||'--',queue_next:queued?queue[4]:'--',queue_count:queueState,effective:effective||'--',override:live?'On':active==='0'?'Off':'--',next:queued?queue[4]:seqState.playing?(next||'--'):'--',handoff:queued?queueState:live?(seqState.playing?'Next event':'Off button'):'--',key:key||'--'}};
     }
     return statusCache.values[field]??'--';
 }

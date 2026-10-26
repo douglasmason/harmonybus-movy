@@ -2,7 +2,7 @@ import {appState} from './state.js';
 import {seqState} from '../seq/state.js';
 import {panelSpec,PANEL_LAYOUT_VERSION,normalizedMode} from '../renderer/panel-catalog.js';
 import {InteractionLog,type UsageContext} from './interaction-log.js';
-export const USAGE_SOFTWARE='0.34.1-hbclean.259';
+export const USAGE_SOFTWARE='0.34.1-hbclean.260';
 export const USAGE_REPORT_PATH='/data/UserData/schwung/movy-interface-report.json';
 export const USAGE_PATHS=['/data/UserData/schwung/movy-interface-usage-a.json','/data/UserData/schwung/movy-interface-usage-b.json'];
 export const interactionLog=new InteractionLog();

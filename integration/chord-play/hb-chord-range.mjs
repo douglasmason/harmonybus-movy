@@ -39,7 +39,7 @@ assert.equal(comp.getParam('midi_fx1:chord_register'),'2');assert.equal(conducto
 appState.shiftHeld=true;midi([144,7,100]);midi([128,7,0]);appState.shiftHeld=false;assert.equal(comp.getParam('midi_fx1:chord_register'),'Conductor');
 chord.setChordCompSource(0);now+=300;chord.tickChord();assert.equal(chord.chordPage(),samePage,'route changes preserve the controller and current panel');
 assert.equal(appState.activeTrack.index,3);
-// Fixed-depth sequential input never waits for overlap. Touch Phrase commits only at the final release.
+// Separate taps use numeric depth; overlap commits automatically at final release.
 const port=chord.chordPanelPort(3);port.getParam('midi_fx1:chain_params');port.setParam('midi_fx1:cp_play_mode','Queued');conductor.setParam('midi_fx1:chord_queue_depth','Touch Phrase');
 find('cp_slot_0');commands.length=0;midi([144,0,100]);midi([144,1,100]);midi([128,0,0]);midi([144,2,100]);midi([128,1,0]);
 assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value==='commit').length,0);
@@ -49,5 +49,22 @@ commands.length=0;midi([144,16,100]);midi([128,16,0]);assert.equal(commands.filt
 conductor.setParam('midi_fx1:chord_queue_depth','4');commands.length=0;midi([144,0,100]);midi([128,0,0]);midi([144,1,100]);midi([128,1,0]);
 assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value==='commit').length,0);
 assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value.startsWith('0,')).length,2);
+assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value==='end').length,2);
+commands.length=0;midi([144,0,100]);midi([144,17,100]);midi([128,0,0]);midi([144,2,100]);midi([128,17,0]);
+assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value==='commit').length,0);
+midi([128,2,0]);assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value==='commit').length,1,'overlap overrides numeric depth without changing the preference');
+assert.equal(conductor.getParam('midi_fx1:chord_queue_depth'),'4');
+assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value==='begin,0').length,1);
+// Browse while holding, then hand off to the matching step on the new bank.
+find('cp_slot_0');commands.length=0;midi([144,0,100]);
+midi([176,63,127]);assert.equal(page.keyAt(0),'cp_slot_7');
+assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value.startsWith('0,')).length,1,'browsing does not enqueue');
+midi([144,16,100]);assert.equal(chord.chordSnapshot().selected,7);midi([128,0,0]);
+assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value==='commit').length,0);
+midi([176,14,1]);assert.equal(page.keyAt(0),'cp_slot_14');
+midi([144,0,100]);assert.equal(chord.chordSnapshot().selected,14);midi([128,16,0]);
+assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value==='commit').length,0);
+midi([128,0,0]);assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value==='commit').length,1);
+assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value.startsWith('0,')).length,3);
 globalThis.host_module_set_param_blocking=oldSet;
 console.log('Chord range and Touch Phrase: owner routing, preserved focus, safe Off/reset, no extra attacks, overlap and sequential release pass');

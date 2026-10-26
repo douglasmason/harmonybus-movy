@@ -175,7 +175,11 @@ pub fn parse(message:''')
         if key=="cmd" && val.split(';').any(|command|matches!(command.split_whitespace().next(),Some("stop"|"reset"))){self.clear_chord_queue();self.release_chord_selection();}''')
     source = replace_once(source, '            "joint_links" => {', '''            "chord_queue" => {
                 if val=="off" {self.clear_chord_queue();}
-                else if val=="commit" {if let Some(track)=self.chord_queue {self.chains.set_param(track,"midi_fx1:hb_chord_queue","commit");self.tick_chord_queue();}}
+                else if matches!(val,"commit"|"end") {if let Some(track)=self.chord_queue {self.chains.set_param(track,"midi_fx1:hb_chord_queue",val);self.tick_chord_queue();}}
+                else if let Some(track)=val.strip_prefix("begin,").and_then(|text|text.parse::<usize>().ok()).filter(|track|*track<16){
+                    if self.chord_queue.is_some_and(|owner|owner!=track){self.clear_chord_queue();self.release_chord_selection();}
+                    self.chains.set_param(track,"midi_fx1:hb_chord_queue","begin");self.chord_queue=Some(track);
+                }
                 else if let Some(selection)=chord_selection::Selection::parse(val){
                     self.abort_idle_input();
                     if self.chord_queue.is_some_and(|track|track!=selection.track){self.clear_chord_queue();self.release_chord_selection();}

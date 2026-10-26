@@ -466,7 +466,7 @@ diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
      page=null;route='';resetBank();
  }
  export function releaseChordTouches():void{
-     if(queuePhrase.active)send('chord_queue','commit');queuePhrase.cancel();rangeTouches.clear();rangeTurns.clear();
+     if(queuePhrase.active)endQueuePhrase(queuePhrase.length);queuePhrase.cancel();rangeTouches.clear();rangeTurns.clear();
 -    cancelPartReview();cancelMotifLoader(performanceOwner(setup.conductor));styleTouch=null;
 +    cancelConductorPhrase();
 +    for(const key of steps)chordStepRelease(key);
@@ -566,7 +566,7 @@ diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
 -export function chordMidi(data:number[],panels=true):boolean{
 +export function chordMidi(data:number[],panels=true,surface?:SchwungPage):boolean{
      const status=data[0]&240,key=data[1],value=data[2],down=status===144&&value>0,up=status===128||(status===144&&!value);
-     if(up&&queuePhrase.owns(key)){const phrase=queuePhrase.release(key);if(phrase!==null)send('chord_queue','commit');steps.delete(key);rangeTouches.delete(key);statusCache=null;return true;}
+     if(up&&queuePhrase.owns(key)){const phrase=queuePhrase.release(key);if(phrase!==null)endQueuePhrase(phrase.length);steps.delete(key);rangeTouches.delete(key);statusCache=null;return true;}
 +    if(up&&conductorPhraseTouch('',key,false)){steps.delete(key);return true;}
      if(up&&controls.delete(key)){releasePerformanceTouch(key);return true;}
      if(up&&touches.has(key)){
@@ -670,7 +670,7 @@ diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
 @@ -341,6 +375,7 @@
  export function chordContextTrail():string|null {
      const current=chordPage();if(!contextVisible(current))return null;
-     if(setup.playMode)return queueFooterText(performanceStatus('queue_next'),performanceStatus('queue_count'));if(current.ctl.page?.level==='root')return 'Touch chords / K8:Off';
+     if(setup.playMode)return queueFooterText(performanceStatus('queue_next'),performanceStatus('queue_count'),performanceStatus('queue_snapshot'));if(current.ctl.page?.level==='root')return 'Touch chords / K8:Off';
 +    if(['cp_clips','cp_motifs'].includes(current.ctl.page?.level??''))return current.ctl.page.level==='cp_clips'?'Turn:clip Tap:launch K8:Off':'Turn:motif Tap:preview K8:Off';
      if(current.ctl.page?.level==='cp_overview')return 'Chord>Core K8:Off';
      if((current.ctl.page?.keys??[]).some((key:string)=>/^cp_slot_/.test(key))){

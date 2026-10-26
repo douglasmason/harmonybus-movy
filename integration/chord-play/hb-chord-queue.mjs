@@ -39,9 +39,13 @@ assert(commands.some(([key,value])=>key==='chord_queue'&&value==='off'));
 port.setParam('midi_fx1:cp_play_mode','Queued');seqState.playing=true;chord.harmonyOff();assert.equal(chord.chordSnapshot().playMode,1);
 seqState.playing=false;chord.harmonyOff();assert.equal(chord.chordSnapshot().playMode,0);assert.equal(port.getParam('midi_fx1:cp_queue_count'),'Off');
 port.setParam('midi_fx1:cp_play_mode','Queued');
-conductorControls.setParam('midi_fx1:hb_chord_queue_status','cq1|1|-1|C|G7|1|1|3|0');
+conductorControls.setParam('midi_fx1:hb_chord_queue_status','cq1|1|-1|C|G7|1|1|3|0|0|2|C|G7');
 const queuePage=chord.chordPage();queuePage.goToPage(0);
-assert.match(chord.chordContextTrail(),/Next G7.*Hold 1\/3/);
+assert.match(chord.chordContextTrail(),/Hold 1\/3 \[C\] G7/);
+conductorControls.setParam('midi_fx1:hb_chord_queue_status','cq1|2|4|C|C|1|0|2|1|0|2|C|C');
+clock+=101;chord.tickChord();assert.equal(chord.chordContextTrail(),'Loop [C] C');
+appState.dirty=false;conductorControls.setParam('midi_fx1:hb_chord_queue_status','cq1|2|4|C|C|1|0|2|1|1|2|C|C');
+clock+=101;chord.tickChord();assert.equal(chord.chordContextTrail(),'Loop C [C]');assert(appState.dirty,'identical chord advances still repaint the cursor');
 chord.harmonyOff();
 
 // The shared motif loader gets an explicit conductor owner, while melody pads
