@@ -108,3 +108,101 @@ fn conductor_write(engine:&mut Engine,request:&str,out:&mut Vec<OutEvent>)->Stri
     let before=engine.undo_snapshot();conductor_write(&mut engine,"1_3_4_2_1_2",&mut out);
     assert!(engine.part_result.contains("source recipe is a follower"));assert_eq!(engine.undo_snapshot(),before);
 }
+
+fn drum_setup()->Engine {
+    let mut engine=setup();let mut out=Vec::new();
+    apply_batch(&mut engine,"drumout 4 1;drumout 8 1",&mut out);
+    let source=&mut engine.tracks[4].clips[2];
+    source.notes[0].vel=117;source.notes[1].vel=73;source.notes[2].vel=41;
+    source.notes[3].tick=1148;source.notes[3].step=47;source.notes[3].gate=100;
+    source.notes[3].pressure=vec![(1,90),(20,60)];
+    source.transpose=12;source.input_key=InputKey::new(7,2);
+    source.notes[0].input_key=source.input_key;source.notes[0].rendered=true;
+    engine
+}
+fn drum_command(engine:&Engine,request:&str,track:usize,slot:usize)->String {
+    let preview=engine.fill_preview(request);assert!(!preview.starts_with("error:"),"{preview}");
+    format!("clipfill {track} {slot} {} {request} {} drums own",engine.fill_target(&format!("{track}_{slot}")),preview.split('|').next().unwrap())
+}
+#[test] fn drum_original_preserves_lanes_accents_gaps_and_repeat_boundaries(){
+    let mut engine=drum_setup();let mut out=Vec::new();
+    let before=crate::motif_load::fingerprint(&engine.tracks[4].clips[2]);
+    let preview=engine.fill_preview("4_2_99_99_2_2");assert!(preview.ends_with("|drums|36,38,42"),"{preview}");
+    let command=drum_command(&engine,"4_2_99_99_2_2",8,5);apply_batch(&mut engine,&command,&mut out);
+    assert!(engine.part_result.starts_with("Filled"),"{}",engine.part_result);
+    let clip=&engine.tracks[8].clips[5];
+    assert_eq!(clip.notes.iter().map(|note|(note.tick,note.pitch,note.vel,note.gate)).collect::<Vec<_>>(),vec![
+        (0,36,117,48),(0,38,73,48),(96,42,41,48),(380,36,100,100),
+        (384,36,117,48),(384,38,73,48),(480,42,41,48),(764,36,100,4)]);
+    assert_eq!(clip.notes[3].pressure,vec![(1,90),(20,60)]);assert_eq!(clip.notes[7].pressure,vec![(1,90)]);
+    assert!(clip.notes.iter().all(|note|note.input_key.is_none()&&note.actions.is_none()&&!note.rendered&&!note.suppress&&!note.fired));
+    assert_eq!(clip.transpose,0);assert!(clip.recipe.is_none()&&clip.input_key.is_none());assert_eq!(clip.length_steps,32);
+    assert!(!engine.playing);assert_eq!(engine.tracks[8].playing_slot,None);assert_eq!(engine.tracks[8].active_clip,0);
+    assert_eq!(crate::motif_load::fingerprint(&engine.tracks[4].clips[2]),before);
+    assert!(engine.recipe_bases[8].is_none());
+}
+#[test] fn drum_fill_undo_save_and_silent_groove_use_existing_clip_ownership(){
+    let mut engine=drum_setup();let mut out=Vec::new();
+    engine.tracks[8].clips[5].add_note_raw(0,0,12,55,99);let before=engine.undo_snapshot();
+    apply_batch(&mut engine,"usnap 81",&mut out);
+    let command=drum_command(&engine,"4_2_99_99_2_2",8,5);apply_batch(&mut engine,&command,&mut out);
+    apply_batch(&mut engine,"ucommit 81",&mut out);
+    let saved=crate::persist::serialize(&engine);let mut restored=Engine::new(48000,12000);assert!(crate::persist::load(&mut restored,&saved));
+    assert_eq!(restored.tracks[8].clips[5].notes,engine.tracks[8].clips[5].notes);assert!(restored.drum_output(8));
+    apply_batch(&mut engine,"uswap 81 82",&mut out);assert_eq!(engine.undo_snapshot(),before);
+    engine.tracks[4].clips[2].notes.clear();let command=drum_command(&engine,"4_2_99_99_2_2",8,5);apply_batch(&mut engine,&command,&mut out);
+    assert!(engine.part_result.starts_with("Filled"));assert!(engine.tracks[8].clips[5].notes.is_empty());assert_eq!(engine.tracks[8].clips[5].length_steps,32);
+}
+#[test] fn drum_fill_rejects_stale_role_source_and_recording_without_mutation(){
+    let mut engine=drum_setup();let mut out=Vec::new();
+    let command=drum_command(&engine,"4_2_99_99_2_2",8,5);
+    engine.set_drum_output(8,false,&mut out);let before=engine.undo_snapshot();apply_batch(&mut engine,&command,&mut out);
+    assert!(engine.part_result.contains("Destination changed"));assert_eq!(engine.undo_snapshot(),before);
+    engine.set_drum_output(8,true,&mut out);engine.tracks[4].clips[2].notes[0].vel-=1;let before=engine.undo_snapshot();apply_batch(&mut engine,&command,&mut out);
+    assert!(engine.part_result.contains("Source changed"));assert_eq!(engine.undo_snapshot(),before);
+    let command=drum_command(&engine,"4_2_99_99_2_2",8,5);engine.recording=true;let before=engine.undo_snapshot();apply_batch(&mut engine,&command,&mut out);
+    assert!(engine.part_result.contains("recording"));assert_eq!(engine.undo_snapshot(),before);
+}
+#[test] fn drum_and_melodic_content_cannot_cross_destination_types(){
+    let mut engine=drum_setup();let mut out=Vec::new();
+    let command=drum_command(&engine,"4_2_99_99_2_2",2,5);let before=engine.undo_snapshot();apply_batch(&mut engine,&command,&mut out);
+    assert!(engine.part_result.contains("drum destination"));assert_eq!(engine.undo_snapshot(),before);
+    let preview=engine.fill_preview("1_3_4_2_1_0");assert!(!preview.starts_with("error:"));
+    let command=format!("clipfill 8 5 {} 1_3_4_2_1_0 {} {} own",engine.fill_target("8_5"),preview.split('|').next().unwrap(),Settings::comp().wire());
+    apply_batch(&mut engine,&command,&mut out);assert!(engine.part_result.contains("melodic destination"));assert_eq!(engine.undo_snapshot(),before);
+    // Local drum modules use the same native identity as routed drum tracks.
+    apply_batch(&mut engine,"tdrum 2 1",&mut out);let command=drum_command(&engine,"4_2_99_99_1_2",2,5);apply_batch(&mut engine,&command,&mut out);
+    assert!(engine.part_result.starts_with("Filled"));assert!(engine.recipe_bases[2].is_none());
+}
+#[test] fn drum_fill_refuses_unsupported_timing_operations_and_capacity(){
+    for variation in 0..5 {
+        let mut engine=drum_setup();let source=&mut engine.tracks[4].clips[2];
+        match variation {
+            0=>source.quant=50,
+            1=>source.scale_num=2,
+            2=>source.locks.push(crate::clip::Lock{lane:0,step:32,val:40}),
+            3=>source.notes[0].actions=Some([7;52]),
+            _=>source.trigs.push(crate::clip::Trig{step:32,lane:Some(36),props:crate::clip::TrigProps{prob:50,..crate::clip::TrigProps::DEFAULT}}),
+        }
+        assert!(engine.fill_preview("4_2_99_99_1_2").starts_with("error:"));
+    }
+    let mut engine=drum_setup();assert!(engine.fill_preview("4_2_1_3_1_0").contains("Original"));
+    let source=&mut engine.tracks[4].clips[2];*source=Clip::new();source.length_steps=1;
+    for pitch in 0..8 {source.add_note_raw(0,0,12,pitch,100);}
+    assert!(engine.fill_preview("4_2_99_99_16_2").contains("capacity"));
+}
+#[test] fn live_drum_clip_replacement_flushes_old_gates_and_uses_normal_output(){
+    let mut engine=drum_setup();let mut out=Vec::new();
+    engine.tracks[8].clips[5].add_note_raw(0,0,900,61,90);engine.tracks[8].clips[5].length_steps=16;
+    engine.tracks[8].active_clip=5;engine.tracks[8].playing_slot=Some(5);engine.playing=true;
+    engine.advance_block(250,&mut out);assert!(out.iter().any(|event|matches!(event,OutEvent::DrumMidi{status:0x90,pitch:61,..})));
+    let command=drum_command(&engine,"4_2_99_99_2_2",8,5);apply_batch(&mut engine,&command,&mut out);
+    assert!(engine.part_result.starts_with("Filled"));assert_eq!(engine.tracks[8].pos_tick,0);
+    assert!(out.iter().any(|event|matches!(event,OutEvent::DrumMidi{status:0x80,pitch:61,..})));
+    for _ in 0..800 {engine.advance_block(250,&mut out);}engine.stop(&mut out);
+    for pitch in [36,38,42,61] {
+        let ons=out.iter().filter(|event|matches!(event,OutEvent::DrumMidi{status:0x90,pitch:note,..} if *note==pitch)).count();
+        let offs=out.iter().filter(|event|matches!(event,OutEvent::DrumMidi{status:0x80,pitch:note,..} if *note==pitch)).count();
+        assert!(ons>0,"pitch {pitch}");assert_eq!(ons,offs,"pitch {pitch}");
+    }
+}

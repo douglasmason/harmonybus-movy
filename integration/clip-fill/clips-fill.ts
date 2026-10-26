@@ -9,17 +9,22 @@ import {seqToast} from './render.js';
 import {fontPrint} from '../font/index.js';
 import {fitHeaderText} from '../renderer/header.js';
 import {clipsPage,setClipsPage} from './clips-layout.js';
+import {drumFillTrack} from './clip-page.js';
 import fields from './part-settings.json';
 let active=false,choices=[1,0,2,0,1,0],keep=false;
 let preview='',request='',generation=0,set:string|null=null,peekUntil=0,message='',refreshAt=0;
+let lanePage=0;
+const sourceIsDrum=():boolean=>drumFillTrack(choices[0]);
+const previewLanes=():number[]=>preview.startsWith('error:')?[]:(preview.split('|')[5]??'').split(',').filter(Boolean).map(Number);
 export function fillActive():boolean{return active&&seqState.sessionMode&&clipsPage===0;}
 const get=(key:string):string=>String(host_module_get_param(key)??'');
 export function setFillActive(enabled:boolean):void {
     active=enabled;message='';refreshAt=0;if(enabled){setClipsPage(0);refresh();}appState.dirty=true;
 }
 function refresh():void {
-    refreshAt=0;request=choices.join('_');generation=engineGeneration();set=currentSetUuid();
+    refreshAt=0;request=[...choices.slice(0,5),sourceIsDrum()?2:choices[5]].join('_');generation=engineGeneration();set=currentSetUuid();
     preview=engineReady()?get('fill_preview_'+request):'error:Engine unavailable';
+    lanePage=Math.min(lanePage,Math.max(0,Math.ceil(previewLanes().length/4)-1));
     peekUntil=Date.now()+1800;message='';appState.dirty=true;
 }
 export function fillTick():void{
@@ -35,6 +40,9 @@ export function fillMidi(data:number[]):boolean {
     if(key===51||key===14||key===MoveMainButton){if(value)setFillActive(false);return true;}
     if(key<71||key>78)return false;
     if(!value)return true;const knob=key-71,direction=value<64?1:-1;
+    if(sourceIsDrum()&&(knob===2||knob===3))return true;
+    if(sourceIsDrum()&&knob===5){lanePage=Math.max(0,Math.min(Math.ceil(previewLanes().length/4)-1,lanePage+direction));peekUntil=Date.now()+1800;appState.dirty=true;return true;}
+    if(knob<2)lanePage=0;
     if(knob<6){const bounds=[15,7,15,7,16,2];choices[knob]=Math.max(knob===4?1:0,Math.min(bounds[knob],choices[knob]+direction));refreshAt=Date.now()+70;preview='error:Preparing preview';message='';appState.dirty=true;}
     else if(knob===6){keep=direction>0;appState.dirty=true;}
     else setFillActive(false);
@@ -45,14 +53,20 @@ export function fillCell(track:number,slot:number):boolean {
     if(seqState.recording||seqState.countingIn){seqToast('Finish recording first');return true;}
     if(!engineReady()||generation!==engineGeneration()||set!==currentSetUuid()){setFillActive(false);return true;}
     if(!/^[0-9a-f]+\|/.test(preview)){seqToast(preview.replace(/^error:/,''));return true;}
-    const port=portFor(track);
-    if(port.getParam('midi_fx1_module')!=='harmonybus'){seqToast('Destination needs HarmonyBus');return true;}
-    const values=port.getMany(fields.map(field=>'midi_fx1:'+field.key),true);
-    const settings=fields.map((field,index)=>{const options=field.options as string[]|undefined;return options?options.indexOf(values[index]??''):Number(values[index]??NaN);});
-    if(!settings.every((value,index)=>Number.isInteger(value)&&value>=fields[index].min&&value<=fields[index].max)){seqToast('Destination settings unavailable');return true;}
+    const drum=preview.split('|')[4]==='drums';
+    if(drum!==drumFillTrack(track)){seqToast(drum?'Choose a drum destination':'Choose a melodic destination');return true;}
+    let settingsWire='drums';
+    if(!drum){
+        const port=portFor(track);
+        if(port.getParam('midi_fx1_module')!=='harmonybus'){seqToast('Destination needs HarmonyBus');return true;}
+        const values=port.getMany(fields.map(field=>'midi_fx1:'+field.key),true);
+        const settings=fields.map((field,index)=>{const options=field.options as string[]|undefined;return options?options.indexOf(values[index]??''):Number(values[index]??NaN);});
+        if(!settings.every((value,index)=>Number.isInteger(value)&&value>=fields[index].min&&value<=fields[index].max)){seqToast('Destination settings unavailable');return true;}
+        settingsWire=settings.join(',');
+    }
     const signature=get(`fill_target_${track}_${slot}`);if(!/^[0-9a-f]+$/.test(signature)){seqToast('Destination unavailable');return true;}
     undoableEdit('FILL CLIP',`T${track+1} Clip ${slot+1}`,()=>{
-        seqCmd(`clipfill ${track} ${slot} ${signature} ${request} ${preview.split('|')[0]} ${settings.join(',')} ${keep?'keep':'own'}`);seqCmdFlush();
+        seqCmd(`clipfill ${track} ${slot} ${signature} ${request} ${preview.split('|')[0]} ${settingsWire} ${keep?'keep':'own'}`);seqCmdFlush();
         const result=get('part_result');
         if(result.startsWith('Filled')){message=`Filled T${track+1} Clip ${slot+1}`;seqState.session[track].exist|=1<<slot;requestLabelSync();}
         else message=result.replace(/^error:/,'');
@@ -63,10 +77,26 @@ export function fillCell(track:number,slot:number):boolean {
 export function renderFill():boolean {
     if(!fillActive())return false;
     clear_screen();const line=(y:number,text:string)=>fontPrint(1,y,fitHeaderText(text,126),1);
+    const drum=sourceIsDrum();
+    if(drum&&peekUntil&&preview&&!preview.startsWith('error:')){
+        const [,duration,count,encoded]=preview.split('|'),lanes=previewLanes();
+        const notes=(encoded??'').split(';').filter(Boolean).map(note=>note.split(',').map(Number));
+        const visibleLanes=lanes.slice(lanePage*4,lanePage*4+4);
+        line(1,`DRUM T${choices[0]+1} C${choices[1]+1} / ${choices[4]} bars`);
+        for(const [row,pitch] of visibleLanes.entries()){
+            const top=12+row*10;fontPrint(1,top,String(pitch),1);
+            for(const [tick,gate,note,velocity] of notes){if(note!==pitch)continue;
+                const left=21+Math.floor(tick*105/Number(duration));
+                fill_rect(left,top+2,Math.max(1,Math.min(127-left,Math.floor(gate*105/Number(duration)))),velocity>=96?4:2,1);
+            }
+        }
+        line(55,`${notes.filter(note=>visibleLanes.includes(note[2])).length}/${count} hits 6:${lanePage+1}/${Math.max(1,Math.ceil(lanes.length/4))}`);
+        return true;
+    }
     line(1,'FILL - pads REPLACE');
-    line(12,`1/2 Pitch T${choices[0]+1} C${choices[1]+1}`);
-    line(22,choices[5]===2?'3/4 Rhythm: original':`3/4 Rhythm T${choices[2]+1} C${choices[3]+1}`);
-    line(32,`5 ${choices[4]} bars  6 ${['Sequence','Fit pitch','Original'][choices[5]]}`);
+    line(12,`1/2 ${drum?'Drums':'Pitch'} T${choices[0]+1} C${choices[1]+1}`);
+    line(22,drum||choices[5]===2?'3/4 Rhythm: original':`3/4 Rhythm T${choices[2]+1} C${choices[3]+1}`);
+    line(32,drum?`5 ${choices[4]} bars 6 Lane view`:`5 ${choices[4]} bars  6 ${['Sequence','Fit pitch','Original'][choices[5]]}`);
     if(peekUntil&&preview&&!preview.startsWith('error:')){
         const [signature,duration,count,encoded]=preview.split('|');
         const notes=(encoded??'').split(';').filter(Boolean).map(note=>note.split(',').map(Number));

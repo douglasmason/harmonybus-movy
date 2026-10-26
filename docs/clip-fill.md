@@ -1,6 +1,6 @@
-# Clip Fill — Movy 0.34.1-hbclean.252
+# Clip Fill — Movy 0.34.1-hbclean.257
 
-Requires HarmonyBus 0.2.295. Clips Setup knob 5 opens Fill. Existing clips are the sources: nothing has to be saved into a library. Source clips may be stopped, muted or in another bank. Back, jog or knob 8 exits Fill; leaving Clips disarms it.
+Pair with HarmonyBus 0.2.297. Clips Setup knob 5 opens Fill. Existing clips are the sources: nothing has to be saved into a library. Source clips may be stopped, muted or in another bank. Back, jog or knob 8 exits Fill; leaving Clips disarms it.
 
 | Knob | Selection |
 | --- | --- |
@@ -15,7 +15,40 @@ Turning a source control or touching a knob shows a temporary note preview. The 
 
 Rhythm repeats at its authored rate to the target duration; the final gate is clipped to the end. Fit changes pitch phrase selection, not rhythm tempo. Simultaneous pitch notes remain a chord group. Rhythm attacks at the same tick are combined with maximum gate and accent; drums can supply this union of hits. Pitch source input keys, register and per-note operations are preserved, velocity comes from rhythm, and pressure is not extracted. The preview displays up to 64 source notes and reports the full count. It is not an audition or a prediction of voiced HarmonyBus output.
 
-Fill supports conductor destinations and melodic follower destinations with Relative or Closest Split mapping. Pitch material must have saved input-key identity or a full recorded chord-selection descriptor and cannot be rendered/raw output. Chord-selection descriptors are conductor-only. Source rendering recipes are retained where present; otherwise the destination's mapped settings are used. Drum destinations are still rejected. A follower rendering recipe cannot be loaded onto a conductor, or vice versa. Rhythm quantization/speed overrides, rhythm conditions and live rhythm operations, and pitch shared/interval operations are rejected rather than silently baked incorrectly. Instrument automation, expression timelines, drum-lane selection, built-in choices and generators are not yet extracted. Existing clips with ordinary source notes, including the stock bass/comp entries, are supported.
+Melodic Fill supports conductor destinations and follower destinations with Relative or Closest Split mapping. Pitch material must have saved input-key identity or a full recorded chord-selection descriptor and cannot be rendered/raw output. Chord-selection descriptors are conductor-only. Source rendering recipes are retained where present; otherwise the destination's mapped settings are used. A follower rendering recipe cannot be loaded onto a conductor, or vice versa. Rhythm quantization/speed overrides, rhythm conditions and live rhythm operations, and pitch shared/interval operations are rejected rather than silently baked incorrectly. Instrument automation, melodic expression timelines, drum-lane selection, built-in choices and generators are not yet extracted. Existing clips with ordinary source notes, including the stock bass/comp entries, are supported.
+
+## Drum grooves
+
+Select an existing drum track/clip with knobs 1/2. Fill uses Original automatically:
+the groove repeats at its authored rate to knob 5's target length. Knobs 3/4 are
+inactive. Knob 6 pages the temporary preview through four drum lanes at a time;
+it returns to the melodic alignment selector when a melodic source is selected.
+The preview labels lanes by MIDI note number, shows stronger accents with taller
+marks, and reports displayed/total hits. It displays at most 64 hits; the written
+clip contains every supported hit, subject to the existing 512-note capacity.
+
+Press a drum destination pad to replace that clip. Drum identity comes from the
+existing local drum-module or Drum Clip Out setting. Routing, kit and instrument
+selection remain the destination's. No HarmonyBus module is required for a drum
+destination and no General MIDI kit mapping is assumed. MIDI pitches remain exact
+kit addresses, including simultaneous hits. Velocity, authored gates, gaps and
+per-note pressure survive; the last gate and its pressure curve stop at the target
+end. Silent source loops create silent clips with the chosen length. Harmonic key,
+transpose, rendered-note flags and HarmonyBus recipes are not applied to drums.
+
+Drum and melodic sources cannot be written onto the other destination type.
+Drum sources with automation locks, note operations, trigger conditions, live
+operation lanes, quantization or speed overrides are rejected. This increment
+copies authored grooves; it does not render those transformations. Existing
+source edits and source/destination drum-role changes invalidate stale previews.
+Previewing, lane paging and writing do not launch clips or change selection.
+Replacing a playing clip releases its old gates and restarts its existing loop.
+One Undo restores the preceding content and routing; Record/count-in blocks edits.
+
+Performance Drum Fill remains a separate one-shot gesture. Individual drum-lane
+rhythm extraction remains a follow-up; this release copies the complete groove.
+The builder and the ordinary scheduler are shared with melodic Clip Fill, with
+no new playback timer, source polling or saved library required.
 
 Live weaving remains Joint Play actor Sources routing; it reads playing sources and follows later edits. Fill is an edit-time composition of authored contents. Preview and commit use the same native builder and shared weaving pitch-onset selector. Source edits invalidate the old preview; touch a knob to refresh. Source turns are coalesced after a 70 ms pause; pending previews cannot be written. The composer runs only for explicit previews/writes. Drawing and idle ticks perform no source IPC and no new playback scheduler is added.
 
