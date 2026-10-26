@@ -47,6 +47,38 @@ The old six-field Fill request remains supported. Two optional phase fields
 are present only when either rotation is nonzero, so older users and saved
 clips continue to behave identically.
 
+## A/B Fill memories
+
+During a single Fill session, save and recall two complete draft variations
+without replacing a clip:
+
+| Gesture | Action |
+| --- | --- |
+| Shift + knob 5 | Save current preview as A |
+| Shift + knob 6 | Save current preview as B |
+| Shift + knob 7 | Recall A |
+| Shift + knob 8 | Recall B |
+
+The header shows `A+`/`B+` for occupied memories and `A-`/`B-` for
+empty ones. Each memory captures the pitch/rhythm source clips, target bar
+length, Sequence/Fit/Original selection, independent pitch/rhythm rotations,
+Source Weaving ownership choice, the exact preview response and its source
+fingerprint. Both slots reset when reopening Fill; they are deliberately
+**temporary working memories**, not newly serialized clip data.
+
+Saving requires a settled, valid preview; it does not read native sources,
+send MIDI or change any stored clip. Recalling explicitly validates the saved
+preview once against the current sources. If a donor changed in the meantime,
+the recall is refused rather than silently substituting different content.
+The current draft remains intact. A successful recall restores the original
+controls and cached visual preview immediately, but still does not write to
+a clip until an ordinary destination pad is pressed.
+
+The same existing atomic clip-write guard and single Undo apply to commits
+from either memory. These are **visual comparisons only**, not audible
+previews of the final HarmonyBus-mapped notes. Drum Original is supported
+as a memory, but it retains its existing non-rotating groove behavior.
+
 ## Drum grooves
 
 Select an existing drum track/clip with knobs 1/2. Fill uses Original automatically:
