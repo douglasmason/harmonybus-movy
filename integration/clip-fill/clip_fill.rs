@@ -98,7 +98,11 @@ impl Engine {
         }
         }
         if (clip.notes.is_empty()&&alignment!=2)||clip.length_steps>MAX_STEPS{return Err("Empty result");}
-        let mut hash=std::collections::hash_map::DefaultHasher::new();request.hash(&mut hash);
+        let mut hash=std::collections::hash_map::DefaultHasher::new();
+        // Explicit zero offsets and old six-field requests have identical signatures.
+        if fields.len()==8&&pitch_rotation==0&&rhythm_rotation==0 {
+            fields[..6].iter().map(usize::to_string).collect::<Vec<_>>().join("_").hash(&mut hash);
+        } else { request.hash(&mut hash); }
         drum.hash(&mut hash);
         crate::motif_load::fingerprint(original_pitch).hash(&mut hash);crate::motif_load::fingerprint(rhythm).hash(&mut hash);
         Ok(Plan{clip,signature:hash.finish(),drum})
