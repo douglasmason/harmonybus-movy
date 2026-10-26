@@ -3,17 +3,8 @@ import {drawGlyphRun, glyphRunWidth, type Glyph} from '../font/blit.js';
 import {registerWidget,isWidgetAvailable} from '../renderer/schwung-widgets.js';
 import {chordDegrees,intentLabel,type ChordStatus} from './chord-colors.js';
 
-// Movy's normal glyph atlas aliases lowercase to capitals. Musical tokens need
-// distinct m/M, b/B and i/I. Keep its capitals and common blitter unchanged.
-const lower:Record<string,Glyph>={
- a:[5,0,4,5,0,6,8,14,14], b:[5,0,4,5,1,1,7,9,7],
- d:[5,0,4,5,8,8,14,9,14], g:[5,0,4,5,0,14,9,14,8],
- i:[3,0,2,5,1,0,1,1,1], j:[4,0,3,5,4,0,4,4,3],
- m:[6,0,5,5,0,0,15,21,21], n:[5,0,4,5,0,0,7,9,9],
- o:[5,0,4,5,0,0,6,9,6], s:[5,0,4,5,0,14,3,12,7],
- u:[5,0,4,5,0,0,9,9,14], v:[5,0,4,5,0,0,9,9,6],
-};
-const glyph=(code:number):Glyph|null=>lower[String.fromCharCode(code)]??G[code-32]??null;
+// Chord notation uses the same mixed-case atlas as every other Movy panel.
+const glyph=(code:number):Glyph|null=>G[code-32]??null;
 export const chordTextWidth=(text:string):number=>glyphRunWidth(text,glyph,5,-1);
 
 /** Display notation only: quality and spelling come from the native chord name. */
