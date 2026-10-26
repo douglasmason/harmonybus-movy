@@ -201,7 +201,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: panel-header-264
+          name: chord-controls-264
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -224,7 +224,7 @@ jobs:
           if metadata['version'] != '0.34.1-hbclean.263':
               raise SystemExit('Expected Movy 263 before panel header release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Panel Header Segments" --notes-file docs/panel-header.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Chord Play Display and Off Controls" --notes-file docs/panel-header.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)

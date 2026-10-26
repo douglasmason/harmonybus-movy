@@ -478,9 +478,11 @@ export function resetChordDefaults():void{
     harmonyOff();setup.slots=defaultSlots();setup.selected=0;bankPageDirty=true;resetBank();
     markUiStateDirty();appState.dirty=true;seqToast('Chord defaults restored');
 }
-export function harmonyOff(disableQueue=!seqState.playing):void{
+export function harmonyOff():void{
     queuePhrase.cancel();
-    send('chord_select','off');if(disableQueue&&setup.playMode){setup.playMode=0;markUiStateDirty();seqToast('Harmony / Queue Off');}activeSlot=-1;statusCache=null;bankPollAt=-Infinity;bankUrgentUntil=Date.now()+100;appState.dirty=true;
+    // Clearing musical content never changes the user's Immediate/Queued choice.
+    if(bankStatus)for(const slot of bankStatus.slots)slot.queued=false;
+    send('chord_select','off');activeSlot=-1;statusCache=null;bankPollAt=-Infinity;bankUrgentUntil=Date.now()+100;appState.dirty=true;
 }
 function stepSlot(index:number):number{
     if(index%8===7)return -1;

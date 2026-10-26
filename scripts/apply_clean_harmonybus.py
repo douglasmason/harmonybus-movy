@@ -659,6 +659,8 @@ def main() -> int:
         version_path.write_text(version_path.read_text().replace('0.80.0-chord-queue2', '0.84.0-chord-range1'))
     from patch_interface_usage import patch_interface_usage
     patch_interface_usage(root)
+    from patch_chord_labels import patch_chord_labels
+    patch_chord_labels(root)
     print("HarmonyBus clean integration applied")
     return 0
 

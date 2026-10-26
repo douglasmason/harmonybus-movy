@@ -219,3 +219,31 @@ try {
  page.click();assert(page.ctl.hbNavigation.isMenu());assert.equal(chord.chordContextTrail(),null,'category picker retains its own footer');
 }finally{globalThis.clear_screen=oldClear;globalThis.fill_rect=oldFill;}
 console.log('Performance context framebuffer: complete footer, touch overlays and category picker pass');
+
+// Chord names and Roman numerals must survive the actual shared grid font.
+const {chordRoman}=await import('../dist/esm/seq/chord-labels.js');
+for(const [name,degree,expected] of [['C',0,'I'],['Dm',1,'ii'],['Emin7',2,'iii7'],['Bdim',6,'viio'],['G7',4,'V7'],['Cmaj7',0,'Imaj7'],['Bdim7',6,'viio7'],['Caug',0,'I+']]){
+ assert.equal(chordRoman(1,degree,{root:0,name}),expected);
+}
+assert.equal(chordRoman(0,0,{root:0,name:'C'}),'','literal chords do not invent a key-relative degree');
+assert.equal(chordRoman(3,4,{root:2,name:'D7'}),'V/V','secondary intent is retained');
+const labelPixels=new Uint8Array(128*64);
+globalThis.clear_screen=()=>labelPixels.fill(0);
+globalThis.fill_rect=(x,y,width,height,color)=>{x=Math.trunc(x);y=Math.trunc(y);width=Math.trunc(width);height=Math.trunc(height);for(let row=Math.max(0,y);row<Math.min(64,y+height);row++)for(let col=Math.max(0,x);col<Math.min(128,x+width);col++)labelPixels[row*128+col]=color?1:0;};
+try {
+ chord.restoreChord(null);chord.setChordEnabled(true);page=chord.chordPage();find('cp_slot_0');
+ rows[0]=[0,145,2741,7,0,0,1,0,'C'];rows[1]=[2,548,2741,7,2,2,2,0,'Dm'];
+ now+=250;bankFrame=frame([-1,0,0,0,0,0]);chord.tickChord();
+ const chordMeta=page.ctl.state.metaIndex.get('cp_slot_1');
+ assert.equal(chordMeta.chordName,'Dm');assert.equal(chordMeta.chordRoman,'ii');
+ assert.equal(chordMeta.short_name,'2','slot number stays separate from its musical text');
+ page.ctl.state.touched=-1;page.ctl.state.peek=null;chord.renderChord();
+ const region=(startY,endY)=>Array.from({length:endY-startY},(_,row)=>Array.from(labelPixels.slice((startY+row)*128+32,(startY+row)*128+64))).flat();
+ const minor=region(11,16),lowerRoman=region(17,22);
+ chordMeta.chordName='DM';chordMeta.chordRoman='II';chord.renderChord();
+ assert.notDeepEqual(region(11,16),minor,'Dm uses a distinct lowercase m in the shared grid');
+ assert.notDeepEqual(region(17,22),lowerRoman,'ii uses distinct lowercase glyphs in the shared grid');
+ chordMeta.chordName='Dm';chordMeta.chordRoman='ii';
+ const beforeRender=writes.length;chord.renderChord();assert.equal(writes.length,beforeRender,'drawing chord notation never writes parameters');
+}finally{globalThis.clear_screen=oldClear;globalThis.fill_rect=oldFill;}
+console.log('Chord text: native spelled names, quality-aware Roman numerals and distinct lowercase pixels pass');

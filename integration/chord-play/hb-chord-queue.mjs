@@ -35,9 +35,20 @@ const saved=chord.chordSnapshot();chord.restoreChord(saved);assert.equal(chord.c
 chord.setChordEnabled(true);assert(port.setParam('midi_fx1:cp_play_mode','Immediate'));
 assert(commands.some(([key,value])=>key==='chord_queue'&&value==='off'));
 
-// Off clears a stopped queue visibly; playback keeps Queued armed and hands back to the clip.
+// Off clears the current harmony/queue without changing the selection mode.
 port.setParam('midi_fx1:cp_play_mode','Queued');seqState.playing=true;chord.harmonyOff();assert.equal(chord.chordSnapshot().playMode,1);
-seqState.playing=false;chord.harmonyOff();assert.equal(chord.chordSnapshot().playMode,0);assert.equal(port.getParam('midi_fx1:cp_queue_count'),'Off');
+seqState.playing=false;chord.harmonyOff();assert.equal(chord.chordSnapshot().playMode,1);assert.equal(port.getParam('midi_fx1:cp_play_mode'),'Queued');
+const offSurface=chord.chordPage();offSurface.goToPage(offSurface.ctl.pages.findIndex(entry=>entry.keys?.includes('cp_slot_0')));
+for(const playing of [false,true])for(const control of [7,23,31]){
+ seqState.playing=playing;commands.length=0;clock+=500;
+ chord.chordMidi([144,control,100]);chord.chordMidi([128,control,0]);
+ assert.equal(chord.chordSnapshot().playMode,1,'every Off gesture preserves Queued');
+ assert(commands.some(([key,value])=>key==='chord_select'&&value==='off'),'Off still clears harmony');
+ commands.length=0;clock+=500;chord.chordMidi([144,0,100]);chord.chordMidi([128,0,0]);
+ assert(commands.some(([key,value])=>key==='chord_queue'&&value.startsWith('0,')),'next chord still queues');
+ assert(!commands.some(([key,value])=>key==='chord_select'&&value!=='off'),'next chord never changes to immediate');
+}
+seqState.playing=false;
 port.setParam('midi_fx1:cp_play_mode','Queued');
 conductorControls.setParam('midi_fx1:hb_chord_queue_status','cq1|1|-1|C|G7|1|1|3|0|0|2|C|G7');
 const queuePage=chord.chordPage();queuePage.goToPage(0);
