@@ -1,6 +1,6 @@
 # Chord Range and Panel Controls
 
-Movy 0.34.1-hbclean.261 integrates HarmonyBus 0.2.301 and preserves the Chord Loop, automatic Touch Phrases and Clip Variation dimension controls from the current main branch.
+Movy 0.34.1-hbclean.262 integrates HarmonyBus 0.2.301 and preserves the Chord Loop, automatic Touch Phrases and Clip Variation dimension controls from the current main branch.
 
 - Turn Range to move the highest chord tone through successive inversions. Four encoder units produce one step; accelerated packets are capped at one step. The display names the selected top note. Held chords retune through their existing note owners without enqueuing or recording another attack. Knob 8 still taps Harmony Off; Shift-touch restores inheritance/default range.
 - Voicing includes Root Below. It adds the nearest root below the bass only when the lowest voiced note is not already the root. It leaves the upper notes and chosen/played top in place, and never adds an extra octave below an existing root bass.
