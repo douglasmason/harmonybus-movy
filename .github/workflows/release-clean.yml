@@ -69,7 +69,7 @@ jobs:
         if: steps.plan.outputs.mode != 'reused'
         run: |
           git clone --filter=blob:none --no-checkout https://github.com/douglasmason/harmonybus.git harmonybus
-          git -C harmonybus checkout "$HB_REF"
+          git -C harmonybus checkout "$(cat integration/harmonybus.ref)"
 
       - name: Apply clean HarmonyBus integration
         if: steps.plan.outputs.mode != 'reused'
@@ -83,6 +83,7 @@ jobs:
         if: steps.plan.outputs.mode != 'reused'
         run: |
           python3 harmonybus/scripts/build_scale_catalog.py --check --movy .
+          python3 harmonybus/scripts/build_operation_catalog.py --check --movy .
           python3 scripts/verify_harmonybus_defaults.py movy harmonybus
 
       - name: Verify clean scope and defaults
@@ -304,6 +305,7 @@ jobs:
               'browser-test/abi-parity.mjs',
               'browser-test/track-colors.mjs',
           }
+          expected.add('src/operation-catalog.ts')
           expected.update({'src/seq/grid.ts','engine/crates/seq-core/src/grid.rs','browser-test/hb-grid.mjs'})
           expected.update({'src/seq/router-pads.ts'})
           expected.update({'browser-test/hb-fm1.mjs', 'harmonybus-core-source.json', 'src/surfaces/claims.ts', 'src/surfaces/core-input.ts', 'src/surfaces/fm1.ts', 'src/surfaces/input.ts'})
@@ -379,6 +381,7 @@ jobs:
         run: |
           node browser-test/hb-motifs.mjs
           node browser-test/hb-motif-loader.mjs
+          node ../tests/relative_operations_ui.mjs .
 
       - name: Verify harmony pad colors
         if: steps.plan.outputs.mode != 'reused'

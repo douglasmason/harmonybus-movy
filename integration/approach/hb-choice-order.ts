@@ -1,10 +1,12 @@
+import { RELATIVE_OPERATIONS } from '../operation-catalog.js';
 /** Presentation order only. Labels remain the native wire values; IDs never move. */
 const operationGroups: [string, string[]][] = [
     ['Off', ['Off']],
-    ['Connectors', ['Connector Below','Connector Above','Enclose Above Below','Enclose Below Above']],
-    ['Parent Secondaries', ['Secondary II','Secondary III','Secondary IV','Secondary Fifth','Secondary VI','Secondary VII']],
-    ['Dominant Approach', ['Secondary II (Dom)','Secondary IV (Dom)','Secondary VI (Dom)','Secondary V (Dom)','Leading Tone','Upper Dim']],
-    ['Substitutions', ['Backdoor II','Backdoor V','Tritone II','Tritone Sub']],
+    ['Connectors', [...RELATIVE_OPERATIONS.filter(operation=>operation.group==='Connectors').map(operation=>operation.name),'Enclose Above Below','Enclose Below Above']],
+    ['Parent Secondaries', [...RELATIVE_OPERATIONS.filter(operation=>operation.group==='Parent Secondaries').map(operation=>operation.name)]],
+    ['Dominant Approach', [...RELATIVE_OPERATIONS.filter(operation=>operation.group==='Dominant Approach').map(operation=>operation.name)]],
+    ['Substitutions', [...RELATIVE_OPERATIONS.filter(operation=>operation.group==='Substitutions').map(operation=>operation.name)]],
+    ['Smart Approaches', RELATIVE_OPERATIONS.filter(operation=>operation.group==='Smart Approaches').map(operation=>operation.name)],
     ['Motif', ['Play Motif']],
     ['Harmony', ['Harmony','Live Key Center','Key Center','Recordable Key Center','Relative Key Center','Key Step Back','Key Return to Start','Parallel Scale','Live Harmony Override','Override Harmony (Live + Recorded)']],
     ['Chord / Arp', ['Chord Form','Chord/Arp State','Auto Chord Repeat']],
