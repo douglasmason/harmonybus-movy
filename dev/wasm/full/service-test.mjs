@@ -13,7 +13,7 @@ test('shared source/variation edits, stopped live observations and transactional
   await send({type:'dev_engine_edit',value:'usnap 1;source 1 1 0 0 1 0 0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 2 0;variation 1 25 50 30 0 4'});
   assert.match(service.read('source_route_1'),/^1 1 0 0 1 0/);
   assert.match(service.read('source_route_1'),/ 2 0$/);
-  assert.equal(service.read('variation_1'),'1 25 50 30 0 4');
+  assert.equal(service.read('variation_1'),'1 25 50 30 0 4 0');
   await send({type:'dev_watch',keys:['source_preview_1','source_route_1','variation_1']});
   const snapshot=updates.at(-1);assert(snapshot.observation.views.source_preview_1);assert.equal(snapshot.observation.clock.playing,false);
   assert.equal(snapshot.observation.structure.schema,1);assert.equal(snapshot.observation.structure.count,0);
@@ -41,9 +41,9 @@ test('shared source/variation edits, stopped live observations and transactional
   const rejectedSession=await sealSession(rejected,{});
   await assert.rejects(()=>service.open(rejectedSession),/readback differs/);
   assert.equal(service.read('state'),before);
-  assert.equal(service.read('variation_1'),'1 25 50 30 0 4');
+  assert.equal(service.read('variation_1'),'1 25 50 30 0 4 0');
   await service.open(session);assert.equal(service.read('state'),before);
-  assert.equal(service.read('variation_1'),'1 25 50 30 0 4');
+  assert.equal(service.read('variation_1'),'1 25 50 30 0 4 0');
   await send({type:'dev_engine_edit',value:'load /tmp/anything'});assert.equal(updates.at(-1).type,'error');
  }finally{service.socket.close();}
 });
