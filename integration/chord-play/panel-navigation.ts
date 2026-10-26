@@ -48,7 +48,8 @@ export function panelNavigation(ctl:any,enabled:()=>boolean,modeName:()=>string)
             if(!available()||menu)return;
             const pages=indices(),position=Math.max(0,pages.indexOf(ctl.pageIndex));
             // Touch overlays keep category-scoped chrome; never expose all HB pages.
-            // Shared widgets begin at y=9. Clear only the chrome at y=7..8.
+            // Solid group segments occupy y=7; the selection also occupies y=8.
+            // Shared widgets begin at y=9 and have already replaced the outer bar.
             fill_rect(0,7,128,2,0);drawBankBar(position,pages.length,false,undefined,true);
             if(modal()||ctl.state.touched>=0)return;
             fill_rect(0,0,128,7,0);drawHeader(ctl.page.level==='root'?mode():ctl.pageLabel(),(position+1)+'/'+pages.length);

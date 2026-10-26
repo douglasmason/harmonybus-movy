@@ -14,7 +14,7 @@ def patch_panel_navigation(root: Path) -> None:
     end: int = source.find('\nexport ', start + 1)
     if end < 0:
         end = len(source)
-    body: str = source[start:end].replace(', BAR_Y,', ', barY,').replace('const h    = b === bankIndex ? 2 : 1;', 'const h    = !compact && b === bankIndex ? 2 : 1;').replace('if (dottedFirst && b === 0)', 'if ((compact && b !== bankIndex) || (dottedFirst && b === 0))')
+    body: str = source[start:end].replace(', BAR_Y,', ', barY,')
     source = source[:start] + body + source[end:]
     path.write_text(source)
     (root / 'src/renderer/panel-navigation.ts').write_text((assets / 'panel-navigation.ts').read_text())
@@ -29,7 +29,7 @@ def patch_panel_navigation(root: Path) -> None:
     source = source.replace("click: (shift = false) => lib.applyInput", "click: (shift = false) => (ctl.state.touched<0 && !shift && navigation.click()) ? null : lib.applyInput")
     source = source.replace("back: () => lib.applyInput", "back: () => navigation.back() ? null : lib.applyInput")
     source = replace_once(source, '        render(title: string, auto?: AutomationView, _touched = -1) {', '        render(title: string, auto?: AutomationView, _touched = -1) {\n            if(navigation.renderMenu())return;')
-    source = replace_once(source, '            ctl.render(ctx, { title, bands: BANDS });', '            ctl.render(ctx, { title, bands: BANDS });\n            navigation.renderTrail();')
+    source = replace_once(source, '            ctl.render(ctx, { title, bands: BANDS });', '            // Erase the outer page bar before widgets repaint their top row.\n            if (navigation.active()) fill_rect(0, 8, 128, 2, 0);\n            ctl.render(ctx, { title, bands: BANDS });\n            navigation.renderTrail();')
     source = replace_once(source, '        knobTurn: (slot: number, delta: number) => {', '        knobTurn: (slot: number, delta: number) => {\n            if(navigation.isMenu())return;')
     source = replace_once(source, '        knobTouch: (slot: number, down: boolean) => {', '        knobTouch: (slot: number, down: boolean) => {\n            if(down&&navigation.isMenu())return;')
     path.write_text(source)
