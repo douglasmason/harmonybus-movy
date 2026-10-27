@@ -35,6 +35,7 @@ export function motifLoaderPanels(hierarchy:any):void {
 interface Preview { generation:number;setId:string|null;owner:PerformancePort;track:number;slot:number;signature:string;duration:number;root:number;scale:number;
     isCurrent:()=>boolean;adaptive:boolean;exportMode:string;payload:string;labels:string[];choice:string;target:string;notes:number;occupied:boolean;ready:boolean;page:number; }
 let review:Preview|null=null;
+let writeTouch:{owner:PerformancePort;slot:number;turned:boolean;isCurrent?:()=>boolean}|null=null;
 const consumed=new Set<number>();
 const getEngine=(key:string):string=>String(host_module_get_param(key)??'');
 const pitchName=(pitch:number):string=>['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'][pitch%12]+(Math.floor(pitch/12)-1);
@@ -71,15 +72,20 @@ function commit(mode:number):void {
     review=null;markUiStateDirty();appState.dirty=true;
 }
 export function motifLoaderActive(port:PerformancePort):boolean {return review?.owner===port;}
-export function cancelMotifLoader(port:PerformancePort):void {if(review?.owner===port){review=null;consumed.clear();}}
+export function cancelMotifLoader(port:PerformancePort):void {if(writeTouch?.owner===port)writeTouch=null;if(review?.owner===port){review=null;consumed.clear();}}
 export function motifLoaderTouch(port:PerformancePort,key:string|null,slot:number,down:boolean,isCurrent?:()=>boolean):boolean {
+    if(!down&&writeTouch?.owner===port&&writeTouch.slot===slot){
+        const touch=writeTouch;writeTouch=null;
+        if(!touch.turned){prepare(port,touch.isCurrent);if(review)review.ready=true;}
+        return true;
+    }
     if(!down&&consumed.delete(slot)){if(review)review.ready=true;return true;}
     if(review&&review.owner===port){
         if(down){consumed.add(slot);if(review.ready){if(slot===0)review=null;else if(slot>=1&&slot<=3)commit(slot-1);appState.dirty=true;}}
         return true;
     }
     if(!down)return false;
-    if(key==='motif_load_write'){consumed.add(slot);prepare(port,isCurrent);return true;}
+    if(key==='motif_load_write'){writeTouch={owner:port,slot,turned:false,isCurrent};return true;}
     // Play the intended target, then touch Target Input to capture it. Turning
     // the knob afterwards fine-tunes the input note without changing the key.
     if(key==='motif_load_target'&&port.performanceTrack!==undefined){
@@ -90,6 +96,8 @@ export function motifLoaderTouch(port:PerformancePort,key:string|null,slot:numbe
     return false;
 }
 export function motifLoaderTurn(port:PerformancePort,_slot:number,delta:number):boolean {
+    // A touch-and-turn selects the export mode. A tap opens its preview.
+    if(!review&&writeTouch?.owner===port&&writeTouch.slot===_slot){if(delta)writeTouch.turned=true;return false;}
     if(!review||review.owner!==port)return false;
     review.page=Math.max(0,Math.min(review.labels.length-1,review.page+Math.sign(delta)));appState.dirty=true;return true;
 }

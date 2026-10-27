@@ -333,13 +333,14 @@ index b8a1d0e0..0eec3f63 100644
          {key:'motif_load_target',name:'Target Input',type:'int',min:0,max:127,step:1,default:60},
          enumeration('motif_load_collection','Approach Scale',['Parent','Parallel'],'Parent'),
          enumeration('motif_load_unit','Unit',units,'1 Bar'),
-@@ -33,12 +33,12 @@ export function motifLoaderPanels(hierarchy:any):void {
+@@ -33,13 +33,13 @@ export function motifLoaderPanels(hierarchy:any):void {
      if(!hierarchy.levels.root.params.some((p:any)=>p.level==='motif_load'))hierarchy.levels.root.params.push({level:'motif_load'});
  }
  interface Preview { generation:number;setId:string|null;owner:PerformancePort;track:number;slot:number;signature:string;duration:number;root:number;scale:number;
 -    isCurrent:()=>boolean;adaptive:boolean;exportMode:string;payload:string;labels:string[];choice:string;target:string;notes:number;occupied:boolean;ready:boolean;page:number; }
 +    afterWrite?: (track:number,slot:number)=>void;isCurrent:()=>boolean;adaptive:boolean;exportMode:string;payload:string;labels:string[];choice:string;target:string;notes:number;occupied:boolean;ready:boolean;page:number; }
  let review:Preview|null=null;
+ let writeTouch:{owner:PerformancePort;slot:number;turned:boolean;isCurrent?:()=>boolean}|null=null;
  const consumed=new Set<number>();
  const getEngine=(key:string):string=>String(host_module_get_param(key)??'');
  const pitchName=(pitch:number):string=>['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'][pitch%12]+(Math.floor(pitch/12)-1);
@@ -368,7 +369,7 @@ index b8a1d0e0..0eec3f63 100644
 +    prepare(port,isCurrent,afterWrite);if(review)review.ready=true;
  }
  export function motifLoaderActive(port:PerformancePort):boolean {return review?.owner===port;}
- export function cancelMotifLoader(port:PerformancePort):void {if(review?.owner===port){review=null;consumed.clear();}}
+ export function cancelMotifLoader(port:PerformancePort):void {if(writeTouch?.owner===port)writeTouch=null;if(review?.owner===port){review=null;consumed.clear();}}
 @@ -102,7 +107,41 @@ export function drawMotifLoader(port:PerformancePort):boolean {
      let text=review.labels.slice(review.page).join(' > ');
      fontPrint(1,21,text.slice(0,25),1);fontPrint(1,29,text.slice(25,50),1);
