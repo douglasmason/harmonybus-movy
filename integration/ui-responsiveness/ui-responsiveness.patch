@@ -1,0 +1,393 @@
+--- a/src/app/tick.ts
++++ b/src/app/tick.ts
+@@ -404,10 +404,16 @@
+
+ let paintedModeRevision=0;
+ let padSweepPending=false;
++let setParametersOwnedKnobs=false;
+ export function tick(): void {
+     perfProbeEnter();
+     perfPhase('priority');
+     ledFrameReset();
++    const setParametersOwnKnobs=appState.currentView===VIEW_MAIN_PARAMS;
++    if(setParametersOwnKnobs!==setParametersOwnedKnobs){
++        setParametersOwnedKnobs=setParametersOwnKnobs;
++        resetKnobLedCache();seqLedsInvalidate();appState.dirty=true;
++    }
+     if(paintedModeRevision!==inputModeLedRevision){paintedModeRevision=inputModeLedRevision;invalidateLedCachesOnResume();padSweepPending=true;}
+     if(padSweepPending||chordActive())paintPriorityPads();
+     perfPhase('fm1');tickFm1();
+@@ -471,7 +477,7 @@
+     gesturePadRevision = revision;
+     // The gesture write has already reached the owning track. Read the native
+     // mapping once, then send changed pad colors before unrelated host polls.
+-    if(!jointActive())refreshHarmonyPads(appState.activeTrack.index);
++    if(!jointActive()&&!fieldActive()&&!gridActive())refreshHarmonyPads(appState.activeTrack.index);
+     paintMelodicPads();
+ }
+
+@@ -533,7 +539,7 @@
+     if (globalThis.overtakeParked !== true) seqBeatLedsTick();
+     if(globalThis.overtakeParked!==true&&sessionReady()&&!seqState.sessionMode&&appState.initLedsDone&&
+        (appState.trackModels[appState.activeTrack.index]?.[1]?.getDrumPadCount()??0)===0){
+-        if(!jointActive())refreshHarmonyPads(appState.activeTrack.index);
++        if(!jointActive()&&!fieldActive()&&!gridActive())refreshHarmonyPads(appState.activeTrack.index);
+         // Chord Play already paints before control traffic and reconciles at
+         // the end of this tick. Avoid a third full color calculation here.
+         if(!chordActive())paintMelodicPads();
+@@ -703,7 +709,7 @@
+     // A touch/release edge gets its cached display frame first. Resume
+     // the bounded preview polling on the next tick, including during holds.
+     if (!seqState.sessionMode && !isDrum && !touchPage?.needsTouchPaint)
+-        if(!jointActive())refreshHarmonyPads(appState.activeTrack.index);
++        if(!jointActive()&&!fieldActive()&&!gridActive())refreshHarmonyPads(appState.activeTrack.index);
+
+     /* Chromatic instrument-pad init batch. Skipped for a drum track whose synth
+      * is already loaded: the drum-grid paint below owns those pads, so painting
+@@ -736,7 +742,11 @@
+     // back (decouples display from automation; avoids per-step repaints).
+     activeModel?.setNoRefreshKeys(laneKeysForTrack(appState.activeTrack.index));
+     perfPhase('modeltick');
+-    const modelDirty  = performanceTouchActive() || touchPage?.needsTouchPaint ? false : (activeModel?.tick() ?? false);
++    // Match the rendering precedence: Set Parameters and browsers can cover a
++    // performance mode without disabling it or transferring its note ownership.
++    const performanceScreen = ![VIEW_BROWSE, VIEW_FILE_BROWSE, VIEW_MAIN_PARAMS].includes(appState.currentView) &&
++        (settingsActive() || chordActive() || fieldActive() || gridActive() || jointActive());
++    const modelDirty  = performanceTouchActive() || touchPage?.needsTouchPaint ? false : (activeModel?.tick(!performanceScreen) ?? false);
+     perfPhaseEnd();
+
+     /* A module swap on the focused component changes its param set → re-validate
+--- a/src/model/index.ts
++++ b/src/model/index.ts
+@@ -348,7 +348,7 @@
+             s.dirty = true;
+         },
+
+-        tick(): boolean { return processTick(s); },
++        tick(refreshValues = true): boolean { return processTick(s, refreshValues); },
+
+         getViewModel(auto?: import('../types/viewmodel.js').AutomationView) { return buildViewModel(s, auto); },
+
+--- a/src/model/tick.ts
++++ b/src/model/tick.ts
+@@ -68,7 +68,7 @@
+     s.dirty = true;
+ }
+
+-export function processTick(s: ModelState): boolean {
++export function processTick(s: ModelState, refreshValues = true): boolean {
+     /* Chip away at the sample waveform. The read is deliberately here and not
+      * in buildViewModel: movy's tick period IS its MIDI sampling interval, so
+      * this does a couple of 32 KB blocks and returns, repainting only on the
+@@ -139,7 +139,9 @@
+
+     // A metadata probe already spent this tick's read budget (perf.mjs caps the
+     // per-tick shadow_get_param count) — the value refresh waits a tick.
+-    if (!probed && s.knobParams.length > 0) {
++    // Special performance screens own their values. Keep module detection,
++    // pending writes and metadata work alive while the underlying bank is hidden.
++    if (refreshValues && !probed && s.knobParams.length > 0) {
+         const t0 = Date.now();
+         refreshOneParam(s, _perfTickCount);
+         const ms = Date.now() - t0;
+--- a/src/renderer/hb-approach.ts
++++ b/src/renderer/hb-approach.ts
+@@ -28,27 +28,34 @@
+ let statusAt = -Infinity, status: number[] = [];
+ let rowView: string[] = [], lastRowView = '', rowRevealUntil = 0;
+ let sequenceView='';
++const statusKeys=['approach_row_status','harm_play_release_control','key_center_view','parallel_mode',
++    'approach_motif_latch','approach_sequence_view','approach_rows_view','key_center'];
+ function refreshRows(port: PerformancePort): void {
+     const now=Date.now();
+     if(now>=statusAt&&now-statusAt<50)return;
+-    const next=port.performanceGet('approach_row_status').split(',').map(Number);
+-    if(next.join(',')!==status.join(','))appState.dirty=true;
+-    status=next;statusAt=now;
+-    const release=port.performanceGet('harm_play_release_control')||'Off';
++    // Stamp attempts too: a busy engine must not turn every painter into a retry.
++    statusAt=now;
++    const [row,releaseValue,keyValue,parallelValue,latchValue,sequence,view,legacyCenter]=
++        port.performanceGetMany?.(statusKeys) ?? statusKeys.map(key=>port.performanceGet(key));
++    const next=row?.split(',').map(Number);
++    if(next&&next.length>=9&&next.every(Number.isFinite)){
++        if(next.join(',')!==status.join(','))appState.dirty=true;
++        status=next;
++    }
++    // Missing fields retain the last accepted display, including partial legacy replies.
++    const release=releaseValue||releaseStatus;
+     if(release!==releaseStatus){releaseStatus=release;appState.dirty=true;}
+-    const keyView=port.performanceGet('key_center_view').split('|');
+-    const color=keyView[3]||'Off',family=keyView[4]||'Altered V';
++    const keyView=keyValue?.split('|') ?? [];
++    const color=keyView[3]||dominantColorStatus,family=keyView[4]||dominantColorFamily;
+     if(color!==dominantColorStatus||family!==dominantColorFamily){dominantColorStatus=color;dominantColorFamily=family;appState.dirty=true;}
+-    const center=keyView.length>=2?keyView[0]:(port.performanceGet('key_center')||'Off'),parallel=port.performanceGet('parallel_mode')||'Off';
+-    const label=keyView.length>=2?(center==='Armed'?(keyView[2]||keyView[1]):keyView[1]):center;
++    const center=keyView.length>=2?keyView[0]:(legacyCenter||keyCenterStatus),parallel=parallelValue||parallelStatus;
++    const label=keyView.length>=2?(center==='Armed'?(keyView[2]||keyView[1]):keyView[1]):legacyCenter||keyCenterLabel;
+     if(label!==keyCenterLabel){keyCenterLabel=label;appState.dirty=true;}
+     if(center!==keyCenterStatus||parallel!==parallelStatus){keyCenterStatus=center;parallelStatus=parallel;appState.dirty=true;}
+-    const latch=port.performanceGet('approach_motif_latch')||'Off';
++    const latch=latchValue||motifLatchStatus;
+     if(latch!==motifLatchStatus){motifLatchStatus=latch;appState.dirty=true;}
+-    const sequence=port.performanceGet('approach_sequence_view');
+-    if(sequence!==sequenceView){sequenceView=sequence;appState.dirty=true;}
+-    const view=port.performanceGet('approach_rows_view');
+-    if(view!==lastRowView){lastRowView=view;rowView=view.split('|');rowRevealUntil=now+1800;appState.dirty=true;}
++    if(sequence!=null&&sequence!==sequenceView){sequenceView=sequence;appState.dirty=true;}
++    if(view&&view!==lastRowView){lastRowView=view;rowView=view.split('|');rowRevealUntil=now+1800;appState.dirty=true;}
+ }
+ export function approachTouched(port: PerformancePort): void {
+     statusAt=-Infinity;refreshRows(port);rowRevealUntil=Date.now()+1800;appState.dirty=true;
+@@ -81,6 +88,7 @@
+     if (owner === next) return;
+     owner?.performanceSet('approach_mode_active','0');
+     owner=next;owner?.performanceSet('approach_mode_active','1');statusAt=-Infinity;status=[];rowView=[];lastRowView='';sequenceView='';rowRevealUntil=0;
++    keyCenterLabel='';releaseStatus=dominantColorStatus=chordArpStatus=motifLatchStatus=keyCenterStatus=parallelStatus='Off';dominantColorFamily='Altered V';
+ }
+ export function approachStep(data: number[], port: PerformancePort | null): boolean {
+     const step=data[1]-16,type=data[0]&0xf0;
+--- a/src/renderer/hb-performance.ts
++++ b/src/renderer/hb-performance.ts
+@@ -28,6 +28,7 @@
+     readonly performanceTrack?: number;
+     performanceSet(key: string, value: string): void;
+     performanceGet(key: string): string;
++    performanceGetMany?(keys: string[]): (string | null)[];
+ }
+ const keys = Array.from({length:16}, (_,index) => 'motion_hold_' + (index + 1));
+ interface HeldAction {
+@@ -88,7 +89,7 @@
+ }
+ function resetOwner(owner: PerformancePort): void {
+     const ownerKey=owner.performanceTrack ?? owner;
+-    lastLaneTap.delete(ownerKey);clipLaneHolds.delete(ownerKey);clipOwners.delete(ownerKey);laneLights.delete(ownerKey);
++    lastLaneTap.delete(ownerKey);clipLaneHolds.delete(ownerKey);clipOwners.delete(ownerKey);invalidateLaneLights(owner);
+     const lanes = laneActions.get(owner.performanceTrack ?? owner);
+     if (lanes) for (const action of lanes.values()) action.done = true;
+     laneActions.delete(owner.performanceTrack ?? owner);
+@@ -309,19 +310,26 @@
+ }
+
+ interface LaneLights { at:number; active:number; persistent:number; down:number; operations:number[]; }
+-const laneLights=new Map<PerformancePort|number,LaneLights|null>();
++const laneLights=new Map<PerformancePort|number,LaneLights>();
++const laneLightAttempts=new Map<PerformancePort|number,number>();
+ const lastLaneTap=new Map<PerformancePort|number,{lane:number;at:number;off:boolean}>();
+ const clipLaneHolds=new Map<PerformancePort|number,Set<number>>();
+ const clipOwners=new Map<PerformancePort|number,PerformancePort>();
+ export function pollHbOperationClips():void {
+     for(const [key,owner] of clipOwners)if(clipLaneHolds.get(key)?.size)readLaneLights(owner);
+ }
+-function invalidateLaneLights(owner:PerformancePort):void { namedLaneLights.delete(owner.performanceTrack ?? owner); laneLights.delete(owner.performanceTrack ?? owner); }
++function invalidateLaneLights(owner:PerformancePort):void {
++    const key=owner.performanceTrack ?? owner;
++    namedLaneLights.delete(key);laneLights.delete(key);
++    namedLightAttempts.delete(key);laneLightAttempts.delete(key);
++}
+ function readLaneLights(owner:PerformancePort):LaneLights|null {
+     const key=owner.performanceTrack ?? owner,now=Date.now(),cached=laneLights.get(key);
+-    if(cached===null || (cached&&now>=cached.at&&now-cached.at<50))return cached ?? null;
++    const attempted=laneLightAttempts.get(key) ?? -Infinity;
++    if(now>=attempted&&now-attempted<50)return cached ?? null;
++    laneLightAttempts.set(key,now);
+     const row=owner.performanceGet('motion_lights').split(',').map(Number);
+-    if(row.length!==19||!row.every(Number.isFinite)){laneLights.set(key,null);return null;}
++    if(row.length!==19||!row.every(Number.isFinite))return cached ?? null;
+     const state={at:now,active:row[0],persistent:row[1],down:row[2],operations:row.slice(3)};
+     laneLights.set(key,state);
+     for(const lane of clipLaneHolds.get(key) ?? [])if(!(state.active&(1<<lane))){
+@@ -333,6 +341,7 @@
+ let operationKnobMask=0;
+ let operationKnobState='';
+ export function paintHbOperationKnobs(owner:PerformancePort,keys:(string|null)[],values:Record<string,unknown>, paint:typeof cachedSetAnimLED=cachedSetAnimLED):void {
++    if(appState.currentView===VIEW_MAIN_PARAMS)return;
+     const assignments=keys.map(key=>key&&/^motion_control_[0-9]+$/.test(key)?Number(key.slice(15))-1:key&&/^follow_touch_[1-9]$/.test(key)?Number(values[key])-1:-1);
+     let wanted=assignments.reduce((mask,lane,index)=>mask|(lane>=0&&lane<51?1<<index:0),0);
+     const userLights=assignments.some(lane=>lane>=0&&lane<16)?readLaneLights(owner):null;
+@@ -362,6 +371,7 @@
+ }
+
+ const namedLaneLights=new Map<PerformancePort|number,LaneLights>();
++const namedLightAttempts=new Map<PerformancePort|number,number>();
+ /** Presentation-only read; the normal LED update owns host polling. */
+ export function cachedNamedControlStatus(owner:PerformancePort,control:number):string {
+     const state=namedLaneLights.get(owner.performanceTrack ?? owner),bit=2**(control-17);
+@@ -372,9 +382,11 @@
+ }
+ function readNamedLights(owner:PerformancePort):LaneLights|null {
+     const key=owner.performanceTrack ?? owner,now=Date.now(),cached=namedLaneLights.get(key);
+-    if(cached&&now>=cached.at&&now-cached.at<50)return cached;
++    const attempted=namedLightAttempts.get(key) ?? -Infinity;
++    if(now>=attempted&&now-attempted<50)return cached ?? null;
++    namedLightAttempts.set(key,now);
+     const row=owner.performanceGet('motion_named_lights').split(',').map(Number);
+-    if(row.length!==38||!row.every(Number.isFinite))return null;
++    if(row.length!==38||!row.every(Number.isFinite))return cached ?? null;
+     const state={at:now,active:row[0],persistent:row[1],down:row[2],operations:row.slice(3)};
+     namedLaneLights.set(key,state);return state;
+ }
+--- a/src/renderer/schwung-page.ts
++++ b/src/renderer/schwung-page.ts
+@@ -127,16 +127,26 @@
+     readonly performanceTrack: number;
+     performanceSet(key: string, value: string): void;
+     performanceGet(key: string): string;
++    performanceGetMany(keys: string[]): (string | null)[];
+ }
+
+ export function createSchwungPage(port: TrackPort, componentKey = 'synth', options: {harmonyMode?: number; hierarchy?: (value:any)=>any} = {}): SchwungPage {
+     const harmonyMode=():number=>options.harmonyMode ?? flagValue('hbsteprow');
+     const touchActions = new Map<number, string>();
+     const laneTouchSlots = new Set<number>();
++    // Old hosts may lack bulk IPC. A failed supported bulk read must wait for
++    // the next feedback frame instead of expanding into individual round trips.
++    const performanceGetMany = (keys: string[]): (string | null)[] => {
++        const qualified=keys.map(key=>qualify(componentKey+':'+key));
++        return typeof port.getMany === 'function'
++            ? port.getMany(qualified, typeof shadow_get_params !== 'function')
++            : qualified.map(key=>port.getParam(key));
++    };
+     const lanePort = {
+         performanceTrack: port.track.index,
+         performanceSet: (key: string, value: string) => port.setParam(qualify(componentKey + ':' + key), value),
+         performanceGet: (key: string) => String(port.getParam(qualify(componentKey + ':' + key)) ?? ''),
++        performanceGetMany,
+     };
+     let followerValues: Record<string, string> | null = null;
+     let followerSnapshotAt = -Infinity;
+@@ -489,6 +499,7 @@
+         performanceTrack: port.track.index,
+         performanceSet: (key: string, value: string) => port.setParam(qualify(componentKey + ':' + key), value),
+         performanceGet: (key: string) => String(port.getParam(qualify(componentKey + ':' + key)) ?? ''),
++        performanceGetMany,
+     };
+     const result:SchwungPage = {
+         reload, tick,
+@@ -724,6 +735,7 @@
+         performanceTrack: port.track.index,
+         performanceSet: (key: string, value: string) => { port.setParam(qualify(componentKey + ':' + key), value); },
+         performanceGet: (key: string) => String(port.getParam(qualify(componentKey + ':' + key)) ?? ''),
++        performanceGetMany,
+         knobTouch: (slot: number, down: boolean) => {
+             if(hostedModuleId==='harmonybus'&&!navigation.isMenu()&&down&&usageAction(ctl.keyAt(slot)??'',appState.shiftHeld)){ctl.revalue();touchPaintPending=true;return;}
+             if(down&&navigation.isMenu())return;
+--- a/src/seq/chord-play.ts
++++ b/src/seq/chord-play.ts
+@@ -26,7 +26,7 @@
+ import {queueFooterText,drawHarmonyFooter} from '../renderer/hb-footer.js';
+ import {ANIM_PULSE_SLOW} from './colors.js';
+ /** Chord slots choose conductor harmony; the comp actor owns rhythm and sound. */
+-import { appState } from '../app/state.js';
++import { appState, VIEW_MAIN_PARAMS } from '../app/state.js';
+ import { FOLLOWER_SCALE_NAMES } from '../scale-catalog.js';
+ import { selectTrack } from '../track/focus.js';
+ import { portFor } from '../track/registry.js';
+@@ -189,7 +189,7 @@
+ const performanceOwners=new Map<number,PerformancePort>();
+ function performanceOwner(track:number):PerformancePort{
+     let owner=performanceOwners.get(track);
+-    if(!owner){const native=portFor(track);owner={performanceTrack:track,performanceGet:key=>native.getParam('midi_fx1:'+key)??'',performanceSet:(key,value)=>{native.setParam('midi_fx1:'+key,value);}};performanceOwners.set(track,owner);}
++    if(!owner){const native=portFor(track);owner={performanceTrack:track,performanceGet:key=>native.getParam('midi_fx1:'+key)??'',performanceGetMany:keys=>native.getMany(keys.map(key=>'midi_fx1:'+key),typeof shadow_get_params !== 'function'),performanceSet:(key,value)=>{native.setParam('midi_fx1:'+key,value);}};performanceOwners.set(track,owner);}
+     return owner;
+ }
+ export const chordEnabled=():boolean=>enabled;
+@@ -520,7 +520,7 @@
+ export function paintChordSteps():boolean{
+     if(chordActive()&&chordDiscovery.owns(discoveryLevel())){
+         for(let index=0;index<16;index++){const color=index<7?chordDiscovery.color(index):[7,8,9,10,15].includes(index)?123:0;cachedSetAnimLED(16+index,color,color,0);}
+-        if(discoveryLevel()!=='cp_discovery_actions')for(let knob=0;knob<8;knob++){
++        if(appState.currentView!==VIEW_MAIN_PARAMS&&discoveryLevel()!=='cp_discovery_actions')for(let knob=0;knob<8;knob++){
+             const color=knob===7?123:chordDiscovery.color(knob);cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);
+         }
+         bankKnobs=true;return true;
+@@ -528,6 +528,7 @@
+     const operationOwner=chordOperationOwner();if(operationOwner)return paintHbPerformance(operationOwner);
+     if(!controlsActive())return false;
+     if(chordActive())for(let index=0;index<16;index++){const slot=stepSlot(index),contentKey=contentStepKey(index),color=contentKey?(conductorContentColor(contentKey,conductorTrack())??123):slot<0?123:chordSlotColor(slot);cachedSetAnimLED(16+index,color,chordSlotQueued(slot)?0:color,chordSlotQueued(slot)?ANIM_PULSE_SLOW:0);}
++    if(appState.currentView===VIEW_MAIN_PARAMS)return chordActive();
+     const current=!settingsActive()?(jointConductor!==null?jointSurface:page):null;
+     const keys=Array.from({length:8},(_,knob)=>current?.keyAt(knob)??null),onBank=keys.some(key=>/^cp_(slot_|clip_launch_|motif_launch_)/.test(key??''));
+     if(onBank){
+--- a/src/seq/joint-panels.ts
++++ b/src/seq/joint-panels.ts
+@@ -11,6 +11,7 @@
+ import { releasePerformanceTouch } from '../renderer/performance-touch.js';
+ import { portFor } from '../track/registry.js';
+ import type { TrackPort } from '../track/port.js';
++import type { PerformancePort } from '../renderer/hb-performance.js';
+ import { appState } from '../app/state.js';
+ import { jointPanelGet, jointPanelSet, jointPadRoles, jointChordKnobs } from './joint-play.js';
+
+@@ -146,9 +147,9 @@
+         return native.setParam(key,value);
+     };
+     return {track:native.track,bulkReads:native.bulkReads,getParam,setParam,
+-        getMany:keys=>{
++        getMany:(keys,allowFallback)=>{
+             const remoteKeys=keys.filter(key=>!key.includes(':joint_')&&!key.includes(':cp_'));
+-            const values=native.getMany(remoteKeys);let index=0;
++            const values=native.getMany(remoteKeys,allowFallback);let index=0;
+             return keys.map(key=>(key.includes(':joint_')||key.includes(':cp_'))?getParam(key):values[index++]??null);
+         },
+         setMany:pairs=>{
+@@ -181,11 +182,11 @@
+
+ // Existing handlers retain physical release ownership through this group port.
+ // No performanceTrack: Joint step modifiers never inject a clip-lane action.
+-const stepPorts=new Map<number,{performanceGet:(key:string)=>string;performanceSet:(key:string,value:string)=>void}>();
++const stepPorts=new Map<number,PerformancePort>();
+ export function jointPerformancePort(){
+     const base=appState.focusGroup*4;
+     let owner=stepPorts.get(base);
+-    if(!owner){const port=panelPort(base+3);owner={performanceGet:key=>String(port.getParam('midi_fx1:'+key)??''),performanceSet:(key,value)=>{port.setParam('midi_fx1:'+key,value);}};stepPorts.set(base,owner);}
++    if(!owner){const port=panelPort(base+3);owner={performanceGet:key=>String(port.getParam('midi_fx1:'+key)??''),performanceGetMany:keys=>port.getMany(keys.map(key=>'midi_fx1:'+key),typeof shadow_get_params !== 'function'),performanceSet:(key,value)=>{port.setParam('midi_fx1:'+key,value);}};stepPorts.set(base,owner);}
+     return owner;
+ }
+ function jointScoped(key:string):boolean {
+--- a/src/seq/joint-play.ts
++++ b/src/seq/joint-play.ts
+@@ -4,7 +4,8 @@
+ import { returnPreviousInputView } from './router-buttons.js';
+ /** Session's multi-track instrument. Tracks own sound and harmony; this module
+  * owns only role allocation, gestures, geometry and cached preview requests. */
+-import { appState } from '../app/state.js';
++import { appState, VIEW_MAIN_PARAMS, VIEW_BROWSE, VIEW_FILE_BROWSE } from '../app/state.js';
++import { settingsActive } from './hb-settings.js';
+ import { keyboardState, baseNoteFor } from '../keyboard/state.js';
+ import { buildPadMap } from '../keyboard/layouts.js';
+ import { harmonyApproachColor, harmonyPadColor, harmonyPlaybackColor, parseHarmonySnapshot, pianoApproachIdentity, withSurfacePreview } from '../keyboard/harmony-pads.js';
+@@ -133,7 +134,7 @@
+     if(linked!==linkValue){send('joint_links',linkValue);linked=linkValue;}
+     if(!jointActive()) {if(pushed!=='off'){send('joint_map','off');pushed='off';}return;}
+     syncChordConductor();
+-    if(schwungLibAvailable()){const page=jointPage();if(jointChordKnobs())tickChordSurface(page);page.tick();}
++    if(schwungLibAvailable()){const page=jointPage();if(jointChordKnobs())tickChordSurface(page);page.tick();paintJointKnobs(page);}
+     updateGeometry();
+     const map=cells.map(cell=> {
+         const pitch=cell.target>=0?pianoApproachIdentity(cell.target,cell.row):cell.pitch;
+@@ -252,14 +253,19 @@
+     geometry='';markUiStateDirty();appState.dirty=true;
+ }
+
+-export function renderJoint():void {
+-    if(jointChordKnobs()&&renderChordReview())return;
+-    const page=jointPage();
+-    for(let slot=0;slot<8;slot++)if(!((page.knobLEDMask|chordKnobLEDMask())&(1<<slot))){
++/** Retry budget-limited LEDs without depending on a parameter-bank repaint. */
++function paintJointKnobs(page:ReturnType<typeof jointPage>):void {
++    if(settingsActive()||[VIEW_MAIN_PARAMS,VIEW_BROWSE,VIEW_FILE_BROWSE].includes(appState.currentView))return;
++    const ownedMask=page.knobLEDMask|chordKnobLEDMask();
++    for(let slot=0;slot<8;slot++)if(!(ownedMask&(1<<slot))){
+         const key=page.keyAt(slot)??'',match=/^joint_(?:actor|pads)_([0-3])/.exec(key);
+         const role=match?Number(match[1]):key==='joint_bass'?1:key==='joint_comp'?2:3;
+         const color=key==='joint_blank'?0:jointActorColor(role);cachedSetAnimLED(slot,color,color,0);cachedSetAnimLED(71+slot,color,color,0,true);
+     }
++}
++export function renderJoint():void {
++    if(jointChordKnobs()&&renderChordReview())return;
++    const page=jointPage();paintJointKnobs(page);
+     clear_screen();drawHeader(page.keyAt(0)==='joint_unit'?'Joint Setup':page.pageTitle,(singleConductor()?'R1 / ':'Tracks ')+(baseTrack()+1)+'-'+(baseTrack()+4));drawBankBar(page.pageIndex,page.pageCount);
+     page.render('Joint G'+(appState.focusGroup+1));
+ }

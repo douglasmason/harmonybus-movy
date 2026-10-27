@@ -681,6 +681,8 @@ def main() -> int:
     patch_chord_discovery(root)
     from patch_comp_generator import patch_comp_generator
     patch_comp_generator(root)
+    from patch_ui_responsiveness import patch_ui_responsiveness
+    patch_ui_responsiveness(root)
     print("HarmonyBus clean integration applied")
     return 0
 
