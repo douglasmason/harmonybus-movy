@@ -8,17 +8,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-static int sent_on,sent_off,rejected;
-static int duet_capture,duet_balance[16][128];
+#include <pthread.h>
+#include <stdatomic.h>
+/* HB Render To can call this host fixture from multiple render workers. */
+static _Atomic int sent_on,sent_off,rejected;
+static int duet_capture;
+static _Atomic int duet_balance[16][128];
 static int capture_register,register_low=128,register_high=-1;
-static unsigned routed_channel_on[16];
+static _Atomic unsigned routed_channel_on[16];
 static int source_velocity_check;
 static int drum_output_check;
 static int drum_clip_capture,drum_clip_packet_count,drum_clip_packets[128][3];
 static int capture_source_velocity,source_velocity_count,source_velocities[16];
 static int capture_edges,edge_count,edges[128];
 static int move_play_presses,move_play_releases;
-static unsigned rendered_mask;
+static _Atomic unsigned rendered_mask;
 static double beat;
 static void log_message(const char *message){fprintf(stderr,"%s\n",message);}
 static float bpm(void){return 120;}
@@ -57,6 +61,23 @@ static int inject_packet(const uint8_t *packet,int length){
         if(packet[3])move_play_presses++;else move_play_releases++;
     }
     return send_packet(packet,length);
+}
+/* Render To callbacks may arrive from parallel chain workers. Verify the
+ * fixture itself counts them exactly before trusting a paired-release test. */
+static void *parallel_midi_counter_worker(void *unused){
+    (void)unused;
+    const uint8_t on[4]={0x29,0x92,60,100},off[4]={0x28,0x82,60,0};
+    for(int index=0;index<25000;index++){send_packet(on,4);send_packet(off,4);}
+    return NULL;
+}
+static void test_parallel_midi_counters(void){
+    pthread_t workers[4];
+    sent_on=sent_off=0;memset(routed_channel_on,0,sizeof(routed_channel_on));rendered_mask=0;
+    for(int index=0;index<4;index++)assert(!pthread_create(&workers[index],NULL,parallel_midi_counter_worker,NULL));
+    for(int index=0;index<4;index++)assert(!pthread_join(workers[index],NULL));
+    fprintf(stderr,"parallel MIDI fixture on=%d off=%d routed=%u expected=100000\n",sent_on,sent_off,routed_channel_on[2]);
+    assert(sent_on==100000&&sent_off==100000&&routed_channel_on[2]==100000&&rendered_mask==1);
+    sent_on=sent_off=0;memset(routed_channel_on,0,sizeof(routed_channel_on));rendered_mask=0;
 }
 static host_api_v1_t host={.api_version=1,.sample_rate=44100,.frames_per_block=128,
     .log=log_message,.midi_send_internal=send_packet,.midi_inject_to_move=inject_packet,
@@ -621,6 +642,8 @@ static void test_pad_geometry_ownership(void){
 }
 
 int main(int argc,char **argv){
+    test_parallel_midi_counters();
+    if(getenv("HB_COUNTER_ONLY"))return 0;
     assert(argc==4);
     void *handle=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL);
     if(!handle){fprintf(stderr,"%s\n",dlerror());return 2;}
