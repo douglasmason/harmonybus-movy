@@ -1,3 +1,5 @@
+> Movy hbclean.269 lets Left/Right shift the pads during note play, including Chord Play. Tonic position, approach rows and button lights move together; the jog still changes panels. See [pad position](docs/pad-position.md).
+
 > Movy hbclean.268 adds Smart approach bank choices backed by the shared HarmonyBus operation catalog. Includes the A/B Fill memories and UI performance improvements. See [Smart approaches](docs/relative-operations.md).
 
 > Movy hbclean.267 reduces unchanged Chord Play work, separates queue and overview polling, and measures the complete UI tick. Mixed-case settings and the existing musical controls remain included. See [UI overhead measurements and limits](docs/ui-overhead.md).

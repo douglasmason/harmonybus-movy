@@ -665,6 +665,8 @@ def main() -> int:
     patch_settings_case(root)
     from patch_ui_overhead import patch_ui_overhead
     patch_ui_overhead(root)
+    from patch_pad_position import patch_pad_position
+    patch_pad_position(root)
     print("HarmonyBus clean integration applied")
     return 0
 
