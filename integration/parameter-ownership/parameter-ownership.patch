@@ -357,12 +357,12 @@ index fd91543e..fb3d14d2 100644
 -export function ownsPerformanceTouch(slot: number): boolean { return releases.has(slot); }
 +export function ownsPerformanceTouch(slot: number): boolean { return releases.get(slot)?.performance === true; }
 diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
-index 19658580..bf1e70f4 100644
+index 3717445d..ff9da43d 100644
 --- a/src/seq/chord-play.ts
 +++ b/src/seq/chord-play.ts
 @@ -1,3 +1,4 @@
 +import { paramPageActive } from './param-page.js';
- import {generatorParameters,generatorKeys,generatorRead,generatorWrite,generatorStop,generatorFooter,generatorTouch,generatorRecordActive} from './comp-generator.js';
+ import {generatorParameters,generatorKeys,generatorRead,generatorWrite,generatorStop,generatorFooter,generatorTouch,generatorRecordActive,generatorPrepareRecord,generatorPageChanged} from './comp-generator.js';
  import {registerChordLabels,chordLabelMetadata} from './chord-labels.js';
  import {singleConductor} from './session-roles.js';
 @@ -26,7 +27,7 @@ function conductorTrackForQueue():number {return conductorTrack();}
@@ -374,7 +374,7 @@ index 19658580..bf1e70f4 100644
  import { FOLLOWER_SCALE_NAMES } from '../scale-catalog.js';
  import { selectTrack } from '../track/focus.js';
  import { portFor } from '../track/registry.js';
-@@ -520,7 +521,7 @@ export function chordOperationOwner():PerformancePort|null {
+@@ -527,7 +528,7 @@ export function chordOperationOwner():PerformancePort|null {
  export function paintChordSteps():boolean{
      if(chordActive()&&chordDiscovery.owns(discoveryLevel())){
          for(let index=0;index<16;index++){const color=index<7?chordDiscovery.color(index):[7,8,9,10,15].includes(index)?123:0;cachedSetAnimLED(16+index,color,color,0);}
@@ -383,7 +383,7 @@ index 19658580..bf1e70f4 100644
              const color=knob===7?123:chordDiscovery.color(knob);cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);
          }
          bankKnobs=true;return true;
-@@ -528,13 +529,14 @@ export function paintChordSteps():boolean{
+@@ -535,13 +536,14 @@ export function paintChordSteps():boolean{
      const operationOwner=chordOperationOwner();if(operationOwner)return paintHbPerformance(operationOwner);
      if(!controlsActive())return false;
      if(chordActive())for(let index=0;index<16;index++){const slot=stepSlot(index),contentKey=contentStepKey(index),color=contentKey?(conductorContentColor(contentKey,conductorTrack())??123):slot<0?123:chordSlotColor(slot);cachedSetAnimLED(16+index,color,chordSlotQueued(slot)?0:color,chordSlotQueued(slot)?ANIM_PULSE_SLOW:0);}

@@ -27,8 +27,8 @@ while model lifecycle checks and queued edits continue.
 Install Movy **0.34.1-hbclean.279** through Schwung Manager from
 `https://github.com/douglasmason/harmonybus-movy`, then restart. HarmonyBus remains
 **0.2.307**; no host or native musical-engine changes are required. The temporary
-Comp Generator, parent-key/pad-position work and hbclean.277 responsiveness
-changes are included.
+Comp Generator, hbclean.278 generator overdubbing, parent-key/pad-position work
+and hbclean.277 responsiveness changes are included.
 
 Verification exercises 20 physical MIDI mode/page combinations against the real
 app renderer and LED writers, plus note/touch releases, sibling and master-detail
