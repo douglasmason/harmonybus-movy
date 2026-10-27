@@ -1,43 +1,56 @@
-# Pad position — Movy 0.34.1-hbclean.271
+# Parent key and pad position — Movy 0.34.1-hbclean.275
 
-During melodic note play, Left/Right move the keyboard pattern one pad column in
-the indicated direction. Chord Play and Joint Play use this behavior too, including
-while ordinary settings panels are visible. Turn the jog to change panels.
+Left/Right shift the keyboard pattern one column during melodic note play,
+including Chord Play and Joint Play. The arrows leave the current panel open;
+the jog changes panels.
 
-The tonic continues to come from HarmonyBus's resolved parent/input key. Arrows
-change its physical position, without editing the key or follower root policy.
-When the key changes, its new tonic appears at the same chosen position. Existing
-explicit input-root settings retain their meaning.
+Open Set Parameters with Shift + Step 9. Knob 8, **POS**, shows the saved
+position and turns it left or right. **Shift + touch knob 8** resets it to
+Default. Touching the knob shows this reset hint. The header shows the resolved
+**PARENT** key; **IN ROOT** and **IN SCL** identify the editable input reference.
+The page number and jog arrow remain visible.
 
-For C major, three Right presses change the bottom row from
-`C D E F G A B C` to `G A B C D E F G`, with the first three notes in the lower
-octave. Notes stay in ascending order. Piano gaps and approach rows follow their
-targets. The same position applies to Move, Joint Play and the attached Launchpad.
+The tonic is a scale degree in that input reference. HarmonyBus maps it into the
+parent key once, preserving the chosen physical column when the parent changes.
+For example, with C-major input and Relative key travel, parent D major makes
+the tonic sound D and the third F#. Three Right presses move the tonic from
+column 1 to column 4 without changing the key. Parallel D minor changes the
+third to F while the tonic stays in column 4.
 
-The position is saved with the Set and shared across tracks. It ranges from seven
-columns left to seven columns right; old Sets start at zero. A short toast shows
-the position. Octave buttons keep their existing register controls.
+HarmonyBus 0.2.307 also fixes this mapping before the first conductor chord has
+played. Closest and directional key-travel settings retain their deliberate
+voice-leading behavior; they need not render the input tonic as the parent tonic.
+Arrows and POS never change those settings or the input-root policy.
+
+Position is shared across tracks, saved with the Set, and ranges from seven
+columns left to seven columns right. Old Sets start at Default. Move, Joint Play
+and Launchpad use the same position. Piano gaps and approach rows move with
+their targets. Octave buttons keep their existing register controls.
 
 | Context | Left/Right | Arrow illumination |
 |---|---|---|
 | Melodic note play, Chord Play, Joint Play | Shift pad position | Dim if available, bright while pressed, off at the limit |
-| Grid Sequencer | Move through time pages | Reflect available time pages |
-| Clips | Change track bank | Reflect available banks |
+| Grid Sequencer | Move through time pages | Available time pages |
+| Clips | Change track bank | Available banks |
 | Held-step editing / step recording | Existing nudge / tie / rest gestures | Existing editing feedback |
 | Modal chord/motif review | Modal owns input | Off |
 
-Tonic coloring and approach targets use the shifted map. Position-dependent
-playback feedback is refreshed on the normal bounded polling cadence. Moving
-the pattern while holding notes preserves their onset pitches and pressure;
-release closes those same notes. The next press uses the new position. Changing
-the target track still releases notes owned by the previous target.
+The lights follow position changes from either the arrows or knob 8, including
+reset. Tonic coloring moves with its degree. Held notes retain their onset pitches
+through position changes and release correctly; the next press uses the new map.
+Recorded notes retain their source degrees and follow later parent-key changes.
+The parent readout reuses the normal and Joint preview caches without extra polls.
 
-Requires HarmonyBus 0.2.303, unchanged from Movy .270. Update Movy through
-`douglasmason/harmonybus-movy` in Schwung's repository installer, then restart.
+Install HarmonyBus **0.2.307** from `douglasmason/harmonybus` and Movy
+**0.34.1-hbclean.275** from `douglasmason/harmonybus-movy` through Schwung's
+repository installer, then restart. Resolved-operation feedback, Chord Discovery, adaptive operations,
+eight-note scales, Fill libraries and the audio-context improvements are included.
 
-Verification covers all keyboard layouts, available scale cardinalities and keys,
-input priority, both arrow limits and pressed brightness, key changes, approach
-alignment, Move/Joint/Launchpad mapping, session persistence, and production-chain
-sustained-note ownership. TypeScript, browser logic/UI, native DSP/sequencer,
-device startup and ARM package checks run before publication. Physical button
-feel, LED appearance and listening on Move still require device testing.
+Verification covers all layouts/scales, input priority, limits and pressed lights,
+knob/reset controls, parent/input separation, cached normal/Joint readouts,
+approach/color alignment, Launchpad ownership and persistence. The production
+audio chain covers all twelve parent roots and fifteen positions, Parallel,
+master transpose, held releases and recorded-degree replay. Native suites,
+TypeScript/UI, ARM packaging and device startup are checked before publication.
+Physical button feel, LED appearance and listening on Move still require device
+testing.

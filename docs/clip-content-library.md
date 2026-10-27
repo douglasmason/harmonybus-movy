@@ -8,7 +8,7 @@ and complexity are independent filters or controls rather than compulsory nested
 folders: one rhythm can fit several genres, and sparse does not imply simple.
 The first direct Fill library increment exposes Comp and Bass, then their stock
 and saved styles. The [temporary Comp generator](comp-generator.md) adds two style families and
-recordable Complexity/Intensity in hbclean.274. Genre filtering and the other
+recordable Complexity/Intensity in hbclean.276. Genre filtering and the other
 actors remain later increments.
 
 The useful Session Players precedent is a musical pattern with separate

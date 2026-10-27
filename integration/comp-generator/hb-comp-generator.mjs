@@ -8,6 +8,7 @@ const {seqState}=await import('../dist/esm/seq/state.js');
 const {stepRecActive}=await import('../dist/esm/seq/step-rec.js');
 const {applyLaneMapping}=await import('../dist/esm/seq/lane-mapping.js');
 const {validateLane}=await import('../dist/esm/seq/automation.js');
+const {panelSpec}=await import('../dist/esm/renderer/panel-catalog.js');
 const originalGet=globalThis.host_module_get_param,originalSet=globalThis.host_module_set_param_blocking;
 let state='Off|0|0 32 64 1 0|',commands=[];
 globalThis.host_module_get_param=key=>key==='generator_info_2'?state:originalGet(key);
@@ -22,6 +23,8 @@ globalThis.host_module_set_param_blocking=(key,value)=>{
 };
 chord.restoreChord(null);chord.setChordEnabled(true);seqState.recording=false;seqState.countingIn=false;seqState.playing=false;
 let page=chord.chordPage();let index=page.ctl.pages.findIndex(entry=>entry.level==='cp_comp_generator');assert(index>=0);page.goToPage(index);
+assert.equal(panelSpec('Chord Play',page.ctl.page).group,'Comp');
+assert.equal(panelSpec('Chord Play',page.ctl.page).owner,'Comp');
 assert.deepEqual(Array.from({length:8},(_,knob)=>page.keyAt(knob)),[...generator.generatorKeys,'cp_off']);
 const port=chord.chordPanelPort(3);port.getParam('midi_fx1:chain_params');
 commands=[];port.setParam('midi_fx1:cg_family','Sync');port.setParam('midi_fx1:cg_style','3-3-2');port.setParam('midi_fx1:cg_complexity','80');

@@ -1,3 +1,4 @@
+import { RelativeFeedbackCache, parseRelativeFeedback, type RelativeFeedback } from './relative-feedback.js';
 import { trailEnabled, trailHistory, trailStyle } from '../seq/trail-settings.js';
 import { SCALES, FOLLOWER_SCALE_NAMES, FOLLOWER_KEYBOARD_SCALES } from '../scale-catalog.js';
 /* Read-only pitch-class visualization. No MIDI generation or modifier consumption. */
@@ -12,8 +13,9 @@ import { seqState } from '../seq/state.js';
 import { visualEngineTick } from '../seq/engine.js';
 import { PAD_PALETTE } from './pad-palette.js';
 
-export type HarmonySnapshot = { footer?: number[]; targets?: number[]; adjacentShading?: boolean; nextRanks?: number[]; nextPulse?: number; nextPulsePads?: number; playPads?: number; gapColors?: number[]; pianoApproach?: boolean; current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; playColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
+export type HarmonySnapshot = { relative?: RelativeFeedback; footer?: number[]; targets?: number[]; adjacentShading?: boolean; nextRanks?: number[]; nextPulse?: number; nextPulsePads?: number; playPads?: number; gapColors?: number[]; pianoApproach?: boolean; current: number; effective: number; lookahead: number; scale: number; ready: boolean; settings: number[]; effectiveColor?: number; playColor?: number; tonic?: number; fullLookahead?: number; bothColor?: number; tonicColor?: number; outputGroups?: number[]; arpInputs?: number[]; globalScale?: {selected: number; resolved: number}; input?: {root: number; selected: number; resolved: number; scale: number; chord: number} };
 let snapshot: HarmonySnapshot | null = null;
+const relativeFeedback = new RelativeFeedbackCache();
 let learnedGeneration: string | undefined;
 let requestedPads: number[] = [];
 let sentPreviewInputs = "";
@@ -136,7 +138,8 @@ export function parseHarmonySnapshot(raw: string | null): HarmonySnapshot | null
     const footerRaw=sections.find(section=>section.startsWith('footer1,'));
     const footer=footerRaw?.split(',').slice(1).map(Number);
     if(footer&&(![6,10].includes(footer.length)||footer.some(value=>!Number.isInteger(value))||footer[0]<0||footer[0]>11||footer[1]<-1||footer[1]>FOLLOWER_SCALE_NAMES.length||[2,4].some(index=>footer[index]<-1||footer[index]>11)||[3,5].some(index=>footer[index]<0||footer[index]>4095)))return null;
-    return { ...(footer ? {footer} : {}), ...(targets ? {targets} : {}), ...(shadeSection ? {adjacentShading:shadeSection==='adjshade1,1'} : {}), ...(nextRanks ? {nextRanks} : {}), ...(nextPulse !== undefined ? {nextPulse, nextPulsePads} : {}), ...(playPads !== undefined ? {playPads: (playPads | playFlash) >>> 0} : {}), ...(gapColors ? {gapColors} : {}), ...(piano ? {pianoApproach: piano === 'piano1,1'} : {}), ...(playColor !== undefined ? {playColor} : {}), ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
+    const relative=parseRelativeFeedback(sections.find(section=>section.startsWith('ro1,')));
+    return { ...(relative ? {relative} : {}), ...(footer ? {footer} : {}), ...(targets ? {targets} : {}), ...(shadeSection ? {adjacentShading:shadeSection==='adjshade1,1'} : {}), ...(nextRanks ? {nextRanks} : {}), ...(nextPulse !== undefined ? {nextPulse, nextPulsePads} : {}), ...(playPads !== undefined ? {playPads: (playPads | playFlash) >>> 0} : {}), ...(gapColors ? {gapColors} : {}), ...(piano ? {pianoApproach: piano === 'piano1,1'} : {}), ...(playColor !== undefined ? {playColor} : {}), ...(outputGroups ? {outputGroups} : {}), ...(tonicColorSection ? {tonicColor} : {}), ...(bothColor !== undefined ? {bothColor} : {}), ...(fullLookahead !== undefined ? {fullLookahead} : {}), ...(tonic !== undefined ? {tonic} : {}), ...(colorSection ? {effectiveColor} : {}), ...(globalScale ? {globalScale} : {}), ...(input ? {input} : {}), ...(arpInputs !== undefined ? {arpInputs} : {}), current: parts[0], effective: parts[1], lookahead: parts[4], scale: parts[2], ready: parts[3] === 1, settings: parts.slice(5) };
 }
 
 /** Poll one compact snapshot, never once per pad or once per display frame. */
@@ -149,9 +152,11 @@ export function setMovePreviewFrozen(frozen: boolean): void {
 }
 export function isMovePreviewFrozen(): boolean { return movePreviewFrozen; }
 export function refreshHarmonyPads(track: number, now = Date.now()): void {
+    if(relativeFeedback.expire(now))appState.dirty=true;
     if (movePreviewFrozen) return;
     if(trailTransport!==seqState.playing){
         trailTransport=seqState.playing;trailEpoch++;
+        relativeFeedback.clear();appState.dirty=true;
         trailHistory.clear();trailSampleAt=-Infinity;polledAt=-Infinity;
     }
     if (track !== watchedTrack) { watchedTrack = track; snapshot = null; polledAt = -Infinity; sentPreviewInputs = ""; trailNativeEnabled=null;trailHistory.clear();trailSampleAt=-Infinity; }
@@ -193,6 +198,7 @@ export function refreshHarmonyPads(track: number, now = Date.now()): void {
     // another page is polling. A failed read is not an empty harmony model:
     // retain the last complete frame and retry on the normal bounded cadence.
     if (next) {
+        if(relativeFeedback.observe(track,next.relative,now))appState.dirty=true;
         if(next.footer?.join(',')!==snapshot?.footer?.join(','))appState.dirty=true;
         snapshot = next;
     }
@@ -496,4 +502,9 @@ export function harmonyPlaybackColor(background: number, track: number, index: n
 /** Cached footer only: drawing must never read the host. */
 export function harmonyFooterSnapshot(track:number):readonly number[]|undefined{
     return track===watchedTrack?snapshot?.footer:undefined;
+}
+
+/** Cached operation feedback shares the footer's track ownership and polling. */
+export function harmonyRelativeFeedback(track:number):RelativeFeedback|undefined {
+    return relativeFeedback.current(track,Date.now());
 }

@@ -1,14 +1,15 @@
-Movy **0.34.1-hbclean.273** adds **Discovery** inside Chord Play: seven next-chord suggestions, seven voicing previews, hold-to-audition, explicit Keep, and confirmed Save to a chord slot. Pair with HarmonyBus **0.2.305**. See [Chord Discovery](docs/chord-discovery.md).
-
-## Temporary Comp generator (hbclean.274)
+## Temporary Comp generator (hbclean.276)
 
 [Comp Generator](docs/comp-generator.md) adds temporary exploration in Chord Play,
 actor/family/style selection, recordable Complexity and Intensity, bar-quantized
 style changes, deterministic saved recipes, and one-Undo Bake to editable notes.
 Exploring does not fill or replace a clip. Record targets an empty Comp clip.
 
+Movy **0.34.1-hbclean.275** pairs with HarmonyBus **0.2.307**: parent-key readout, knob 8 pad position/reset, and correct parent-key output before the first conductor chord. See [pad position](docs/pad-position.md). Includes resolved-operation feedback, Chord Discovery and all earlier features.
 
-Current release preparation: **0.34.1-hbclean.272** pairs with HarmonyBus **0.2.304**: eight-note scales, Smart operation lanes and adaptive authored motifs. See [relative operations](docs/relative-operations.md).
+Movy **0.34.1-hbclean.273** adds **Discovery** inside Chord Play: seven next-chord suggestions, seven voicing previews, hold-to-audition, explicit Keep, and confirmed Save to a chord slot. Pair with HarmonyBus **0.2.305**. See [Chord Discovery](docs/chord-discovery.md).
+
+Movy **0.34.1-hbclean.272** pairs with HarmonyBus **0.2.304**: eight-note scales, Smart operation lanes and adaptive authored motifs. See [relative operations](docs/relative-operations.md).
 
 Includes the pad-position arrow controls from hbclean.271, Comp/Bass Fill libraries from hbclean.270, and audio-context improvements from hbclean.269.
 

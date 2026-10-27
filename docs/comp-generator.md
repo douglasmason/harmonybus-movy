@@ -1,4 +1,4 @@
-# Temporary Comp generator — hbclean.274
+# Temporary Comp generator — hbclean.276
 
 Chord Play now has **Comp Tn Generator**. It is a temporary performance source:
 choosing a family/style or changing controls does not fill, replace, launch, or

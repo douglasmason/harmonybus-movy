@@ -141,6 +141,15 @@ def patch_comp_generator(root: Path) -> None:
     if (assets / 'hb-comp-generator.mjs').exists():
         (root / 'browser-test/hb-comp-generator.mjs').write_text((assets / 'hb-comp-generator.mjs').read_text())
 
+    path = root / 'src/renderer/panel-catalog.ts'
+    source = replace_once(path.read_text(), "cp_comp_library:'Libraries'", "cp_comp_generator:'Comp',cp_comp_library:'Libraries'")
+    source = replace_once(source, "const actor=/^cp_", "const actor=base==='cp_comp_generator'?'Comp':/^cp_")
+    path.write_text(source)
+    path = root / 'browser-test/hb-chord-settings.mjs'
+    source = replace_once(path.read_text(), 'Comp:10,', 'Comp:11,')
+    source = replace_once(source, 'page.ctl.pages.length,55', 'page.ctl.pages.length,56')
+    path.write_text(source.replace('55 pages including Discovery', '56 pages including Discovery and Generator'))
+
     for relative in ('engine/crates/movy-dsp/src/lib.rs','src/seq/constants.ts'):
         path = root / relative
         path.write_text(path.read_text().replace('0.86.0-fill-library1','0.87.0-comp-generator1'))
