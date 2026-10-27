@@ -42,22 +42,24 @@ def patch_comp_generator(root: Path) -> None:
     path.write_text(source)
     path = core / 'engine.rs'
     source = replace_once(path.read_text(),'pub struct Engine {','''pub struct Engine {
-    pub generator_explore:Option<crate::generator::Explore>,
+    pub generator_explore:[Option<crate::generator::Explore>;16],
     pub generator_restore:[Option<crate::part_settings::Settings>;16],
     pub generator_result:String,
     generator_emitting:bool,''')
-    source = replace_once(source,'            variations:', '            generator_explore:None,generator_restore:[None;16],generator_result:String::new(),generator_emitting:false,\n            variations:')
+    source = replace_once(source,'            variations:', '            generator_explore:[None;16],generator_restore:[None;16],generator_result:String::new(),generator_emitting:false,\n            variations:')
     source = replace_once(source,'struct Gate {','struct Gate {\n    generated:bool,')
     source = replace_once(source,'self.gates.push(Gate {','self.gates.push(Gate {\n                            generated:self.generator_emitting,')
     source = replace_once(source,'    pub fn clip_transpose(&self, track: usize, slot: usize) -> i32 {','    pub fn clip_transpose(&self, track: usize, slot: usize) -> i32 {\n        if self.generator_free(track) {return 0;}')
     source = replace_once(source,'    pub fn stop(&mut self, out: &mut Vec<OutEvent>) {','    pub fn stop(&mut self, out: &mut Vec<OutEvent>) {\n        self.generator_cancel(out);')
     source = replace_once(source,'    pub fn toggle_record(&mut self, track: usize) {','''    pub fn toggle_record(&mut self, track: usize) {
-        let track=self.generator_explore.map_or(track,|state|state.track);
-        if !self.part_recording_busy()&&!self.generator_prepare_record() {return;}''')
+        if !self.part_recording_busy()&&!self.generator_prepare_record(track) {return;}''')
     source = replace_once(source,'self.rec_empty_start = self.tracks[track].active().notes.is_empty();','self.rec_empty_start = self.tracks[track].active().notes.is_empty()&&self.tracks[track].active().generator.is_none();')
     source = replace_once(source,'            self.rec_tail.append(&mut self.rec_pending);\n            return;', '''            self.rec_tail.append(&mut self.rec_pending);
-            if let Some(state)=self.generator_explore.filter(|state|state.take.is_some()) {self.generator_finish_take(state);self.generator_explore=None;}
+            if let Some(state)=self.generator_explore[self.rec_track] {if state.take.is_some(){self.generator_finish_take(state);self.generator_explore[self.rec_track]=None;}else{self.generator_explore[self.rec_track].as_mut().unwrap().destination=None;}}
             return;''')
+    # Undo restores persistent content while an unrelated free audition stays live.
+    source = replace_once(source,'    pub fn undo_restore(&mut self, blob: &str) -> bool {','    pub fn undo_restore(&mut self, blob: &str) -> bool {\n        let live_generators=self.generator_explore.map(|state|state.filter(|state|state.source.is_none()&&state.take.is_none()&&state.destination.is_none()));')
+    source = replace_once(source,'        self.key_playback=live_key_playback;', '        self.generator_explore=live_generators;\n        self.key_playback=live_key_playback;')
     # One gate countdown implementation, shared by clips and temporary sources.
     start: int = source.index('        let mut gi = 0;',source.index('    fn step_tick('))
     end: int = source.index('        {\n            let drum_fill_lane',start)
@@ -70,6 +72,7 @@ def patch_comp_generator(root: Path) -> None:
                 if self.generator_free(ti) {self.advance_note_gates(ti,out);self.generator_tick(ti,out);if !(self.recording&&self.records_track(ti)) {continue;}}
                 let Some(slot)''')
     source = replace_once(source,'            if !muted {\n                    let len', '            if !muted && !self.generator_free(ti) {\n                    let len')
+    source = replace_once(source,'        self.shared_transport(out);','        self.generator_check_target(out);\n        self.shared_transport(out);')
     source = replace_once(source,'            self.recipe_tick(out);','            self.generator_check_target(out);\n            self.recipe_tick(out);')
     # Suppress only incoming weaving while this actor owns a generator source.
     source = replace_once(source,'    fn source_attack(&mut self, rhythm_track: usize, rhythm_slot: usize, duration: u32, out: &mut Vec<OutEvent>) {','    fn source_attack(&mut self, rhythm_track: usize, rhythm_slot: usize, duration: u32, out: &mut Vec<OutEvent>) {')
@@ -90,7 +93,7 @@ def patch_comp_generator(root: Path) -> None:
     path.write_text(source)
     path = core / 'persist.rs'
     source = replace_once(path.read_text(),'            if let Some(recipe)=&c.recipe', '            if let Some(config)=c.generator {s.push_str(&format!("cg1 {} {} {}\\n",ti,ci,config.wire()));}\n            if let Some(recipe)=&c.recipe')
-    source = replace_once(source,'    engine.chord_step_input=None;', '    engine.generator_explore=None;\n    engine.chord_step_input=None;')
+    source = replace_once(source,'    engine.chord_step_input=None;', '    engine.generator_explore.fill(None);\n    engine.chord_step_input=None;')
     source = replace_once(source,'            Some("pr1")=>{','''            Some("cg1")=>{
                 if let (Some(track),Some(slot))=(it.next().and_then(|value|value.parse::<usize>().ok()),it.next().and_then(|value|value.parse::<usize>().ok())) {
                     if let Some(clip)=engine.tracks.get_mut(track).and_then(|track|track.clips.get_mut(slot)) {
@@ -175,6 +178,7 @@ def patch_comp_generator(root: Path) -> None:
     if (assets / 'hb-comp-generator.mjs').exists():
         (root / 'browser-test/hb-comp-generator.mjs').write_text((assets / 'hb-comp-generator.mjs').read_text())
     (root / 'browser-test/hb-actor-generator.mjs').write_text((assets / 'hb-actor-generator.mjs').read_text())
+    (root / 'browser-test/hb-generator-duet.mjs').write_text((assets / 'hb-generator-duet.mjs').read_text())
     if (assets / 'hb-generator-overdub.mjs').exists():
         (root / 'browser-test/hb-generator-overdub.mjs').write_text((assets / 'hb-generator-overdub.mjs').read_text())
 
@@ -194,4 +198,4 @@ def patch_comp_generator(root: Path) -> None:
 
     for relative in ('engine/crates/movy-dsp/src/lib.rs','src/seq/constants.ts'):
         path = root / relative
-        path.write_text(path.read_text().replace('0.86.0-fill-library1','0.89.0-actor-generator1'))
+        path.write_text(path.read_text().replace('0.86.0-fill-library1','0.90.0-actor-duet1'))
