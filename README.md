@@ -1,4 +1,4 @@
-## Context-aware Chord Discovery (hbclean.279)
+## Context-aware Chord Discovery (hbclean.280)
 
 Starts from current or queue-tail harmony, keeps audition notes fixed until Refresh, and removes duplicate voicings while preserving distinct chord scales and functions. Pair with HarmonyBus 0.2.308. See [controls and validation](docs/contextual-discovery.md).
 

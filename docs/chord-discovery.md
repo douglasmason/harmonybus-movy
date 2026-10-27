@@ -1,6 +1,6 @@
 # Chord Discovery
 
-For current behavior in HarmonyBus 0.2.308 / Movy hbclean.279, see [Context-aware Chord Discovery](contextual-discovery.md). The original v1 behavior below is retained as release history.
+For current behavior in HarmonyBus 0.2.308 / Movy hbclean.280, see [Context-aware Chord Discovery](contextual-discovery.md). The original v1 behavior below is retained as release history.
 
 HarmonyBus 0.2.305 and Movy 0.34.1-hbclean.273 add a Discovery category inside Chord Play. Existing Core pages, melody pads and horizontal tonic positioning remain available.
 

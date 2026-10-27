@@ -1,6 +1,6 @@
 # Context-aware Chord Discovery
 
-HarmonyBus 0.2.308 and Movy 0.34.1-hbclean.279 make Discovery follow the music already in progress. Open **Chord Play > Discovery** and press **Refresh** to capture a new starting point.
+HarmonyBus 0.2.308 and Movy 0.34.1-hbclean.280 make Discovery follow the music already in progress. Open **Chord Play > Discovery** and press **Refresh** to capture a new starting point.
 
 - **Immediate:** uses the current conductor harmony.
 - **Queued:** uses the last queued chord, including a waiting Touch Phrase; falls back to current harmony when the queue is empty.
