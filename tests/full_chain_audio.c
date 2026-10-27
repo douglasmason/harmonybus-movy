@@ -578,6 +578,10 @@ static void test_chord_play(void){
 #include "part_library_audio.h"
 #endif
 
+#ifdef HB_TEST_CHORD_DISCOVERY
+#include "chord_discovery_audio.h"
+#endif
+
 static void test_pad_geometry_ownership(void){
     /* Exercise the production padmap handler, not only PadRoute's ledger. */
     set("ch3:midi_fx1:role","Off");set("ch3:mix","1,0,0,0,0");
@@ -785,6 +789,9 @@ int main(int argc,char **argv){
 #endif
 #ifdef HB_TEST_PART_LIBRARY
     test_part_library();
+#endif
+#ifdef HB_TEST_CHORD_DISCOVERY
+    test_chord_discovery();
 #endif
     test_single_conductor_output();
     api->destroy_instance(instance);return 0;
