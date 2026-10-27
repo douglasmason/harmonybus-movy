@@ -47,7 +47,7 @@ if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/generator.rs"; then CHORD_PL
 if test -f "$HB_SOURCE/src/chord_queue.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CHORD_QUEUE); fi
 if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/chord_step.rs" && test -f "$HB_SOURCE/src/chord_queue.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_JOINT_CHORDS); fi
 if grep -q HB_PARENT_KEY_WITHOUT_CONDUCTOR "$HB_SOURCE/modules/harmonybus/dsp/harmonybus.c"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_PAD_PARENT_KEY); fi
-cc -O1 "${CHORD_PLAY_TEST_FLAGS[@]}" -I"$SCHWUNG_SOURCE/src" "$INTEGRATION_ROOT/tests/full_chain_audio.c" -ldl -o "$FIXTURE_ROOT/full-chain-test"
+cc -O1 -pthread "${CHORD_PLAY_TEST_FLAGS[@]}" -I"$SCHWUNG_SOURCE/src" "$INTEGRATION_ROOT/tests/full_chain_audio.c" -ldl -o "$FIXTURE_ROOT/full-chain-test"
 cargo build --manifest-path "$MOVY_SOURCE/engine/Cargo.toml" -p movy-dsp
 "$FIXTURE_ROOT/full-chain-test" "$MOVY_SOURCE/engine/target/debug/libmovy_dsp.so" "$FIXTURE_ROOT" restored
 if [[ " ${CHORD_PLAY_TEST_FLAGS[*]} " == *" -DHB_TEST_PAD_PARENT_KEY "* ]]; then

@@ -72,7 +72,6 @@ function motifLaneLight(button: number): boolean {
     source = source.replace('    const occupied=values[4]??0,armed=values[3]??-1,selected=values[1]??0;', '    const anchor=values[5]??-1;')
     source = source.replace('        const color=armed===step?13:selected===step?TRACK_COLOR[appState.activeTrack.index]:(occupied&(1<<step))?85:C_BLACK;', '        if(motifLaneLight(step))continue;\n        const kind=values[6+step];\n        const color=step===anchor?13:kind===4?25:kind===3?C_DARKGREY:kind?22:C_BLACK;')
     source = source.replace("    if(!owner){\n        if(viewRow[0]", "    if(!owner){\n        if(motifEditorFor(appState.activeTrack.index)){fill_rect(0,0,128,8,1);fontPrint(1,1,'Lane '+(editorLane+1)+' · Play Motif',0);return true;}\n        if(viewRow[0]")
-    source = source.replace('fontPrint(1,1,status,0);return true;', "fontPrint(1,1,editorPort?'Recording · Lane '+(editorLane+1):status,0);return true;")
     source = source.replace('viewRow=[];viewStatus=\'\';motifFinish(true);', "viewRow=[];viewStatus='';motifFinish(true);editorPort?.performanceSet('motif_close','Close');editorPort=null;editorLane=-1;recordRelease=false;")
     # Changing tracks commits a valid draft, preserves a rejected one, and
     # restores normal recording ownership on the new track.

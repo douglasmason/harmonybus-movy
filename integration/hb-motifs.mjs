@@ -7,14 +7,15 @@ const { seqState }=await import('../dist/esm/seq/state.js');
 const { appState }=await import('../dist/esm/app/state.js');
 const { setEditGuard }=await import('../dist/esm/seq/engine.js');
 const recorder=await import('../dist/esm/seq/step-rec.js');
+const {stepRecHeaderText}=await import('../dist/esm/seq/step-rec-view.js');
 const motifs=await import('../dist/esm/renderer/hb-motif.js');
 const feedback=await import('../dist/esm/renderer/motif-feedback.js');
 const { ledFrameReset, ledBudgetTake }=await import('../dist/esm/seq/led-cache.js');
 let row=[-1,0,0,-1,0,-1,...Array(32).fill(0),0,60,0];
-const writes=[],songEdits=[];let refuseSave=false;
+const writes=[],songEdits=[];let refuseSave=false,operationStatus='REC 1 Step 1';
 setEditGuard(command=>songEdits.push(command));
 const port={performanceTrack:appState.activeTrack.index,ctl:{page:{keys:['motif_slot']}},
- performanceGet(key){return key==='motif_lane'?'1':key==='motif_row'?row.join(','):key==='motif_slot'?'1':'REC 1 Step 1';},
+ performanceGet(key){return key==='motif_lane'?'1':key==='motif_row'?row.join(','):key==='motif_slot'?'1':operationStatus;},
  performanceSet(key,value){writes.push([key,value]);if(key==='motif_record')row[0]=row[0]<0?0:refuseSave?row[0]:-1;if(key==='motif_cancel')row[0]=-1;if(key==='motif_copy')row[0]=0;if(key==='motif_step')row[2]=Number(value)-1;if(key==='motif_arrow')row[2]+=Number(value);}
 };
 const originalLength=seqState.lenSteps;
@@ -26,6 +27,8 @@ recorder.stepRecPad(80,60,100);recorder.stepRecPad(81,64,100);recorder.stepRecPa
 recorder.stepRecArrow(1);assert.deepEqual(writes.at(-1),['motif_arrow','1']);
 recorder.stepRecStepTap(3);assert.deepEqual(writes.at(-1),['motif_step','4']);
 assert.equal(recorder.stepRecHead(),3);assert.equal(seqState.lenSteps,originalLength);
+operationStatus='4 Captured: LT';recorder.stepRecStepTap(3);assert.equal(stepRecHeaderText(),'4 Captured: LT');
+operationStatus='4 CCB';recorder.stepRecStepTap(3);assert.equal(stepRecHeaderText(),'4 CCB');
 assert.deepEqual(songEdits,[],'Motif entry must never enqueue clip del/addp/clen/hold');
 let sends=0;globalThis.move_midi_internal_send=()=>sends++;
 ledFrameReset();motifs.paintMotif(port);assert(sends<=16);

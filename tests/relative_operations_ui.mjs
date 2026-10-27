@@ -6,7 +6,7 @@ const load=path=>import(pathToFileURL(root+'/'+path));
 const {installEnv}=await load('browser-test/env.mjs');
 installEnv();
 const {BANK_CHOICES,approachPanels}=await load('dist/esm/renderer/hb-approach.js');
-const {choiceGroup,orderHarmonyChoices}=await load('dist/esm/renderer/hb-choice-order.js');
+const {choiceGroup,orderHarmonyChoices,MOTIF_OPERATION_CHOICES}=await load('dist/esm/renderer/hb-choice-order.js');
 const hierarchy={levels:{root:{params:[]}}};
 approachPanels(hierarchy,2);
 for(const name of ['Leading Tone','Upper Dim','Connector Below','Connector Above','Smart Below','Smart Above']){
@@ -29,3 +29,10 @@ console.log('Relative operation UI: native labels, distinct harmonic families, b
 
 const smartLane={key:'motion_operation',options_as_string:true,options:['Off','Smart Below','Smart Above','Leading Tone']};
 orderHarmonyChoices(smartLane);assert(smartLane.options.includes('Smart Below')&&smartLane.options.includes('Smart Above'));
+const motif={key:'motif_operation',options_as_string:true,options:[...MOTIF_OPERATION_CHOICES].reverse()};
+orderHarmonyChoices(motif);assert.deepEqual(motif.options,MOTIF_OPERATION_CHOICES);
+assert.equal(new Set(motif.options).size,motif.options.length);
+for(const name of ['Captured','Leading Tone','Upper Dim','Connector Below','Connector Above','Tritone Sub','Secondary II','Secondary V (Dom)','Secondary Fifth','Smart Below','Smart Above'])assert(motif.options.includes(name));
+assert(!motif.options.includes('Scale Above'),'Legacy Scale Above remains readable; new choices use Secondary II');
+const olderMotif={key:'motif_operation',options_as_string:true,options:['Smart Above','Captured','Smart Below']};
+orderHarmonyChoices(olderMotif);assert.deepEqual(olderMotif.options,['Captured','Smart Below','Smart Above']);

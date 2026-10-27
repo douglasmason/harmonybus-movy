@@ -34,7 +34,9 @@ function sample(force = false): void {
     const next = owner.performanceGet('motif_row').split(',').map(Number);
     if (next.length === 41 && next.every(Number.isFinite)) row = next;
     acceptFlash(owner,row);
-    status = owner.performanceGet('motif_status');sampledAt = Date.now();
+    const nextStatus=owner.performanceGet('motif_status');
+    if(nextStatus!==status){status=nextStatus;appState.dirty=true;}
+    sampledAt = Date.now();
     if (row.length) pageOffset = Math.min(1, Math.floor(row[2] / 16));
 }
 function write(key: string, value: string): void {

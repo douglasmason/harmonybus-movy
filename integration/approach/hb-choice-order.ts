@@ -1,4 +1,5 @@
-import { RELATIVE_OPERATIONS } from '../operation-catalog.js';
+import { RELATIVE_OPERATIONS, MOTIF_OPERATION_CHOICES } from '../operation-catalog.js';
+export { MOTIF_OPERATION_CHOICES } from '../operation-catalog.js';
 /** Presentation order only. Labels remain the native wire values; IDs never move. */
 const operationGroups: [string, string[]][] = [
     ['Off', ['Off']],
@@ -47,7 +48,7 @@ export function orderHarmonyChoices(value: any): void {
     if(!value||typeof value!=='object')return;
     if(value.options_as_string===true&&Array.isArray(value.options)){
         const key=String(value.key||'');
-        const order=key==='motion_operation'?operationOrder:key==='motif_preset'?['Library',...motifOrder]:
+        const order=key==='motion_operation'?operationOrder:key==='motif_operation'?MOTIF_OPERATION_CHOICES:key==='motif_preset'?['Library',...motifOrder]:
             /chord_form$/.test(key)?chordOrder:/(^|_)dominant_(minor_)?scale$/.test(key)?DOMINANT_COLOR_ORDER:null;
         if(order)value.options=orderedChoices(value.options,order);
     }

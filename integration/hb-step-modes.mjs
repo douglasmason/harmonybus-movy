@@ -398,3 +398,28 @@ console.log('Native fallback: Version dial and enum metadata recover, including 
     }
 }
 console.log('Foll Map: one shared page, direct Content/Travel edits, saved values across every Copy-tap mode');
+
+// The real shared controller edits native RPO names without touching song notes.
+if(module.capabilities.chain_params.some(parameter=>parameter.key==='motif_operation')){
+    selectTrack(0);appState.shiftHeld=false;setFlag('hbsteprow',1);
+    const editorPage=schwungActiveFor(0,'midi_fx1');assert(editorPage?.ready);
+    const port=portFor(0);port.setParam('midi_fx1:motif_lane','1');
+    port.setParam('midi_fx1:motion_operation','Play Motif');
+    editorPage.goToPage(editorPage.ctl.pages.findIndex(candidate=>candidate.keys?.includes('motif_edit')));
+    const editSlot=editorPage.ctl.page.keys.indexOf('motif_edit');
+    editorPage.knobTouch(editSlot,true);editorPage.knobTouch(editSlot,false);
+    const operationPage=editorPage.ctl.pages.findIndex(candidate=>candidate.keys?.includes('motif_operation'));assert(operationPage>=0);
+    editorPage.goToPage(operationPage);
+    const operationSlot=editorPage.ctl.page.keys.indexOf('motif_operation');
+    const choices=editorPage.ctl.metaAt(operationSlot).options;
+    const native=module.capabilities.chain_params.find(parameter=>parameter.key==='motif_operation').options;
+    assert.deepEqual(new Set(choices),new Set(native));
+    const complete=native.includes('Leading Tone');
+    if(complete)for(const operation of ['Leading Tone','Upper Dim','Connector Below','Connector Above','Tritone Sub','Secondary II','Smart Below','Smart Above'])assert(choices.includes(operation));
+    editorPage.ctl.commitEnum('motif_operation',choices.indexOf(complete?'Leading Tone':'Captured'));
+    const before=writes.length;editorPage.knobTouch(operationSlot,true);editorPage.knobTurn(operationSlot,4);editorPage.knobTouch(operationSlot,false);
+    assert(writes.slice(before).some(([,key,value])=>key==='midi_fx1:motif_operation'&&value===(complete?'Upper Dim':'Smart Below')),JSON.stringify({writes:writes.slice(before),value:editorPage.ctl.state.values.motif_operation,choices}));
+    assert(!writes.slice(before).some(([,key])=>/approach_touch|approach_control|motion_punch/.test(key)));
+    const closeSlot=editorPage.ctl.page.keys.indexOf('motif_close');editorPage.knobTouch(closeSlot,true);editorPage.knobTouch(closeSlot,false);
+}
+console.log('Motif RPO controller: native catalog choices, distinct LT/UD/CCB/CCA, named encoder edits and no approach gestures pass');
