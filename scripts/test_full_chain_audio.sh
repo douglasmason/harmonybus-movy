@@ -42,6 +42,7 @@ else
 fi
 if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/part_load.rs" && grep -q 'key->count=hb_cp_voice_semantic' "$HB_SOURCE/src/chord_selection_input.h" 2>/dev/null; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_PART_LIBRARY); fi
 if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/clip_fill.rs"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CLIP_FILL); fi
+if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/generator.rs"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_COMP_GENERATOR); fi
 if test -f "$HB_SOURCE/src/chord_queue.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CHORD_QUEUE); fi
 if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/chord_step.rs" && test -f "$HB_SOURCE/src/chord_queue.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_JOINT_CHORDS); fi
 if grep -q HB_PARENT_KEY_WITHOUT_CONDUCTOR "$HB_SOURCE/modules/harmonybus/dsp/harmonybus.c"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_PAD_PARENT_KEY); fi

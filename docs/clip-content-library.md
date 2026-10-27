@@ -7,7 +7,9 @@ Within an actor, offer musical style families and individual entries. Genre tags
 and complexity are independent filters or controls rather than compulsory nested
 folders: one rhythm can fit several genres, and sparse does not imply simple.
 The first direct Fill library increment exposes Comp and Bass, then their stock
-and saved styles. It does not add a genre taxonomy or a generator yet.
+and saved styles. The [temporary Comp generator](comp-generator.md) adds two style families and
+recordable Complexity/Intensity in hbclean.276. Genre filtering and the other
+actors remain later increments.
 
 The useful Session Players precedent is a musical pattern with separate
 complexity and intensity controls, plus explicit variation. A small HB generator
@@ -34,8 +36,10 @@ using bounded preparation and the existing scheduler. No UI repaint may reroll
 the seed, and no expensive generation belongs in the audio callback. Audible
 preview and any later Bake action must consume that same performance definition.
 
-These generator parameters and their recording are design requirements, not
-features shipped by the direct library-source increment.
+The first generator increment now implements temporary Comp exploration,
+Complexity/Intensity/style automation, saved seeds and one-Undo Bake. It is not
+a destructive Fill action: only explicit Record creates a recipe clip.
+Syncopation/variation-amount controls and a genre browser remain planned.
 
 ## Current implementation
 
