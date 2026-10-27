@@ -9,8 +9,9 @@ const {sessionPad}=await import('../dist/esm/seq/session.js');
 const {seqState}=await import('../dist/esm/seq/state.js');
 const {appState,VIEW_KNOBS}=await import('../dist/esm/app/state.js');
 const originalGet=globalThis.host_module_get_param,originalWrite=globalThis.host_module_set_param_blocking;
-let reads=0,result='Filled - Undo available',drumPreview=false,stalePreview=false;const commands=[];
+let reads=0,result='Filled - Undo available',drumPreview=false,stalePreview=false;const commands=[],previewRequests=[];
 globalThis.host_module_get_param=key=>{
+ if(key.startsWith('fill_preview_'))previewRequests.push(key.slice(13));
  if(key.startsWith('fill_preview_')){reads++;return drumPreview?'abc|384|5|0,24,36,117;0,24,38,73;96,48,42,41;192,24,46,100;288,24,49,90|drums|36,38,42,46,49':(stalePreview?'bcd':'abc')+'|384|3|0,24,60,100;96,48,64,90;288,24,67,80|melodic|60,64,67';}
  if(key.startsWith('fill_target_'))return 'def';
  if(key==='part_result')return result;
@@ -105,5 +106,49 @@ view.clipsMidi([176,72,1]);commands.length=0;fill.fillCell(8,5);assert(!commands
 seqState.drumOutputs=0;drumPreview=false;
 view.clipsMidi([176,51,127]);assert(!fill.fillActive());
 fill.setFillActive(true);seqState.sessionMode=false;fill.fillTick();seqState.sessionMode=true;assert(!fill.fillActive(),'mode changes disarm writes');
+// Actor libraries use the same grid, native preview and single write boundary.
+const {partStockCount}=await import('../dist/esm/seq/part-library.js');
+const {saveUserPart}=await import('../dist/esm/seq/part-storage.js');
+const {portFor}=await import('../dist/esm/track/registry.js');
+const settle=()=>{Date.now=()=>previousNow()+80;fill.fillTick();Date.now=previousNow;};
+const turn=(index,direction=1)=>view.clipsMidi([176,71+index,direction>0?1:127]);
+fill.setFillActive(true);commands.length=0;result='Filled - Undo available';
+for(let index=0;index<12;index++)turn(0);
+settle();assert.equal(previewRequests.at(-1),'16_0_2_0_0_2','Comp library defaults to its own phrasing and length');
+assert(!commands.some(([,value])=>value.includes('clipfill')||value.includes('pload')),'browsing never loads a temporary source clip');
+fill.fillCell(2,6);
+assert(commands.some(([,value])=>value.includes('clipfill 2 6 def 16_0_2_0_0_2 abc ')));
+turn(1);turn(4);turn(4);settle();
+assert.equal(previewRequests.at(-1),'16_1_2_0_2_2');
+appState.shiftHeld=true;turn(4);appState.shiftHeld=false;
+turn(0);settle();assert.equal(previewRequests.at(-1),'17_0_2_0_0_2','Bass owns its own actor list');
+appState.shiftHeld=true;turn(5);turn(6);appState.shiftHeld=false;
+assert.equal(previewRequests.at(-1),'16_1_2_0_2_2','A/B restores the actor, entry and length together');
+for(let index=1;index<partStockCount('comp');index++)turn(1);
+settle();assert.equal(previewRequests.at(-1),`16_${partStockCount('comp')}_2_0_0_2`);
+assert(commands.some(([,value])=>value.includes(`filllibrary 16 ${partStockCount('comp')} abcd`)),'saved payload is staged without occupying a clip');
+const libraryReads=reads,libraryCommands=commands.length;
+for(let index=0;index<12;index++){fill.renderFill();fill.fillTick();}
+assert.equal(reads,libraryReads);assert.equal(commands.length,libraryCommands,'rendering never transfers or decodes saved entries');
+const libraryPng=new PNG({width:512,height:256});
+for(let row=0;row<256;row++)for(let col=0;col<512;col++){const offset=(row*512+col)*4,value=pixels[Math.floor(row/4)*128+Math.floor(col/4)];libraryPng.data[offset]=libraryPng.data[offset+1]=libraryPng.data[offset+2]=value;libraryPng.data[offset+3]=255;}
+writeFileSync('artifacts/fill-library.png',PNG.sync.write(libraryPng));
+const targetPort=portFor(2),originalParam=targetPort.getParam.bind(targetPort);let synth='wrong';
+targetPort.getParam=key=>key==='synth_module'?synth:originalParam(key);
+commands.length=0;fill.fillCell(2,6);assert(!commands.some(([,value])=>value.includes('clipfill')),'saved instrument requirement remains enforced');
+synth='probe';fill.fillCell(2,6);assert(commands.some(([,value])=>value.includes('clipfill')),'matching instrument may load the saved recipe');
+appState.shiftHeld=true;turn(4);appState.shiftHeld=false;
+const oldReadFile=globalThis.host_read_file,oldWriteFile=globalThis.host_write_file;let libraryText='';
+globalThis.host_write_file=(_path,text)=>{libraryText=text;};globalThis.host_read_file=()=>libraryText;
+assert(saveUserPart(0,{payload:'5678',synth:'probe'},'comp'));
+globalThis.host_read_file=oldReadFile;globalThis.host_write_file=oldWriteFile;
+commands.length=0;const beforeStaleRecall=reads;
+appState.shiftHeld=true;turn(6);appState.shiftHeld=false;fill.fillCell(2,6);
+assert.equal(reads,beforeStaleRecall,'a replaced user slot cannot silently replace a bookmarked source');
+assert(!commands.some(([,value])=>value.includes('clipfill')));
+turn(1);settle();commands.length=0;fill.fillCell(2,6);
+assert(!commands.some(([,value])=>value.includes('clipfill')),'empty user slots cannot write');
+targetPort.getParam=originalParam;fill.setFillActive(false);
 globalThis.host_module_get_param=originalGet;globalThis.host_module_set_param_blocking=originalWrite;
 console.log('Clip Fill: source picks, read-only preview, actual grid destination, Undo, no launch, recording and failure guards pass');
+console.log('Fill libraries: actor/style selection, saved previews, original length, A/B identity, instrument and stale-slot guards pass');

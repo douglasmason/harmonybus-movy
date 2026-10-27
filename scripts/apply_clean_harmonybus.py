@@ -667,6 +667,14 @@ def main() -> int:
     patch_ui_overhead(root)
     from patch_audio_context import patch_audio_context
     patch_audio_context(root)
+    # Keep the UI/native protocol in sync, including the concurrent context reader.
+    for relative_path in ('engine/crates/movy-dsp/src/lib.rs', 'src/seq/constants.ts'):
+        version_path: Path = root / relative_path
+        version_text: str = version_path.read_text()
+        previous_version: str
+        for previous_version in ('0.84.0-chord-range1', '0.85.0-audio-context1'):
+            version_text = version_text.replace(previous_version, '0.86.0-fill-library1')
+        version_path.write_text(version_text)
     print("HarmonyBus clean integration applied")
     return 0
 

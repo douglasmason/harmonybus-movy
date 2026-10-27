@@ -15,6 +15,21 @@ static void load_part_track(int track,const char *kind,const char *choice){
     assert(!strncmp(result,"Loaded",6));
 }
 static void load_part(const char *kind,const char *choice){load_part_track(2,kind,choice);}
+#ifdef HB_TEST_CLIP_FILL
+static void fill_part_track(int track,const char *request){
+    char key[80],preview[8192],signature[64],target[128],command[512],result[256];
+    snprintf(key,sizeof(key),"fill_preview_%s",request);
+    assert(api->get_param(instance,key,preview,sizeof(preview))>0&&strncmp(preview,"error:",6));
+    assert(sscanf(preview,"%63[^|]",signature)==1);
+    snprintf(key,sizeof(key),"fill_target_%d_0",track);
+    assert(api->get_param(instance,key,target,sizeof(target))>0);
+    snprintf(command,sizeof(command),"clipfill %d 0 %s %s %s %s own",track,target,request,signature,part_baseline);
+    set("cmd",command);render(2);
+    assert(api->get_param(instance,"part_result",result,sizeof(result))>0);
+    if(strncmp(result,"Filled",6))fprintf(stderr,"library fill: %s\n",result);
+    assert(!strncmp(result,"Filled",6));
+}
+#endif
 static void test_part_library(void){
     set("cmd","stop");render(8);set("chtracks","1");set("ch2:mix","1,0,0,0,0");set("ch0:mix","1,0,0,0,0");
     set("chord_select","off");set("chord_route","3,2,0");
@@ -22,7 +37,13 @@ static void test_part_library(void){
     set("ch0:midi_fx1:role","Conductor");set("ch0:midi_fx1:render_channel","Off");
     set("ch0:midi_fx1:master_transpose","C");set("ch0:midi_fx1:follower_explicit_root","C");set("ch0:midi_fx1:follower_scale","Major");
     set("ch2:midi_fx1:render_channel","3");set("ch2:midi_fx1:play_bypass","Off");
-    set("cmd","usnap 200");load_part("stock","1");set("cmd","ucommit 200");
+    set("cmd","usnap 200");
+#ifdef HB_TEST_CLIP_FILL
+    fill_part_track(2,"16_1_99_99_0_2");
+#else
+    load_part("stock","1");
+#endif
+    set("cmd","ucommit 200");
     set("ch2:midi_fx1:render_velocity_percent","50");
     assert(field_get("ch2:midi_fx1:render_velocity_percent")==50);
     /* Starting transport resets held inputs in the existing renderer. Select
@@ -43,7 +64,13 @@ static void test_part_library(void){
     static char entry[40000],saved[262144];
     assert(api->get_param(instance,"part_export_2",entry,sizeof(entry))>0&&strncmp(entry,"error:",6));
     set("state","movy1\nbpm 12000\nlink 0\ntk 2 0 0\ncl 2 0 16 0 \n");
+#ifdef HB_TEST_CLIP_FILL
+    static char library_command[40100];
+    snprintf(library_command,sizeof(library_command),"filllibrary 16 7 %s",entry);
+    set("cmd",library_command);render(2);fill_part_track(2,"16_7_99_99_0_2");
+#else
     load_part("user",entry);
+#endif
     set("cmd","play");render(2);
     assert(field_get("ch2:synth:cutoff")==91);
     set("cmd","stop");render(4);
