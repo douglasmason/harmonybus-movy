@@ -1,5 +1,8 @@
 # Bass Library — Movy 0.34.1-hbclean.246
 
+In hbclean.270 the same stock and user entries are direct sources in
+[Clips → Fill](fill-library-270.md), including graphical saved-style previews.
+
 Requires HarmonyBus 0.2.294. Update Movy through Schwung Manager and restart Move.
 
 Chord Play now has a Bass Library beside Comp Library. It uses the same clip loader, scheduler, rendering settings, automation recall, and Undo system. Six one-bar starters are included: Root / Fifth, Sustain, Sparse, Syncopated, Octaves, and Walking. Walking is a simple diatonic source line; it does not anticipate the next chord.

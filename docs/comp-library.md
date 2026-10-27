@@ -1,5 +1,9 @@
 # Comp styles — Movy 0.34.1-hbclean.244
 
+In hbclean.270 these stock and user styles are also available directly in
+[Clips → Fill](fill-library-270.md), with source-note previews and their complete
+saved recipe. Chord Play keeps its existing deliberate loading controls.
+
 Requires HarmonyBus 0.2.294. Update HarmonyBus and Movy through Schwung Manager, then restart Move to load the new native engine.
 
 Chord Play's main knobs are Comp Input, Comp Style, Velocity, Note Length %, Chord Form, Voicing, Register, and Harmony Off. Velocity, form, and voicing control the conductor when it directly renders chords; with Comp Clip selected, they control the comp track. Note length and register control the currently sounding comp preset, or the selected preset while stopped.

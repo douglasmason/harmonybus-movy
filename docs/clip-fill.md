@@ -1,5 +1,10 @@
 # Clip Fill — Movy 0.34.1-hbclean.257
 
+Movy hbclean.270 adds [direct Comp and Bass library sources](fill-library-270.md),
+including saved-style previews, full recipe/automation recall and A/B source
+identity checks. Knob 1 reaches the actor libraries after Track 16; knob 2
+selects a style. Library sources default to their saved length and phrasing.
+
 Pair with HarmonyBus 0.2.297. Clips Setup knob 5 opens Fill. Existing clips are the sources: nothing has to be saved into a library. Source clips may be stopped, muted or in another bank. Back, jog or knob 8 exits Fill; leaving Clips disarms it.
 
 | Knob | Selection |
