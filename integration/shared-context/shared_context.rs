@@ -13,7 +13,7 @@ pub fn parse(text: &str) -> Option<(usize,u8,Value)> {
     let on=fields.next()?.parse::<u8>().ok()?;
     let value=Value {on:on==1,a:fields.next()?.parse().ok()?,b:fields.next()?.parse().ok()?,c:fields.next()?.parse().ok()?};
     if fields.next().is_some() || track>=16 || kind>=3 || on>1 {return None;}
-    if value.on && match kind {0=>!valid_key(value),1=>!(1..21).contains(&value.a),_=>!(1..20).contains(&value.a)} {return None;}
+    if value.on && match kind {0=>!valid_key(value),1=>!(1..=crate::scale_catalog::PARALLEL_COUNT as i32).contains(&value.a),_=>!(1..=crate::scale_catalog::SCALE_COUNT as i32).contains(&value.a)} {return None;}
     Some((track,kind,value))
 }
 pub fn record(events: &mut Vec<Event>, event: Event) {

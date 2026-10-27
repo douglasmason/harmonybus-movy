@@ -23,6 +23,7 @@ import {queueFooterText,drawHarmonyFooter} from '../renderer/hb-footer.js';
 import {ANIM_PULSE_SLOW} from './colors.js';
 /** Chord slots choose conductor harmony; the comp actor owns rhythm and sound. */
 import { appState } from '../app/state.js';
+import { FOLLOWER_SCALE_NAMES } from '../scale-catalog.js';
 import { selectTrack } from '../track/focus.js';
 import { portFor } from '../track/registry.js';
 import type { TrackPort } from '../track/port.js';
@@ -154,7 +155,7 @@ export function restoreChord(value:unknown):void{
         setup.bassClip=input.bassClip===true;
         if(setup.comp===setup.conductor)setup.comp=setup.conductor===2?3:2;
         if([setup.conductor,setup.comp].includes(setup.bass))setup.bass=Array.from({length:16},(_,index)=>index).find(track=>![setup.conductor,setup.comp].includes(track))!;
-        setup.slots=setup.slots.map((slot,index)=>{const saved=input.slots?.[index];if(saved&&typeof saved==='object'&&saved.intent===undefined){slot.intent=0;slot.target=0;}if(saved&&typeof saved==='object')for(const key of Object.keys(slot) as (keyof Slot)[]){const number=saved[key],limit=key==='quality'||key==='bass'?12:key==='form'?16:key==='policy'?3:key==='scale'?19:key==='target'?6:key==='enabled'?1:key==='range'?135:key==='intent'?13:11;if(Number.isInteger(number)&&number>=0&&number<=limit&&(key!=='scale'||number>=1))slot[key]=number;}return slot;});
+        setup.slots=setup.slots.map((slot,index)=>{const saved=input.slots?.[index];if(saved&&typeof saved==='object'&&saved.intent===undefined){slot.intent=0;slot.target=0;}if(saved&&typeof saved==='object')for(const key of Object.keys(slot) as (keyof Slot)[]){const number=saved[key],limit=key==='quality'||key==='bass'?12:key==='form'?16:key==='policy'?3:key==='scale'?FOLLOWER_SCALE_NAMES.length:key==='target'?6:key==='enabled'?1:key==='range'?135:key==='intent'?13:11;if(Number.isInteger(number)&&number>=0&&number<=limit&&(key!=='scale'||number>=1))slot[key]=number;}return slot;});
     }
     page=null;route='';resetBank();
 }

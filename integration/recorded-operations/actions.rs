@@ -20,7 +20,7 @@ pub fn parse(message:&str)->Option<(u8,Actions)>{
     let intent=actions[LANES];
     // Mode 3 carries the destination scale anticipated by this approach.
     let mode=(intent>>21)&3;let scale=(intent>>36)&31;
-    let valid_scale=if mode==3 {(1..=19).contains(&scale)||scale==31} else {scale<=17};
+    let valid_scale=if mode==3 {(1..=crate::scale_catalog::SCALE_COUNT as u64).contains(&scale)||scale==31} else {scale<=crate::scale_catalog::SCALE_COUNT as u64};
     if intent&(((1u64<<23)-1)<<20)!=0 && (intent&(1u64<<20)==0 || (intent>>23)&15>12 || (intent>>27)&31>16 || (intent>>32)&15>11 || !valid_scale || (intent>>41)&3>2){return None;}
     let cadence=(actions[LANES]>>13)&127;
     if cadence>0 {let index=(cadence-1) as usize;let lengths=[3,3,3,3,5,3,3,5,3,4,4,5,3,5];
@@ -115,7 +115,7 @@ impl Interval {
             let mut actions=[0;LANES+1];
             actions[LANES]=(1u64<<20)|(3u64<<21)|(scale<<36)|(2u64<<4);
             let parsed=parse(&format!("ra4,{}",payload(69,actions)));
-            if (1..=19).contains(&scale)||scale==31 {assert_eq!(parsed,Some((69,actions)));}
+            if (1..=crate::scale_catalog::SCALE_COUNT as u64).contains(&scale)||scale==31 {assert_eq!(parsed,Some((69,actions)));}
             else {assert!(parsed.is_none());}
         }
     }

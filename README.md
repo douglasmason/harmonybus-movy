@@ -1,4 +1,7 @@
-> Movy hbclean.270 adds Comp and Bass libraries directly to Clips Fill, with saved-style previews, complete recipe/automation recall, actor-specific entry lists and one Undo. Includes the verified audio-context improvements. See [library Fill controls and limits](docs/fill-library-270.md).
+Current release preparation: **0.34.1-hbclean.271** pairs with HarmonyBus **0.2.304**: eight-note scales, Smart operation lanes and adaptive authored motifs. See [relative operations](docs/relative-operations.md).
+
+Previous release: **0.34.1-hbclean.270** adds Comp and Bass library sources to Clips Fill. See [Fill libraries](docs/fill-library-270.md).
+
 
 > Movy hbclean.269 removes temporary allocations from native follower-context reads and Humanize parsing while preserving recording-event delivery. Includes Smart Approaches and the earlier UI improvements. See [audio-context measurements and limits](docs/audio-context.md).
 

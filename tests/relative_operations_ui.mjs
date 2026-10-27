@@ -24,5 +24,8 @@ const numeric={key:'motion_operation',options_as_string:false,options:['Upper Di
 orderHarmonyChoices(numeric);assert.deepEqual(numeric.options,['Upper Dim','Off','Leading Tone']);
 const named={key:'motion_operation',options_as_string:true,options:['Upper Dim','Off','Leading Tone']};
 orderHarmonyChoices(named);assert.deepEqual(new Set(named.options),new Set(numeric.options));
-assert(!named.options.includes('Smart Below'),'Bank-only selectors must not become unsupported operation lanes');
+assert(!named.options.includes('Smart Below'),'Ordering must not inject choices missing from native metadata');
 console.log('Relative operation UI: native labels, distinct harmonic families, both Smart selectors, bank panels and stable numeric enums pass');
+
+const smartLane={key:'motion_operation',options_as_string:true,options:['Off','Smart Below','Smart Above','Leading Tone']};
+orderHarmonyChoices(smartLane);assert(smartLane.options.includes('Smart Below')&&smartLane.options.includes('Smart Above'));

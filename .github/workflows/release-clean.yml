@@ -306,6 +306,7 @@ jobs:
               'browser-test/track-colors.mjs',
           }
           expected.add('src/operation-catalog.ts')
+          expected.add('engine/crates/seq-core/src/scale_catalog.rs')
           expected.update({'src/seq/grid.ts','engine/crates/seq-core/src/grid.rs','browser-test/hb-grid.mjs'})
           expected.update({'src/seq/router-pads.ts'})
           expected.update({'browser-test/hb-fm1.mjs', 'harmonybus-core-source.json', 'src/surfaces/claims.ts', 'src/surfaces/core-input.ts', 'src/surfaces/fm1.ts', 'src/surfaces/input.ts'})
@@ -382,6 +383,7 @@ jobs:
           node browser-test/hb-motifs.mjs
           node browser-test/hb-motif-loader.mjs
           node ../tests/relative_operations_ui.mjs .
+          node ../tests/scale_cardinality_ui.mjs .
 
       - name: Verify harmony pad colors
         if: steps.plan.outputs.mode != 'reused'
