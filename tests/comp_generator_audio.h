@@ -51,4 +51,42 @@ static void test_comp_generator(void){
     set("cmd","uswap 920 921");render(2);assert(api->get_param(instance,"state",after,sizeof(after))>0&&strstr(after,"cg1 2 0 "));
     set("chord_select","off");render(16);
     puts("Comp generator: temporary mapped audio, exclusive route, recording controls, Set recall, Bake and paired releases pass");
+    /* Every Bass source shares the production mapper and outgoing MIDI route.
+       Start from chord/arp settings that the temporary source must restore. */
+    for(int mapping=0;mapping<2;mapping++)for(int style=4;style<8;style++){
+        set("cmd","stop");set("chord_select","off");render(16);
+        set("state","movy1\nbpm 12000\nlink 0\ntk 1 0 0\n");
+        set("ch1:mix","1,0,0,0,0");set("ch1:midi_fx1:role","Follower");
+        set("ch1:midi_fx1:travel_map",mapping?"Closest Split":"Relative");
+        set("ch1:midi_fx1:chord_mode","Conductor Chord");set("ch1:midi_fx1:arp_playback","Repeat Arp");set("ch1:midi_fx1:arp_hold","Latch - Single");
+        set("ch1:midi_fx1:render_channel","2");set("ch1:midi_fx1:render_velocity_percent","100");set("ch1:midi_fx1:play_bypass","Off");
+        set("joint_links","0,1,1,-2,-1,0;4,0,0,0,0,0;8,0,0,0,0,0;12,0,0,0,0,0");
+        set("chord_route","3,2,0,1");render(8);
+        assert(api->get_param(instance,"state",before,sizeof(before))>0);
+        char initial_mode[64],initial_hold[64],restored[64];
+        assert(api->get_param(instance,"ch1:midi_fx1:chord_mode",initial_mode,sizeof(initial_mode))>0);
+        assert(api->get_param(instance,"ch1:midi_fx1:arp_hold",initial_hold,sizeof(initial_hold))>0);
+        char command[128];snprintf(command,sizeof(command),"gexplore 1 %d 127 64 23;play",style);
+        sent_on=sent_off=0;rendered_mask=0;memset(routed_channel_on,0,sizeof(routed_channel_on));
+        set("cmd",command);render(800);set("chord_select","0,2,1,0,1,0,1,12");render(1000);
+        set("cmd","gexplore off;stop");render(16);
+        fprintf(stderr,"bass generator style=%d map=%d on=%d off=%d mask=%x\n",style,mapping,sent_on,sent_off,rendered_mask);
+        assert(sent_on>=4&&sent_on==sent_off&&routed_channel_on[1]==(unsigned)sent_on);
+        assert((rendered_mask&((1u<<2)|(1u<<9)))!=0);
+        assert(api->get_param(instance,"state",after,sizeof(after))>0&&!strcmp(before,after));
+        assert(api->get_param(instance,"ch1:midi_fx1:chord_mode",restored,sizeof(restored))>0&&!strcmp(restored,initial_mode));
+        assert(api->get_param(instance,"ch1:midi_fx1:arp_hold",restored,sizeof(restored))>0&&!strcmp(restored,initial_hold));
+    }
+    set("chord_select","off");render(8);
+    set("cmd","gexplore 1 4 64 64 31;rec 1");render(1800);
+    assert(api->get_param(instance,"generator_info_1",info,sizeof(info))>0&&!strncmp(info,"Recording",9));
+    set("cmd","gexplore 1 7 127 100 31");render(850);set("cmd","rec 1;stop");render(8);
+    assert(api->get_param(instance,"state",saved,sizeof(saved))>0&&strstr(saved,"cg1 1 0 ")&&strstr(saved,"Bass-Generator"));
+    set("state",saved);render(8);set("cmd","usnap 940;gpreview 1 0 1 110;rec 1");render(1800);set("cmd","rec 1;stop;ucommit 940");render(8);
+    assert(api->get_param(instance,"state",after,sizeof(after))>0&&strcmp(after,saved));
+    set("cmd","uswap 940 941");render(8);assert(api->get_param(instance,"state",after,sizeof(after))>0&&!strcmp(after,saved));
+    set("cmd","gbake 1 0");render(8);assert(api->get_param(instance,"generator_info_1",info,sizeof(info))>0&&strstr(info,"Baked"));
+    sent_on=sent_off=0;set("cmd","play");render(1000);set("cmd","stop");render(16);assert(sent_on>4&&sent_on==sent_off);
+    puts("Bass generator: four styles, both harmonic maps, exclusive MIDI channel, temporary setting restore, recording, overdub Undo, reload and Bake pass");
+
 }

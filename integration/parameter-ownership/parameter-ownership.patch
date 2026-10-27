@@ -362,7 +362,7 @@ index 3717445d..ff9da43d 100644
 +++ b/src/seq/chord-play.ts
 @@ -1,3 +1,4 @@
 +import { paramPageActive } from './param-page.js';
- import {generatorParameters,generatorKeys,generatorRead,generatorWrite,generatorStop,generatorFooter,generatorTouch,generatorRecordActive,generatorPrepareRecord,generatorPageChanged} from './comp-generator.js';
+ import {generatorParameters,generatorKeys,generatorRead,generatorWrite,generatorStop,generatorFooter,generatorTouch,generatorRecordActive,generatorPrepareRecord,generatorPageChanged,generatorBrowseKeys,generatorActor,generatorTarget} from './comp-generator.js';
  import {registerChordLabels,chordLabelMetadata} from './chord-labels.js';
  import {singleConductor} from './session-roles.js';
 @@ -26,7 +27,7 @@ function conductorTrackForQueue():number {return conductorTrack();}
@@ -397,7 +397,7 @@ index 3717445d..ff9da43d 100644
 -        for(let knob=0;knob<8;knob++)if(!current||!(current.knobLEDMask&(1<<knob))){const color=keys[knob]?123:0;cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);}
 +    }else{
 +        const ownedMask=current?.knobLEDMask??0;
-+        for(let knob=0;knob<8;knob++)if(!(ownedMask&(1<<knob))){const color=keys[knob]?123:0;cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);}
++        for(let knob=0;knob<8;knob++)if(!(ownedMask&(1<<knob))){const color=keys[knob]&&!keys[knob]!.startsWith('cp_blank_')?123:0;cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);}
      }
      if(current?.keyAt(7)==='cp_off'){cachedSetAnimLED(7,123,123,0);cachedSetAnimLED(78,123,123,0,true);}
      bankKnobs=onBank;

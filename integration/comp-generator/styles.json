@@ -1,6 +1,10 @@
 [
-  {"name":"Quarters","family":"Pulse","genres":["Pop","Rock"],"catalog":1,"optional":[[2,18,76,40],[6,18,72,65],[10,18,78,30],[14,18,70,80],[15,12,62,110]]},
-  {"name":"Offbeats","family":"Pulse","genres":["Reggae","Funk"],"catalog":2,"optional":[[0,18,78,35],[4,18,68,70],[8,18,82,45],[12,18,70,80],[15,12,60,110]]},
-  {"name":"Sparse","family":"Sync","genres":["Jazz","Soul"],"catalog":3,"optional":[[3,18,66,60],[6,18,70,90],[8,18,72,45],[12,18,76,70],[15,12,64,110]]},
-  {"name":"3-3-2","family":"Sync","genres":["Latin","Pop"],"catalog":4,"optional":[[2,18,70,45],[5,12,64,95],[8,18,74,55],[10,18,68,85],[14,18,72,65]]}
+  {"name":"Quarters","family":"Pulse","genres":["Pop","Rock"],"catalog":1,"optional":[[2,18,60,76,40],[6,18,60,72,65],[10,18,60,78,30],[14,18,60,70,80],[15,12,60,62,110]],"actor":"Comp"},
+  {"name":"Offbeats","family":"Pulse","genres":["Reggae","Funk"],"catalog":2,"optional":[[0,18,60,78,35],[4,18,60,68,70],[8,18,60,82,45],[12,18,60,70,80],[15,12,60,60,110]],"actor":"Comp"},
+  {"name":"Sparse","family":"Sync","genres":["Jazz","Soul"],"catalog":3,"optional":[[3,18,60,66,60],[6,18,60,70,90],[8,18,60,72,45],[12,18,60,76,70],[15,12,60,64,110]],"actor":"Comp"},
+  {"name":"3-3-2","family":"Sync","genres":["Latin","Pop"],"catalog":4,"optional":[[2,18,60,70,45],[5,12,60,64,95],[8,18,60,74,55],[10,18,60,68,85],[14,18,60,72,65]],"actor":"Comp"},
+  {"actor":"Bass","name":"Root / Fifth","family":"Pulse","genres":["Pop","Rock","Country"],"catalog":0,"optional":[[2,24,36,72,45],[6,24,43,70,75],[10,24,36,76,35],[14,24,43,70,90]]},
+  {"actor":"Bass","name":"Sustain","family":"Pulse","genres":["Pop","Soul","Ambient"],"catalog":1,"optional":[[8,72,36,82,50],[12,48,43,74,90]]},
+  {"actor":"Bass","name":"Sparse","family":"Sync","genres":["Jazz","Soul"],"catalog":2,"optional":[[6,36,36,76,45],[14,24,43,70,90]]},
+  {"actor":"Bass","name":"Syncopated","family":"Sync","genres":["Funk","Latin","Pop"],"catalog":3,"optional":[[2,18,36,68,60],[5,18,43,72,85],[8,30,36,76,40],[13,18,43,68,100]]}
 ]
