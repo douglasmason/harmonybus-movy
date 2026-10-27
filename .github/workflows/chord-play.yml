@@ -1,8 +1,10 @@
-name: Actor generator verification and release
+name: Adaptive motif export verification and release
 on:
   push:
     branches: [main]
     paths:
+      - docs/adaptive-motif-export.md
+      - tests/adaptive_motif_audio.h
       - integration/pad-position/**
       - scripts/patch_pad_position.py
       - scripts/patch_chord_discovery.py
@@ -94,6 +96,8 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - docs/adaptive-motif-export.md
+      - tests/adaptive_motif_audio.h
       - integration/pad-position/**
       - scripts/patch_pad_position.py
       - scripts/patch_chord_discovery.py
@@ -189,7 +193,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.281
+  SOURCE_VERSION: 0.34.1-hbclean.282
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -277,7 +281,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: actor-generator-281
+          name: adaptive-motif-export-282
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -298,10 +302,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.280':
-              raise SystemExit('Expected Movy 280 before actor generator release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.281':
+              raise SystemExit('Expected Movy 281 before adaptive motif export release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Actor Generator" --notes-file docs/comp-generator.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Adaptive Motif Export" --notes-file docs/adaptive-motif-export.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -314,7 +318,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.280':
+          if metadata['version'] != '0.34.1-hbclean.281':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
@@ -322,5 +326,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add release.json
-          git commit -m "Publish verified Actor Generator $SOURCE_VERSION [skip ci]"
+          git commit -m "Publish verified Adaptive Motif Export $SOURCE_VERSION [skip ci]"
           git push origin HEAD:main

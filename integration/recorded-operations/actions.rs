@@ -1,7 +1,7 @@
 //! Immutable note-relative operation outcomes; exact u64 words never visit JS.
 pub const LANES:usize=51;
 pub type Actions = [u64;LANES+1];
-pub fn operation(word:u64)->u64{((word>>32)&31)|((word>>46)&32)}
+pub fn operation(word:u64)->u64{((word>>32)&31)|((word>>46)&96)}
 pub fn parse(message:&str)->Option<(u8,Actions)>{
     let mut fields=message.split(',');
     if !matches!(fields.next()?,"ra1"|"ra2"|"ra3"|"ra4") {return None;}

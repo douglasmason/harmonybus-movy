@@ -32,6 +32,7 @@ JSON
 # Older feature workflows deliberately retain their original HB source pin.
 # The Chord Play workflow requires this header, so its new coverage cannot skip.
 CHORD_PLAY_TEST_FLAGS=()
+if grep -q 'operation&96' "$HB_SOURCE/src/motion.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_ADAPTIVE_MOTIF); fi
 if test -f "$HB_SOURCE/src/chord_discovery.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CHORD_DISCOVERY); fi
 if test -f "$HB_SOURCE/src/chord_selection.h"; then
   CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CHORD_PLAY)
@@ -51,6 +52,10 @@ cargo build --manifest-path "$MOVY_SOURCE/engine/Cargo.toml" -p movy-dsp
 "$FIXTURE_ROOT/full-chain-test" "$MOVY_SOURCE/engine/target/debug/libmovy_dsp.so" "$FIXTURE_ROOT" restored
 if [[ " ${CHORD_PLAY_TEST_FLAGS[*]} " == *" -DHB_TEST_PAD_PARENT_KEY "* ]]; then
   HB_PAD_PARENT_ONLY=1 "$FIXTURE_ROOT/full-chain-test" "$MOVY_SOURCE/engine/target/debug/libmovy_dsp.so" "$FIXTURE_ROOT" parent-key
+fi
+
+if [[ " ${CHORD_PLAY_TEST_FLAGS[*]} " == *" -DHB_TEST_ADAPTIVE_MOTIF "* ]]; then
+  HB_ADAPTIVE_ONLY=1 "$FIXTURE_ROOT/full-chain-test" "$MOVY_SOURCE/engine/target/debug/libmovy_dsp.so" "$FIXTURE_ROOT" adaptive-motif
 fi
 
 # Export the verified chain fixture for the local development host.

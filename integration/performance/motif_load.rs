@@ -40,13 +40,13 @@ impl Engine {
         let end=offset.checked_add(duration).ok_or("Invalid motif length")?;
         let steps=end.div_ceil(TICKS_PER_STEP);
         if steps>MAX_STEPS as u32{return Err("Exceeds 16 bars")}
-        let mut notes=Vec::new();let mut event_count=0;let mut previous_end=0;
+        let mut notes=Vec::new();let mut event_count=0;let mut previous_end=0;let mut previous_timing=None;
         for encoded in payload.split('|'){
             event_count+=1;if event_count>34{return Err("Too many motif events")}
             let (timing,words)=encoded.split_once(':').ok_or("Invalid motif event")?;
             let mut values=timing.split(',');let onset:u32=number(values.next())?;let gate:u32=number(values.next())?;
-            if onset!=previous_end||gate==0||onset.checked_add(gate).filter(|end|*end<=duration).is_none(){return Err("Invalid event timing")}
-            previous_end=onset+gate;
+            if (onset!=previous_end&&previous_timing!=Some((onset,gate)))||gate==0||onset.checked_add(gate).filter(|end|*end<=duration).is_none(){return Err("Invalid event timing")}
+            previous_timing=Some((onset,gate));previous_end=onset+gate;
             let actions:Vec<u64>=words.split(',').map(|word|u64::from_str_radix(word,16)).collect::<Result<_,_>>().map_err(|_|"Invalid motif actions")?;
             let actions:[u64;52]=actions.try_into().map_err(|_|"Incomplete motif actions")?;
             if crate::recorded_actions::parse(&format!("ra4,{}",crate::recorded_actions::payload(0,actions))).is_none(){return Err("Unsupported motif actions")}
@@ -76,6 +76,52 @@ impl Engine {
         if mode==0&&self.tracks[track].playing_slot==Some(slot){self.flush_track_gates(track,out);}
         self.tracks[track].clips[slot]=clip;
         Ok(())
+    }
+}
+
+
+#[cfg(test)] mod adaptive_tests {
+    use super::*;
+    fn smart_words(operation:u64)->[u64;52] {let mut words=[0;52];words[0]=(1u64<<63)|((operation&31)<<32)|((operation&96)<<46)|1000;words}
+    fn encoded(words:[u64;52])->String {words.iter().map(|word|format!("{word:x}")).collect::<Vec<_>>().join(",")}
+    fn write(e:&mut Engine,payload:&str,duration:u32,out:&mut Vec<OutEvent>) {
+        let info=e.motif_clip_info(0);let fields:Vec<_>=info.split(',').collect();
+        let command=format!("mload 0 {} {} 0 {duration} 9 8 {payload}",fields[0],fields[1]);
+        crate::command::apply_batch(e,&format!("usnap 81;{command};ucommit 81"),out);
+    }
+    #[test] fn adaptive_polyphony_survives_copy_save_undo_and_playback() {
+        for operation in [67,68] {
+            let mut e=Engine::new(48000,12000);let mut out=vec![];let before=e.undo_snapshot();let words=smart_words(operation);
+            let payload=format!("0,384,65.100,68.90:{}",encoded(words));write(&mut e,&payload,384,&mut out);
+            assert!(e.motif_load_result.starts_with("Written"));assert_eq!(e.tracks[0].active().notes.len(),2);
+            for note in &e.tracks[0].active().notes {assert_eq!(note.actions,Some(words));assert!(!note.rendered);}
+            let copied=e.tracks[0].active().clone();assert_eq!(copied.notes[1].actions,Some(words));
+            let saved=crate::persist::serialize(&e);let mut restored=Engine::new(48000,12000);assert!(crate::persist::load(&mut restored,&saved));
+            for note in &restored.tracks[0].active().notes {assert_eq!(note.actions,Some(words));}
+            crate::command::apply_batch(&mut e,"uswap 81 82",&mut out);assert_eq!(e.undo_snapshot(),before);
+            crate::command::apply_batch(&mut e,"uswap 82 83",&mut out);assert_eq!(e.tracks[0].active().notes[0].actions,Some(words));
+            restored.playing=true;restored.tracks[0].playing_slot=Some(0);restored.tracks[0].pos_tick=0;
+            out.clear();restored.advance_block(1000,&mut out);
+            assert_eq!(out.iter().filter(|event|matches!(event,OutEvent::RecordedActions{actions:Some(value),..} if *value==words)).count(),2);
+            let action=out.iter().position(|event|matches!(event,OutEvent::RecordedActions{..})).unwrap();
+            let note=out.iter().position(|event|matches!(event,OutEvent::NoteOn{..})).unwrap();assert!(action<note);
+            restored.tracks[0].active_mut().double_loop();
+            assert_eq!(restored.tracks[0].active().notes.len(),4);assert!(restored.tracks[0].active().notes.iter().all(|note|note.actions==Some(words)));
+            // Native DSP receives the exact selector word; Rust never chooses a harmony.
+            assert_eq!(crate::recorded_actions::parse(&format!("ra4,{}",crate::recorded_actions::payload(65,words))),Some((65,words)));
+        }
+    }
+    #[test] fn simultaneous_fixed_choices_are_valid_but_partial_overlaps_are_atomic() {
+        let mut e=Engine::new(48000,12000);let mut out=vec![];
+        let mut below=[0;52];below[51]=(14u64<<43)|((12u64&7)<<4)|((12u64&8)<<5);
+        let mut above=[0;52];above[51]=(60u64<<43)|((13u64&7)<<4)|((13u64&8)<<5);
+        let payload=format!("0,384,65.100:{}|0,384,68.90:{}|384,384,69.100:{}",encoded(above),encoded(below),encoded([0;52]));
+        write(&mut e,&payload,768,&mut out);assert!(e.motif_load_result.starts_with("Written"));
+        assert_eq!(e.tracks[0].active().notes.iter().map(|n|n.tick).collect::<Vec<_>>(),vec![0,0,384]);
+        for invalid in [payload.replacen("|0,384", "|1,384",1),payload.replacen("|0,384", "|0,383",1),payload.replacen("|384,384", "|385,383",1)] {
+            let before=e.undo_snapshot();write(&mut e,&invalid,768,&mut out);assert_eq!(e.undo_snapshot(),before);assert!(!e.motif_load_result.starts_with("Written"));
+        }
+        for operation in [64,65,66,69,127] {assert!(crate::recorded_actions::parse(&format!("ra4,{}",crate::recorded_actions::payload(65,smart_words(operation)))).is_none());}
     }
 }
 

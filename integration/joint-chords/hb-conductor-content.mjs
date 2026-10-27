@@ -56,6 +56,13 @@ assert.equal(events.length,5);assert.equal(events[1].split(',')[1],'768');assert
 assert.deepEqual(events.map(event=>Number(event.split(',')[0])),[0,384,1152,1536,1920]);
 commands.length=0;tap(6);assert(!chord.renderChordReview(),'a leading Tie is rejected, never silently converted');assert(!operations().some(op=>op.startsWith('mload')));
 commands.length=0;tap(5);assert(chord.renderChordReview(),'an explicit Rest can stand alone');tap(1);composed=operations().find(op=>op.startsWith('mload'));assert(composed.includes(' 384 0 1 0,384:'));
+// Fixed polyphonic Smart decisions share an onset; Tie extends both voices.
+const monoRead=conductor.getParam;
+conductor.getParam=key=>key==='midi_fx1:motif_load_header'?'ml1,19,384,2,0,1,0':key.startsWith('midi_fx1:motif_load_event_')?(key.endsWith('_0')?'0,384,65.100:':'0,384,68.90:')+actions.join(','):monoRead(key);
+commands.length=0;down(0);down(6);up(0);up(6);assert(chord.renderChordReview());tap(1);
+composed=operations().find(op=>op.startsWith('mload'));events=composed.split(' ').at(-1).split('|');
+assert(composed.includes(' 768 0 1 '));assert.deepEqual(events.map(event=>event.split(':')[0]),['0,768,65.100','0,768,68.90']);
+conductor.getParam=monoRead;
 // Turning a held selector edits its choice without finishing an accidental phrase.
 commands.length=0;down(0);seqHandleMidi([176,71,1],false);up(0);assert(!chord.renderChordReview());
 console.log('Continuous overlap: touch-order phrase composition, mixed knobs/steps, final-release completion, explicit Rest/Tie, repeated element and turn cancellation pass');
