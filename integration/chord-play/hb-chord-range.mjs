@@ -60,7 +60,7 @@ assert.equal(conductor.getParam('midi_fx1:chord_queue_depth'),'4');
 assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value==='begin,0').length,1);
 // Browse while holding, then hand off to the matching step on the new bank.
 find('cp_slot_0');commands.length=0;midi([144,0,100]);
-midi([176,63,127]);assert.equal(page.keyAt(0),'cp_slot_7');
+midi([176,14,1]);assert.equal(page.keyAt(0),'cp_slot_7');
 assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value.startsWith('0,')).length,1,'browsing does not enqueue');
 midi([144,16,100]);assert.equal(chord.chordSnapshot().selected,7);midi([128,0,0]);
 assert.equal(commands.filter(([key,value])=>key==='chord_queue'&&value==='commit').length,0);

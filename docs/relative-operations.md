@@ -1,6 +1,6 @@
-# Relative operations and eight-note scales — Movy hbclean.271 / HB 0.2.304
+# Relative operations and eight-note scales — Movy hbclean.272 / HB 0.2.304
 
-Update HarmonyBus to **0.2.304**, then Movy to **0.34.1-hbclean.271**.
+Update HarmonyBus to **0.2.304**, then Movy to **0.34.1-hbclean.272**.
 Movy loads the separately installed HB DSP.
 
 **Half-Whole Diminished / Whole-Half Diminished** are available in the shared
