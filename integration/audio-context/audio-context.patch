@@ -1,0 +1,129 @@
+--- a/engine/crates/movy-dsp/src/chain_slots.rs
++++ b/engine/crates/movy-dsp/src/chain_slots.rs
+@@ -92,6 +92,7 @@
+     hb_config_dirty: Vec<bool>,
+     hb_config_generation: u32,
+     hb_field_enabled: bool,
++    hb_context_buffer: [u8; crate::hb_context::CAPACITY],
+     /// The chain set as last REQUESTED, per slot, as (component, module) in the
+     /// order it arrived. Not as last loaded: a load is queued and released one
+     /// per audio callback, so "what has finished dlopen-ing" is a moving target
+@@ -236,6 +237,7 @@
+             hb_config_dirty: vec![true; MOVY_CHAINS],
+             hb_config_generation: u32::MAX,
+             hb_field_enabled: false,
++            hb_context_buffer: [0; crate::hb_context::CAPACITY],
+             desired: vec![Vec::new(); MOVY_CHAINS],
+             scratch: vec![vec![0i16; SCRATCH_SAMPLES]; MOVY_CHAINS],
+             pin: PinPolicy::new(RENDER_SLOTS),
+@@ -832,16 +834,16 @@
+             }
+         }
+     }
+-    pub fn hb_input_context(&mut self) -> String {
++    pub fn hb_input_context(&mut self) -> &str {
++        let mut length = 0;
+         for instance in self.slots.iter_mut().flatten() {
+-            if let Some(message)=instance.get_param("midi_fx1:follower_input_context_v2") {
+-                if message.starts_with("fic1,") {return message;}
+-            }
+-            if let Some(message)=instance.get_param("midi_fx1:follower_input_context") {
+-                if message.starts_with("fic1,") {return message;}
+-            }
+-        }
+-        String::new()
++            length = crate::hb_context::read(&mut self.hb_context_buffer,
++                |key, buffer| instance.hb_get_small(key, buffer));
++            if length > 0 { break; }
++        }
++        // The bytes are validated before returning their count. This borrow
++        // lasts through immediate engine consumption, before any subsequent read.
++        std::str::from_utf8(&self.hb_context_buffer[..length]).unwrap_or("")
+     }
+     /// In-process read, at most 20 Hz total, only with field-mapped clip lanes.
+     pub fn hb_field_values(&mut self) -> Option<String> {
+--- a/engine/crates/movy-dsp/src/lib.rs
++++ b/engine/crates/movy-dsp/src/lib.rs
+@@ -12,6 +12,7 @@
+ mod idle_probe;
+ mod tone_check;
+ mod hb_loop;
++mod hb_context;
+ mod drum_output;
+ mod actor_source;
+ mod hb_record;
+@@ -132,7 +133,7 @@
+ }
+
+ const DEFAULT_BPM_X100: u32 = 12000;
+-const ENGINE_VERSION: &str = "0.84.0-chord-range1";
++const ENGINE_VERSION: &str = "0.85.0-audio-context1";
+
+ /// Tracks backed by schwung's own shadow slots by default. Their notes go out as
+ /// MIDI on the matching channel; everything above this index is a chain movy
+@@ -260,7 +261,7 @@
+         if derive {self.joint_follow(event,false);}
+         if event.status == 0x90 {
+             let context = self.chains.hb_input_context();
+-            self.engine.follower_input_context(&context);
++            self.engine.follower_input_context(context);
+             for _ in 0..64 {
+                 let Some(message) = self.chains.get_param(track, "midi_fx1:hb_record_action") else { break; };
+                 if !["ra1,", "ra2,", "ra3,", "ra4,"].iter().any(|prefix| message.starts_with(prefix)) { break; }
+@@ -292,7 +293,7 @@
+                     }
+                 }
+                 let context=self.chains.hb_input_context();
+-                self.engine.follower_input_context(&context);
++                self.engine.follower_input_context(context);
+         self.collect_recorded_actions();
+                 // Normal Record and retrospective Capture retain the gesture.
+                 // Legacy rendered notes still bypass generation on playback.
+@@ -941,7 +942,7 @@
+         if !idle_minimal {
+         self.blocks += 1;
+         let context=self.chains.hb_input_context();
+-        self.engine.follower_input_context(&context);
++        self.engine.follower_input_context(context);
+         self.collect_recorded_actions();
+         for track in 0..self.engine.tracks.len() {
+             if let Some(message)=self.chains.hb_take_auto_config(track) {
+--- a/engine/crates/seq-core/src/humanize.rs
++++ b/engine/crates/seq-core/src/humanize.rs
+@@ -4,12 +4,19 @@
+ pub struct Humanize { pub timing: u32, pub velocity: u32, pub gate: u32, pub tracks: u16, pub followers: u16 }
+ impl Humanize {
+     pub fn parse(text: &str, followers: u16) -> Self {
+-        let values: Vec<_> = text.split(',').collect();
+-        if values.len()!=5 || values[0]!="hu1" { return Self::default(); }
+-        let fields: Option<Vec<u32>> = values[1..].iter().map(|value|value.parse().ok()).collect();
+-        let Some(fields)=fields else {return Self::default()};
+-        if fields[..3].iter().any(|value|*value>30)||fields[3]>65535{return Self::default();}
+-        Self{timing:fields[0],velocity:fields[1],gate:fields[2],tracks:fields[3] as u16,followers}
++        let mut values = text.split(',');
++        if values.next() != Some("hu1") { return Self::default(); }
++        let mut fields = [0u32; 4];
++        for field in &mut fields {
++            let Some(value) = values.next().and_then(|value| value.parse::<u32>().ok()) else {
++                return Self::default();
++            };
++            *field = value;
++        }
++        if values.next().is_some() || fields[..3].iter().any(|value| *value > 30) || fields[3] > 65535 {
++            return Self::default();
++        }
++        Self { timing: fields[0], velocity: fields[1], gate: fields[2], tracks: fields[3] as u16, followers }
+     }
+     pub fn seed(track: usize, clip: usize, tick: u32) -> u32 {
+         let mut value=(track as u32+1).wrapping_mul(0x9e3779b9)^(clip as u32+1).wrapping_mul(0x85ebca6b)^tick.wrapping_mul(0xc2b2ae35);
+--- a/src/seq/constants.ts
++++ b/src/seq/constants.ts
+@@ -36,7 +36,7 @@
+  * build-dsp.sh fails the build when they diverge. The UI re-issues the DSP
+  * load until ping returns this exact version (fixes the fire-and-forget
+  * load race and stale engines after redeploy). */
+-export const ENGINE_VERSION = '0.84.0-chord-range1';
++export const ENGINE_VERSION = '0.85.0-audio-context1';
+ export const ENGINE_DSP_PATH = '/data/UserData/schwung/modules/tools/movy/dsp.so';
+
+ /* Where the engine finds schwung's chain host, and where it may keep its own
