@@ -1,3 +1,10 @@
+## Parameter page ownership (hbclean.279)
+
+Set/Clip Parameters, Settings, CPU and Backups own their screen, knobs, jog and
+Back while performance modes keep playing. Knob illumination restores on exit
+and retries budget-limited frames. Includes the Comp Generator and UI polling
+improvements. See [behavior and verification](docs/parameter-ownership.md).
+
 ## UI responsiveness (hbclean.277)
 
 Bounds failed light-feedback retries, batches approach status, and pauses hidden
