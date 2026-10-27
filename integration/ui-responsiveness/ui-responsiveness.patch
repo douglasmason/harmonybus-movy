@@ -363,7 +363,7 @@
      if(!jointActive()) {if(pushed!=='off'){send('joint_map','off');pushed='off';}return;}
      syncChordConductor();
 -    if(schwungLibAvailable()){const page=jointPage();if(jointChordKnobs())tickChordSurface(page);page.tick();}
-+    if(schwungLibAvailable()){const page=jointPage();if(jointChordKnobs())tickChordSurface(page);page.tick();paintJointKnobs();}
++    if(schwungLibAvailable()){const page=jointPage();if(jointChordKnobs())tickChordSurface(page);page.tick();paintJointKnobs(page);}
      updateGeometry();
      const map=cells.map(cell=> {
          const pitch=cell.target>=0?pianoApproachIdentity(cell.target,cell.row):cell.pitch;
@@ -373,11 +373,13 @@
 
 -export function renderJoint():void {
 -    if(jointChordKnobs()&&renderChordReview())return;
+-    const page=jointPage();
+-    for(let slot=0;slot<8;slot++)if(!((page.knobLEDMask|chordKnobLEDMask())&(1<<slot))){
 +/** Retry budget-limited LEDs without depending on a parameter-bank repaint. */
-+function paintJointKnobs():void {
++function paintJointKnobs(page:ReturnType<typeof jointPage>):void {
 +    if(settingsActive()||[VIEW_MAIN_PARAMS,VIEW_BROWSE,VIEW_FILE_BROWSE].includes(appState.currentView))return;
-     const page=jointPage();
-     for(let slot=0;slot<8;slot++)if(!((page.knobLEDMask|chordKnobLEDMask())&(1<<slot))){
++    const ownedMask=page.knobLEDMask|chordKnobLEDMask();
++    for(let slot=0;slot<8;slot++)if(!(ownedMask&(1<<slot))){
          const key=page.keyAt(slot)??'',match=/^joint_(?:actor|pads)_([0-3])/.exec(key);
          const role=match?Number(match[1]):key==='joint_bass'?1:key==='joint_comp'?2:3;
          const color=key==='joint_blank'?0:jointActorColor(role);cachedSetAnimLED(slot,color,color,0);cachedSetAnimLED(71+slot,color,color,0,true);
@@ -385,7 +387,7 @@
 +}
 +export function renderJoint():void {
 +    if(jointChordKnobs()&&renderChordReview())return;
-+    const page=jointPage();paintJointKnobs();
++    const page=jointPage();paintJointKnobs(page);
      clear_screen();drawHeader(page.keyAt(0)==='joint_unit'?'Joint Setup':page.pageTitle,(singleConductor()?'R1 / ':'Tracks ')+(baseTrack()+1)+'-'+(baseTrack()+4));drawBankBar(page.pageIndex,page.pageCount);
      page.render('Joint G'+(appState.focusGroup+1));
  }
