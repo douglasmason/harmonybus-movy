@@ -24,7 +24,7 @@ export function motifLoaderPanels(hierarchy:any):void {
         enumeration('motif_rhythm','Rhythm',rhythms,'As Entered'),
         enumeration('motif_placement','Target Placement',placements,'Saved'),
         enumeration('motif_load_even','Even Units',['Off','On'],'Off'),
-        enumeration('motif_load_write','Write to Clip',['Preview'],'Preview'),
+        enumeration('motif_load_write','Write to Clip',['Fixed','Adaptive'],'Fixed'),
     ];
     const targets=[params[5],params[6],params[4]];
     hierarchy.levels.motif_targets={name:'Motif Targets',knobs:targets.map(p=>p.key),params:targets};
@@ -33,7 +33,7 @@ export function motifLoaderPanels(hierarchy:any):void {
     if(!hierarchy.levels.root.params.some((p:any)=>p.level==='motif_load'))hierarchy.levels.root.params.push({level:'motif_load'});
 }
 interface Preview { generation:number;setId:string|null;owner:PerformancePort;track:number;slot:number;signature:string;duration:number;root:number;scale:number;
-    isCurrent:()=>boolean;adaptive:boolean;payload:string;labels:string[];choice:string;target:string;notes:number;occupied:boolean;ready:boolean;page:number; }
+    isCurrent:()=>boolean;adaptive:boolean;exportMode:string;payload:string;labels:string[];choice:string;target:string;notes:number;occupied:boolean;ready:boolean;page:number; }
 let review:Preview|null=null;
 const consumed=new Set<number>();
 const getEngine=(key:string):string=>String(host_module_get_param(key)??'');
@@ -58,7 +58,7 @@ function prepare(port:PerformancePort,isCurrent:()=>boolean=()=>port.performance
     }
     const payload=events.join('|');if(payload.length>40000){seqToast('Motif exceeds transfer limit');return;}
     review={isCurrent,generation:engineGeneration(),setId:currentSetUuid(),owner:port,track,slot:Number(clip[0]),signature:clip[1],duration,root,scale,payload,
-        adaptive:port.performanceGet('motif_load_adaptive')==='1',labels:port.performanceGet('motif_load_labels').split(' > '),choice:port.performanceGet('motif_load_choice'),
+        adaptive:port.performanceGet('motif_load_adaptive')==='1',exportMode:port.performanceGet('motif_load_export_mode')==='Adaptive'?'Adaptive':'Fixed',labels:port.performanceGet('motif_load_labels').split(' > '),choice:port.performanceGet('motif_load_choice'),
         target:pitchName(Number(port.performanceGet('motif_load_target'))),notes,occupied:clip[5]==='1',ready:false,page:0};
     appState.dirty=true;
 }
@@ -101,7 +101,7 @@ export function drawMotifLoader(port:PerformancePort):boolean {
     fontPrint(1,10,'In '+review.target+'  '+Number((review.duration/384).toFixed(2))+' bars  '+review.notes+' notes',1);
     let text=review.labels.slice(review.page).join(' > ');
     fontPrint(1,21,text.slice(0,25),1);fontPrint(1,29,text.slice(25,50),1);
-    fontPrint(1,39,review.adaptive?'Smart choices fixed on write':'Turn: scroll progression',1);
+    fontPrint(1,39,review.adaptive?'Smart: '+review.exportMode:'Turn: scroll progression',1);
     ['Cancel',review.occupied?'Replace':'Write','Append','Overdub'].forEach((label,index)=>fontPrint(index*32+1,51,label,1));
     fontPrint(1,59,'Touch knobs 1-4 to choose',1);
     return true;

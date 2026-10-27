@@ -24,6 +24,7 @@ def patch_motif_loader(root: Path) -> None:
     source = source.replace('(approach&63)==60', '(approach&63)>=59')
     source = source.replace('for code in 1..=60u64', 'for code in 1..=63u64').replace('            if code==59 {continue;}\n', '').replace('code==60 {1}else{32}', 'code>=59 {1}else{32}').replace('[59,61,63,64,65]', '[64,65,123,125,127]')
     source = source.replace('else{word>>55==0}', 'else{(word>>55)&255==0}').replace(' || (approach&63)>63', '').replace('operation(*word)!=52)', 'operation(*word)!=52 && !(57..=60).contains(&operation(*word)))')
+    source = replace_once(source, '!(57..=60).contains(&operation(*word))', '!(57..=60).contains(&operation(*word)) && !matches!(operation(*word),67|68)')
     path.write_text(source)
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
     source = replace_once(path.read_text(), '            "clip_input_info" =>', '            "motif_load_result" => Some(self.engine.motif_load_result.clone()),\n            key if key.starts_with("motif_clip_info_") => key[16..].parse::<usize>().ok().map(|track|self.engine.motif_clip_info(track)),\n            "clip_input_info" =>')
