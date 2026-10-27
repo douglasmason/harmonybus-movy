@@ -56,9 +56,9 @@ assert(!commands.some(command=>/^(pload|clipfill|launch|aset|alabel)\b/.test(com
 commands=[];chord.chordMidi([176,86,127]);chord.chordMidi([176,86,0]);seqCmdFlush();
 assert(commands.includes('rec 1'));assert(!commands.some(command=>/^(jrec|rec 0|rec 2)\b/.test(command)));
 seqState.recording=true;recPassTick();commands=[];
-assert.equal(generator.generatorWrite('cg_actor','Comp',1),false);assert.equal(generator.generatorActor(),'Bass');assert.equal(commands.length,0);
+assert.equal(generator.generatorWrite('cg_actor','Comp',1),true);assert.equal(generator.generatorActor(),'Comp');assert.equal(commands.length,0);
 seqState.recording=false;seqState.countingIn=false;recPassTick();endEdit();resetRecPass();
-generator.generatorWrite('cg_actor','Comp',1);flush();assert(commands.includes('gexplore off'));
+generator.generatorWrite('cg_actor','Comp',1);flush();assert(!commands.includes('gexplore off'));
 generator.generatorWrite('cg_actor','Bass',2);flush();
 assert.equal(generator.generatorRead('cg_complexity',1),'85');assert.equal(generator.generatorRead('cg_genre',1),'Jazz');
 // Recalled Bass recipes and ordinary Record target Bass, including one Undo pass.

@@ -64,6 +64,8 @@ impl Config {
 #[derive(Clone,Copy,Debug)]
 pub struct Explore {
     pub track:usize,pub desired:Config,pub current:Config,pub take:Option<usize>,
+    /// Fixed at Record arm, including the count-in before the first captured tick.
+    pub destination:Option<usize>,
     /// A recorded source keeps its normal clock; None is a new free audition.
     pub source:Option<usize>,pub touched:u8,
 }

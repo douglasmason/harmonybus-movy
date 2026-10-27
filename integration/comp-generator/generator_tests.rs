@@ -48,7 +48,7 @@
         assert!(restored.tracks[2].clips[0].generator.is_none());assert!(!restored.tracks[2].clips[0].notes.is_empty());
         restored.play();assert_eq!(ticks(&mut restored,3072),replay,"Bake and playback use identical source decisions");
         assert!(restored.undo_restore(&saved));assert!(restored.tracks[2].clips[0].generator.is_some());
-        engine.stop(&mut Vec::new());assert!(engine.generator_explore.is_none());assert!(engine.gates.is_empty());
+        engine.stop(&mut Vec::new());assert!(engine.generator_explore.iter().all(Option::is_none));assert!(engine.gates.is_empty());
     }
     #[test] fn generator_midbar_stop_keeps_silent_unrecorded_tail() {
         let mut engine=fixture();command(&mut engine,"gexplore 2 0 127 64 2");engine.play();engine.toggle_record(2);
@@ -79,11 +79,11 @@
     #[test] fn generator_style_waits_for_bar_seed_locks_and_cancel_releases() {
         let mut engine=fixture();command(&mut engine,"gexplore 2 0 0 64 1");engine.play();ticks(&mut engine,10);
         assert!(!engine.gates.is_empty());command(&mut engine,"gexplore 2 1 90 100 2");
-        ticks(&mut engine,374);assert_eq!(engine.generator_explore.unwrap().current.style,0);
-        ticks(&mut engine,1);assert_eq!(engine.generator_explore.unwrap().current.style,1);
+        ticks(&mut engine,374);assert_eq!(engine.generator_explore[2].unwrap().current.style,0);
+        ticks(&mut engine,1);assert_eq!(engine.generator_explore[2].unwrap().current.style,1);
         engine.toggle_record(2);command(&mut engine,"gexplore 2 1 90 100 3");
-        assert_eq!(engine.generator_explore.unwrap().desired.seed,2);assert!(engine.generator_result.contains("Seed locked"));
-        engine.stop(&mut Vec::new());assert!(engine.generator_explore.is_none());assert!(engine.gates.is_empty());
+        assert_eq!(engine.generator_explore[2].unwrap().desired.seed,2);assert!(engine.generator_result.contains("Seed locked"));
+        engine.stop(&mut Vec::new());assert!(engine.generator_explore.iter().all(Option::is_none));assert!(engine.gates.is_empty());
     }
     #[test] fn generator_count_in_records_from_zero_and_undo_restores_empty_slot() {
         let mut engine=fixture();command(&mut engine,"gexplore 2 2 64 64 1");let before=engine.undo_snapshot();
@@ -174,7 +174,7 @@
         assert!(!engine.part_recording_busy());ticks(&mut engine,400);engine.stop(&mut Vec::new());assert_eq!(engine.undo_snapshot(),saved);
         engine.play();command(&mut engine,"gpreview 2 0 0 127;rec 2");ticks(&mut engine,100);
         let other=engine.tracks[2].clips[1].clone();engine.select_clip(2,1);ticks(&mut engine,1);
-        assert!(engine.generator_explore.is_none());assert!(!engine.part_recording_busy());
+        assert!(engine.generator_explore.iter().all(Option::is_none));assert!(!engine.part_recording_busy());
         assert_eq!(engine.tracks[2].clips[1].locks,other.locks);assert!(engine.gates.iter().all(|gate|gate.track!=2));
     }
     #[test] fn generator_overdub_replay_reload_and_bake_match_recorded_midi_with_speed_and_swing() {
@@ -192,13 +192,13 @@
             if engine.tracks[2].clips[0].locks.len()<crate::clip::MAX_LOCKS {engine.tracks[2].clips[0].set_lock(lane,step,61);}
         }}
         engine.play();command(&mut engine,"gpreview 2 0 1 127;rec 2");let before=engine.undo_snapshot();
-        ticks(&mut engine,1);assert!(!engine.part_recording_busy());assert!(engine.generator_explore.is_none());
+        ticks(&mut engine,1);assert!(!engine.part_recording_busy());assert!(engine.generator_explore.iter().all(Option::is_none));
         assert_eq!(engine.generator_result,"Automation capacity reached");assert_eq!(engine.undo_snapshot(),before);
     }
     #[test] fn generator_overdub_can_join_an_ordinary_record_pass_on_the_same_comp_clip() {
         let (mut engine,_)=record();engine.stop(&mut Vec::new());engine.play();ticks(&mut engine,100);
-        command(&mut engine,"rec 2");assert!(engine.recording);assert!(engine.generator_explore.is_none());
-        command(&mut engine,"gpreview 2 0 1 101");assert_eq!(engine.generator_explore.unwrap().source,Some(0));
+        command(&mut engine,"rec 2");assert!(engine.recording);assert!(engine.generator_explore.iter().all(Option::is_none));
+        command(&mut engine,"gpreview 2 0 1 101");assert_eq!(engine.generator_explore[2].unwrap().source,Some(0));
         assert_eq!(engine.tracks[2].pos_tick,100);ticks(&mut engine,25);command(&mut engine,"rec 2");
         let clip=&engine.tracks[2].clips[0];assert_eq!(clip.generator.unwrap().at(clip,&engine.tracks[2].lane_label,5).intensity,101);
         assert_eq!(clip.length_steps,128);
@@ -246,7 +246,7 @@
         }
         assert_eq!(Config::parse("3 32 64 1 768").unwrap().wire(),"3 32 64 1 768","existing Comp IDs and wire format remain stable");
         let (mut engine,_)=bass_take();let saved=engine.undo_snapshot();
-        command(&mut engine,"gpreview 1 0 2 0");assert!(engine.generator_explore.is_none());assert_eq!(engine.undo_snapshot(),saved);
+        command(&mut engine,"gpreview 1 0 2 0");assert!(engine.generator_explore.iter().all(Option::is_none));assert_eq!(engine.undo_snapshot(),saved);
         let style_lane=engine.tracks[1].lane_label.iter().position(|label|label==LABELS[2]).unwrap();
         engine.tracks[1].clips[0].set_lock(style_lane as u8,0,0);
         let clip=&engine.tracks[1].clips[0];assert!(clip.generator.unwrap().at(clip,&engine.tracks[1].lane_label,0).bass());
@@ -277,7 +277,7 @@
         engine.recipe_bases[1]=Some(original);engine.recipe_tick(&mut Vec::new());let saved=engine.undo_snapshot();
         command(&mut engine,"gexplore 2 0 20 64 7;play");ticks(&mut engine,1);
         assert!(engine.gates.iter().any(|gate|gate.track==2));
-        command(&mut engine,"gexplore 1 4 40 64 8");assert!(engine.gates.iter().all(|gate|gate.track!=2));
+        command(&mut engine,"gexplore 1 4 40 64 8");assert!(engine.gates.iter().any(|gate|gate.track==2));assert!(engine.generator_exploring(2));
         let settings=engine.generator_settings(1).unwrap();assert_eq!(settings.0[4],0);assert_eq!(settings.0[11],0);assert_eq!(settings.0[12],0);assert_eq!(settings.0[19],83);
         bass_ticks(&mut engine,500);command(&mut engine,"gexplore off;stop");assert!(engine.gates.is_empty());assert_eq!(engine.recipe_seen[1],Some(original));assert_eq!(engine.undo_snapshot(),saved);
     }
@@ -299,6 +299,85 @@
         let events=command(&mut engine,"gexplore off");
         for (key,value) in [(4,2),(11,1),(12,4)] {assert!(events.iter().any(|event|matches!(event,OutEvent::RecipeParam{track:1,key:actual,value:setting} if *actual==key&&*setting==value)));}
         assert!(engine.recipe_seen[1].is_none());assert_eq!(engine.undo_snapshot(),saved);
+    }
+
+    fn duet_ticks(engine:&mut Engine,count:u32)->Vec<(u32,OutEvent)> {
+        let mut events=Vec::new();
+        for tick in 0..count {let mut out=Vec::new();engine.service_tick(&mut out);events.extend(out.into_iter().filter(|event|matches!(event,OutEvent::NoteOn{track:1|2,..}|OutEvent::NoteOff{track:1|2,..})).map(|event|(tick,event)));}
+        events
+    }
+    #[test] fn generator_duet_matches_both_solo_traces_without_persistent_edits() {
+        let mut duet=fixture();let saved=duet.undo_snapshot();duet.dirty=false;
+        command(&mut duet,"gexplore 2 3 95 80 7;gexplore 1 7 73 50 19");duet.play();
+        let together=duet_ticks(&mut duet,1536);
+        for (track,source) in [(1,"gexplore 1 7 73 50 19;play"),(2,"gexplore 2 3 95 80 7;play")] {
+            let mut solo=fixture();command(&mut solo,source);
+            let expected=duet_ticks(&mut solo,1536);
+            let actual:Vec<_>=together.iter().filter(|(_,event)|matches!(event,OutEvent::NoteOn{track:owner,..}|OutEvent::NoteOff{track:owner,..} if *owner==track)).cloned().collect();
+            assert!(!actual.is_empty());assert_eq!(actual,expected,"each actor keeps its solo timing, pitch and releases");
+        }
+        assert_eq!(duet.generator_mask()&6,6);assert_eq!(duet.undo_snapshot(),saved);assert!(!duet.dirty);
+        command(&mut duet,"stop");assert!(duet.gates.is_empty());assert_eq!(duet.undo_snapshot(),saved);
+    }
+    #[test] fn generator_duet_records_either_actor_while_other_controls_stay_temporary() {
+        for (record_track,other_track) in [(1,2),(2,1)] {
+            let mut engine=fixture();let before=engine.undo_snapshot();
+            command(&mut engine,"gexplore 2 0 20 64 7;gexplore 1 4 30 64 19;play;usnap 1101");
+            command(&mut engine,&format!("rec {}",record_track));
+            assert_eq!(engine.generator_record_track(),Some(record_track));
+            duet_ticks(&mut engine,100);
+            command(&mut engine,"gexplore 2 0 100 100 7;gexplore 1 4 110 110 19");
+            let events=duet_ticks(&mut engine,668);
+            assert!(events.iter().any(|(_,event)|matches!(event,OutEvent::NoteOn{track,..} if *track as usize==other_track)));
+            assert!(engine.tracks[other_track].active().generator.is_none());assert!(!engine.tracks[other_track].active().exists());
+            assert!(engine.tracks[other_track].lane_assigned.iter().all(|assigned|!*assigned));
+            // The recorder's destination wins even if focus now points elsewhere.
+            command(&mut engine,&format!("rec {}",other_track));
+            assert!(!engine.part_recording_busy());assert!(engine.generator_exploring(other_track));assert!(!engine.generator_exploring(record_track));
+            let captured=&engine.tracks[record_track].clips[0];assert!(captured.generator.is_some());assert!(captured.locks.len()>3);
+            command(&mut engine,"ucommit 1101;uswap 1101 1102");assert_eq!(engine.undo_snapshot(),before);
+            assert!(engine.generator_exploring(other_track));assert!(!engine.generator_exploring(record_track));
+            assert!(duet_ticks(&mut engine,400).iter().any(|(_,event)|matches!(event,OutEvent::NoteOn{track,..} if *track as usize==other_track)));
+            command(&mut engine,"stop");
+        }
+    }
+    #[test] fn generator_duet_targeted_stop_and_count_in_cancellation_are_independent() {
+        for record_track in [1,2] {
+            let other_track=3-record_track;let mut engine=fixture();
+            command(&mut engine,"gexplore 2 0 20 64 7;gexplore 1 5 30 64 19");
+            command(&mut engine,&format!("rec {}",record_track));assert!(engine.count_in_left>0);
+            command(&mut engine,&format!("gexplore {} off",other_track));
+            assert!(engine.part_recording_busy());assert_eq!(engine.generator_record_track(),Some(record_track));
+            command(&mut engine,if other_track==1 {"gexplore 1 5 30 64 19"}else{"gexplore 2 0 20 64 7"});
+            assert!(engine.generator_exploring(other_track));
+            command(&mut engine,&format!("gexplore {} off",record_track));assert!(!engine.part_recording_busy());
+            let events=duet_ticks(&mut engine,800);
+            assert!(events.iter().any(|(_,event)|matches!(event,OutEvent::NoteOn{track,..} if *track as usize==other_track)));
+            assert!(engine.tracks[record_track].active().generator.is_none());
+            command(&mut engine,"gexplore off");assert!(engine.gates.is_empty());assert_eq!(engine.generator_mask(),0);
+        }
+    }
+    #[test] fn generator_duet_stopping_one_actor_releases_only_its_gates() {
+        let mut engine=fixture();command(&mut engine,"gexplore 2 0 0 64 7;gexplore 1 5 0 64 19;play");
+        duet_ticks(&mut engine,1);assert!(engine.gates.iter().any(|gate|gate.track==1));assert!(engine.gates.iter().any(|gate|gate.track==2));
+        let offs=command(&mut engine,"gexplore 1 off");
+        assert!(offs.iter().any(|event|matches!(event,OutEvent::NoteOff{track:1,..})));
+        assert!(offs.iter().all(|event|!matches!(event,OutEvent::NoteOff{track:2,..})));
+        assert!(engine.gates.iter().any(|gate|gate.track==2));assert!(engine.generator_exploring(2));
+        command(&mut engine,"stop");assert!(engine.gates.is_empty());
+    }
+    #[test] fn generator_duet_preview_overdub_is_independent_and_clip_binding_cannot_drift() {
+        let (mut engine,_)=record();engine.stop(&mut Vec::new());
+        command(&mut engine,"gexplore 1 7 100 90 19;gpreview 2 0 1 111;play;rec 2");
+        duet_ticks(&mut engine,500);assert!(engine.recording);assert!(engine.generator_exploring(1));
+        command(&mut engine,"gexplore 1 off");assert!(engine.recording);
+        command(&mut engine,"gexplore 1 4 20 40 28");assert!(engine.generator_exploring(1));
+        let other=engine.tracks[2].clips[1].clone();engine.tracks[2].active_clip=1;
+        duet_ticks(&mut engine,1);assert!(!engine.part_recording_busy());assert!(!engine.generator_exploring(2));assert!(engine.generator_exploring(1));assert_eq!(engine.tracks[2].clips[1].notes,other.notes);assert!(engine.tracks[2].clips[1].generator.is_none());
+        // Selecting another clip during the count-in cancels the original arm.
+        command(&mut engine,"stop");engine.tracks[2].active_clip=1;
+        command(&mut engine,"gexplore 2 0 20 64 7;rec 2");engine.tracks[2].active_clip=2;
+        duet_ticks(&mut engine,400);assert!(!engine.part_recording_busy());assert!(engine.tracks[2].clips[2].generator.is_none());
     }
 
 }

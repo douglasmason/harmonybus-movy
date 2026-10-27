@@ -1,6 +1,6 @@
 # Motif Relative Operation editor
 
-Movy 0.34.1-hbclean.283 pairs with HarmonyBus 0.2.310. Install HB first, then Movy.
+Movy 0.34.1-hbclean.284 pairs with HarmonyBus 0.2.310. Install HB first, then Movy.
 
 In a Play Motif lane, open the motif editor, begin editing, select a note step, then use **Motif Tools → Relative Operation**. Choose LT, Upper Dim, Connector Below/Above, a secondary, a substitution, or either Smart direction. The same choice applies to new note entries. At a rest, tie, or empty position, changing the operation only sets the next-entry choice.
 

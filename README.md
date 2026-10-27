@@ -1,3 +1,11 @@
+## Comp and Bass exploration together (hbclean.283)
+
+Start Explore independently for Comp and Bass, switch their controls while both
+play, and use the existing Record button to capture either actor. Recording stays
+bound to its original track and clip; the other part keeps exploring. Each take
+has one Undo. See [controls and validation](docs/actor-duet.md).
+Pair with HarmonyBus **0.2.309**; includes the Fixed/Adaptive motif export from 282.
+
 ## Actor generator browser (hbclean.281)
 
 Choose Comp or Bass, filter authored styles by genre, then explore temporarily.

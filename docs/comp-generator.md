@@ -1,4 +1,4 @@
-# Actor generator browser and automation — hbclean.281
+# Actor generator browser and automation — hbclean.283
 
 Chord Play's **Libraries** category now contains a shared Comp/Bass generator.
 Choose an actor first; each actor uses its configured track and keeps its own
@@ -34,10 +34,11 @@ remains visible even if it falls outside the filter, until another is chosen.
 Style itself is recordable at the existing bar boundary. Complexity is a continuous
 control, not another level of folders or a set of duplicated presets.
 
-Only one temporary audition is active at a time. Switching actors ends that
-audition, releases its notes and recalls the other actor's draft; recorded clips
-on both actors can play together. Actor switching is refused during recording
-or count-in. A generator clip belonging to the other actor cannot be edited
+Comp and Bass can explore together on separate tracks. Switching actors recalls
+the other actor's controls while both keep playing, including during recording
+and count-in. The existing Record button remains bound to the actor and clip
+chosen at punch-in; its next press ends that take even after switching actors.
+The footer identifies the recording track when editing the other actor. A generator clip belonging to the other actor cannot be edited
 through the selected actor's controls. Walking-bass anticipation is not included.
 
 Bass emits mapped single-note patterns. Its temporary rendering disables chord
@@ -73,8 +74,10 @@ recorded tick. Save/reopen retains the recipe and curves; playback evaluates the
 same source definition against the conductor's current harmony.
 
 Tap Record again to end the take and continue its recorded playback. Tap Explore
-Stop, Harmony Off, stop transport, or leave Chord Play to end temporary exploration
-and release its notes. Cancelling during count-in also cancels the armed recording.
+Stop to end only the selected actor's temporary exploration and release its notes.
+Harmony Off, transport Stop and leaving Chord Play end all temporary exploration.
+Cancelling the recording actor during count-in also cancels its armed recording;
+stopping the other actor does not affect the take.
 Existing persistent content is preserved. Other actors continue normally. The
 selected actor's existing clip clock is paused during unrecorded exploration, then
 resumes when exploration ends.
@@ -116,7 +119,7 @@ owners. Recorded/baked generator clips own that route only while transport runs.
 
 ## Bake and editing
 
-End exploration/recording, then tap Bake on the generator page. Bake turns the
+End the selected actor's exploration and all recording, then tap Bake on the generator page. Bake turns the
 selected recorded recipe and control curves into ordinary mapped notes, with one
 Undo. It preserves the clip's loop, speed, transpose, rendering settings and other
 parameter automation, materializing held values at new note starts where necessary.
@@ -158,3 +161,6 @@ Comp/Bass automation, Bass monophony under control changes, manual overlay
 ownership, swing/speed Bake identity, temporary setting restoration, physical
 actor/genre navigation, non-default Bass destinations, both harmonic mapping
 modes and production outgoing MIDI channel verification.
+
+Simultaneous actor behavior and release validation are described in
+[Comp and Bass exploration together](actor-duet.md).
