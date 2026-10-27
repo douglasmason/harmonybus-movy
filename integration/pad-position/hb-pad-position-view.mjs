@@ -1,0 +1,64 @@
+// Boot the real app, then enter settings through the physical MIDI dispatcher.
+import './hb-chord-pad-feedback.mjs';
+import assert from 'node:assert/strict';
+const { appState, VIEW_MAIN_PARAMS } = await import('../dist/esm/app/state.js');
+const { seqState } = await import('../dist/esm/seq/state.js');
+const chord = await import('../dist/esm/seq/chord-play.js');
+const joint = await import('../dist/esm/seq/joint-play.js');
+const { jointPage } = await import('../dist/esm/seq/joint-panels.js');
+const { mainPageState } = await import('../dist/esm/seq/main-page.js');
+const { buildMainPageVM } = await import('../dist/esm/seq/main-page-vm.js');
+const { keyboardState } = await import('../dist/esm/keyboard/state.js');
+const { renderKnobsView } = await import('../dist/esm/renderer/knob-view.js');
+const { resetSeqHeader } = await import('../dist/esm/seq/render.js');
+const { seqLedsInvalidate } = await import('../dist/esm/seq/led-cache.js');
+const { onMidiMessageInternal: midi } = globalThis;
+let now = 1000000; Date.now = () => now;
+const header = new Uint8Array(128 * 9);
+const fill = globalThis.fill_rect, clear = globalThis.clear_screen;
+globalThis.fill_rect = (x, y, w, h, value) => {
+    for (let row = Math.max(0, y | 0); row < Math.min(9, (y | 0) + (h | 0)); row++)
+        for (let col = Math.max(0, x | 0); col < Math.min(128, (x | 0) + (w | 0)); col++) header[row * 128 + col] = value ? 1 : 0;
+    fill(x, y, w, h, value);
+};
+globalThis.clear_screen = () => { header.fill(0); clear(); };
+const leds = [];
+globalThis.setButtonLED = (button, color) => leds.push([button, color]);
+globalThis.setLED = (note, color) => leds.push([note, color]);
+globalThis.move_midi_internal_send = packet => { if ([144, 176].includes(packet[1] & 240)) leds.push([packet[2], packet[3]]); return true; };
+const tick = () => { now += 100; globalThis.tick(); };
+const lastLed = button => leds.filter(([key]) => key === button).at(-1)?.[1];
+const frames = () => { for (let frame = 0; frame < 12; frame++) tick(); };
+
+for (const mode of ['Chord', 'Joint']) {
+    seqState.sessionMode = false; chord.setChordEnabled(mode === 'Chord'); joint.setJointEnabled(mode === 'Joint');
+    keyboardState.columnOffset = 0; resetSeqHeader(); seqLedsInvalidate(); frames();
+    const panel = mode === 'Chord' ? chord.chordPage() : jointPage();
+    const level = panel.ctl.page.level;
+    const beforeKnob = lastLed(78), beforeTouch = lastLed(7);
+    appState.shiftHeld = true; midi([144, 24, 100]); midi([128, 24, 0]); appState.shiftHeld = false;
+    assert.equal(appState.currentView, VIEW_MAIN_PARAMS, 'Shift+Step9 opens Set Parameters');
+    frames();
+    const actualHeader = [...header];
+    renderKnobsView(buildMainPageVM(), false, appState.activeTrack.index);
+    assert.deepEqual(actualHeader, [...header], 'real app displays the Set page above the performance mode');
+    assert.equal(lastLed(78), 118, 'position knob owns its neutral brightness');
+    assert.equal(lastLed(7), 118, 'both knob LED addresses reflect the position control');
+    midi([144, 7, 100]); midi([176, 78, 8]); midi([128, 7, 0]);
+    assert.equal(keyboardState.columnOffset, 1, 'physical K8 reaches the visible position control');
+    assert.equal(mainPageState.touchedKnob, -1, 'release closes the settings touch');
+    assert.equal(panel.ctl.page.level, level);
+    midi([176, 63, 127]); midi([176, 63, 0]); assert.equal(keyboardState.columnOffset, 2);
+    appState.shiftHeld = true; midi([144, 7, 100]); midi([144, 7, 0]); appState.shiftHeld = false;
+    assert.equal(mainPageState.touchedKnob, -1, 'velocity-zero releases close the touch too');
+    assert.equal(keyboardState.columnOffset, 0, 'physical Shift-touch resets without triggering the hidden panel');
+    midi([176, 14, 1]); assert.equal(mainPageState.page, 1, 'jog navigates the visible Set pages');
+    midi([176, 14, 127]); assert.equal(mainPageState.page, 0);
+    midi([176, 51, 127]); midi([176, 51, 0]); frames();
+    assert.notEqual(appState.currentView, VIEW_MAIN_PARAMS);
+    assert.equal(mode === 'Chord' ? chord.chordActive() : joint.jointActive(), true, 'Back preserves note-playing mode');
+    assert.equal(lastLed(78), beforeKnob, 'Back restores the performance knob illumination');
+    assert.equal(lastLed(7), beforeTouch, 'Back restores the touch LED address too');
+}
+globalThis.fill_rect = fill; globalThis.clear_screen = clear;
+console.log('Real app Set Parameters: Chord/Joint screen ownership, physical K8/reset, arrows, jog, Back and knob illumination pass');

@@ -81,6 +81,11 @@ export function chordMidi(data:number[],panels=true,surface?:SchwungPage):boolea
     source = replace_once(source, "buildSurfaceCells(notes,actualLayout,mode===0)", "buildSurfaceCells(notes,actualLayout,mode===0,columnOffset)")
     source = replace_once(source, "settings,keyboardState.scale,keyboardState.rootPc,", "settings,keyboardState.scale,keyboardState.rootPc,keyboardState.columnOffset,")
     source = replace_once(source, "        false,belowHeld||belowLatch);", "        false,belowHeld||belowLatch,keyboardState.columnOffset);")
+    source = replace_once(source, "    if(view)actor.view=view;", """    if(view){
+        if(actor.view?.footer?.[0]!==view.footer?.[0]||actor.view?.footer?.[1]!==view.footer?.[1])appState.dirty=true;
+        actor.view=view;
+    }""")
+    source = replace_once(source, "cachedSetAnimLED(slot,color,color,0);", "cachedSetAnimLED(slot,color,color,0);cachedSetAnimLED(71+slot,color,color,0,true);")
     path.write_text(source)
 
     path = root / "src/surfaces/protocol.ts"
@@ -148,8 +153,20 @@ export function jointParentKeySnapshot(): readonly number[] | undefined {
 }""")
     path.write_text(source)
 
+    # Joint's performance row must yield Shift shortcuts just like Chord Play.
+    path = root / "src/renderer/hb-performance.ts"
+    source = replace_once(path.read_text(), "if(jointActive()){syncHbPerformanceMode();const page=jointPerformancePort();", "if(jointActive()){syncHbPerformanceMode();if(appState.shiftHeld)return null;const page=jointPerformancePort();")
+    path.write_text(source)
+
     path = root / "src/seq/main-page.ts"
-    source = "import { setPadPosition } from './pad-position.js';\n" + path.read_text()
+    source = """import { setPadPosition } from './pad-position.js';
+import { resetKnobLedCache } from '../renderer/knob-leds.js';
+import { seqLedsInvalidate } from './led-cache.js';
+""" + path.read_text()
+    source = replace_once(source, "export function clearMainPage(): void {", """export function clearMainPage(): void {
+    // Parameter and performance painters have separate caches; transfer ownership.
+    resetKnobLedCache();
+    seqLedsInvalidate();""")
     source = source.replace("K_LAYOUT", "K_POSITION")
     source = replace_once(source, "    if (k === K_POSITION) return;\n    mainPageState.touchedKnob = down ? k : -1;", """    if (k === K_POSITION && down && appState.shiftHeld) {
         accum[k] = 0;
@@ -165,6 +182,42 @@ export function jointParentKeySnapshot(): readonly number[] | undefined {
     source = replace_once(source, "    if (n === 0) return;", """    if (n === 0) return;
     if (k === K_POSITION) { setPadPosition(keyboardState.columnOffset + n); return; }""")
     path.write_text(source)
+
+    # An explicitly opened Set page owns the screen and panel controls. Preserve
+    # old owners' releases and keep the underlying pads/step performance running.
+    path = root / "src/midi/router.ts"
+    source = replace_once(path.read_text(), "    if (hbPerformanceStep(data)) return;\n    if (seqHandleMidi(data, appState.shiftHeld)) return;", """    const panelStatus = data[0] & 0xf0;
+    const mainControls = mainPageActive() && (
+        ((panelStatus === 0x90 || panelStatus === 0x80) && data[1] < 8) ||
+        (panelStatus === 0xb0 && ([MoveMainKnob, MoveMainButton, MoveBack].includes(data[1]) || (data[1] >= 71 && data[1] <= 78))));
+    if (mainControls) {
+        // Releases still close touches owned by the panel underneath.
+        if (isRelease(data)) seqHandleMidi(data, appState.shiftHeld);
+        if (panelStatus === 0x90 || panelStatus === 0x80) {
+            if (isRelease(data)) mainPageRelease(data[1]); else mainPageTouch(data[1], true);
+            appState.dirty = true;
+            return;
+        }
+        if (panelStatus === 0xb0 && data[1] === MoveMainButton) return;
+    } else {
+        if (hbPerformanceStep(data)) return;
+        if (seqHandleMidi(data, appState.shiftHeld)) return;
+    }""")
+    path.write_text(source)
+    path = root / "src/app/tick.ts"
+    source = path.read_text()
+    main_view: str = """        } else if (appState.currentView === VIEW_MAIN_PARAMS) {
+            const vm = buildMainPageVM();
+            renderKnobsView(vm, false, appState.activeTrack.index);
+            updateKnobLEDs(vm); // knobs 0-3 reflect value; 4-7 (null cells) off
+"""
+    assert source.count(main_view) == 1, "Set Parameters render owner"
+    source = source.replace(main_view, "", 1)
+    source = replace_once(source, "        } else if (settingsActive()) {", main_view.replace(" // knobs 0-3 reflect value; 4-7 (null cells) off", "") + "        } else if (settingsActive()) {")
+    path.write_text(source)
+
+    path = root / "browser-test/hb-pad-position-view.mjs"
+    path.write_text((assets / "hb-pad-position-view.mjs").read_text())
 
     path = root / "src/seq/main-page-vm.ts"
     source = """import { padPositionLabel } from './pad-position.js';
