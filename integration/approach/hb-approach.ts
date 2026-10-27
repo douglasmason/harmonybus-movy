@@ -1,4 +1,4 @@
-import { APPROACH_OPERATION_CHOICES } from '../operation-catalog.js';
+import { APPROACH_OPERATION_CHOICES, OPERATION_SHORT_NAMES } from '../operation-catalog.js';
 import { DOMINANT_COLOR_ORDER, orderedBankChoices } from './hb-choice-order.js';
 import type { PerformancePort } from './hb-performance.js';
 import { cachedNamedControlStatus } from './hb-performance.js';
@@ -209,11 +209,7 @@ export function performKnobCaption(key:string|null):string {
 export function drawApproachOperations(keys: (string | null)[], values: Record<string, unknown>, touched: number): void {
     if (!keys.some(key => /^approach_bank_|^approach_motif_latch$/.test(key ?? ''))) return;
     const names: Record<string, string> = {
-        'Secondary V (Dom)':'Sec V', 'Secondary II':'Sec II', 'Connector Below':'CCB',
-        'Connector Above':'CCA', 'Leading Tone':'LT', 'Tritone Sub':'TTS',
-        'Backdoor V':'Back V', 'Backdoor II':'Back II', 'Tritone II':'TTS II',
-        'Secondary VI':'Sec VI', 'Secondary III':'Sec III', 'Secondary IV':'Sec IV',
-        'Secondary II (Dom)':'II Dom', 'Secondary IV (Dom)':'IV Dom', 'Secondary VI (Dom)':'VI Dom', 'Secondary Fifth':'Sec 5th', 'Secondary VII':'Sec VII', 'Upper Dim':'Upper Dim',
+        ...OPERATION_SHORT_NAMES,
         'Stock: ii-V-Target':'ii-V', 'Stock: iv-bVII-Target':'Back door',
         'Stock: ii-bII7-Target':'TTS ii-V', 'Stock: vi-ii-V':'vi-ii-V',
         'Stock: ii-V-LT':'ii-V LT', 'Stock: V/V-V-I':'V/V-V',

@@ -223,7 +223,7 @@ function laneFor(page: SchwungPage, key: string): number {""")
     path.write_text(source)
     source = source.replace("if(flagValue('hbsteprow')===2)return paintApproach(owner);", "if(jointActive()||flagValue('hbsteprow')===2)return paintApproach(owner);")
     source = source.replace("const active = hbPerformancePage() !== null;", "const performancePage=hbPerformancePage(),active=performancePage!==null;\n    const footerTrack=jointActive()?performancePage?.performanceTrack??appState.activeTrack.index:appState.activeTrack.index;")
-    source = source.replace("harmonyFooterText(active?flagValue('hbsteprow'):0,appState.activeTrack.index,harmonyFooterSnapshot(appState.activeTrack.index))", "harmonyFooterText(active?(jointActive()?2:flagValue('hbsteprow')):0,footerTrack,harmonyFooterSnapshot(footerTrack))")
+    source = source.replace("harmonyFooterText(active?flagValue('hbsteprow'):0,appState.activeTrack.index,harmonyFooterSnapshot(appState.activeTrack.index),harmonyRelativeFeedback(appState.activeTrack.index))", "harmonyFooterText(active?(jointActive()?2:flagValue('hbsteprow')):0,footerTrack,harmonyFooterSnapshot(footerTrack),harmonyRelativeFeedback(footerTrack))")
     path.write_text(source)
     path = root / "src/renderer/hb-approach.ts"
     source = "import { jointActive, jointApproachRowsActive } from '../seq/joint-play.js';\n" + path.read_text()

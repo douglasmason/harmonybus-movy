@@ -7,7 +7,7 @@ from patch_responsive_persistence import replace_once
 def patch_harmony_pads(root: Path) -> None:
     """Add read-only polling, palette animation and persistent public controls."""
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/pad-display'
-    for name in ['harmony-pads.ts', 'pad-palette.ts']:
+    for name in ['harmony-pads.ts', 'pad-palette.ts', 'relative-feedback.ts']:
         (root / 'src/keyboard' / name).write_text((assets / name).read_text())
     (root / 'src/scale-catalog.ts').write_text((assets.parent / 'scale-catalog.ts').read_text())
     path: Path = root / 'src/seq/pads.ts'
