@@ -7,7 +7,7 @@ const { installMockEngine } = await import('./mock-engine.mjs');
 const engine = installMockEngine();
 const { seqEngineTick } = await import('../dist/esm/seq/engine.js');
 seqEngineTick();
-const { appState, VIEW_KNOBS } = await import('../dist/esm/app/state.js');
+const { appState, VIEW_KNOBS, VIEW_MAIN_PARAMS } = await import('../dist/esm/app/state.js');
 const { seqState } = await import('../dist/esm/seq/state.js');
 const { setFlag } = await import('../dist/esm/seq/flags.js');
 const { selectTrack } = await import('../dist/esm/track/focus.js');
@@ -16,7 +16,10 @@ const { keyboardState, padMapFor, padMapBuildCount, COLUMN_OFFSET_MIN, COLUMN_OF
 const { buildPadMap, pianoGapColumn } = await import('../dist/esm/keyboard/layouts.js');
 const { buildSurfaceCells } = await import('../dist/esm/surfaces/protocol.js');
 const { SCALES } = await import('../dist/esm/seq/scales.js');
-const { padPositionActive, shiftPadPosition } = await import('../dist/esm/seq/pad-position.js');
+const { padPositionActive, shiftPadPosition, setPadPosition } = await import('../dist/esm/seq/pad-position.js');
+const { mainPageTouch, mainPageKnob, mainPageRelease, clearMainPage } = await import('../dist/esm/seq/main-page.js');
+const { buildMainPageVM } = await import('../dist/esm/seq/main-page-vm.js');
+const { headerText } = await import('../dist/esm/renderer/header.js');
 const { seqHandleMidi } = await import('../dist/esm/seq/router.js');
 const chord = await import('../dist/esm/seq/chord-play.js');
 const joint = await import('../dist/esm/seq/joint-play.js');
@@ -35,11 +38,13 @@ const { setPhase } = await import('../dist/esm/seq/set-session.js');
 setPhase('ready');
 const metadata = JSON.parse(readFileSync(process.env.HB_MODULE, 'utf8'));
 const writes = [];
+let reads = 0;
 let padView = '0,0,2741,0,0,7,0,0,4,2|input1,0,1,1,2741,0|piano1,1|toniccolor1,0';
 for (let track = 0; track < 16; track++) {
     const port = portFor(track);
     const values = new Map(metadata.capabilities.chain_params.map(meta => [meta.key, String(meta.default ?? meta.options?.[0] ?? '0')]));
     port.getParam = key => {
+        reads++;
         if (key === 'midi_fx1_module') return 'harmonybus';
         const bare = key.replace(/:(base|modulated)$/, '').split(':').at(-1);
         if (bare === 'chain_params') return JSON.stringify(metadata.capabilities.chain_params);
@@ -83,7 +88,7 @@ assert.deepEqual([...padMapFor(3).slice(0, 8)], [57, 59, 61, 62, 64, 66, 67, 69]
 assert.equal(keyboardState.columnOffset, 3, 'key change preserves tonic column');
 padView = padView.replace('|input1,0,', '|input1,5,');
 refreshHarmonyPads(3, 1000);
-assert.equal(keyboardState.rootPc, 5, 'keyboard accepts the resolved parent/input key');
+assert.equal(keyboardState.rootPc, 5, 'keyboard accepts the resolved input reference');
 assert.equal(padMapFor(3)[3], 65, 'new tonic stays at the selected column');
 padView = padView.replace('|input1,5,', '|input1,0,');
 refreshHarmonyPads(3, 1100);
@@ -130,6 +135,45 @@ assert.equal(lights().get(63), WHITE_OFF); seqHandleMidi([176, 63, 127], false);
 assert.equal(keyboardState.columnOffset, COLUMN_OFFSET_MAX); assert.equal(page.ctl.page.level, current);
 keyboardState.columnOffset = COLUMN_OFFSET_MIN; assert.equal(lights().get(62), WHITE_OFF);
 for (const button of [62, 63]) setButtonHeld(button, false);
+
+// Parent key is a resolved destination, not a second transposition of input.
+// Settings read the same cached footer; the chosen physical column stays put.
+appState.currentView = VIEW_MAIN_PARAMS; clearMainPage(); setPadPosition(3);
+padView += '|footer1,2,1,2,582,-1,0'; refreshHarmonyPads(3, 2000);
+assert.equal(keyboardState.rootPc, 0, 'C input remains C when parent key is D');
+assert.equal(padMapFor(3)[3], 60, 'input tonic is still in the selected column');
+let view = buildMainPageVM();
+assert.equal(view.headerOverride, 'PARENT D Maj');
+assert.equal(view.rows[1][0].fullName, 'Input Root');
+assert.equal(view.rows[1][1].fullName, 'Input Scale');
+assert.equal(view.rows[1][3].displayValue, '3 right');
+assert.equal(view.rows[1][3].normalizedValue, 10 / 14);
+const cachedReads = reads; for (let frame = 0; frame < 100; frame++) buildMainPageVM();
+assert.equal(reads, cachedReads, 'drawing parent context adds no host queries');
+const parentTonicColor = padColor(71, 68, 3, false);
+padView = padView.replace('footer1,2,1,2,582', 'footer1,4,2,4,2448'); refreshHarmonyPads(3, 2100);
+assert.equal(buildMainPageVM().headerOverride, 'PARENT E Min');
+assert.equal(keyboardState.rootPc, 0); assert.equal(padMapFor(3)[3], 60);
+assert.equal(padColor(71, 68, 3, false), parentTonicColor, 'tonic degree illumination stays in its chosen column');
+mainPageTouch(7, true);
+assert.equal(keyboardState.columnOffset, 3, 'touch alone only reveals the position');
+assert.match(buildMainPageVM().toast.fullName, /Shift: Reset/);
+const resetHint = buildMainPageVM().toast;
+assert.equal(headerText(resetHint.fullName, resetHint.value)[0], resetHint.fullName, 'reset hint fits the actual display header');
+mainPageKnob(7, 8); mainPageRelease(7);
+assert.equal(keyboardState.columnOffset, 4);
+onMidiMessageInternal([176, 63, 127]); onMidiMessageInternal([176, 63, 0]);
+assert.equal(buildMainPageVM().rows[1][3].displayValue, '5 right', 'arrows and K8 share the same position');
+appState.shiftHeld = true; mainPageTouch(7, true); mainPageKnob(7, 8); mainPageRelease(7); appState.shiftHeld = false;
+assert.equal(keyboardState.columnOffset, 0, 'Shift-touch resets; turning during reset cannot move it again');
+assert.equal(buildMainPageVM().rows[1][3].displayValue, 'Default');
+assert.equal(lights().get(62), WHITE_DIM); assert.equal(lights().get(63), WHITE_DIM);
+mainPageKnob(7, 800); mainPageRelease(7);
+assert.equal(keyboardState.columnOffset, COLUMN_OFFSET_MAX); assert.equal(lights().get(63), WHITE_OFF);
+mainPageKnob(7, -800); mainPageRelease(7);
+assert.equal(keyboardState.columnOffset, COLUMN_OFFSET_MIN); assert.equal(lights().get(62), WHITE_OFF);
+assert(!setPadPosition(NaN)); assert(!setPadPosition(Infinity));
+setPadPosition(0); clearMainPage(); appState.currentView = VIEW_KNOBS;
 
 // Grid, Clips and explicit step recording retain their existing gestures.
 chord.setChordEnabled(false); grid.setGridEnabled(true); seqState.loopStart = 0; seqState.lenSteps = 64;
@@ -196,10 +240,16 @@ assert.deepEqual(midi.at(-1), [144, originalPitch - 1, 100], 'new press uses the
 onMidiMessageExternal([128, 112, 0]); unloadLaunchpad();
 globalThis.host_module_set_param_blocking = blockingHost;
 
+// Joint Play exposes its already-polled parent context, without a second poller.
+joint.setJointEnabled(true); joint.syncJoint(() => {}, 400000);
+assert.equal(buildMainPageVM().headerOverride, 'PARENT E Min');
+const jointReads = reads; for (let frame = 0; frame < 100; frame++) buildMainPageVM();
+assert.equal(reads, jointReads); joint.setJointEnabled(false);
+
 // Missing old-session data defaults to zero; saved placement is global and bounded.
 keyboardState.columnOffset = 4; const saved = serializeUiState(); keyboardState.columnOffset = -2; applyUiState(saved);
 assert.equal(keyboardState.columnOffset, 4);
 applyUiState('{}'); assert.equal(keyboardState.columnOffset, 0);
 applyUiState('{"columnOffset":1000}'); assert.equal(keyboardState.columnOffset, COLUMN_OFFSET_MAX);
 assert(!writes.some(([, key]) => key.endsWith(':follower_explicit_root')), 'arrows never rewrite the musical key');
-console.log('Pad position: all layouts/scales, Chord Play/settings priority, jog, bounded button lights, Grid/Clips/step recording, approach/color alignment and persistence pass');
+console.log('Pad position: all layouts/scales, parent/input separation, cached normal/Joint readout, K8/reset, arrow lights, input priority, approach/color alignment and persistence pass');

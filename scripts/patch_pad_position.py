@@ -81,6 +81,11 @@ export function chordMidi(data:number[],panels=true,surface?:SchwungPage):boolea
     source = replace_once(source, "buildSurfaceCells(notes,actualLayout,mode===0)", "buildSurfaceCells(notes,actualLayout,mode===0,columnOffset)")
     source = replace_once(source, "settings,keyboardState.scale,keyboardState.rootPc,", "settings,keyboardState.scale,keyboardState.rootPc,keyboardState.columnOffset,")
     source = replace_once(source, "        false,belowHeld||belowLatch);", "        false,belowHeld||belowLatch,keyboardState.columnOffset);")
+    source = replace_once(source, "    if(view)actor.view=view;", """    if(view){
+        if(actor.view?.footer?.[0]!==view.footer?.[0]||actor.view?.footer?.[1]!==view.footer?.[1])appState.dirty=true;
+        actor.view=view;
+    }""")
+    source = replace_once(source, "cachedSetAnimLED(slot,color,color,0);", "cachedSetAnimLED(slot,color,color,0);cachedSetAnimLED(71+slot,color,color,0,true);")
     path.write_text(source)
 
     path = root / "src/surfaces/protocol.ts"
@@ -121,6 +126,128 @@ export function invalidateHarmonyPadGeometry(): void {
     # Tests exercise the real input and lighting paths, not a second implementation.
     path = root / "browser-test/hb-pad-position.mjs"
     path.write_text((assets / "hb-pad-position.mjs").read_text())
+
+    # Show the resolved destination separately from editable input coordinates.
+    # Reading the existing footer snapshot adds no native polling or key mapping.
+    path = root / "src/renderer/hb-footer.ts"
+    source = path.read_text()
+    source = replace_once(source, "export function harmonyFooterText(", """/** Parent key already resolved by HB, including Key Center and Parallel. */
+export function parentKeyLabel(data?:readonly number[]):string {
+    if(!data)return '';
+    const [key,scale]=data;
+    const raw=scale===-1?'Blues':scale===0?'Custom':FOLLOWER_SCALE_NAMES[scale-1]??'Custom';
+    const label=raw.replace('Natural Minor','Min').replace('Major','Maj').replace('Minor','Min')
+        .replace('Half-Whole Diminished','DimH-W').replace('Whole-Half Diminished','DimW-H').replace(/ /g,'');
+    return roots[key]+' '+label;
+}
+export function harmonyFooterText(""")
+    source = replace_once(source, "    const raw=scale===-1?'Blues':scale===0?'Custom':FOLLOWER_SCALE_NAMES[scale-1]??'Custom';\n    const label=raw.replace('Natural Minor','Min').replace('Major','Maj').replace('Minor','Min').replace(/ /g,'');", "    const parent=parentKeyLabel(data);")
+    source = replace_once(source, "[prefix+' '+roots[key]+' '+label,prefix,roots[key]]", "[prefix+' '+parent,prefix,roots[key]]")
+    path.write_text(source)
+
+    path = root / "src/seq/joint-play.ts"
+    source = replace_once(path.read_text(), "export function jointActive(): boolean {return enabled && !seqState.sessionMode && jointAvailable();}", """export function jointActive(): boolean {return enabled && !seqState.sessionMode && jointAvailable();}
+/** All actors share the parent key; use their existing bounded preview cache. */
+export function jointParentKeySnapshot(): readonly number[] | undefined {
+    return jointActive() ? actors.find(actor => actor.view?.footer)?.view?.footer : undefined;
+}""")
+    path.write_text(source)
+
+    # Joint's performance row must yield Shift shortcuts just like Chord Play.
+    path = root / "src/renderer/hb-performance.ts"
+    source = replace_once(path.read_text(), "if(jointActive()){syncHbPerformanceMode();const page=jointPerformancePort();", "if(jointActive()){syncHbPerformanceMode();if(appState.shiftHeld)return null;const page=jointPerformancePort();")
+    path.write_text(source)
+
+    path = root / "src/seq/main-page.ts"
+    source = """import { setPadPosition } from './pad-position.js';
+import { resetKnobLedCache } from '../renderer/knob-leds.js';
+import { seqLedsInvalidate } from './led-cache.js';
+""" + path.read_text()
+    source = replace_once(source, "export function clearMainPage(): void {", """export function clearMainPage(): void {
+    // Parameter and performance painters have separate caches; transfer ownership.
+    resetKnobLedCache();
+    seqLedsInvalidate();""")
+    source = source.replace("K_LAYOUT", "K_POSITION")
+    source = replace_once(source, "    if (k === K_POSITION) return;\n    mainPageState.touchedKnob = down ? k : -1;", """    if (k === K_POSITION && down && appState.shiftHeld) {
+        accum[k] = 0;
+        setPadPosition(0);
+    }
+    mainPageState.touchedKnob = down ? k : -1;""")
+    source = replace_once(source, "    if (k === K_POSITION) return;", """    if (k === K_POSITION && appState.shiftHeld) {
+        mainPageState.touchedKnob = k;
+        accum[k] = 0;
+        setPadPosition(0);
+        return;
+    }""")
+    source = replace_once(source, "    if (n === 0) return;", """    if (n === 0) return;
+    if (k === K_POSITION) { setPadPosition(keyboardState.columnOffset + n); return; }""")
+    path.write_text(source)
+
+    # An explicitly opened Set page owns the screen and panel controls. Preserve
+    # old owners' releases and keep the underlying pads/step performance running.
+    path = root / "src/midi/router.ts"
+    source = replace_once(path.read_text(), "    if (hbPerformanceStep(data)) return;\n    if (seqHandleMidi(data, appState.shiftHeld)) return;", """    const panelStatus = data[0] & 0xf0;
+    const mainControls = mainPageActive() && (
+        ((panelStatus === 0x90 || panelStatus === 0x80) && data[1] < 8) ||
+        (panelStatus === 0xb0 && ([MoveMainKnob, MoveMainButton, MoveBack].includes(data[1]) || (data[1] >= 71 && data[1] <= 78))));
+    if (mainControls) {
+        // Releases still close touches owned by the panel underneath.
+        if (isRelease(data)) seqHandleMidi(data, appState.shiftHeld);
+        if (panelStatus === 0x90 || panelStatus === 0x80) {
+            if (isRelease(data)) mainPageRelease(data[1]); else mainPageTouch(data[1], true);
+            appState.dirty = true;
+            return;
+        }
+        if (panelStatus === 0xb0 && data[1] === MoveMainButton) return;
+    } else {
+        if (hbPerformanceStep(data)) return;
+        if (seqHandleMidi(data, appState.shiftHeld)) return;
+    }""")
+    path.write_text(source)
+    path = root / "src/app/tick.ts"
+    source = path.read_text()
+    main_view: str = """        } else if (appState.currentView === VIEW_MAIN_PARAMS) {
+            const vm = buildMainPageVM();
+            renderKnobsView(vm, false, appState.activeTrack.index);
+            updateKnobLEDs(vm); // knobs 0-3 reflect value; 4-7 (null cells) off
+"""
+    assert source.count(main_view) == 1, "Set Parameters render owner"
+    source = source.replace(main_view, "", 1)
+    source = replace_once(source, "        } else if (settingsActive()) {", main_view.replace(" // knobs 0-3 reflect value; 4-7 (null cells) off", "") + "        } else if (settingsActive()) {")
+    path.write_text(source)
+
+    path = root / "browser-test/hb-pad-position-view.mjs"
+    path.write_text((assets / "hb-pad-position-view.mjs").read_text())
+
+    path = root / "src/seq/main-page-vm.ts"
+    source = """import { padPositionLabel } from './pad-position.js';
+import { appState } from '../app/state.js';
+import { harmonyFooterSnapshot } from '../keyboard/harmony-pads.js';
+import { parentKeyLabel } from '../renderer/hb-footer.js';
+import { jointActive, jointParentKeySnapshot } from './joint-play.js';
+""" + path.read_text()
+    source = source.replace("import { keyboardState }", "import { keyboardState, COLUMN_OFFSET_MIN, COLUMN_OFFSET_MAX }")
+    source = replace_once(source, "shortName: 'ROOT', fullName: 'Root'", "shortName: 'IN ROOT', fullName: 'Input Root'")
+    source = replace_once(source, "shortName: 'KEY', fullName: 'Key'", "shortName: 'IN SCL', fullName: 'Input Scale'")
+    source = replace_once(source, "const layout = cell({shortName:'MORE ->',fullName:'Turn jog dial: more panels',renderStyle:'preset',displayValue:'JOG DIAL',normalizedValue:0});", """const layout = cell({
+        shortName: 'POS', fullName: 'Pos / Shift: Reset', renderStyle: 'preset',
+        displayValue: padPositionLabel(),
+        normalizedValue: (keyboardState.columnOffset - COLUMN_OFFSET_MIN) / (COLUMN_OFFSET_MAX - COLUMN_OFFSET_MIN),
+    });
+    const parent = parentKeyLabel(jointActive() ? jointParentKeySnapshot() : harmonyFooterSnapshot(appState.activeTrack.index));""")
+    source = replace_once(source, "headerOverride: ['SET PARAMS'", "headerOverride: [parent ? 'PARENT ' + parent : 'SET PARAMS'")
+    path.write_text(source)
+
+    path = root / "browser-test/hb-pad-settings.mjs"
+    source = path.read_text().replace("displayValue,'JOG DIAL'", "displayValue,'Default'").replace("shortName,'MORE ->'", "shortName,'POS'")
+    path.write_text(source)
+
+    path = root / "browser-test/logic/params-pages.mjs"
+    source = path.read_text().replace("vm.rows[1][3].displayValue, 'JOG DIAL'", "vm.rows[1][3].displayValue, 'Default'")
+    source = replace_once(source, "keyboardState.rootPc = 0; keyboardState.scale = 0; // C, Major", "keyboardState.rootPc = 0; keyboardState.scale = 0; keyboardState.columnOffset = 0; // C, Major, default position")
+    source = source.replace("more panels are discoverable", "pad position is visible")
+    source = source.replace("unused knob does not change layout", "position knob does not change layout").replace("unused knob opens no overlay", "position knob opens no overlay")
+    path.write_text(source)
 
     path = root / "browser-test/logic/seq-router.mjs"
     source = path.read_text()

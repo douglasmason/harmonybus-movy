@@ -581,6 +581,9 @@ static void test_chord_play(void){
 #ifdef HB_TEST_CHORD_DISCOVERY
 #include "chord_discovery_audio.h"
 #endif
+#ifdef HB_TEST_PAD_PARENT_KEY
+#include "pad_parent_key_audio.h"
+#endif
 
 static void test_pad_geometry_ownership(void){
     /* Exercise the production padmap handler, not only PadRoute's ledger. */
@@ -631,6 +634,9 @@ int main(int argc,char **argv){
 #endif
 #ifdef HB_TEST_CHORD_QUEUE
     if(getenv("HB_QUEUE_ONLY")){test_chord_queue();api->destroy_instance(instance);return 0;}
+#endif
+#ifdef HB_TEST_PAD_PARENT_KEY
+    if(getenv("HB_PAD_PARENT_ONLY")){test_pad_parent_key();api->destroy_instance(instance);return 0;}
 #endif
     test_pad_geometry_ownership();
     /* Physical pads 68,69,70 map to C-E-G. */

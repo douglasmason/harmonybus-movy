@@ -22,16 +22,27 @@ export function canShiftPadPosition(direction: number): boolean {
     return (direction === -1 || direction === 1) && next >= COLUMN_OFFSET_MIN && next <= COLUMN_OFFSET_MAX;
 }
 
-/** Move the notes in the arrow's direction; existing note owners stay intact. */
-export function shiftPadPosition(direction: number): boolean {
-    if (!canShiftPadPosition(direction)) return false;
-    keyboardState.columnOffset += direction;
+export function padPositionLabel(): string {
+    const offset = keyboardState.columnOffset;
+    return offset === 0 ? 'Default' : Math.abs(offset) + (offset > 0 ? ' right' : ' left');
+}
+
+/** One setter for arrows, settings and reset; held notes retain their owners. */
+export function setPadPosition(offset: number): boolean {
+    if (!Number.isFinite(offset)) return false;
+    const next = Math.max(COLUMN_OFFSET_MIN, Math.min(COLUMN_OFFSET_MAX, Math.round(offset)));
+    if (next === keyboardState.columnOffset) return false;
+    keyboardState.columnOffset = next;
     invalidateHarmonyPadGeometry();
     markUiStateDirty();
     appState.dirty = true;
-    const offset = keyboardState.columnOffset;
-    seqToast(offset === 0 ? 'Pad position: Default' : 'Pad position: ' + Math.abs(offset) + (offset > 0 ? ' right' : ' left'));
+    seqToast('Pad position: ' + padPositionLabel());
     return true;
+}
+
+/** Move the notes in the arrow's direction; existing note owners stay intact. */
+export function shiftPadPosition(direction: number): boolean {
+    return canShiftPadPosition(direction) && setPadPosition(keyboardState.columnOffset + direction);
 }
 
 /** Consume releases and blocked endpoints too, so they cannot switch panels. */
