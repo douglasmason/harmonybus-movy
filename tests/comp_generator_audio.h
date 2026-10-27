@@ -111,8 +111,10 @@ static void test_comp_generator(void){
         set("cmd","gexplore 1 4 64 64 17;gexplore 2 off");render(16);
         bass_attacks=routed_channel_on[1];comp_attacks=routed_channel_on[2];render(800);
         assert(routed_channel_on[1]>bass_attacks&&routed_channel_on[2]==comp_attacks);
-        set("cmd","gexplore off;stop");render(16);duet_capture=0;assert(sent_on==sent_off);
+        set("cmd","gexplore off;stop");render(16);duet_capture=0;
+        fprintf(stderr,"actor duet record_track=%d on=%d off=%d\n",record_track,sent_on,sent_off);
         for(int channel=0;channel<16;channel++)for(int pitch=0;pitch<128;pitch++)assert(duet_balance[channel][pitch]==0);
+        assert(sent_on==sent_off);
         assert(api->get_param(instance,"state",after,sizeof(after))>0&&!strcmp(before,after));
         duet_capture=1;memset(duet_balance,0,sizeof(duet_balance));
         set("cmd","gexplore 2 0 64 64 13;gexplore 1 4 64 64 17;usnap 950");

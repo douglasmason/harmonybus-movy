@@ -5,6 +5,7 @@
 #include "host/plugin_api_v1.h"
 #include <assert.h>
 #include <dlfcn.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,12 +21,16 @@ static int capture_edges,edge_count,edges[128];
 static int move_play_presses,move_play_releases;
 static unsigned rendered_mask;
 static double beat;
+/* Render To may call the host from several chain workers in one block. Keep
+ * this test recorder coherent; the production renderer joins before reads. */
+static pthread_mutex_t packet_capture_lock=PTHREAD_MUTEX_INITIALIZER;
 static void log_message(const char *message){fprintf(stderr,"%s\n",message);}
 static float bpm(void){return 120;}
 static double position(void){return beat;}
 static int clock_status(void){return 0;}
 static int send_packet(const uint8_t *packet,int length){
-    if(length!=4){rejected++;return 0;}
+    pthread_mutex_lock(&packet_capture_lock);
+    if(length!=4){rejected++;pthread_mutex_unlock(&packet_capture_lock);return 0;}
     if(duet_capture&&((packet[1]&0xf0)==0x90||(packet[1]&0xf0)==0x80)){
         int on=(packet[1]&0xf0)==0x90&&packet[3];
         duet_balance[packet[1]&15][packet[2]]+=on?1:-1;
@@ -50,6 +55,7 @@ static int send_packet(const uint8_t *packet,int length){
     if(capture_register&&(packet[1]&0xff)==0x92&&packet[3]){if(packet[2]<register_low)register_low=packet[2];if(packet[2]>register_high)register_high=packet[2];}
     if((packet[1]&0xf0)==0x90&&packet[3]){routed_channel_on[packet[1]&15]++;if(source_velocity_check)assert(packet[3]==source_velocity_check);sent_on++;rendered_mask|=1u<<(packet[2]%12);}
     if((packet[1]&0xf0)==0x80||((packet[1]&0xf0)==0x90&&!packet[3]))sent_off++;
+    pthread_mutex_unlock(&packet_capture_lock);
     return 4;
 }
 static int inject_packet(const uint8_t *packet,int length){
