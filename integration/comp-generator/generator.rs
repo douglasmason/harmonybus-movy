@@ -43,7 +43,7 @@ impl Config {
         let mut result=self;
         for (field,label) in LABELS.iter().enumerate() {
             let Some(lane)=labels.iter().position(|name|name==label) else {continue;};
-            let boundary=if field==2 {step/16*16} else {step};
+            let boundary=if field==2 {(step/16*16).max(clip.loop_start_steps)} else {step};
             let value=lane_value(clip,lane as u8,boundary,result.values()[field]);
             match field {0=>result.complexity=value,1=>result.intensity=value,2=>result.style=value.min(STYLES.len() as u8-1),_=>{}}
         }
@@ -51,4 +51,8 @@ impl Config {
     }
 }
 #[derive(Clone,Copy,Debug)]
-pub struct Explore {pub track:usize,pub desired:Config,pub current:Config,pub take:Option<usize>}
+pub struct Explore {
+    pub track:usize,pub desired:Config,pub current:Config,pub take:Option<usize>,
+    /// A recorded source keeps its normal clock; None is a new free audition.
+    pub source:Option<usize>,pub touched:u8,
+}

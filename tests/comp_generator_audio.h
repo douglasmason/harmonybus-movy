@@ -30,6 +30,20 @@ static void test_comp_generator(void){
     set("cmd","play");render(100);set("chord_select","0,2,1,0,1,0,1,12");render(8);
     sent_on=sent_off=0;rendered_mask=0;render(1000);set("cmd","stop");render(16);
     assert(sent_on>6&&sent_on==sent_off);
+    /* Existing recipe audition is ephemeral, and physical Record's ordinary
+       rec command overdubs it without creating another take or changing seed. */
+    assert(api->get_param(instance,"state",before,sizeof(before))>0);
+    set("cmd","gpreview 2 0 1 12;play");render(800);set("cmd","gexplore off;stop");render(8);
+    assert(api->get_param(instance,"state",after,sizeof(after))>0&&!strcmp(before,after));
+    set("cmd","usnap 930;rec 2");render(1700);
+    set("cmd","gpreview 2 0 1 111");render(800);
+    assert(api->get_param(instance,"generator_info_2",info,sizeof(info))>0&&!strncmp(info,"Overdub",7));
+    set("cmd","rec 2;stop;ucommit 930");render(8);
+    assert(api->get_param(instance,"state",after,sizeof(after))>0&&strcmp(before,after));
+    set("cmd","uswap 930 931");render(4);
+    assert(api->get_param(instance,"state",after,sizeof(after))>0&&!strcmp(before,after));
+    set("cmd","uswap 931 932");render(4);
+    assert(api->get_param(instance,"state",after,sizeof(after))>0&&strcmp(before,after));
     set("cmd","usnap 920;gbake 2 0;ucommit 920");render(2);
     assert(api->get_param(instance,"generator_info_2",info,sizeof(info))>0&&strstr(info,"Baked"));
     set("cmd","play");render(100);set("chord_select","0,2,1,0,1,0,1,12");render(8);

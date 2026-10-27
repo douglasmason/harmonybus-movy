@@ -31,11 +31,12 @@ def patch_comp_generator(root: Path) -> None:
     pub generator_restore:[Option<crate::part_settings::Settings>;16],
     pub generator_result:String,''')
     source = replace_once(source,'            variations:', '            generator_explore:None,generator_restore:[None;16],generator_result:String::new(),\n            variations:')
-    source = replace_once(source,'    pub fn clip_transpose(&self, track: usize, slot: usize) -> i32 {','    pub fn clip_transpose(&self, track: usize, slot: usize) -> i32 {\n        if self.generator_exploring(track) {return 0;}')
+    source = replace_once(source,'    pub fn clip_transpose(&self, track: usize, slot: usize) -> i32 {','    pub fn clip_transpose(&self, track: usize, slot: usize) -> i32 {\n        if self.generator_free(track) {return 0;}')
     source = replace_once(source,'    pub fn stop(&mut self, out: &mut Vec<OutEvent>) {','    pub fn stop(&mut self, out: &mut Vec<OutEvent>) {\n        self.generator_cancel(out);')
     source = replace_once(source,'    pub fn toggle_record(&mut self, track: usize) {','''    pub fn toggle_record(&mut self, track: usize) {
         let track=self.generator_explore.map_or(track,|state|state.track);
         if !self.part_recording_busy()&&!self.generator_prepare_record() {return;}''')
+    source = replace_once(source,'self.rec_empty_start = self.tracks[track].active().notes.is_empty();','self.rec_empty_start = self.tracks[track].active().notes.is_empty()&&self.tracks[track].active().generator.is_none();')
     source = replace_once(source,'            self.rec_tail.append(&mut self.rec_pending);\n            return;', '''            self.rec_tail.append(&mut self.rec_pending);
             if let Some(state)=self.generator_explore.filter(|state|state.take.is_some()) {self.generator_finish_take(state);self.generator_explore=None;}
             return;''')
@@ -43,18 +44,19 @@ def patch_comp_generator(root: Path) -> None:
     start: int = source.index('        let mut gi = 0;',source.index('    fn step_tick('))
     end: int = source.index('        {\n            let drum_fill_lane',start)
     gate_body: str = source[start:end]
-    source = source[:start] + '''        if !self.generator_exploring(ti) {self.advance_note_gates(ti,out);self.generator_tick(ti,out);}
+    source = source[:start] + '''        if !self.generator_free(ti) {self.advance_note_gates(ti,out);self.generator_tick(ti,out);}
 ''' + source[end:]
     source += '\nimpl Engine {fn advance_note_gates(&mut self,ti:usize,out:&mut Vec<OutEvent>) {\n' + gate_body + '\n}}\n'
     source = replace_once(source,'            if serviced && clock_serviced &&', '            if (serviced||self.generator_exploring(t)) && (clock_serviced||self.generator_exploring(owner)) &&')
     source = replace_once(source,'            for ti in 0..NUM_TRACKS {\n                let Some(slot)', '''            for ti in 0..NUM_TRACKS {
-                if self.generator_exploring(ti) {self.advance_note_gates(ti,out);self.generator_tick(ti,out);if !(self.recording&&self.records_track(ti)) {continue;}}
+                if self.generator_free(ti) {self.advance_note_gates(ti,out);self.generator_tick(ti,out);if !(self.recording&&self.records_track(ti)) {continue;}}
                 let Some(slot)''')
-    source = replace_once(source,'            if !muted {\n                    let len', '            if !muted && !self.generator_exploring(ti) {\n                    let len')
+    source = replace_once(source,'            if !muted {\n                    let len', '            if !muted && !self.generator_free(ti) {\n                    let len')
+    source = replace_once(source,'            self.recipe_tick(out);','            self.generator_check_target(out);\n            self.recipe_tick(out);')
     # Suppress only incoming weaving while this actor owns a generator source.
     source = replace_once(source,'    fn source_attack(&mut self, rhythm_track: usize, rhythm_slot: usize, duration: u32, out: &mut Vec<OutEvent>) {','    fn source_attack(&mut self, rhythm_track: usize, rhythm_slot: usize, duration: u32, out: &mut Vec<OutEvent>) {')
     source = source.replace('for actor in 0..NUM_TRACKS {\n            let route=self.source_routes[actor];','for actor in 0..NUM_TRACKS {\n            if self.generator_owns(actor) {continue;}\n            let route=self.source_routes[actor];')
-    source = source.replace('.recipe.as_ref().filter(|_|!self.drum_output(ti))', '.recipe.as_ref().filter(|_|!self.drum_output(ti)&&!self.generator_exploring(ti))')
+    source = source.replace('.recipe.as_ref().filter(|_|!self.drum_output(ti))', '.recipe.as_ref().filter(|_|!self.drum_output(ti)&&!self.generator_free(ti))')
     source = source.replace('&& !(self.recording && self.records_track(ti)) {', '&& (self.generator_owns(ti)||!(self.recording && self.records_track(ti))) {')
     source = replace_once(source, '                if let Some(lv) = clip.lock_at(lane, step) {', '                if clip.generator.is_some() {crate::generator::lane_value(clip,lane,step,base)} else if let Some(lv) = clip.lock_at(lane, step) {')
     source += '\n' + (assets / 'generator_engine.rs').read_text()
@@ -81,7 +83,7 @@ def patch_comp_generator(root: Path) -> None:
             Some("pr1")=>{''')
     path.write_text(source)
     path = core / 'command.rs'
-    source = replace_once(path.read_text(),'            if verb=="filllibrary"', '            if verb=="gexplore" {engine.generator_explore_set(op,out);continue;}\n            if verb=="filllibrary"')
+    source = replace_once(path.read_text(),'            if verb=="filllibrary"', '            if verb=="gexplore" {engine.generator_explore_set(op,out);continue;}\n            if verb=="gpreview" {engine.generator_preview_set(op,out);continue;}\n            if verb=="filllibrary"')
     source = source.replace('| "clipfill"', '| "gbake" | "clipfill"')
     source = replace_once(source,'        "clipfill" =>', '        "gbake" => engine.generator_bake(op,out),\n        "clipfill" =>')
     path.write_text(source)
@@ -116,14 +118,22 @@ def patch_comp_generator(root: Path) -> None:
         origin: str = 'styles.json' if filename.endswith('.json') else filename
         (root / 'src/seq' / filename).write_text((assets / origin).read_text())
     path = root / 'src/seq/chord-play.ts'
-    source = "import {generatorParameters,generatorKeys,generatorRead,generatorWrite,generatorStop,generatorFooter,generatorTouch,generatorRecordActive} from './comp-generator.js';\n" + path.read_text()
+    source = "import {generatorParameters,generatorKeys,generatorRead,generatorWrite,generatorStop,generatorFooter,generatorTouch,generatorRecordActive,generatorPrepareRecord,generatorPageChanged} from './comp-generator.js';\n" + path.read_text()
     source = replace_once(source,'...partParameters(native),', '...generatorParameters(),...partParameters(native),')
     source = replace_once(source,'        const partValue=partRead', '        const generated=generatorRead(bare,setup.comp);if(generated!==null)return generated;\n        const partValue=partRead')
     source = replace_once(source,"const bare=key.split(':').pop()??'';const partResult", "const bare=key.split(':').pop()??'';const generated=generatorWrite(bare,value,setup.comp);if(generated!==null){if(bare==='cg_family')bankPageDirty=true;return generated;}const partResult")
     source = replace_once(source,"if(!target&&/:(cp|bp)_/.test(key))", "if(!target&&(/:(cp|bp)_/.test(key)||key.includes(':cg_')))")
     source = replace_once(source,"    add('cp_comp_library'", "    add('cp_comp_generator','Comp T'+(setup.comp+1)+' Generator',generatorKeys);\n    add('cp_comp_library'")
     source = replace_once(source,'    if(enabled===value)return;', '    if(enabled===value)return;\n    if(!value)generatorStop();')
-    source = replace_once(source,"    const ownerTrack=conductorTrack(),conductorOwner", "    if(status===176&&key===86&&generatorRecordActive()){if(value)chordRecordButton(true,setup.comp);return true;}\n    const ownerTrack=conductorTrack(),conductorOwner")
+    source = replace_once(source,"    const ownerTrack=conductorTrack(),conductorOwner", """    if(status===176&&key===86){
+        if(generatorRecordActive()){if(value)chordRecordButton(true,setup.comp);return true;}
+        if(value&&(surface??page)?.ctl.page?.level==='cp_comp_generator'){
+            const ready=generatorPrepareRecord(setup.comp);
+            if(ready!==null){if(ready)chordRecordButton(true,setup.comp);return true;}
+        }
+    }
+    const ownerTrack=conductorTrack(),conductorOwner""")
+    source = replace_once(source,'    if(bankPageDirty&&!touches.size', '    if(generatorPageChanged())bankPageDirty=true;\n    if(bankPageDirty&&!touches.size')
     source = replace_once(source,"        if(/^(cp|bp)_(load|save)$/.test", "        if(generatorTouch(current.keyAt(key)??'',setup.comp,down))return true;\n        if(/^(cp|bp)_(load|save)$/.test")
     source = replace_once(source,'    if(setup.playMode)return queueFooterText', "    if(current.ctl.page?.level==='cp_comp_generator')return generatorFooter(setup.comp);\n    if(setup.playMode)return queueFooterText")
     source = replace_once(source,'export function harmonyOff():void{','export function harmonyOff():void{\n    generatorStop();')
@@ -133,13 +143,21 @@ def patch_comp_generator(root: Path) -> None:
     source = replace_once(source,'export function chordRecordButton(down:boolean,track:number):void {','export function chordRecordButton(down:boolean,track:number):void {\n    if(generatorRecordActive()){if(down)recToggle(track);return;}')
     path.write_text(source)
     path = root / 'src/undo/rec-pass.ts'
-    source = "import {generatorRecordCommand} from '../seq/comp-generator.js';\n" + path.read_text()
+    source = "import {generatorRecordCommand,generatorRecordTrack} from '../seq/comp-generator.js';\n" + path.read_text()
     source = replace_once(source,'seqCtl(chordRecordCommand() ??', 'seqCtl(generatorRecordCommand() ?? chordRecordCommand() ??')
+    source = source.replace("watchedTrack() + ':' + passSeq", "(generatorRecordTrack()??watchedTrack()) + ':' + passSeq")
+    source = source.replace('target: trackLabel(watchedTrack()),','target: trackLabel(generatorRecordTrack()??watchedTrack()),')
+    source = replace_once(source,'let passSeq = 0;', 'let passSeq = 0;\nlet generatorPass = false;')
+    source = replace_once(source,'    passSeq++;', '    passSeq++;\n    generatorPass=generatorRecordTrack()!==null;')
+    source = replace_once(source,'    pendingArm = 0;\n    /* Armed', '    pendingArm = 0;\n    if(generatorRecordTrack()!==null)generatorPass=true;\n    /* Armed')
+    source = replace_once(source,'if (wasRolling && seqState.curStep < lastStep)', 'if (!generatorPass && wasRolling && seqState.curStep < lastStep)')
     path.write_text(source)
     path = root / 'build/browser.mjs'
     path.write_text(replace_once(path.read_text(),'    entryPoints: [',"    entryPoints: [\n        resolve(root, 'src/seq/comp-generator.ts'),"))
     if (assets / 'hb-comp-generator.mjs').exists():
         (root / 'browser-test/hb-comp-generator.mjs').write_text((assets / 'hb-comp-generator.mjs').read_text())
+    if (assets / 'hb-generator-overdub.mjs').exists():
+        (root / 'browser-test/hb-generator-overdub.mjs').write_text((assets / 'hb-generator-overdub.mjs').read_text())
 
     path = root / 'src/renderer/panel-catalog.ts'
     source = replace_once(path.read_text(), "cp_comp_library:'Libraries'", "cp_comp_generator:'Comp',cp_comp_library:'Libraries'")
@@ -152,4 +170,4 @@ def patch_comp_generator(root: Path) -> None:
 
     for relative in ('engine/crates/movy-dsp/src/lib.rs','src/seq/constants.ts'):
         path = root / relative
-        path.write_text(path.read_text().replace('0.86.0-fill-library1','0.87.0-comp-generator1'))
+        path.write_text(path.read_text().replace('0.86.0-fill-library1','0.88.0-generator-overdub1'))
