@@ -37,9 +37,9 @@ fn edits_role_changes_restore_and_undo_still_reconcile_clips() {
     }
     apply(&mut actual, &mut buffer, message); legacy_apply(&mut expected, message); equivalent(&actual, &expected);
     assert!(actual.tracks[1].clips[0].input_key.is_some());
-    for engine in [&mut actual, &mut expected] { engine.set_drum_output(1, true, &mut Vec::new()); }
+    for engine in [&mut actual, &mut expected] { assert!(engine.set_drum_output(4, true, &mut Vec::new())); }
     apply(&mut actual, &mut buffer, message); legacy_apply(&mut expected, message); equivalent(&actual, &expected);
-    assert!(actual.follower_inputs[1].is_none());
+    assert!(actual.follower_inputs[4].is_none());
     let saved = seq_core::persist::serialize(&actual);
     for engine in [&mut actual, &mut expected] { assert!(seq_core::persist::load(engine, &saved)); }
     apply(&mut actual, &mut buffer, message); legacy_apply(&mut expected, message); equivalent(&actual, &expected);
