@@ -17,7 +17,7 @@ assert.equal(conductorControls.getParam('midi_fx1:chord_queue_depth'),'3');
 assert.equal(conductorControls.getParam('midi_fx1:chord_queue_end'),'Loop');
 assert.equal(portFor(3).getParam('midi_fx1:chord_queue_depth'),'2');
 assert.equal(appState.activeTrack.index,3);
-const startPage=page.pageIndex;chord.chordMidi([176,63,127]);assert.notEqual(page.pageIndex,startPage);chord.chordMidi([176,62,127]);assert.equal(page.pageIndex,startPage);
+const startPage=page.pageIndex;chord.chordMidi([176,14,1]);assert.notEqual(page.pageIndex,startPage);chord.chordMidi([176,14,127]);assert.equal(page.pageIndex,startPage);
 const core=page.ctl.hbNavigation.state().indices.map(index=>page.ctl.pages[index].level);
 assert(core.includes('cp_Conductor_follower_touch'));assert(core.includes('cp_Conductor_motif_play'));
 assert(!core.includes('cp_Conductor_motif_load'),'motif loading remains in Conductor settings');

@@ -578,6 +578,28 @@ static void test_chord_play(void){
 #include "part_library_audio.h"
 #endif
 
+static void test_pad_geometry_ownership(void){
+    /* Exercise the production padmap handler, not only PadRoute's ledger. */
+    set("ch3:midi_fx1:role","Off");set("ch3:mix","1,0,0,0,0");
+    char mapping[256];int used=snprintf(mapping,sizeof(mapping),"3");
+    for(int pad=0;pad<32;pad++)used+=snprintf(mapping+used,sizeof(mapping)-used,",%d",60+pad);
+    set("padmap",mapping);
+    uint8_t press[]={0x90,68,100},release[]={0x80,68,0};
+    api->on_midi(instance,press,3,0);assert(render(8)>0);
+    assert(field_get("ch3:synth:held_60")==1);
+    used=snprintf(mapping,sizeof(mapping),"3");
+    for(int pad=0;pad<32;pad++)used+=snprintf(mapping+used,sizeof(mapping)-used,",%d",59+pad);
+    set("padmap",mapping);assert(render(8)>0);
+    assert(field_get("ch3:synth:held_60")==1&&field_get("ch3:synth:held_59")==0);
+    api->on_midi(instance,release,3,0);render(8);assert(field_get("ch3:synth:held_60")==0);
+    api->on_midi(instance,press,3,0);render(8);assert(field_get("ch3:synth:held_59")==1);
+    /* Leaving the routing owner must still release the retained onset. */
+    mapping[0]='2';set("padmap",mapping);render(8);assert(field_get("ch3:synth:held_59")==0);
+    api->on_midi(instance,release,3,0);
+    set("ch3:midi_fx1:role","Follower");set("ch3:mix","1,0,1,0,0");
+    puts("pad position: map changes sustain original pitch, release it correctly, and retarget the next press; track changes release");
+}
+
 int main(int argc,char **argv){
     assert(argc==4);
     void *handle=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL);
@@ -606,6 +628,7 @@ int main(int argc,char **argv){
 #ifdef HB_TEST_CHORD_QUEUE
     if(getenv("HB_QUEUE_ONLY")){test_chord_queue();api->destroy_instance(instance);return 0;}
 #endif
+    test_pad_geometry_ownership();
     /* Physical pads 68,69,70 map to C-E-G. */
     for(int mode=0;mode<2;mode++)for(int track=0;track<2;track++){
         snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:chord_mode",track);set(parameter,mode?"Scale Root":"Off");

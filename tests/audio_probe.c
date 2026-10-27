@@ -24,6 +24,7 @@ static int get_param(void *instance,const char *key,char *buffer,int length){
     Probe *probe=instance;
     if(!strcmp(key,"cutoff"))return snprintf(buffer,length,"%d",probe->cutoff);
     if(!strcmp(key,"attack_cutoff"))return snprintf(buffer,length,"%d",probe->attack_cutoff);
+    if(!strncmp(key,"held_",5)){int pitch=atoi(key+5);return snprintf(buffer,length,"%d",pitch>=0&&pitch<128?probe->held[pitch]:0);}
     return 0;
 }
 static plugin_api_v2_t api={.api_version=2,.create_instance=create,.destroy_instance=destroy,.on_midi=midi,.render_block=render,.set_param=set_param,.get_param=get_param};

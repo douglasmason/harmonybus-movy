@@ -1,3 +1,5 @@
+> Movy hbclean.271 lets Left/Right shift the pads during note play, including Chord Play. Tonic position, approach rows and button lights move together; the jog still changes panels. See [pad position](docs/pad-position.md).
+
 > Movy hbclean.270 adds Comp and Bass libraries directly to Clips Fill, with saved-style previews, complete recipe/automation recall, actor-specific entry lists and one Undo. Includes the verified audio-context improvements. See [library Fill controls and limits](docs/fill-library-270.md).
 
 > Movy hbclean.269 removes temporary allocations from native follower-context reads and Humanize parsing while preserving recording-event delivery. Includes Smart Approaches and the earlier UI improvements. See [audio-context measurements and limits](docs/audio-context.md).
