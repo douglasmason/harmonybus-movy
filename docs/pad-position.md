@@ -8,7 +8,9 @@ Open Set Parameters with Shift + Step 9. Knob 8, **POS**, shows the saved
 position and turns it left or right. **Shift + touch knob 8** resets it to
 Default. Touching the knob shows this reset hint. The header shows the resolved
 **PARENT** key; **IN ROOT** and **IN SCL** identify the editable input reference.
-The page number and jog arrow remain visible.
+The page number and jog arrow remain visible. This page owns the screen and
+knobs while open, including during Chord Play and Joint Play. Back restores the
+performance panel and its knob colors; pads keep their note-playing behavior.
 
 The tonic is a scale degree in that input reference. HarmonyBus maps it into the
 parent key once, preserving the chosen physical column when the parent changes.
@@ -47,7 +49,8 @@ repository installer, then restart. Resolved-operation feedback, Chord Discovery
 eight-note scales, Fill libraries and the audio-context improvements are included.
 
 Verification covers all layouts/scales, input priority, limits and pressed lights,
-knob/reset controls, parent/input separation, cached normal/Joint readouts,
+physical MIDI knob/reset controls and screen/light ownership in Chord/Joint Play,
+parent/input separation, cached normal/Joint readouts,
 approach/color alignment, Launchpad ownership and persistence. The production
 audio chain covers all twelve parent roots and fifteen positions, Parallel,
 master transpose, held releases and recorded-degree replay. Native suites,

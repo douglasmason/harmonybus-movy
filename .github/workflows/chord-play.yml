@@ -206,7 +206,7 @@ jobs:
           npm run typecheck
           npm run build:browser
           node browser-test/logic.mjs
-          for suite in hb-comp-generator hb-chord-discovery hb-pad-position hb-ui-overhead hb-ui-tick-overhead hb-settings-case hb-chord-settings hb-panel-catalog hb-interface-usage hb-footer-test hb-performance-controls hb-drum-gesture hb-conductor-content hb-joint-chords hb-chord-queue hb-chord-range hb-navigation-lights hb-single-conductor hb-clips-fill hb-part-library hb-clips-view hb-panel-navigation hb-chord-play hb-chord-pad-feedback hb-pad-colors hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
+          for suite in hb-comp-generator hb-chord-discovery hb-pad-position hb-pad-position-view hb-ui-overhead hb-ui-tick-overhead hb-settings-case hb-chord-settings hb-panel-catalog hb-interface-usage hb-footer-test hb-performance-controls hb-drum-gesture hb-conductor-content hb-joint-chords hb-chord-queue hb-chord-range hb-navigation-lights hb-single-conductor hb-clips-fill hb-part-library hb-clips-view hb-panel-navigation hb-chord-play hb-chord-pad-feedback hb-pad-colors hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
             node "browser-test/$suite.mjs"
           done
           # Legacy app-loop fails unchanged on the pre-routing hbclean.209 baseline.
