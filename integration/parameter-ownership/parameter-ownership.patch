@@ -1,0 +1,566 @@
+diff --git a/build/browser.mjs b/build/browser.mjs
+index e5293bdd..cb7ac23a 100644
+--- a/build/browser.mjs
++++ b/build/browser.mjs
+@@ -17,6 +17,7 @@ rmSync(resolve(root, 'dist/esm'), { recursive: true, force: true });
+ 
+ await esbuild.build({
+     entryPoints: [
++        resolve(root, 'src/renderer/performance-touch.ts'),
+         resolve(root, 'src/seq/comp-generator.ts'),
+         resolve(root, 'src/seq/chord-discovery.ts'),
+         resolve(root, 'src/seq/pad-position.ts'),
+diff --git a/src/app/tick.ts b/src/app/tick.ts
+index 40445cf3..6e6f4a98 100644
+--- a/src/app/tick.ts
++++ b/src/app/tick.ts
+@@ -1,3 +1,5 @@
++import { fieldPage } from '../seq/field-play.js';
++import { paramPageActive } from '../seq/param-page.js';
+ import {tickInterfaceUsage} from './interface-usage.js';
+ import {fillTick} from '../seq/clips-fill.js';
+ import { clipsPanelActive, renderClips, renderClipsKnobs } from '../seq/clips-view.js';
+@@ -67,7 +69,7 @@ import { renderLoadingView } from '../renderer/loading-view.js';
+ import { tempoOverrideTick } from '../seq/tempo-override.js';
+ import { captureTick } from '../seq/capture.js';
+ import { seqBeatLedsTick, seqLedsTick, seqLedsInvalidate, displayHoldNotes } from '../seq/leds.js';
+-import { ledBudgetTake, ledFrameReset } from '../seq/led-cache.js';
++import { ledBudgetTake, ledFrameReset, knobLedsNeedRetry } from '../seq/led-cache.js';
+ import { seqSetLane } from '../seq/router.js';
+ import { stepAutoTick } from '../seq/step-edit.js';
+ import { stepRecTick } from '../seq/step-rec-view.js';
+@@ -404,14 +406,14 @@ export function invalidateLedCachesOnResume(): void {
+ 
+ let paintedModeRevision=0;
+ let padSweepPending=false;
+-let setParametersOwnedKnobs=false;
++let parameterKnobOwner=-1;
+ export function tick(): void {
+     perfProbeEnter();
+     perfPhase('priority');
+     ledFrameReset();
+-    const setParametersOwnKnobs=appState.currentView===VIEW_MAIN_PARAMS;
+-    if(setParametersOwnKnobs!==setParametersOwnedKnobs){
+-        setParametersOwnedKnobs=setParametersOwnKnobs;
++    const parameterOwner=paramPageActive()?appState.currentView:-1;
++    if(parameterOwner!==parameterKnobOwner){
++        parameterKnobOwner=parameterOwner;
+         resetKnobLedCache();seqLedsInvalidate();appState.dirty=true;
+     }
+     if(paintedModeRevision!==inputModeLedRevision){paintedModeRevision=inputModeLedRevision;invalidateLedCachesOnResume();padSweepPending=true;}
+@@ -424,6 +426,7 @@ export function tick(): void {
+     perfPhase('preview');tickPreviewTest();
+     perfPhase('feedback');
+     tickBody();
++    if (knobLedsNeedRetry()) appState.dirty = true;
+     /* Outside tickBody so the parked early-return is still accounted for. */
+     perfPhase('usage');tickInterfaceUsage();
+     perfPhaseEnd();
+@@ -524,7 +527,7 @@ function tickBody(): void {
+        (appState.currentView===VIEW_KNOBS||appState.currentView===VIEW_CHAIN)){
+         const track=appState.activeTrack.index;
+         const model=appState.trackModels[track]?.[appState.trackChainIndex[track]];
+-        const visiblePage=settingsActive()?settingsPage():chordActive()?chordPage():gridActive()?gridTouchPage():jointActive()?jointPage():model?schwungCachedFor(track,model.getComponentKey()):null;
++        const visiblePage=settingsActive()?settingsPage():chordActive()?chordPage():gridActive()?gridTouchPage():fieldActive()?fieldPage():jointActive()?jointPage():model?schwungCachedFor(track,model.getComponentKey()):null;
+         visiblePage?.pollOperationFeedback();
+     }
+     if (paintTouchFrame()) return;
+@@ -696,7 +699,7 @@ function tickBody(): void {
+ 
+     const chainIdx    = appState.trackChainIndex[appState.activeTrack.index];
+     const activeModel = appState.trackModels[appState.activeTrack.index]?.[chainIdx];
+-    const touchPage = settingsActive() ? settingsPage() : chordActive() ? chordPage() : gridActive() ? gridTouchPage() : jointActive() ? jointPage() : activeModel ? schwungActiveFor(appState.activeTrack.index, activeModel.getComponentKey()) : null;
++    const touchPage = settingsActive() ? settingsPage() : chordActive() ? chordPage() : gridActive() ? gridTouchPage() : fieldActive() ? fieldPage() : jointActive() ? jointPage() : activeModel ? schwungActiveFor(appState.activeTrack.index, activeModel.getComponentKey()) : null;
+ 
+     // Trigger consumption happens in the DSP, without changing a knob value.
+     // Do not wait for unrelated model dirtiness before clearing its LED.
+@@ -742,11 +745,11 @@ function tickBody(): void {
+     // back (decouples display from automation; avoids per-step repaints).
+     activeModel?.setNoRefreshKeys(laneKeysForTrack(appState.activeTrack.index));
+     perfPhase('modeltick');
+-    // Match the rendering precedence: Set Parameters and browsers can cover a
+-    // performance mode without disabling it or transferring its note ownership.
+-    const performanceScreen = ![VIEW_BROWSE, VIEW_FILE_BROWSE, VIEW_MAIN_PARAMS].includes(appState.currentView) &&
+-        (settingsActive() || chordActive() || fieldActive() || gridActive() || jointActive());
+-    const modelDirty  = performanceTouchActive() || touchPage?.needsTouchPaint ? false : (activeModel?.tick(!performanceScreen) ?? false);
++    // Parameter pages and performance screens own their values; the covered
++    // model still processes queued edits, metadata and module lifecycle work.
++    const coveredModel = paramPageActive() || (![VIEW_BROWSE, VIEW_FILE_BROWSE].includes(appState.currentView) &&
++        (settingsActive() || chordActive() || fieldActive() || gridActive() || jointActive()));
++    const modelDirty  = performanceTouchActive() || touchPage?.needsTouchPaint ? false : (activeModel?.tick(!coveredModel) ?? false);
+     perfPhaseEnd();
+ 
+     /* A module swap on the focused component changes its param set → re-validate
+@@ -841,16 +844,6 @@ function tickBody(): void {
+             const vm = buildMainPageVM();
+             renderKnobsView(vm, false, appState.activeTrack.index);
+             updateKnobLEDs(vm);
+-        } else if (settingsActive()) {
+-            renderSettings();
+-        } else if (chordActive()) {
+-            renderChord();
+-        } else if (fieldActive()) {
+-            renderField();
+-        } else if (gridActive()) {
+-            renderGrid();
+-        } else if (jointActive()) {
+-            renderJoint();
+         } else if (appState.currentView === VIEW_CLIP_PARAMS) {
+             const vm = buildClipPageVM();
+             renderKnobsView(vm, false, appState.activeTrack.index);
+@@ -866,12 +859,6 @@ function tickBody(): void {
+             vm.selected = versionsPageState.selected;
+             vm.confirming = versionsPageState.confirming;
+             renderVersionsView(vm);
+-        } else if (schwungEditorActive()) {
+-            /* A divable parameter's list, drawn over whatever view opened it.
+-             * Ahead of every view branch because it is modal — the page beneath
+-             * is not what the gestures are addressing. */
+-            clear_screen();
+-            renderSchwungEditor();
+             updateSingleKnobLED(-1, 0);
+         } else if (appState.currentView === VIEW_CPU) {
+             renderCpuView(buildCpuPageVM());
+@@ -879,6 +866,23 @@ function tickBody(): void {
+             // still lit from the page underneath would be inviting a turn this
+             // page consumes and ignores.
+             updateSingleKnobLED(-1, 0);
++        } else if (settingsActive()) {
++            renderSettings();
++        } else if (chordActive()) {
++            renderChord();
++        } else if (fieldActive()) {
++            renderField();
++        } else if (gridActive()) {
++            renderGrid();
++        } else if (jointActive()) {
++            renderJoint();
++        } else if (schwungEditorActive()) {
++            /* A divable parameter's list, drawn over whatever view opened it.
++             * Ahead of every view branch because it is modal — the page beneath
++             * is not what the gestures are addressing. */
++            clear_screen();
++            renderSchwungEditor();
++            updateSingleKnobLED(-1, 0);
+         } else if (clipsPanelActive()) {
+             renderClips();
+             renderClipsKnobs();
+@@ -1069,8 +1073,9 @@ function tickBody(): void {
+     const isBrowseView = appState.currentView === VIEW_BROWSE || appState.currentView === VIEW_FILE_BROWSE;
+     // The CPU meter owns the whole screen down to row 62, and the strip's
+     // per-tick clear would take its label row.
+-    const activePageOverlay = !!touchPage?.ctl.enumPeek?.();
+-    const isFullScreenView = !!touchPage?.navigationTrail || gridActive() || isBrowseView || appState.currentView === VIEW_CPU || activePageOverlay;
++    const activePageOverlay = !paramPageActive() && !!touchPage?.ctl.enumPeek?.();
++    const isFullScreenView = paramPageActive() ? ![VIEW_MAIN_PARAMS, VIEW_CLIP_PARAMS].includes(appState.currentView) :
++        !!touchPage?.navigationTrail || gridActive() || isBrowseView || activePageOverlay;
+     // The strip repaints every tick, outside the dirty-frame block, so anything
+     // that owns the whole screen has to be excluded here or the strip draws back
+     // over it a few milliseconds later.
+diff --git a/src/midi/router.ts b/src/midi/router.ts
+index 34a1dd9f..001baa28 100644
+--- a/src/midi/router.ts
++++ b/src/midi/router.ts
+@@ -3,7 +3,7 @@ import {sessionPlayMode} from '../seq/router-buttons.js';
+ import { returnPreviousInputView } from '../seq/router-buttons.js';
+ import { clickPreviewTest } from '../seq/preview-test.js';
+ import { hbPerformanceStep, releaseHbPerformanceStep } from '../renderer/hb-performance.js';
+-import { releasePerformanceTouch, ownsPerformanceTouch } from '../renderer/performance-touch.js';
++import { releasePerformanceTouch, ownsPerformanceTouch, ownKnobRelease } from '../renderer/performance-touch.js';
+ import { queuePadPressure, clearPadPressure } from '../track/pad-route.js';
+ import { trackRef } from '../track/ref.js';
+ import { schwungChangePage, schwungActiveFor } from '../renderer/schwung-grid.js';
+@@ -38,13 +38,13 @@ import { setButtonHeld } from '../seq/button-held.js';
+ import { currentSetUuid, reloadCurrentSet, sessionFailScope, sessionPhase, sessionReady } from '../seq/set-session.js';
+ import { sessionStartFromScratch } from '../seq/set-fail.js';
+ import { appState, trackIsDrum, VIEW_KEYS, VIEW_KNOBS, VIEW_BROWSE, VIEW_CHAIN, VIEW_FILE_BROWSE, VIEW_MAIN_PARAMS } from '../app/state.js';
+-import { mainPageJog, mainPageActive, mainPageKnob, mainPageTouch, mainPageRelease } from '../seq/main-page.js';
+-import { clipPageActive, clipPageClick, clipPageJog, clipPageKnob, clipPageTouch, clipPageRelease } from '../seq/clip-page.js';
++import { mainPageJog, mainPageActive, mainPageKnob, mainPageTouch, mainPageRelease, clearMainPage } from '../seq/main-page.js';
++import { clearClipPage, clipPageActive, clipPageClick, clipPageJog, clipPageKnob, clipPageTouch, clipPageRelease } from '../seq/clip-page.js';
+ import { backupsRowSelected, flagsPageActive, flagsPageJog, flagsPageKnob } from '../seq/flags-page.js';
+ import { openVersionsPage, versionsPageActive, versionsPageBack, versionsPageClick, versionsPageJog }
+     from '../seq/versions-page.js';
+ import { cpuPageActive, toggleCpuDetail } from '../seq/cpu-page.js';
+-import { closeParamPage, paramPageActive } from '../seq/param-page.js';
++import { closeParamPage, paramPageActive, paramPageControl } from '../seq/param-page.js';
+ import { CHAIN_SLOTS, MASTER_FX_SLOTS, LAST_CHAIN_INDEX, LAST_MASTER_INDEX,
+          LFO_CHAIN_INDEX, MASTER_LFO_INDEX, isLfoSlot, isMasterLfoSlot } from '../chain/config.js';
+ import { keyboardState } from '../keyboard/state.js';
+@@ -146,7 +146,8 @@ function knobLfoScope() {
+ function masterChainActive(): boolean {
+     return seqState.sessionMode
+         && appState.currentView !== VIEW_BROWSE
+-        && appState.currentView !== VIEW_FILE_BROWSE;
++        && appState.currentView !== VIEW_FILE_BROWSE
++        && !paramPageActive();
+ }
+ 
+ /* The master slot grid is on screen (jog scrolls slots, click adds/drills). */
+@@ -286,18 +287,29 @@ function dispatchMidiMessageInternal(data: number[]): void {
+     }
+ 
+     const panelStatus = data[0] & 0xf0;
+-    const mainControls = mainPageActive() && (
+-        ((panelStatus === 0x90 || panelStatus === 0x80) && data[1] < 8) ||
+-        (panelStatus === 0xb0 && ([MoveMainKnob, MoveMainButton, MoveBack].includes(data[1]) || (data[1] >= 71 && data[1] <= 78))));
+-    if (mainControls) {
++    if (paramPageControl(data)) {
+         // Releases still close touches owned by the panel underneath.
+         if (isRelease(data)) seqHandleMidi(data, appState.shiftHeld);
+         if (panelStatus === 0x90 || panelStatus === 0x80) {
+-            if (isRelease(data)) mainPageRelease(data[1]); else mainPageTouch(data[1], true);
++            const slot = data[1], track = appState.activeTrack.index;
++            if (isRelease(data)) {
++                if (mainPageActive()) mainPageRelease(slot);
++                else if (clipPageActive()) clipPageRelease(slot, track);
++            } else {
++                // The existing physical-touch ledger also owns inert touches:
++                // leaving a page must not turn their release into a hidden edit.
++                if (mainPageActive()) {
++                    mainPageTouch(slot, true);
++                    ownKnobRelease(slot, cancel => { if (cancel) clearMainPage(); mainPageRelease(slot); });
++                } else if (clipPageActive()) {
++                    clipPageTouch(slot, true);
++                    ownKnobRelease(slot, cancel => { if (cancel) clearClipPage(); clipPageRelease(slot, track); });
++                } else ownKnobRelease(slot, () => {});
++            }
+             appState.dirty = true;
+             return;
+         }
+-        if (panelStatus === 0xb0 && data[1] === MoveMainButton) return;
++        if (panelStatus === 0xb0 && data[1] === MoveMainButton && (mainPageActive() || (flagsPageActive() && !backupsRowSelected()))) return;
+     } else {
+         if (hbPerformanceStep(data)) return;
+         if (seqHandleMidi(data, appState.shiftHeld)) return;
+@@ -334,7 +346,7 @@ function dispatchMidiMessageInternal(data: number[]): void {
+          * to open. Claiming the touch anyway is what stops it reaching the
+          * model underneath and arming a hold-to-modulate on a param the page is
+          * not showing. */
+-        if (flagsPageActive() || cpuPageActive()) return;
++        if (flagsPageActive() || cpuPageActive() || versionsPageActive()) return;
+         // Step page owns the knobs: a touch shows that param's top toast; the
+         // step params are intrinsic (no automation lane / model touch).
+         if (stepPageAvailable() && stepPageState.selected) {
+@@ -490,7 +502,7 @@ function dispatchMidiMessageInternal(data: number[]): void {
+             appState.dirty = true;
+             return;
+         }
+-        if (cpuPageActive()) {
++        if (cpuPageActive() || versionsPageActive()) {
+             // Nothing on this page is editable. Consumed anyway, or a stray
+             // turn reaches the module underneath and edits a parameter the user
+             // cannot see.
+diff --git a/src/renderer/hb-performance.ts b/src/renderer/hb-performance.ts
+index 27131692..4b210d04 100644
+--- a/src/renderer/hb-performance.ts
++++ b/src/renderer/hb-performance.ts
+@@ -1,3 +1,4 @@
++import { paramPageActive } from '../seq/param-page.js';
+ import {chordActive,chordOperationOwner} from '../seq/chord-play.js';
+ import {triggerDrumFill} from '../seq/clip-page.js';
+ import {drumOutputTrack} from '../seq/drum-output.js';
+@@ -341,7 +342,7 @@ function readLaneLights(owner:PerformancePort):LaneLights|null {
+ let operationKnobMask=0;
+ let operationKnobState='';
+ export function paintHbOperationKnobs(owner:PerformancePort,keys:(string|null)[],values:Record<string,unknown>, paint:typeof cachedSetAnimLED=cachedSetAnimLED):void {
+-    if(appState.currentView===VIEW_MAIN_PARAMS)return;
++    if(paramPageActive())return;
+     const assignments=keys.map(key=>key&&/^motion_control_[0-9]+$/.test(key)?Number(key.slice(15))-1:key&&/^follow_touch_[1-9]$/.test(key)?Number(values[key])-1:-1);
+     let wanted=assignments.reduce((mask,lane,index)=>mask|(lane>=0&&lane<51?1<<index:0),0);
+     const userLights=assignments.some(lane=>lane>=0&&lane<16)?readLaneLights(owner):null;
+diff --git a/src/renderer/knob-leds.ts b/src/renderer/knob-leds.ts
+index 2cecfc33..694d0a8e 100644
+--- a/src/renderer/knob-leds.ts
++++ b/src/renderer/knob-leds.ts
+@@ -1,6 +1,6 @@
+ import type { ViewModel } from '../types/viewmodel.js';
+ import { mlog } from '../log.js';
+-import { ledBudgetTake } from '../seq/led-cache.js';
++import { ledBudgetTake, retryKnobLeds } from '../seq/led-cache.js';
+ 
+ /* White intensity scale (all eight knobs) — always lit so row is identifiable */
+ function whiteLevel(nv: number): number {
+@@ -51,7 +51,7 @@ export function updateKnobLEDs(vm: ViewModel, ownedMask = 0): void {
+             if (lastKnobColor[physK] !== color) {
+                 /* Two packets per knob, and they come after the pad painters —
+                  * a cold frame must not spend the buffer they still need. */
+-                if (!ledBudgetTake(2)) continue;
++                if (!ledBudgetTake(2)) { retryKnobLeds(); continue; }
+                 lastKnobColor[physK] = color;
+                 /* notes 0-7: knob touch LEDs */
+                 setLED(physK, color, true);
+@@ -75,7 +75,7 @@ export function updateSingleKnobLED(knob: number, nv: number): void {
+     for (let k = 0; k < 8; k++) {
+         const color = k === knob ? whiteLevel(nv) : 0;
+         if (lastKnobColor[k] === color) continue;
+-        if (!ledBudgetTake(2)) continue;
++        if (!ledBudgetTake(2)) { retryKnobLeds(); continue; }
+         lastKnobColor[k] = color;
+         setLED(k, color, true);
+         setButtonLED(MoveKnob1 + k, color, true);
+@@ -86,7 +86,8 @@ export function updateSingleKnobLED(knob: number, nv: number): void {
+ export function updatePerformanceKnobLEDs(colors: readonly number[]): void {
+     for (let knob = 0; knob < 8; knob++) {
+         const color = colors[knob] ?? 0;
+-        if (lastKnobColor[knob] === color || !ledBudgetTake(2)) continue;
++        if (lastKnobColor[knob] === color) continue;
++        if (!ledBudgetTake(2)) { retryKnobLeds(); continue; }
+         lastKnobColor[knob] = color;
+         setLED(knob, color, true);
+         setButtonLED(MoveKnob1 + knob, color, true);
+diff --git a/src/renderer/performance-touch.ts b/src/renderer/performance-touch.ts
+index fd91543e..fb3d14d2 100644
+--- a/src/renderer/performance-touch.ts
++++ b/src/renderer/performance-touch.ts
+@@ -1,30 +1,35 @@
+ /* Physical knob slots own their release, even across a page/track change. */
+-const releases = new Map<number, (cancel?: boolean) => void>();
++const releases = new Map<number, { release: (cancel?: boolean) => void; performance: boolean }>();
+ let quietUntil = 0;
+ let previewRevision = 0;
+ export function performancePreviewRevision(): number { return previewRevision; }
+ export function ownPerformanceTouch(slot: number, release: (cancel?: boolean) => void): void {
+-    releases.set(slot, release);
++    releases.set(slot, { release, performance: true });
+     previewRevision++;
+ }
++/** Reuse physical ownership without scheduling a performance preview for settings touches. */
++export function ownKnobRelease(slot: number, release: (cancel?: boolean) => void): void {
++    releases.set(slot, { release, performance: false });
++}
+ export function finishPerformanceTouch(slot: number): void {
++    const performance = releases.get(slot)?.performance ?? true;
+     releases.delete(slot);
+-    previewRevision++;
+-    quietUntil = Date.now() + 100;
++    if (performance) { previewRevision++; quietUntil = Date.now() + 100; }
+ }
+ export function releasePerformanceTouch(slot: number, cancel = false): boolean {
+     const release = releases.get(slot);
+     if (!release) return false;
+     finishPerformanceTouch(slot);
+-    release(cancel);
++    release.release(cancel);
+     return true;
+ }
+ export function performanceTouchActive(): boolean {
+-    return releases.size > 0 || Date.now() < quietUntil;
++    for (const owner of releases.values()) if (owner.performance) return true;
++    return Date.now() < quietUntil;
+ }
+ 
+ export function cancelPerformanceTouches(): void {
+     for (const slot of [...releases.keys()]) releasePerformanceTouch(slot, true);
+ }
+ 
+-export function ownsPerformanceTouch(slot: number): boolean { return releases.has(slot); }
++export function ownsPerformanceTouch(slot: number): boolean { return releases.get(slot)?.performance === true; }
+diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
+index 3717445d..ff9da43d 100644
+--- a/src/seq/chord-play.ts
++++ b/src/seq/chord-play.ts
+@@ -1,3 +1,4 @@
++import { paramPageActive } from './param-page.js';
+ import {generatorParameters,generatorKeys,generatorRead,generatorWrite,generatorStop,generatorFooter,generatorTouch,generatorRecordActive,generatorPrepareRecord,generatorPageChanged} from './comp-generator.js';
+ import {registerChordLabels,chordLabelMetadata} from './chord-labels.js';
+ import {singleConductor} from './session-roles.js';
+@@ -26,7 +27,7 @@ function conductorTrackForQueue():number {return conductorTrack();}
+ import {queueFooterText,drawHarmonyFooter} from '../renderer/hb-footer.js';
+ import {ANIM_PULSE_SLOW} from './colors.js';
+ /** Chord slots choose conductor harmony; the comp actor owns rhythm and sound. */
+-import { appState, VIEW_MAIN_PARAMS } from '../app/state.js';
++import { appState } from '../app/state.js';
+ import { FOLLOWER_SCALE_NAMES } from '../scale-catalog.js';
+ import { selectTrack } from '../track/focus.js';
+ import { portFor } from '../track/registry.js';
+@@ -527,7 +528,7 @@ export function chordOperationOwner():PerformancePort|null {
+ export function paintChordSteps():boolean{
+     if(chordActive()&&chordDiscovery.owns(discoveryLevel())){
+         for(let index=0;index<16;index++){const color=index<7?chordDiscovery.color(index):[7,8,9,10,15].includes(index)?123:0;cachedSetAnimLED(16+index,color,color,0);}
+-        if(appState.currentView!==VIEW_MAIN_PARAMS&&discoveryLevel()!=='cp_discovery_actions')for(let knob=0;knob<8;knob++){
++        if(!paramPageActive()&&discoveryLevel()!=='cp_discovery_actions')for(let knob=0;knob<8;knob++){
+             const color=knob===7?123:chordDiscovery.color(knob);cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);
+         }
+         bankKnobs=true;return true;
+@@ -535,13 +536,14 @@ export function paintChordSteps():boolean{
+     const operationOwner=chordOperationOwner();if(operationOwner)return paintHbPerformance(operationOwner);
+     if(!controlsActive())return false;
+     if(chordActive())for(let index=0;index<16;index++){const slot=stepSlot(index),contentKey=contentStepKey(index),color=contentKey?(conductorContentColor(contentKey,conductorTrack())??123):slot<0?123:chordSlotColor(slot);cachedSetAnimLED(16+index,color,chordSlotQueued(slot)?0:color,chordSlotQueued(slot)?ANIM_PULSE_SLOW:0);}
+-    if(appState.currentView===VIEW_MAIN_PARAMS)return chordActive();
++    if(paramPageActive())return chordActive();
+     const current=!settingsActive()?(jointConductor!==null?jointSurface:page):null;
+     const keys=Array.from({length:8},(_,knob)=>current?.keyAt(knob)??null),onBank=keys.some(key=>/^cp_(slot_|clip_launch_|motif_launch_)/.test(key??''));
+     if(onBank){
+         for(let knob=0;knob<8;knob++){const index=knob===7?-1:Number(keys[knob]!.slice(8)),color=conductorContentColor(keys[knob]??'',conductorTrack())??(index<0?123:chordSlotColor(index));cachedSetAnimLED(knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0);cachedSetAnimLED(71+knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0,true);}
+-    }else if(bankKnobs){
+-        for(let knob=0;knob<8;knob++)if(!current||!(current.knobLEDMask&(1<<knob))){const color=keys[knob]?123:0;cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);}
++    }else{
++        const ownedMask=current?.knobLEDMask??0;
++        for(let knob=0;knob<8;knob++)if(!(ownedMask&(1<<knob))){const color=keys[knob]?123:0;cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);}
+     }
+     if(current?.keyAt(7)==='cp_off'){cachedSetAnimLED(7,123,123,0);cachedSetAnimLED(78,123,123,0,true);}
+     bankKnobs=onBank;
+diff --git a/src/seq/field-play.ts b/src/seq/field-play.ts
+index eb69f1c7..1bc8b63a 100644
+--- a/src/seq/field-play.ts
++++ b/src/seq/field-play.ts
+@@ -14,7 +14,7 @@ import { engineReady, fieldEngineSet } from './engine.js';
+ import { portFor } from '../track/registry.js';
+ import { createSchwungPage, type SchwungPage } from '../renderer/schwung-page.js';
+ import { drawHeader, drawBankBar } from '../renderer/header.js';
+-import { sendPadLedFrame } from './led-cache.js';
++import { sendPadLedFrame, cachedSetAnimLED } from './led-cache.js';
+ import { currentSetUuid } from './set-session.js';
+ import { syncPadRoute } from '../track/pad-route.js';
+ import { releaseLaunchpad } from '../surfaces/launchpad.js';
+@@ -152,6 +152,12 @@ function fieldReadout(value:string|null):string {
+     return (Number.isFinite(numeric)?String(Number(numeric.toPrecision(4))):value).slice(0,8);
+ }
+ export function renderField():void{
++    const controls = !routesOpen && (!outputView || settingsOpen) ? fieldPage() : null;
++    const ownedMask = controls?.knobLEDMask ?? 0;
++    for (let slot=0;slot<8;slot++) if (!(ownedMask & (1<<slot))) {
++        const color = routesOpen ? 0 : controls ? (controls.keyAt(slot) ? 123 : 0) : 123;
++        cachedSetAnimLED(slot,color,color,0);cachedSetAnimLED(71+slot,color,color,0,true);
++    }
+     if(routesOpen){
+         clear_screen();const snapshot=fieldRoutesSnapshot(),route=selectedFieldRoute();
+         drawHeader('Field Routes',`${snapshot.scanned}/${snapshot.total}`);
+diff --git a/src/seq/grid.ts b/src/seq/grid.ts
+index 253a6040..db0c419f 100644
+--- a/src/seq/grid.ts
++++ b/src/seq/grid.ts
+@@ -1,3 +1,4 @@
++import { updateKnobLEDs } from '../renderer/knob-leds.js';
+ import { returnPreviousInputView } from './router-buttons.js';
+ import { sharedPanel } from './shared-panel.js';
+ const followPanel=sharedPanel();
+@@ -221,7 +222,7 @@ export function paintGrid(force=false):boolean {
+ }
+ export function renderGrid():void {
+     if(noteFocus&&noteFocus.track!==watchedTrack())clearNoteFocus();
+-    if(noteFocus){renderKnobsView(buildStepPageVM(seqState),false,watchedTrack());return;}
++    if(noteFocus){const vm=buildStepPageVM(seqState);renderKnobsView(vm,false,watchedTrack());updateKnobLEDs(vm);return;}
+     if(overview){renderOverview();for(let slot=0;slot<8;slot++){cachedSetAnimLED(slot,0,0,0);cachedSetAnimLED(71+slot,0,0,0,true);}return;}
+     const page=gridPage();clear_screen();drawHeader(page.pageTitle,gridWindowLabel());drawBankBar(page.pageIndex+1,page.pageCount+1);page.render(gridWindowLabel()+' '+divisionNames[gridWindow('move').division]);
+     for(let slot=0;slot<8;slot++)if(!(page.knobLEDMask&(1<<slot))){const color=page.keyAt(slot)?trackColor(watchedTrack()):0;cachedSetAnimLED(slot,color,color,0);cachedSetAnimLED(71+slot,color,color,0,true);}
+diff --git a/src/seq/joint-play.ts b/src/seq/joint-play.ts
+index c91738e8..04769123 100644
+--- a/src/seq/joint-play.ts
++++ b/src/seq/joint-play.ts
+@@ -1,10 +1,11 @@
++import { paramPageActive } from './param-page.js';
+ import {setJointChordConductor,tickChordSurface,chordMidi,chordKnobLEDMask,renderChordReview} from './chord-play.js';
+ import {chordRecordButton} from './chord-step-entry.js';
+ import {actorTrack,actorRole,singleConductor} from './session-roles.js';
+ import { returnPreviousInputView } from './router-buttons.js';
+ /** Session's multi-track instrument. Tracks own sound and harmony; this module
+  * owns only role allocation, gestures, geometry and cached preview requests. */
+-import { appState, VIEW_MAIN_PARAMS, VIEW_BROWSE, VIEW_FILE_BROWSE } from '../app/state.js';
++import { appState, VIEW_BROWSE, VIEW_FILE_BROWSE } from '../app/state.js';
+ import { settingsActive } from './hb-settings.js';
+ import { keyboardState, baseNoteFor } from '../keyboard/state.js';
+ import { buildPadMap } from '../keyboard/layouts.js';
+@@ -255,7 +256,7 @@ export function jointPanelSet(base:number,key:string,value:string):void {
+ 
+ /** Retry budget-limited LEDs without depending on a parameter-bank repaint. */
+ function paintJointKnobs(page:ReturnType<typeof jointPage>):void {
+-    if(settingsActive()||[VIEW_MAIN_PARAMS,VIEW_BROWSE,VIEW_FILE_BROWSE].includes(appState.currentView))return;
++    if(settingsActive()||(paramPageActive()||[VIEW_BROWSE,VIEW_FILE_BROWSE].includes(appState.currentView)))return;
+     const ownedMask=page.knobLEDMask|chordKnobLEDMask();
+     for(let slot=0;slot<8;slot++)if(!(ownedMask&(1<<slot))){
+         const key=page.keyAt(slot)??'',match=/^joint_(?:actor|pads)_([0-3])/.exec(key);
+diff --git a/src/seq/led-cache.ts b/src/seq/led-cache.ts
+index dd21e6fa..39678f04 100644
+--- a/src/seq/led-cache.ts
++++ b/src/seq/led-cache.ts
+@@ -19,9 +19,13 @@ const lastButtonLed = new Map<number, number>();
+ 
+ const FRAME_BUDGET = 40;
+ let sentThisFrame = 0;
++let knobRetryPending = false;
++/** A skipped knob write needs another screen frame; pad writers already tick independently. */
++export function retryKnobLeds(): void { knobRetryPending = true; }
++export function knobLedsNeedRetry(): boolean { return knobRetryPending; }
+ 
+ /* Reset the per-tick send budget. Call once at the top of each LED frame. */
+-export function ledFrameReset(): void { sentThisFrame = 0; }
++export function ledFrameReset(): void { sentThisFrame = 0; knobRetryPending = false; }
+ 
+ /** Claim `n` packets of this frame's budget. `false` means DO NOT SEND, and —
+  *  just as importantly — do not record the colour as sent: the write has to
+@@ -42,7 +46,7 @@ export function ledBudgetTake(n = 1): boolean {
+ 
+ export function cachedSetLED(note: number, color: number): void {
+     if (lastNoteLed.get(note) === color) return;
+-    if (sentThisFrame >= FRAME_BUDGET) return; // over budget: retry next tick
++    if (sentThisFrame >= FRAME_BUDGET) { if (note < 8) retryKnobLeds(); return; }
+     lastAnimLed.delete(note);
+     lastNoteLed.set(note, color);
+     setLED(note, color, true);
+@@ -56,7 +60,7 @@ export function cachedSetButtonLED(cc: number, color: number): void {
+      * light up — and one already bright for a state reason is left alone. */
+     if (color === WHITE_DIM && buttonHeld(cc)) color = WHITE_BRIGHT;
+     if (lastButtonLed.get(cc) === color) return;
+-    if (sentThisFrame >= FRAME_BUDGET) return; // over budget: retry next tick
++    if (sentThisFrame >= FRAME_BUDGET) { if (cc >= 71 && cc <= 78) retryKnobLeds(); return; }
+     lastAnimLed.delete(cc + 128);
+     lastButtonLed.set(cc, color);
+     setButtonLED(cc, color, true);
+@@ -93,7 +97,7 @@ export function cachedSetAnimLED(note: number, base: number, animColor: number,
+     const prev = lastAnimLed.get(cacheKey);
+     if (channel === ANIM_NONE) {
+         if (prev && prev.base === base && prev.anim === ANIM_NONE) return;
+-        if (sentThisFrame >= FRAME_BUDGET) return;
++        if (sentThisFrame >= FRAME_BUDGET) { if (button ? note >= 71 && note <= 78 : note < 8) retryKnobLeds(); return; }
+         emitLed(note, base, ANIM_NONE, button);
+         lastAnimLed.set(cacheKey, { base, anim: ANIM_NONE, animColor: base, baseAt: Date.now() });
+         sentThisFrame++;
+@@ -101,7 +105,7 @@ export function cachedSetAnimLED(note: number, base: number, animColor: number,
+     }
+     // Animated: ensure the base is established first (handshake).
+     if (!prev || prev.base !== base) {
+-        if (sentThisFrame >= FRAME_BUDGET) return;
++        if (sentThisFrame >= FRAME_BUDGET) { if (button ? note >= 71 && note <= 78 : note < 8) retryKnobLeds(); return; }
+         emitLed(note, base, ANIM_NONE, button);
+         lastAnimLed.set(cacheKey, { base, anim: ANIM_NONE, animColor: base, baseAt: Date.now() });
+         sentThisFrame++;
+@@ -111,7 +115,7 @@ export function cachedSetAnimLED(note: number, base: number, animColor: number,
+     // The host coalesces CC writes by address, including animation channels.
+     // A second JS frame is not proof that a startup base reached the device.
+     if (button && note >= 40 && note <= 43 && Date.now()-prev.baseAt < 60) return;
+-    if (sentThisFrame >= FRAME_BUDGET) return;
++    if (sentThisFrame >= FRAME_BUDGET) { if (button ? note >= 71 && note <= 78 : note < 8) retryKnobLeds(); return; }
+     emitLed(note, animColor, channel, button);
+     lastAnimLed.set(cacheKey, { base, anim: channel, animColor, baseAt: prev.baseAt });
+     sentThisFrame++;
+diff --git a/src/seq/param-page.ts b/src/seq/param-page.ts
+index 0e2a09b2..274cded0 100644
+--- a/src/seq/param-page.ts
++++ b/src/seq/param-page.ts
+@@ -26,7 +26,7 @@ export const paramPageState = {
+     origin: VIEW_CHAIN as number,   // view to restore when the layer is left
+ };
+ 
+-/** True while any of the four param pages is on screen. */
++/** Shared ownership of the five parameter pages: screen, controls and knob LEDs. */
+ export function paramPageActive(): boolean {
+     return appState.currentView === VIEW_MAIN_PARAMS
+         || appState.currentView === VIEW_CLIP_PARAMS
+@@ -35,6 +35,15 @@ export function paramPageActive(): boolean {
+         || appState.currentView === VIEW_VERSIONS;
+ }
+ 
++/** Only panel gestures belong to the page; pads, steps and arrows keep their musical owner. */
++export function paramPageControl(data: readonly number[]): boolean {
++    if (!paramPageActive()) return false;
++    const status = data[0] & 0xf0, control = data[1];
++    return ((status === 0x90 || status === 0x80) && control >= 0 && control < 8) ||
++        (status === 0xb0 && (control === MoveMainKnob || control === MoveMainButton ||
++            control === MoveBack || (control >= MoveKnob1 && control <= MoveKnob1 + 7)));
++}
++
+ /** Show `view` (VIEW_MAIN_PARAMS, VIEW_CLIP_PARAMS or VIEW_FLAGS). Re-pressing
+  *  the gesture for the page already up is a no-op, so it cannot reset a knob
+  *  mid-turn. */

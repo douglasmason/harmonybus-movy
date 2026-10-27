@@ -90,4 +90,17 @@ assert.equal(isolated.read('cp_voicing_choice_0'),'C');assert.equal(isolated.rea
 assert(mode.startsWith('0,1;'));isolated.action('cp_discovery_source');assert(mode.startsWith('0,2;'));
 assert.equal(voiceDistance([60,64,67],[60,64,67]),0);assert(voiceDistance([60,64,67],[60,65,69])<voiceDistance([60,64,67],[72,76,79]));
 assert.equal(parseDiscoveryContext('dc1|0|Queue|'+fixed),null);
+// Identical sounding notes may still represent different chord scales/functions.
+let semanticProbe=fixed;
+const semantic=new ChordDiscovery({conductor:()=>0,queued:()=>false,identity:()=> '0,0',source:()=>saved.slots[0],colorView:()=>0,
+ sound:()=>({set:(key,value)=>{
+  if(key!=='hb_chord_discovery_probe')return;
+  const fields=value.split(';')[1].split(',').map(Number),intent=fields[7];
+  const scale=intent===9?2733:2741,kind=intent===3?8:7;
+  semanticProbe=`cd1|${intent===9?'Borrowed':intent===3?'Dominant':'Diatonic'}|0,145,${scale},${kind},0,0,1,0|60,64,67|0,1`;
+ },get:key=>key==='hb_chord_discovery_context'?`dc1|1|Current|${fixed}`:semanticProbe}),
+ commit:()=>{},save:()=>{},changed:()=>{},toast:()=>{}});
+semantic.refresh('cp_discovery');for(let index=0;index<11;index++)semantic.tick('cp_discovery');
+assert.deepEqual([0,1,2].map(index=>semantic.read('cp_discovery_choice_'+index)),['Diatonic','Dominant','Borrowed']);
+assert.equal(semantic.read('cp_discovery_choice_3'),'--','same notes and semantic identity collapse');
 console.log('Contextual discovery UI: captured source, frozen pitches, stale-commit rejection, manual anchor and deduplicated voicings pass');
