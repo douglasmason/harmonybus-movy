@@ -1,6 +1,7 @@
-> Movy hbclean.271 lets Left/Right shift the pads during note play, including Chord Play. Tonic position, approach rows and button lights move together; the jog still changes panels. See [pad position](docs/pad-position.md).
+Current release preparation: **0.34.1-hbclean.272** pairs with HarmonyBus **0.2.304**: eight-note scales, Smart operation lanes and adaptive authored motifs. See [relative operations](docs/relative-operations.md).
 
-> Movy hbclean.270 adds Comp and Bass libraries directly to Clips Fill, with saved-style previews, complete recipe/automation recall, actor-specific entry lists and one Undo. Includes the verified audio-context improvements. See [library Fill controls and limits](docs/fill-library-270.md).
+Includes the pad-position arrow controls from hbclean.271, Comp/Bass Fill libraries from hbclean.270, and audio-context improvements from hbclean.269.
+
 
 > Movy hbclean.269 removes temporary allocations from native follower-context reads and Humanize parsing while preserving recording-event delivery. Includes Smart Approaches and the earlier UI improvements. See [audio-context measurements and limits](docs/audio-context.md).
 

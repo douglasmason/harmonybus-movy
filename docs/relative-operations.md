@@ -1,27 +1,32 @@
-# Smart approaches — Movy hbclean.268 / HarmonyBus 0.2.303
+# Relative operations and eight-note scales — Movy hbclean.272 / HB 0.2.304
 
-Harm Play bank assignments now include **Smart Below** and **Smart Above**.
-Choose either as the operation for an approach row or bank gesture.
+Update HarmonyBus to **0.2.304**, then Movy to **0.34.1-hbclean.272**.
+Movy loads the separately installed HB DSP.
 
-Smart Below prefers Leading Tone; Smart Above prefers Upper Dim. When that side
-already belongs to the target scale and the other side supplies a missing
-chromatic pitch, the selector switches sides. It chooses the complete operation,
-including its harmonic meaning. LT remains distinct from Connector Below and
-its configurable connector quality.
+**Half-Whole Diminished / Whole-Half Diminished** are available in the shared
+Follower Scale and Parallel Scale menus. Keyboard labels are Dim H-W / Dim W-H.
+An eight-pad target row plays all eight scale degrees. Six-note rows retain
+1–6 followed by degrees 1 and 2 in the next octave.
 
-For example, in A harmonic minor either Smart choice gives F-sharp above F and
-G below G-sharp, providing both missing pitches inside the augmented second.
-Preview uses the same selection as live input. Recordings store the resolved
-relative LT or Upper Dim operation, so editing the bank later does not alter them.
+**Smart Below / Smart Above** now work in ordinary operation lanes as well as
+Harm Play banks. They choose complete LT or Upper Dim operations using the
+effective target scale. Leading Tone and Connector Below keep their distinct
+harmonic meanings. Live recordings retain the choice made at onset.
 
-This release centralizes operation identities and menus across HB and Movy,
-preserves existing saved IDs, and fixes previews for Secondary Fifth and the
-II/IV/VI dominant variants. It also includes the previously released A/B Fill
-memories and Chord Play UI performance improvements.
+In **Motif Edit > Motif Tools > Relative Operation**, choose Captured, Smart Below
+or Smart Above. This edits a selected note step and sets the choice for new
+steps. Smart authored motifs adapt when played against another target or key.
+Undo restores the previous step. Existing motifs keep their captured behavior.
 
-These Smart choices currently belong to the Harm Play bank/rows. Adaptive
-authored motif steps, ordinary operation lanes, and new selectable eight-note
-input presets remain follow-up work. Existing six-note pad wrapping is retained.
+**Motif to Clip freezes the selected choices.** The preview shows the resulting
+LT / Upper Dim progression and “Smart choices fixed on write.” Polyphonic steps
+keep simultaneous timing and receive a separate choice for each target. The
+source motif remains adaptive.
 
-The shared design and development plan lives in
-[HarmonyBus](https://github.com/douglasmason/harmonybus/blob/main/docs/relative-operations.md).
+This release generates the Rust recording/projection scale table from the same
+HB catalog as the keyboard menus, removes duplicate hard-coded scale limits,
+and carries the eighth degree through the native input bridge. Saved IDs are
+preserved. Adaptive motif libraries use the versioned mf3 format; older mf1/mf2
+libraries still load.
+
+See the [shared design and compatibility contract](https://github.com/douglasmason/harmonybus/blob/main/docs/relative-operations.md).

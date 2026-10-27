@@ -17,15 +17,11 @@ def patch_motif_loader(root: Path) -> None:
     source = path.read_text().replace('| "cfill" |', '| "cfill" | "mload" |')
     source = replace_once(source, '        "cfill" => {', '        "mload" => engine.motif_load(op, out),\n        "cfill" => {')
     path.write_text(source)
-    path = core / 'follower_input.rs'
-    source = path.read_text().replace('[&[i32];17]', '[&[i32];19]').replace('(1..=17)', '(1..=19)')
-    source = replace_once(source, '    &[0,2,4,6,8,10], &[0,3,4,7,8,11],', '    &[0,2,4,6,8,10], &[0,3,4,7,8,11],\n    &[0,2,3,5,7,9,10], &[0,2,4,5,7,8,11],')
-    path.write_text(source)
     path = core / 'recorded_actions.rs'
     source = path.read_text().replace('8063| (4095u64<<43)', '8191| (1u64<<63) | (4095u64<<43)').replace('[12,15,124,127,128]', '[12,15,124,127]')
     source = source.replace('((actions[LANES]>>5)&8))>13', '((actions[LANES]>>5)&8)|((actions[LANES]>>59)&16))>17')
     source = source.replace('((approach&63)>58 && (approach&63)!=60)', '(approach&63)>63')
-    source = source.replace('(approach&63)==60', '(approach&63)>=59').replace('scale<=17', 'scale<=19')
+    source = source.replace('(approach&63)==60', '(approach&63)>=59')
     source = source.replace('for code in 1..=60u64', 'for code in 1..=63u64').replace('            if code==59 {continue;}\n', '').replace('code==60 {1}else{32}', 'code>=59 {1}else{32}').replace('[59,61,63,64,65]', '[64,65,123,125,127]')
     source = source.replace('else{word>>55==0}', 'else{(word>>55)&255==0}').replace(' || (approach&63)>63', '').replace('operation(*word)!=52)', 'operation(*word)!=52 && !(57..=60).contains(&operation(*word)))')
     path.write_text(source)

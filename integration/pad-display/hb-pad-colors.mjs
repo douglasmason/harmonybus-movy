@@ -305,7 +305,7 @@ for(let mode=0;mode<9;mode++){
     refreshHarmonyPads(2,testTime+=100);
     assert.equal(keyboardState.scale,13+mode);
     assert.deepEqual(keyboardScales[keyboardState.scale].degrees,scaleDegrees[mode]);
-    assert.equal(overlayOptions(5).length,19);
+    assert.equal(overlayOptions(5).length,21);
     setFollowerInputScale(2,13+mode);
     assert.deepEqual(scaleWrites.pop(),['midi_fx1:follower_scale',scaleLabels[mode]]);
 }

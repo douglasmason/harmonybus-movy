@@ -337,8 +337,8 @@ index b8a1d0e0..0eec3f63 100644
      if(!hierarchy.levels.root.params.some((p:any)=>p.level==='motif_load'))hierarchy.levels.root.params.push({level:'motif_load'});
  }
  interface Preview { generation:number;setId:string|null;owner:PerformancePort;track:number;slot:number;signature:string;duration:number;root:number;scale:number;
--    isCurrent:()=>boolean;payload:string;labels:string[];choice:string;target:string;notes:number;occupied:boolean;ready:boolean;page:number; }
-+    afterWrite?: (track:number,slot:number)=>void;isCurrent:()=>boolean;payload:string;labels:string[];choice:string;target:string;notes:number;occupied:boolean;ready:boolean;page:number; }
+-    isCurrent:()=>boolean;adaptive:boolean;payload:string;labels:string[];choice:string;target:string;notes:number;occupied:boolean;ready:boolean;page:number; }
++    afterWrite?: (track:number,slot:number)=>void;isCurrent:()=>boolean;adaptive:boolean;payload:string;labels:string[];choice:string;target:string;notes:number;occupied:boolean;ready:boolean;page:number; }
  let review:Preview|null=null;
  const consumed=new Set<number>();
  const getEngine=(key:string):string=>String(host_module_get_param(key)??'');
@@ -354,7 +354,7 @@ index b8a1d0e0..0eec3f63 100644
      const payload=events.join('|');if(payload.length>40000){seqToast('Motif exceeds transfer limit');return;}
 -    review={isCurrent,generation:engineGeneration(),setId:currentSetUuid(),owner:port,track,slot:Number(clip[0]),signature:clip[1],duration,root,scale,payload,
 +    review={afterWrite,isCurrent,generation:engineGeneration(),setId:currentSetUuid(),owner:port,track,slot:Number(clip[0]),signature:clip[1],duration,root,scale,payload,
-         labels:port.performanceGet('motif_load_labels').split(' > '),choice:port.performanceGet('motif_load_choice'),
+         adaptive:port.performanceGet('motif_load_adaptive')==='1',labels:port.performanceGet('motif_load_labels').split(' > '),choice:port.performanceGet('motif_load_choice'),
          target:pitchName(Number(port.performanceGet('motif_load_target'))),notes,occupied:clip[5]==='1',ready:false,page:0};
      appState.dirty=true;
 @@ -69,6 +69,11 @@ function commit(mode:number):void {
@@ -372,7 +372,7 @@ index b8a1d0e0..0eec3f63 100644
 @@ -102,7 +107,41 @@ export function drawMotifLoader(port:PerformancePort):boolean {
      let text=review.labels.slice(review.page).join(' > ');
      fontPrint(1,21,text.slice(0,25),1);fontPrint(1,29,text.slice(25,50),1);
-     fontPrint(1,39,'Turn: scroll progression',1);
+     fontPrint(1,39,review.adaptive?'Smart choices fixed on write':'Turn: scroll progression',1);
 -    ['Cancel',review.occupied?'Replace':'Write','Append','Overdub'].forEach((label,index)=>fontPrint(index*32+1,51,label,1));
 -    fontPrint(1,59,'Touch knobs 1-4 to choose',1);
 +    ['Cancel',review.afterWrite?'Fill+Go':review.occupied?'Replace':'Write','Append','Overdub'].forEach((label,index)=>fontPrint(index*32+1,51,label,1));

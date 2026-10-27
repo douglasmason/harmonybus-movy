@@ -1,4 +1,4 @@
-name: Pad position and performance verification
+name: Adaptive operations, scales and performance verification
 on:
   push:
     branches: [main]
@@ -9,6 +9,9 @@ on:
       - tests/audio_probe.c
       - integration/harmonybus.ref
       - integration/operation-catalog.ts
+      - integration/scale-catalog.ts
+      - integration/input-roles/**
+      - tests/scale_cardinality_ui.mjs
       - integration/approach/**
       - scripts/patch_approach_mode.py
       - tests/relative_operations_ui.mjs
@@ -83,6 +86,9 @@ on:
       - tests/audio_probe.c
       - integration/harmonybus.ref
       - integration/operation-catalog.ts
+      - integration/scale-catalog.ts
+      - integration/input-roles/**
+      - tests/scale_cardinality_ui.mjs
       - integration/approach/**
       - scripts/patch_approach_mode.py
       - tests/relative_operations_ui.mjs
@@ -155,7 +161,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.271
+  SOURCE_VERSION: 0.34.1-hbclean.272
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -174,6 +180,7 @@ jobs:
           git -C movy checkout 5c01a4fe7745b730ee98111194fc64328ea2659b
           git clone https://github.com/douglasmason/harmonybus.git harmonybus
           git -C harmonybus checkout "$(cat integration/harmonybus.ref)"
+          python3 harmonybus/scripts/build_scale_catalog.py --check --movy .
           python3 harmonybus/scripts/build_operation_catalog.py --check --movy .
           git clone https://github.com/charlesvestal/schwung.git schwung
           git -C schwung checkout a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
@@ -193,6 +200,7 @@ jobs:
           node browser-test/device-scripts.mjs
           node ../tests/field_lfo_ui.mjs .
           node ../tests/relative_operations_ui.mjs .
+          node ../tests/scale_cardinality_ui.mjs .
           if test -f ../tests/field_routes_ui.mjs; then node ../tests/field_routes_ui.mjs .; fi
       - name: Native sequencer, DSP and full production chain
         run: |
@@ -240,7 +248,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: pad-position-271
+          name: adaptive-scales-272
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -261,10 +269,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.270':
-              raise SystemExit('Expected Movy 270 before pad position release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.271':
+              raise SystemExit('Expected Movy 271 before pad position release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Pad Position" --notes-file docs/pad-position.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Adaptive Operations and Scales" --notes-file docs/relative-operations.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -277,7 +285,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.270':
+          if metadata['version'] != '0.34.1-hbclean.271':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
@@ -285,5 +293,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add release.json
-          git commit -m "Publish verified Pad Position $SOURCE_VERSION [skip ci]"
+          git commit -m "Publish verified Adaptive Operations and Scales $SOURCE_VERSION [skip ci]"
           git push origin HEAD:main

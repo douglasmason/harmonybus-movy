@@ -8,8 +8,9 @@ def patch_follower_input(root: Path) -> None:
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/input-roles'
     core: Path = root / 'engine/crates/seq-core/src'
     (core / 'follower_input.rs').write_text((assets / 'follower_input.rs').read_text())
+    (core / 'scale_catalog.rs').write_text((assets / 'scale_catalog.rs').read_text())
     path: Path = core / 'lib.rs'
-    path.write_text(path.read_text() + '\npub mod follower_input;\n')
+    path.write_text(path.read_text() + '\npub mod follower_input;\npub mod scale_catalog;\n')
     path = core / 'clip.rs'
     source: str = path.read_text().replace('pub struct Note {', 'pub struct Note {\n    pub input_key: Option<crate::follower_input::InputKey>,')
     source = source.replace('rendered: n.rendered,', 'input_key: n.input_key, rendered: n.rendered,')

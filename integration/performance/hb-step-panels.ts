@@ -20,6 +20,14 @@ export function hbPanelVisible(condition: any): boolean {
 
 export function hbStepHierarchy(hierarchy: any, mode: number): any {
     const levels = hierarchy.levels;
+    // A compact native hierarchy may declare controls only in its knob list.
+    // Preserve discovery while chain metadata is still arriving at startup.
+    for (const level of Object.values<any>(levels ?? {})) {
+        const params = level.params ??= [];
+        for (const key of level.knobs ?? []) {
+            if (key && !params.some((entry: any) => entry.key === key)) params.push({key});
+        }
+    }
     if (!levels?.root) return hierarchy;
     for (const [key, level] of Object.entries<any>(levels)) {
         const visible = hiddenPanels.has(key) ? false : harmonyPlay.has(key) ? mode === 2 : operations.has(key) ? mode === 1 : motifs.has(key) ? mode === 2 : commonPanels.has(key) || mode === 0 || (mode === 1 ? performSetup : harmonySetup).has(key);

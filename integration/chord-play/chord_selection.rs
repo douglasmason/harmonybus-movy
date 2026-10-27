@@ -4,7 +4,7 @@ pub struct Selection {pub track:usize,pub pitch:u8,pub payload:String}
 impl Selection {
     pub fn parse(value:&str)->Option<Self>{
         let fields=value.split(',').map(str::parse::<usize>).collect::<Result<Vec<_>,_>>().ok()?;
-        if !matches!(fields.len(),8|10|11)||fields[0]>=16||fields[1]>=12||fields[2]>12||fields[3]>16||fields[4]>3||fields[5]>=12||!(1..=19).contains(&fields[6])||fields[7]>12{return None;}
+        if !matches!(fields.len(),8|10|11)||fields[0]>=16||fields[1]>=12||fields[2]>12||fields[3]>16||fields[4]>3||fields[5]>=12||!(1..=seq_core::scale_catalog::SCALE_COUNT).contains(&fields[6])||fields[7]>12{return None;}
         if fields.len()>=10&&(fields[8]>13||fields[9]>6){return None;}
         if fields.len()==11&&fields[10]>135{return None;}
         Some(Self{track:fields[0],pitch:60+fields[1] as u8,payload:value.split_once(',')?.1.into()})
