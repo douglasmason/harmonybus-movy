@@ -1,5 +1,42 @@
 # Clip content: shared model and next interaction
 
+## Actor-first browsing and a small generator
+
+Organize reusable parts by actor first: drums, conductor, bass, comp and melody.
+Within an actor, offer musical style families and individual entries. Genre tags
+and complexity are independent filters or controls rather than compulsory nested
+folders: one rhythm can fit several genres, and sparse does not imply simple.
+The first direct Fill library increment exposes Comp and Bass, then their stock
+and saved styles. It does not add a genre taxonomy or a generator yet.
+
+The useful Session Players precedent is a musical pattern with separate
+complexity and intensity controls, plus explicit variation. A small HB generator
+can start from an authored style's essential and optional attacks. Complexity
+changes eligible rhythmic detail; intensity changes accents/dynamics; syncopation
+changes placement; variation chooses a reproducible alternative. Reuse the
+existing rhythm, variation, harmonic mapping and scheduling paths. Do not build
+a separate virtual-musician engine or tie complexity to note count alone.
+Reference: [Apple's Session Player performance controls](https://support.apple.com/guide/logicpro/lgcp74b34026/mac).
+
+**Generator controls must support recordable automation.** Use the existing named
+parameter lanes and their recording, playback, Source Weaving, persistence and
+Undo behavior. Retain the generator recipe, seed and parameter curves so replay
+is deterministic. Continuous controls such as complexity, intensity, syncopation
+and variation amount are ordinary automatable parameters; style/genre choices
+are discrete parameter events. Define musical boundaries for changes that alter
+the rhythm or source family, keeping held-note releases paired across changes.
+Changing a sound parameter need not wait for a whole regenerated phrase.
+
+Keep the source recipe and automation distinct from explicitly materializing an
+editable clip. A static Fill result alone does not fulfill automated generation:
+the future performance path must interpret the recorded curve during playback,
+using bounded preparation and the existing scheduler. No UI repaint may reroll
+the seed, and no expensive generation belongs in the audio callback. Audible
+preview and any later Bake action must consume that same performance definition.
+
+These generator parameters and their recording are design requirements, not
+features shipped by the direct library-source increment.
+
 ## Current implementation
 
 Comp and bass share the native part loader, clip-owned rendering recipe, global user-slot storage, Undo, and settings/automation recall. `integration/part-library/catalog.json` is the single source for stock names, notes and setting overrides. The build compiles it into static Rust data and copies it for UI previews; the audio path does not parse the catalog. The Move load review draws stock source-note timing and register from this same data. This is a source-content preview, not a prediction of the final voiced chord.

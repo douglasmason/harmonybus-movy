@@ -13,6 +13,112 @@ fn write(engine:&mut Engine,request:&str,out:&mut Vec<OutEvent>)->String {
     let command=format!("clipfill 2 5 {} {request} {} {} own",engine.fill_target("2_5"),preview.split('|').next().unwrap(),Settings::comp().wire());
     apply_batch(engine,&command,out);command
 }
+
+#[test] fn actor_library_styles_fill_without_a_source_clip_or_transport_changes(){
+    for (bank,count) in [(16,crate::part_catalog::NAMES.len()),(17,crate::part_catalog::BASS_NAMES.len())] {
+        for choice in 0..count {
+            let mut engine=Engine::new(48000,12000);let mut output=Vec::new();
+            let expected=crate::part_load::prepare_part(if bank==16{"stock"}else{"bass"},&choice.to_string()).unwrap();
+            let before=engine.undo_snapshot();let request=format!("{bank}_{choice}_99_99_0_2");
+            let preview=engine.fill_preview(&request);assert!(!preview.starts_with("error:"),"{preview}");
+            assert_eq!(engine.undo_snapshot(),before,"library previews do not occupy a source clip");
+            apply_batch(&mut engine,"usnap 101",&mut output);
+            write(&mut engine,&request,&mut output);
+            apply_batch(&mut engine,"ucommit 101",&mut output);
+            assert!(engine.part_result.starts_with("Filled"),"{}",engine.part_result);
+            let filled=&engine.tracks[2].clips[5];
+            assert_eq!(filled.notes,expected.clip.notes);assert_eq!(filled.recipe,expected.clip.recipe);
+            assert_eq!(filled.input_key,expected.clip.input_key);assert_eq!(filled.length_steps,expected.clip.length_steps);
+            assert!(!engine.playing);assert_eq!(engine.tracks[2].playing_slot,None);assert_eq!(engine.tracks[2].active_clip,0);
+            apply_batch(&mut engine,"uswap 101 102",&mut output);assert_eq!(engine.undo_snapshot(),before);
+            write(&mut engine,&format!("{bank}_{choice}_99_99_3_2"),&mut output);
+            assert_eq!(engine.tracks[2].clips[5].notes.len(),expected.clip.notes.len()*3);
+            assert_eq!(engine.tracks[2].clips[5].length_steps,48);
+            assert!(engine.fill_preview(&format!("{bank}_{choice}_1_0_1_0")).contains("original rhythm"));
+        }
+    }
+}
+
+fn saved_fill_style(engine:&mut Engine)->String {
+    engine.tracks[1].clips[0]=crate::part_catalog::comp(1).unwrap();
+    engine.auto_label(1,2,"synth:cutoff");engine.tracks[1].lane_base[2]=33;
+    let clip=&mut engine.tracks[1].clips[0];
+    clip.transpose=-5;clip.recipe.as_mut().unwrap().gate=75;
+    clip.notes[0].pressure=vec![(1,90),(12,45)];
+    clip.notes[0].actions=Some([0;52]);
+    clip.set_lock(2,2,91);
+    let payload=engine.part_export(1);assert!(!payload.starts_with("error:"),"{payload}");payload
+}
+fn stage_saved_fill(engine:&mut Engine,payload:&str,output:&mut Vec<OutEvent>)->usize {
+    let choice=crate::part_catalog::NAMES.len();
+    apply_batch(engine,&format!("filllibrary 16 {choice} {payload}"),output);choice
+}
+#[test] fn saved_library_fill_preserves_expression_defaults_and_named_automation(){
+    let mut engine=Engine::new(48000,12000);let mut output=Vec::new();let payload=saved_fill_style(&mut engine);
+    engine.auto_label(2,4,"synth:cutoff");engine.tracks[2].lane_base[4]=100;
+    engine.tracks[2].clips[6].set_lock(4,0,52);
+    let before=engine.undo_snapshot();engine.dirty=false;
+    let choice=stage_saved_fill(&mut engine,&payload,&mut output);
+    assert!(output.is_empty());assert!(!engine.dirty);assert_eq!(engine.undo_snapshot(),before);
+    let request=format!("16_{choice}_99_99_0_2");
+    apply_batch(&mut engine,"usnap 103",&mut output);write(&mut engine,&request,&mut output);
+    apply_batch(&mut engine,"ucommit 103",&mut output);
+    assert!(engine.part_result.starts_with("Filled"),"{}",engine.part_result);
+    let clip=&engine.tracks[2].clips[5];
+    assert_eq!(clip.notes[0].pressure,vec![(1,90),(12,45)]);
+    assert_eq!(clip.notes[0].actions,Some([0;52]));assert_eq!(clip.transpose,-5);
+    assert_eq!(clip.recipe.as_ref().unwrap().gate,75);
+    assert_eq!(clip.lock_at(4,2),Some(91));
+    for step in [0,4,8,12]{assert_eq!(clip.lock_at(4,step),Some(33));}
+    assert_eq!(engine.tracks[2].lane_base[4],100);assert_eq!(engine.tracks[2].clips[6].lock_at(4,0),Some(52));
+    assert!(output.contains(&OutEvent::RecipeLanes{track:2}));
+    let saved=crate::persist::serialize(&engine);let mut restored=Engine::new(48000,12000);
+    assert!(crate::persist::load(&mut restored,&saved));
+    assert_eq!(restored.tracks[2].clips[5].notes,clip.notes);
+    assert_eq!(restored.tracks[2].clips[5].recipe,clip.recipe);
+    assert_eq!(restored.tracks[2].lane_label,engine.tracks[2].lane_label);
+    assert!(restored.fill_preview(&request).starts_with("error:"),"transient library selection is not saved in a Set");
+    apply_batch(&mut engine,"uswap 103 104",&mut output);assert_eq!(engine.undo_snapshot(),before);
+    write(&mut engine,&format!("16_{choice}_99_99_2_2"),&mut output);
+    let repeated=&engine.tracks[2].clips[5];assert_eq!(repeated.notes.len(),8);
+    assert_eq!(repeated.notes[4].pressure,vec![(1,90),(12,45)]);
+    assert_eq!(repeated.lock_at(4,18),Some(91));assert_eq!(repeated.lock_at(4,16),Some(33));
+}
+#[test] fn saved_style_length_retains_loop_window_conditions_and_timing_settings(){
+    let mut engine=Engine::new(48000,12000);let mut output=Vec::new();saved_fill_style(&mut engine);
+    let source=&mut engine.tracks[1].clips[0];
+    for note in &mut source.notes{note.tick+=384;note.step+=16;}
+    for lock in &mut source.locks{lock.step+=16;}
+    source.set_loop(16,16);source.set_trig_cond(16,16,None,1,2);source.quant=45;source.scale_num=2;
+    source.grid_gates.push(crate::grid::Gate{start:384,end:480,lane:0});
+    let payload=engine.part_export(1);let choice=stage_saved_fill(&mut engine,&payload,&mut output);
+    let request=format!("16_{choice}_99_99_0_2");
+    let preview=engine.fill_preview(&request);assert!(preview.split('|').nth(3).unwrap().starts_with("0,"));
+    write(&mut engine,&request,&mut output);assert!(engine.part_result.starts_with("Filled"));
+    let filled=&engine.tracks[2].clips[5];let source=&engine.tracks[1].clips[0];
+    assert_eq!(filled.notes,source.notes);assert_eq!(filled.loop_start_steps,16);
+    assert_eq!(filled.trigs,source.trigs);assert_eq!(filled.quant,45);assert_eq!(filled.scale_num,2);
+    assert_eq!(filled.grid_gates.len(),1);
+    assert!(engine.fill_preview(&format!("16_{choice}_99_99_2_2")).contains("Style length"));
+}
+#[test] fn library_staging_and_lane_failures_never_replace_the_wrong_material(){
+    let mut engine=Engine::new(48000,12000);let mut output=Vec::new();let payload=saved_fill_style(&mut engine);
+    let choice=stage_saved_fill(&mut engine,&payload,&mut output);let request=format!("16_{choice}_0_0_0_2");
+    let preview=engine.fill_preview(&request);
+    let command=format!("clipfill 2 5 {} {request} {} {} own",engine.fill_target("2_5"),preview.split('|').next().unwrap(),Settings::comp().wire());
+    engine.tracks[1].clips[0].notes[0].vel=17;
+    let changed=engine.part_export(1);stage_saved_fill(&mut engine,&changed,&mut output);
+    let before=engine.undo_snapshot();apply_batch(&mut engine,&command,&mut output);
+    assert!(engine.part_result.contains("Source changed"));assert_eq!(engine.undo_snapshot(),before);
+    apply_batch(&mut engine,"filllibrary 16 7 broken",&mut output);
+    assert!(engine.fill_preview(&request).starts_with("error:"),"failed staging cannot reuse old material");
+    stage_saved_fill(&mut engine,&payload,&mut output);
+    for lane in 0..8 {engine.auto_label(2,lane,&format!("synth:unrelated{lane}"));}
+    let before=engine.undo_snapshot();write(&mut engine,&request,&mut output);
+    assert!(engine.part_result.contains("No free automation lane"));assert_eq!(engine.undo_snapshot(),before);
+    engine.recording=true;write(&mut engine,&request,&mut output);
+    assert!(engine.part_result.contains("recording"));assert_eq!(engine.undo_snapshot(),before);
+}
 #[test] fn stopped_clips_compose_chord_groups_and_input_intent_without_launching(){
     let mut engine=setup();let mut out=Vec::new();write(&mut engine,"1_3_4_2_1_0",&mut out);
     assert!(engine.part_result.starts_with("Filled"),"{}",engine.part_result);

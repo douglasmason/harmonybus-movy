@@ -15,6 +15,8 @@ def patch_clip_fill(root: Path) -> None:
     path.write_text(replace_once(path.read_text(),'fn fingerprint(', 'pub(crate) fn fingerprint('))
     path = core / 'engine.rs'
     source: str = path.read_text()
+    source = replace_once(source, '    pub part_result:String,', '    pub fill_library:Result<crate::clip_fill::FillLibrarySource,&\'static str>,\n    pub part_result:String,')
+    source = replace_once(source, 'part_result:String::new(),', 'fill_library:Err("Select a saved style"),part_result:String::new(),')
     start: int = source.index('            let start=clip.loop_start_ticks();let end=clip.loop_end_ticks();', source.index('    fn source_attack('))
     end: int = source.index('            let Some(onset)=onset', start)
     source = source[:start]+'''            let onset=crate::clip_fill::pitch_onset(clip,
@@ -23,6 +25,8 @@ def patch_clip_fill(root: Path) -> None:
     path.write_text(source)
     path = core / 'command.rs'
     source = path.read_text().replace('| "pload"', '| "clipfill" | "pload"')
+    source = replace_once(source, '            let previous_drum_outputs=engine.drum_outputs;', '''            if verb=="filllibrary" {engine.fill_prepare_library(op);continue;}
+            let previous_drum_outputs=engine.drum_outputs;''')
     source = replace_once(source,'        "pload" =>', '        "clipfill" => engine.fill_write(op,out),\n        "pload" =>')
     path.write_text(source)
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
