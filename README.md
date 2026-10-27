@@ -1,3 +1,10 @@
+## UI responsiveness (hbclean.277)
+
+Bounds failed light-feedback retries, batches approach status, and pauses hidden
+parameter-bank value polling while performance screens own the controls. Field
+and Grid stop requesting ordinary melody previews. See [measurements and limits](docs/ui-responsiveness.md).
+Includes the temporary Comp Generator and earlier musical/UI changes.
+
 ## Temporary Comp generator (hbclean.276)
 
 [Comp Generator](docs/comp-generator.md) adds temporary exploration in Chord Play,
