@@ -685,6 +685,8 @@ def main() -> int:
     patch_ui_responsiveness(root)
     from patch_parameter_ownership import patch_parameter_ownership
     patch_parameter_ownership(root)
+    from patch_chord_discovery import patch_discovery_context
+    patch_discovery_context(root)
     print("HarmonyBus clean integration applied")
     return 0
 
