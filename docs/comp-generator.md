@@ -1,4 +1,4 @@
-# Temporary Comp generator — hbclean.276
+# Comp generator and automation overdubbing — hbclean.278
 
 Chord Play now has **Comp Tn Generator**. It is a temporary performance source:
 choosing a family/style or changing controls does not fill, replace, launch, or
@@ -55,6 +55,35 @@ Existing persistent content is preserved. Other actors continue normally. The
 Comp actor's existing clip clock is paused during unrecorded exploration, then
 resumes when exploration ends.
 
+## Revisit a recorded generator clip
+
+Selecting a recorded generator clip recalls its family, style, seed and current
+control values. During playback, untouched controls follow their recorded curves.
+Turn Complexity, Intensity or Style to audition a temporary override; there is no
+need to press Explore first. The selected clip must already be playing when the
+transport is running. Its clock, loop, speed, transpose, voicing and manually
+added notes continue normally. Stop Explore or transport to discard the override.
+
+Use the **existing physical Record button** to punch in. It also works directly
+from the Generator page without first moving a knob. From stopped it uses the
+normal count-in. A recorded recipe counts as existing content even when it has
+no ordinary notes, so overdubbing never auto-extends or restarts its loop.
+
+Only controls moved during the preview or recording are latched and written.
+Complexity and Intensity enter on step boundaries; Style enters on bar boundaries
+or the loop start for a trimmed loop. Untouched curves and other automation remain
+intact. Press Record again to finish. The old curve resumes at the next control
+boundary after punch-out; a style change therefore lasts through its accepted bar.
+The whole Record-button pass has one Undo, including repeated loop traversals.
+Recording without moving a control leaves the recipe unchanged.
+
+The saved seed and original recorded span stay fixed. Clip selection, launch or
+deletion ends the preview/overdub before another clip can receive its changes.
+Cancelled count-ins write nothing. If automation capacity is exhausted, the
+boundary edit is refused atomically and recording stops; earlier captured changes
+remain available to Undo. Generator lanes must still be assigned, and incoming
+Source Weaving must be Own, as for the first take.
+
 Exploration uses the Comp rendering settings captured when it starts, including
 its voicing and mapping; it does not install a stock voicing. Use Follower with
 Relative or Closest Split input. Temporary and recorded generation suppress new
@@ -94,3 +123,8 @@ mid-bar recording stops, swing and speed, preservation of other automation holds
 64/257/1024-frame audio blocks, shared physical Record routing, and production
 Movy → Schwung chain → HarmonyBus MIDI/audio with exclusive routing and paired
 releases. Automated verification does not replace a physical Move audition.
+
+Overdub checks also cover recalled control values, transparent preview with manual
+notes and speed/swing, bounded punch intervals, no-op recording, repeated loops,
+trimmed lengths, capacity refusal, clip-change cancellation, physical Record
+routing, a single Undo group, and native Undo/Redo through the production chain.
