@@ -1,4 +1,6 @@
-> Movy hbclean.268 adds Smart approach bank choices backed by the shared HarmonyBus operation catalog. Includes the A/B Fill memories and UI performance improvements. See [Smart approaches](docs/relative-operations.md).
+> Movy hbclean.270 adds Comp and Bass libraries directly to Clips Fill, with saved-style previews, complete recipe/automation recall, actor-specific entry lists and one Undo. Includes the verified audio-context improvements. See [library Fill controls and limits](docs/fill-library-270.md).
+
+> Movy hbclean.269 removes temporary allocations from native follower-context reads and Humanize parsing while preserving recording-event delivery. Includes Smart Approaches and the earlier UI improvements. See [audio-context measurements and limits](docs/audio-context.md).
 
 > Movy hbclean.267 reduces unchanged Chord Play work, separates queue and overview polling, and measures the complete UI tick. Mixed-case settings and the existing musical controls remain included. See [UI overhead measurements and limits](docs/ui-overhead.md).
 

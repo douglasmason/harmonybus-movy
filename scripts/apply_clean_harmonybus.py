@@ -665,6 +665,8 @@ def main() -> int:
     patch_settings_case(root)
     from patch_ui_overhead import patch_ui_overhead
     patch_ui_overhead(root)
+    from patch_audio_context import patch_audio_context
+    patch_audio_context(root)
     # Keep the UI/native protocol in sync, including the concurrent context reader.
     for relative_path in ('engine/crates/movy-dsp/src/lib.rs', 'src/seq/constants.ts'):
         version_path: Path = root / relative_path

@@ -1,4 +1,4 @@
-name: Smart approaches and performance verification
+name: Fill libraries and performance verification
 on:
   push:
     branches: [main]
@@ -52,6 +52,9 @@ on:
       - integration/ui-overhead/**
       - scripts/patch_ui_overhead.py
       - docs/ui-overhead.md
+      - integration/audio-context/**
+      - scripts/patch_audio_context.py
+      - docs/audio-context.md
       - integration/grid/**
       - scripts/patch_grid.py
       - scripts/patch_panel_navigation.py
@@ -119,6 +122,9 @@ on:
       - integration/ui-overhead/**
       - scripts/patch_ui_overhead.py
       - docs/ui-overhead.md
+      - integration/audio-context/**
+      - scripts/patch_audio_context.py
+      - docs/audio-context.md
       - integration/grid/**
       - scripts/patch_grid.py
       - scripts/patch_panel_navigation.py
@@ -141,7 +147,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.268
+  SOURCE_VERSION: 0.34.1-hbclean.270
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -189,6 +195,7 @@ jobs:
           bash scripts/test_full_chain_audio.sh movy harmonybus schwung
           cargo test --release --manifest-path movy/engine/Cargo.toml -p seq-core source_routing_benchmark -- --ignored --nocapture --test-threads=1 | tee source-benchmark.txt
           cargo test --release --manifest-path movy/engine/Cargo.toml -p movy-dsp hb_loop_snapshot_benchmark -- --ignored --nocapture --test-threads=1 | tee -a source-benchmark.txt
+          cargo run --release --manifest-path movy/engine/Cargo.toml -p movy-dsp --example hb_context_benchmark | tee context-benchmark.txt
       - name: ARM toolchain
         timeout-minutes: 5
         run: |
@@ -225,11 +232,12 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: smart-approaches-268
+          name: fill-libraries-270
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
             source-benchmark.txt
+            context-benchmark.txt
       - name: Publish verified main package and advance installer last
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
@@ -245,10 +253,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.267':
-              raise SystemExit('Expected Movy 267 before Smart approaches release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.269':
+              raise SystemExit('Expected Movy 269 before library Fill release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Smart Approaches" --notes-file docs/relative-operations.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Actor Libraries in Fill" --notes-file docs/fill-library-270.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -261,7 +269,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.267':
+          if metadata['version'] != '0.34.1-hbclean.269':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
@@ -269,5 +277,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add release.json
-          git commit -m "Publish verified Smart Approaches $SOURCE_VERSION [skip ci]"
+          git commit -m "Publish verified Actor Libraries in Fill $SOURCE_VERSION [skip ci]"
           git push origin HEAD:main
