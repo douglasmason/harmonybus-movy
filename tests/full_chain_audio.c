@@ -576,6 +576,9 @@ static void test_chord_play(void){
 #endif
 #ifdef HB_TEST_PART_LIBRARY
 #include "part_library_audio.h"
+#ifdef HB_TEST_COMP_GENERATOR
+#include "comp_generator_audio.h"
+#endif
 #endif
 
 #ifdef HB_TEST_CHORD_DISCOVERY
@@ -627,6 +630,9 @@ int main(int argc,char **argv){
         snprintf(parameter,sizeof(parameter),"ch%d:mix",track);set(parameter,"1,0,1,0,0");
     }
 #ifdef HB_TEST_PART_LIBRARY
+    #ifdef HB_TEST_COMP_GENERATOR
+    if(getenv("HB_GENERATOR_ONLY")){test_comp_generator();api->destroy_instance(instance);return 0;}
+    #endif
     if(getenv("HB_PART_ONLY")){test_part_library();api->destroy_instance(instance);return 0;}
 #endif
 #ifdef HB_TEST_CHORD_QUEUE
@@ -789,6 +795,9 @@ int main(int argc,char **argv){
 #endif
 #ifdef HB_TEST_PART_LIBRARY
     test_part_library();
+#ifdef HB_TEST_COMP_GENERATOR
+    test_comp_generator();
+#endif
 #endif
 #ifdef HB_TEST_CHORD_DISCOVERY
     test_chord_discovery();

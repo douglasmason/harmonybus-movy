@@ -679,6 +679,8 @@ def main() -> int:
     patch_pad_position(root)
     from patch_chord_discovery import patch_chord_discovery
     patch_chord_discovery(root)
+    from patch_comp_generator import patch_comp_generator
+    patch_comp_generator(root)
     print("HarmonyBus clean integration applied")
     return 0
 
