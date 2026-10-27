@@ -1,4 +1,4 @@
-# Parent key and pad position — Movy 0.34.1-hbclean.274
+# Parent key and pad position — Movy 0.34.1-hbclean.275
 
 Left/Right shift the keyboard pattern one column during melodic note play,
 including Chord Play and Joint Play. The arrows leave the current panel open;
@@ -17,7 +17,7 @@ the tonic sound D and the third F#. Three Right presses move the tonic from
 column 1 to column 4 without changing the key. Parallel D minor changes the
 third to F while the tonic stays in column 4.
 
-HarmonyBus 0.2.306 also fixes this mapping before the first conductor chord has
+HarmonyBus 0.2.307 also fixes this mapping before the first conductor chord has
 played. Closest and directional key-travel settings retain their deliberate
 voice-leading behavior; they need not render the input tonic as the parent tonic.
 Arrows and POS never change those settings or the input-root policy.
@@ -41,9 +41,9 @@ through position changes and release correctly; the next press uses the new map.
 Recorded notes retain their source degrees and follow later parent-key changes.
 The parent readout reuses the normal and Joint preview caches without extra polls.
 
-Install HarmonyBus **0.2.306** from `douglasmason/harmonybus` and Movy
-**0.34.1-hbclean.274** from `douglasmason/harmonybus-movy` through Schwung's
-repository installer, then restart. Chord Discovery, adaptive operations,
+Install HarmonyBus **0.2.307** from `douglasmason/harmonybus` and Movy
+**0.34.1-hbclean.275** from `douglasmason/harmonybus-movy` through Schwung's
+repository installer, then restart. Resolved-operation feedback, Chord Discovery, adaptive operations,
 eight-note scales, Fill libraries and the audio-context improvements are included.
 
 Verification covers all layouts/scales, input priority, limits and pressed lights,

@@ -126,7 +126,7 @@ export function invalidateHarmonyPadGeometry(): void {
     # Reading the existing footer snapshot adds no native polling or key mapping.
     path = root / "src/renderer/hb-footer.ts"
     source = path.read_text()
-    source = replace_once(source, "export function harmonyFooterText(mode:number,track:number,data?:readonly number[]):string{", """/** Parent key already resolved by HB, including Key Center and Parallel. */
+    source = replace_once(source, "export function harmonyFooterText(", """/** Parent key already resolved by HB, including Key Center and Parallel. */
 export function parentKeyLabel(data?:readonly number[]):string {
     if(!data)return '';
     const [key,scale]=data;
@@ -135,7 +135,7 @@ export function parentKeyLabel(data?:readonly number[]):string {
         .replace('Half-Whole Diminished','DimH-W').replace('Whole-Half Diminished','DimW-H').replace(/ /g,'');
     return roots[key]+' '+label;
 }
-export function harmonyFooterText(mode:number,track:number,data?:readonly number[]):string{""")
+export function harmonyFooterText(""")
     source = replace_once(source, "    const raw=scale===-1?'Blues':scale===0?'Custom':FOLLOWER_SCALE_NAMES[scale-1]??'Custom';\n    const label=raw.replace('Natural Minor','Min').replace('Major','Maj').replace('Minor','Min').replace(/ /g,'');", "    const parent=parentKeyLabel(data);")
     source = replace_once(source, "[prefix+' '+roots[key]+' '+label,prefix,roots[key]]", "[prefix+' '+parent,prefix,roots[key]]")
     path.write_text(source)
