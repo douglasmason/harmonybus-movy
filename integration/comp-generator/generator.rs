@@ -1,4 +1,4 @@
-//! A bounded source of mapped comp attacks, consumed by the ordinary scheduler.
+//! A bounded source of mapped actor attacks, consumed by the ordinary scheduler.
 use crate::{clip::{Clip,Note},follower_input::InputKey,TICKS_PER_STEP};
 pub const LABELS:[&str;3]=["generator:complexity","generator:intensity","generator:style"];
 pub fn internal(label:&str)->bool {LABELS.contains(&label)}
@@ -6,7 +6,7 @@ pub fn lane_value(clip:&Clip,lane:u8,step:u16,base:u8)->u8 {
     clip.locks.iter().filter(|lock|lock.lane==lane&&lock.step>=clip.loop_start_steps&&lock.step<=step)
         .max_by_key(|lock|lock.step).map_or(base,|lock|lock.val)
 }
-pub struct Style {pub name:&'static str,pub catalog:usize,pub optional:&'static [(u16,u32,u8,u8)]}
+pub struct Style {pub name:&'static str,pub bass:bool,pub catalog:usize,pub optional:&'static [(u16,u32,u8,u8,u8)]}
 include!("generator_styles.rs");
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub struct Config {pub style:u8,pub complexity:u8,pub intensity:u8,pub seed:u16,pub end:u32}
@@ -18,6 +18,17 @@ impl Config {
         Some(Self {style:fields[0] as u8,complexity:fields[1] as u8,intensity:fields[2] as u8,seed:fields[3] as u16,end:*fields.get(4).unwrap_or(&0)})
     }
     pub fn wire(self)->String {format!("{} {} {} {} {}",self.style,self.complexity,self.intensity,self.seed,self.end)}
+    pub fn bass(self)->bool {STYLES[self.style as usize].bass}
+    pub fn accepts_style(self,style:u8)->bool {STYLES.get(style as usize).is_some_and(|candidate|candidate.bass==self.bass())}
+    pub fn recipe_name(self)->&'static str {if self.bass(){"Bass-Generator"}else{"Comp-Generator"}}
+    /// Bass articulation overrides only note expansion. Mapping and expression
+    /// stay with the captured actor; cancellation restores the original settings.
+    pub fn settings(self,mut settings:crate::part_settings::Settings)->crate::part_settings::Settings {
+        if self.bass() {
+            for index in BASS_OFF_KEYS {settings.0[index]=0;}
+        }
+        settings
+    }
     pub fn values(self)->[u8;3] {[self.complexity,self.intensity,self.style]}
     /// A fixed threshold per authored optional attack. More complexity retains
     /// earlier details; repainting, block size and transport cycles do not reroll.
@@ -25,13 +36,13 @@ impl Config {
         if self.end>0&&step as u32*TICKS_PER_STEP>=self.end {return None;}
         let style=STYLES.get(self.style as usize)?;
         let local=step%16;
-        let essential=crate::part_catalog::comp_source_notes(style.catalog).iter().find(|note|note.0==local);
+        let essential=crate::part_catalog::generator_source_notes(style.bass,style.catalog).iter().find(|note|note.0==local);
         let (gate,pitch,velocity)=if let Some(&(_,gate,pitch,velocity))=essential {(gate,pitch,velocity)} else {
-            let &(_,gate,velocity,threshold)=style.optional.iter().find(|note|note.0==local)?;
+            let &(_,gate,pitch,velocity,threshold)=style.optional.iter().find(|note|note.0==local)?;
             let random=crate::humanize::Humanize::seed(self.style as usize,self.seed as usize,(step%64) as u32);
             let threshold=(threshold as i16+(random%17) as i16-8).clamp(1,127) as u8;
             if self.complexity<threshold {return None;}
-            (gate,60,velocity)
+            (gate,pitch,velocity)
         };
         let velocity=((velocity as u32*(64+self.intensity as u32)+64)/128).clamp(1,127) as u8;
         Some(Note {tick:step as u32*TICKS_PER_STEP,step,gate,pitch,vel:velocity,
@@ -45,7 +56,7 @@ impl Config {
             let Some(lane)=labels.iter().position(|name|name==label) else {continue;};
             let boundary=if field==2 {(step/16*16).max(clip.loop_start_steps)} else {step};
             let value=lane_value(clip,lane as u8,boundary,result.values()[field]);
-            match field {0=>result.complexity=value,1=>result.intensity=value,2=>result.style=value.min(STYLES.len() as u8-1),_=>{}}
+            match field {0=>result.complexity=value,1=>result.intensity=value,2 if self.accepts_style(value)=>result.style=value,_=>{}}
         }
         result
     }

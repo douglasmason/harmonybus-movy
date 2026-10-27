@@ -4,9 +4,9 @@ impl Engine {
     pub fn generator_owns(&self,track:usize)->bool {
         self.generator_exploring(track)||self.tracks.get(track).and_then(|target|target.playing()).is_some_and(|clip|clip.generator.is_some())
     }
-    pub fn generator_mask(&self)->u16 {(0..NUM_TRACKS).filter(|track|self.generator_exploring(*track)||(self.playing&&(self.generator_owns(*track)||self.tracks[*track].playing().is_some_and(|clip|clip.recipe.as_ref().is_some_and(|recipe|recipe.name=="Comp-Generator"))))).fold(0,|mask,track|mask|(1<<track))}
+    pub fn generator_mask(&self)->u16 {(0..NUM_TRACKS).filter(|track|self.generator_exploring(*track)||(self.playing&&(self.generator_owns(*track)||self.tracks[*track].playing().is_some_and(|clip|clip.recipe.as_ref().is_some_and(|recipe|matches!(recipe.name.as_str(),"Comp-Generator"|"Bass-Generator")))))).fold(0,|mask,track|mask|(1<<track))}
     pub fn generator_settings(&self,track:usize)->Option<crate::part_settings::Settings> {
-        if self.generator_exploring(track) {self.generator_restore[track]} else {None}
+        self.generator_explore.filter(|state|state.track==track).and_then(|state|self.generator_restore[track].map(|settings|if state.source.is_none(){state.current.settings(settings)}else{settings}))
     }
     pub fn generator_info(&self,track:usize)->String {
         let Some(target)=self.tracks.get(track) else {return "error:Invalid track".into();};
@@ -26,11 +26,12 @@ impl Engine {
         let fields:Vec<_>=message.split_whitespace().collect();
         if fields.len()==2&&fields[1]=="off" {self.generator_cancel(out);return true;}
         if fields.len()!=6 {self.generator_result="Invalid generator".into();return false;}
-        let Some(track)=fields[1].parse::<usize>().ok().filter(|track|*track<NUM_TRACKS&&!self.track_is_drum(*track)) else {self.generator_result="Choose a melodic Comp track".into();return false;};
+        let Some(track)=fields[1].parse::<usize>().ok().filter(|track|*track<NUM_TRACKS&&!self.track_is_drum(*track)) else {self.generator_result="Choose a melodic actor track".into();return false;};
         let Some(config)=crate::generator::Config::parse(&fields[2..].join(" ")) else {return false;};
         if self.part_recording_busy() {
             let Some(state)=self.generator_explore.as_mut().filter(|state|state.track==track) else {self.generator_result="Finish recording first".into();return false;};
             if config.seed!=state.desired.seed {self.generator_result="Seed locked during recording".into();return false;}
+            if !state.current.accepts_style(config.style){self.generator_result="Finish this actor take first".into();return false;}
             state.desired=config;return true;
         }
         if self.tracks[track].active().generator.is_some(){self.generator_result="Use the recorded clip controls".into();return false;}
@@ -57,13 +58,14 @@ impl Engine {
         let target=&self.tracks[track];
         let Some(config)=target.clips[slot].generator else {self.generator_result="Select a recorded generator clip".into();return false;};
         if target.active_clip!=slot {self.generator_result="Clip changed".into();return false;}
-        if self.playing&&target.playing_slot!=Some(slot) {self.generator_result="Play the selected Comp clip first".into();return false;}
+        if self.playing&&target.playing_slot!=Some(slot) {self.generator_result="Play the selected actor clip first".into();return false;}
         let same=self.generator_explore.is_some_and(|state|state.track==track&&state.source==Some(slot));
         let adopting=self.generator_explore.is_none()&&self.records_track(track)&&self.joint_record_mask==0&&!self.source_routes[track].enabled;
         if self.part_recording_busy()&&!same&&!adopting {self.generator_result="Finish recording first".into();return false;}
         let edit=if fields.len()==5 {
             let Some(field)=fields[3].parse::<usize>().ok().filter(|field|*field<3) else{return false;};
             let Some(value)=fields[4].parse::<u8>().ok().filter(|value|*value<=127&&(field!=2||(*value as usize)<crate::generator::STYLES.len())) else{return false;};
+            if field==2&&!config.accepts_style(value){self.generator_result="Choose a style for this actor".into();return false;}
             Some((field,value))
         }else{None};
         if !same {
@@ -90,7 +92,6 @@ impl Engine {
         if let Some(state)=self.generator_explore.take() {
             if self.part_recording_busy()&&self.records_track(state.track) {if self.pending_rec {self.tracks[state.track].queued_slot=None;}self.recording=false;self.pending_rec=false;self.count_in_left=0;}
             self.flush_track_gates(state.track,out);
-            self.recipe_seen[state.track]=None;
             self.generator_finish_take(state);
             self.recipe_tick(out);
         }
@@ -105,7 +106,7 @@ impl Engine {
     /// Validate before the normal Record command creates or arms a destination.
     fn generator_prepare_record(&mut self)->bool {
         let Some(state)=self.generator_explore else {return true;};
-        if self.generator_restore[state.track].is_some_and(|settings|!settings.mapped()) {self.generator_result="Comp needs mapped input".into();return false;}
+        if self.generator_restore[state.track].is_some_and(|settings|!settings.mapped()) {self.generator_result="Actor needs mapped input".into();return false;}
         let track=&self.tracks[state.track];
         let clip=track.active();
         if let Some(slot)=state.source {
@@ -113,8 +114,8 @@ impl Engine {
             if crate::generator::LABELS.iter().any(|label|!(0..8).any(|lane|track.lane_assigned[lane]&&track.lane_label[lane]==*label)) {
                 self.generator_result="Generator automation lanes missing".into();return false;
             }
-        }else if clip.exists() {self.generator_result="Choose an empty Comp clip".into();return false;}
-        if self.source_routes[state.track].enabled {self.generator_result="Set Comp sources to Own before recording".into();return false;}
+        }else if clip.exists() {self.generator_result="Choose an empty actor clip".into();return false;}
+        if self.source_routes[state.track].enabled {self.generator_result="Set actor sources to Own before recording".into();return false;}
         let available=(0..8).filter(|lane|!track.lane_assigned[*lane]||crate::generator::internal(&track.lane_label[*lane])).count();
         if available<3 {self.generator_result="Three automation lanes needed".into();return false;}
         self.generator_result="Recording armed".into();true
@@ -139,7 +140,7 @@ impl Engine {
             let clip=&mut self.tracks[track].clips[slot];
             clip.generator=Some(state.current);
             clip.input_key=crate::follower_input::InputKey::new(0,1);
-            clip.recipe=Some(crate::clip_recipe::Recipe {name:"Comp-Generator".into(),settings:self.generator_restore[track].unwrap_or_else(crate::part_settings::Settings::comp),gate:100});
+            clip.recipe=Some(crate::clip_recipe::Recipe {name:state.current.recipe_name().into(),settings:state.current.settings(self.generator_restore[track].unwrap_or_else(crate::part_settings::Settings::comp)),gate:100});
             if let Some(base)=self.generator_restore[track] {self.recipe_bases[track].get_or_insert(base);}
             for (field,label) in crate::generator::LABELS.iter().enumerate() {
                 let lane=(0..8).find(|lane|self.tracks[track].lane_assigned[*lane]&&self.tracks[track].lane_label[*lane]==*label)
@@ -194,7 +195,7 @@ impl Engine {
     fn generator_tick(&mut self,track:usize,out:&mut Vec<OutEvent>) {
         if !self.generator_owns(track)||self.tracks[track].muted {return;}
         if self.generator_exploring(track)&&self.generator_restore[track].is_some_and(|settings|!settings.mapped()) {
-            self.generator_result="Comp needs Relative or Closest Split mapping".into();return;
+            self.generator_result="Actor needs Relative or Closest Split mapping".into();return;
         }
         let slot=self.tracks[track].playing_slot.unwrap_or(self.tracks[track].active_clip);
         if self.generator_explore.is_some_and(|state|state.track==track&&state.take.is_some_and(|take|take!=slot||self.tracks[track].clips[take].generator.is_none())) {
@@ -225,7 +226,19 @@ impl Engine {
             if fire!=pos {continue;}
             let config=if let Some(state)=self.generator_explore.filter(|state|state.track==track) {state.current}
                 else {let clip=&self.tracks[track].clips[slot];clip.generator.unwrap().at(clip,&self.tracks[track].lane_label,step)};
-            if let Some(note)=config.note(step) {self.emit_clip_note(track,track,slot,note,None,None,Default::default(),false,track,out);}
+            if let Some(note)=config.note(step) {
+                if config.bass() {
+                    let mut index=0;
+                    while index<self.gates.len() {
+                        if self.gates[index].track==track as u8&&self.gates[index].generated {
+                            out.push(self.gates.remove(index).off_event());
+                        }else{index+=1;}
+                    }
+                }
+                self.generator_emitting=true;
+                self.emit_clip_note(track,track,slot,note,None,None,Default::default(),false,track,out);
+                self.generator_emitting=false;
+            }
         }
     }
     pub fn generator_bake(&mut self,message:&str,out:&mut Vec<OutEvent>) {
@@ -246,9 +259,18 @@ impl Engine {
             return Err("Bake needs Humanize and clip rhythm operations off");
         }
         let mut baked=clip.clone();
-        for step in clip.loop_start_steps..clip.loop_start_steps+clip.length_steps {
-            if let Some(note)=config.at(clip,&target.lane_label,step).note(step) {baked.notes.push(note);}
+        let mut generated:Vec<_>=(clip.loop_start_steps..clip.loop_start_steps+clip.length_steps)
+            .filter_map(|step|config.at(clip,&target.lane_label,step).note(step)).collect();
+        if config.bass()&&!generated.is_empty() {
+            let end=clip.loop_end_ticks();let span=end-clip.loop_start_ticks();
+            let fire:Vec<_>=generated.iter().map(|note|(note.tick+self.swing_delay(note.step,clip.scale_num,clip.scale_den)).min(end-1)).collect();
+            let count=generated.len();
+            for (index,note) in generated.iter_mut().enumerate() {
+                let next=if index+1<count {fire[index+1]}else{fire[0]+span};
+                note.gate=note.gate.min(next.saturating_sub(fire[index]).max(1));
+            }
         }
+        if config.bass(){generated.extend(std::mem::take(&mut baked.notes));baked.notes=generated;}else{baked.notes.extend(generated);}
         for lane in 0..8 {
             if !target.lane_assigned[lane]||crate::generator::internal(&target.lane_label[lane]) {continue;}
             for note in &baked.notes {

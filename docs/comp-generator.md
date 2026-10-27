@@ -1,47 +1,71 @@
-# Comp generator and automation overdubbing — hbclean.278
+# Actor generator browser and automation — hbclean.281
 
-Chord Play now has **Comp Tn Generator**. It is a temporary performance source:
-choosing a family/style or changing controls does not fill, replace, launch, or
-save a clip. Tap Explore, then use the ordinary transport to hear it against the
-conductor. Explore can also start while transport is already running.
+Chord Play's **Libraries** category now contains a shared Comp/Bass generator.
+Choose an actor first; each actor uses its configured track and keeps its own
+unrecorded controls. Both pages show the actor and track; the footer also shows
+the selected recording slot. The same controls work on Move and in the browser.
 
-| Knob | Control |
+| Browse page knob | Control |
 | --- | --- |
-| 1 | Family: Pulse or Sync (syncopated phrases) |
-| 2 | Style within the selected family |
-| 3 | Complexity: optional authored rhythmic detail, 0–100% |
-| 4 | Intensity: velocity and accents, 0–100% |
-| 5 | Seed: repeatable variation of optional-attack thresholds |
-| 6 touch | Start/stop temporary exploration |
-| 7 touch | Bake the selected recorded generator clip |
+| 1 | Actor: Comp or Bass |
+| 2 | Genre filter: All or one of this actor's authored tags |
+| 3 | Family: Pulse or Sync |
+| 4 | Style within the family and filter |
 | 8 | Existing Range / tap Harmony Off |
 
-Pulse contains Quarters and Offbeats; Sync contains Sparse and 3-3-2. The
-essential attacks come from the existing Comp catalog. Optional attacks are
-explicitly authored for each style. Increasing complexity retains the core and
-adds detail; intensity independently scales accents. The fixed seed repeats its
-four-bar variation. A repaint, audio block boundary or idle tick cannot reroll it.
-Genre tags are authored metadata for a later browser/filter; there is no genre
-selector or Bass generator in this increment.
+| Generator page knob | Control |
+| --- | --- |
+| 1 | Complexity: optional authored rhythmic detail, 0–100% |
+| 2 | Intensity: velocity and accents, 0–100% |
+| 3 | Seed: repeatable variation of optional-attack thresholds |
+| 4 touch | Start/stop temporary exploration |
+| 5 touch | Bake the selected recorded generator clip |
+| 8 | Existing Range / tap Harmony Off |
+
+Comp retains Quarters, Offbeats, Sparse and 3-3-2. Bass adds Root / Fifth and
+Sustain under Pulse, plus Sparse and Syncopated under Sync. All reuse the existing
+actor catalog; optional attacks are explicitly authored. Complexity retains the
+core attacks and adds detail; Intensity independently scales velocity. The seed
+repeats its four-bar variation and never rerolls on repaint or audio blocks.
+
+Genre is a browser filter, not a recorded musical parameter. Changing it sends
+no engine command and never changes the sounding style. The current style/family
+remains visible even if it falls outside the filter, until another is chosen.
+Style itself is recordable at the existing bar boundary. Complexity is a continuous
+control, not another level of folders or a set of duplicated presets.
+
+Only one temporary audition is active at a time. Switching actors ends that
+audition, releases its notes and recalls the other actor's draft; recorded clips
+on both actors can play together. Actor switching is refused during recording
+or count-in. A generator clip belonging to the other actor cannot be edited
+through the selected actor's controls. Walking-bass anticipation is not included.
+
+Bass emits mapped single-note patterns. Its temporary rendering disables chord
+expansion, arp playback/latching and the additional rhythm generator, while
+retaining the actor's captured mapping and expression. Stopping restores the
+original rendering settings. Recorded/Baked Bass clips retain that articulation.
+A new Bass attack closes the previous generated gate through the existing release
+owner; manually added notes keep their own gates. Bake materializes those release
+lengths, including the current swing and speed.
 
 ## Explore, then Record
 
-Select an **empty clip on the Comp track** before exploring. This is the normal
+Select an **empty clip on the selected actor track** before exploring. This is the normal
 Clips selection, not the conductor's or melody track's slot. The generator panel
-identifies the Comp track; its exploring footer shows the recording destination.
+identifies the actor track; its exploring footer shows the recording destination.
 Existing clips may be auditioned over temporarily, but Record refuses to replace
 an occupied clip. Incoming Source Weaving must be set to Own to record a generator
 take. Three ordinary automation lanes must be available; existing lanes are never
 stolen. Explore itself allocates no lanes and changes no saved clip content.
 
-While exploring, physical Record targets the Comp actor through the usual Record
+While exploring, physical Record targets the selected actor through the usual Record
 and Undo path. From stopped it uses the normal count-in; from running it uses the
 normal bar-quantized empty-clip launch. Complexity and intensity are accepted on
 step boundaries; style changes are accepted on bar boundaries. Those accepted
 values are saved as named `generator:complexity`, `generator:intensity`, and
 `generator:style` automation locks. The seed is fixed during a take.
 
-Record saves a generator recipe, its captured Comp rendering defaults and the
+Record saves a generator recipe, its captured actor rendering defaults and the
 accepted control curves. It does not immediately fill the note editor with a
 static pattern. The take grows through the existing recording clock, up to the
 normal sixteen-bar clip limit. Stopping mid-bar preserves silence after the last
@@ -52,7 +76,7 @@ Tap Record again to end the take and continue its recorded playback. Tap Explore
 Stop, Harmony Off, stop transport, or leave Chord Play to end temporary exploration
 and release its notes. Cancelling during count-in also cancels the armed recording.
 Existing persistent content is preserved. Other actors continue normally. The
-Comp actor's existing clip clock is paused during unrecorded exploration, then
+selected actor's existing clip clock is paused during unrecorded exploration, then
 resumes when exploration ends.
 
 ## Revisit a recorded generator clip
@@ -84,8 +108,8 @@ boundary edit is refused atomically and recording stops; earlier captured change
 remain available to Undo. Generator lanes must still be assigned, and incoming
 Source Weaving must be Own, as for the first take.
 
-Exploration uses the Comp rendering settings captured when it starts, including
-its voicing and mapping; it does not install a stock voicing. Use Follower with
+Exploration uses the actor rendering settings captured when it starts, including
+its voicing and mapping; Bass applies only the articulation overrides above. Use Follower with
 Relative or Closest Split input. Temporary and recorded generation suppress new
 derived follower attacks to this actor while retaining their original release
 owners. Recorded/baked generator clips own that route only while transport runs.
@@ -109,7 +133,7 @@ clip. Full rendering of arbitrary woven/operated performances is separate work.
 
 ## Implementation and checks
 
-`generator.rs` is a bounded source adapter. It reuses static Comp catalog attacks,
+`generator.rs` is a bounded source adapter. It reuses static actor catalog attacks,
 existing input-key mapping, the native transport, gate countdown, note emitter,
 named automation storage, Set serialization and Undo. There is no second audio
 player, UI sequencer, random reroll on draw, or temporary donor clip. Commands that
@@ -128,3 +152,9 @@ Overdub checks also cover recalled control values, transparent preview with manu
 notes and speed/swing, bounded punch intervals, no-op recording, repeated loops,
 trimmed lengths, capacity refusal, clip-change cancellation, physical Record
 routing, a single Undo group, and native Undo/Redo through the production chain.
+
+Actor coverage adds stable legacy Comp IDs, all four Bass patterns, independent
+Comp/Bass automation, Bass monophony under control changes, manual overlay
+ownership, swing/speed Bake identity, temporary setting restoration, physical
+actor/genre navigation, non-default Bass destinations, both harmonic mapping
+modes and production outgoing MIDI channel verification.

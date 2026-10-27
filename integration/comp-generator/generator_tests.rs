@@ -220,5 +220,85 @@
         };
         assert_eq!(run(64),run(257));assert_eq!(run(257),run(1024));
     }
+    fn bass_ticks(engine:&mut Engine,count:u32)->Vec<(u32,OutEvent)> {
+        let mut events=Vec::new();
+        for tick in 0..count {let mut out=Vec::new();engine.service_tick(&mut out);events.extend(out.into_iter().filter(|event|matches!(event,OutEvent::NoteOn{track:1,..}|OutEvent::NoteOff{track:1,..})).map(|event|(tick,event)));}
+        events
+    }
+    fn bass_take()->(Engine,Vec<(u32,OutEvent)>) {
+        let mut engine=fixture();engine.follower_inputs[1]=crate::follower_input::InputKey::new(0,1);
+        command(&mut engine,"gexplore 1 5 0 64 19");engine.play();engine.toggle_record(1);
+        let mut trace=Vec::new();
+        for tick in 0..1536 {
+            if tick==100 {command(&mut engine,"gexplore 1 5 127 100 19");}
+            if tick==600 {command(&mut engine,"gexplore 1 7 95 80 19");}
+            trace.extend(bass_ticks(&mut engine,1).into_iter().map(|(_,event)|(tick,event)));
+        }
+        command(&mut engine,"rec 1;stop");(engine,trace)
+    }
+    #[test] fn bass_generator_authored_pitches_density_and_actor_style_identity() {
+        for style in 4..8 {
+            let sparse=Config{style,complexity:0,..Config::default()};let dense=Config{complexity:127,..sparse};
+            let core:Vec<_>=(0..64).filter_map(|step|sparse.note(step)).collect();
+            assert!((0..64).filter_map(|step|dense.note(step)).any(|note|!core.iter().any(|base|base.step==note.step)));
+            for note in core {let rich=dense.note(note.step).unwrap();assert_eq!(rich.pitch,note.pitch);assert!((36..=43).contains(&note.pitch));}
+            assert!(sparse.accepts_style(4));assert!(!sparse.accepts_style(0));
+        }
+        assert_eq!(Config::parse("3 32 64 1 768").unwrap().wire(),"3 32 64 1 768","existing Comp IDs and wire format remain stable");
+        let (mut engine,_)=bass_take();let saved=engine.undo_snapshot();
+        command(&mut engine,"gpreview 1 0 2 0");assert!(engine.generator_explore.is_none());assert_eq!(engine.undo_snapshot(),saved);
+        let style_lane=engine.tracks[1].lane_label.iter().position(|label|label==LABELS[2]).unwrap();
+        engine.tracks[1].clips[0].set_lock(style_lane as u8,0,0);
+        let clip=&engine.tracks[1].clips[0];assert!(clip.generator.unwrap().at(clip,&engine.tracks[1].lane_label,0).bass());
+    }
+    #[test] fn bass_generator_record_replay_and_bake_keep_monophonic_releases() {
+        let (engine,recorded)=bass_take();let saved=engine.undo_snapshot();
+        let clip=&engine.tracks[1].clips[0];assert_eq!(clip.recipe.as_ref().unwrap().name,"Bass-Generator");
+        assert_eq!(clip.recipe.as_ref().unwrap().settings.0[4],0);
+        let mut sounding=0;
+        for (_,event) in &recorded {match event {OutEvent::NoteOn{..}=>{assert_eq!(sounding,0);sounding+=1;},OutEvent::NoteOff{..}=>{sounding-=1;assert_eq!(sounding,0);},_=>{}}}
+        assert_eq!(sounding,0);
+        let mut replay=fixture();assert!(crate::persist::load(&mut replay,&saved));replay.play();assert_eq!(bass_ticks(&mut replay,1536),recorded);
+        replay.stop(&mut Vec::new());command(&mut replay,"gbake 1 0");assert!(replay.generator_result.starts_with("Baked"));replay.play();assert_eq!(bass_ticks(&mut replay,1536),recorded);
+        replay.stop(&mut Vec::new());assert!(replay.undo_restore(&saved));assert!(replay.tracks[1].clips[0].generator.is_some());
+    }
+    #[test] fn bass_generator_preview_preserves_manual_notes_and_bakes_speed_swing() {
+        let (mut engine,_)=bass_take();
+        let clip=&mut engine.tracks[1].clips[0];let mut manual=Config::default().note(0).unwrap();manual.pitch=55;manual.gate=350;clip.notes.push(manual);
+        clip.scale_num=3;clip.scale_den=2;engine.swing_pct=63;
+        let saved=engine.undo_snapshot();engine.play();command(&mut engine,"gpreview 1 0");let preview=bass_ticks(&mut engine,1024);
+        assert!(preview.iter().any(|(tick,event)|*tick>150&&matches!(event,OutEvent::NoteOff{pitch:55,..})),"generated retriggers cannot release manual overlay notes");
+        command(&mut engine,"gexplore off;stop");assert_eq!(engine.undo_snapshot(),saved);
+        engine.play();let expected=bass_ticks(&mut engine,1024);engine.stop(&mut Vec::new());assert_eq!(preview,expected);
+        command(&mut engine,"gbake 1 0");assert!(engine.generator_result.starts_with("Baked"));engine.play();assert_eq!(bass_ticks(&mut engine,1024),expected);
+    }
+    #[test] fn bass_generator_switch_audition_restores_settings_and_preserves_other_actor() {
+        let mut engine=fixture();let mut original=crate::part_settings::Settings::comp();original.0[11]=1;original.0[12]=4;original.0[19]=83;
+        engine.recipe_bases[1]=Some(original);engine.recipe_tick(&mut Vec::new());let saved=engine.undo_snapshot();
+        command(&mut engine,"gexplore 2 0 20 64 7;play");ticks(&mut engine,1);
+        assert!(engine.gates.iter().any(|gate|gate.track==2));
+        command(&mut engine,"gexplore 1 4 40 64 8");assert!(engine.gates.iter().all(|gate|gate.track!=2));
+        let settings=engine.generator_settings(1).unwrap();assert_eq!(settings.0[4],0);assert_eq!(settings.0[11],0);assert_eq!(settings.0[12],0);assert_eq!(settings.0[19],83);
+        bass_ticks(&mut engine,500);command(&mut engine,"gexplore off;stop");assert!(engine.gates.is_empty());assert_eq!(engine.recipe_seen[1],Some(original));assert_eq!(engine.undo_snapshot(),saved);
+    }
+    #[test] fn bass_generator_overdub_and_comp_playback_remain_independent() {
+        let (mut engine,_)=bass_take();let (comp,_)=record();engine.tracks[2]=comp.tracks[2].clone();engine.tracks[2].playing_slot=None;
+        let before=engine.undo_snapshot();let original_comp=engine.tracks[2].active().locks.clone();
+        engine.play();command(&mut engine,"gpreview 1 0 0 12;usnap 990;rec 1");bass_ticks(&mut engine,1536);
+        command(&mut engine,"rec 1;stop;ucommit 990");assert_eq!(engine.tracks[2].active().locks,original_comp);
+        command(&mut engine,"uswap 990 991");assert_eq!(engine.undo_snapshot(),before);
+        engine.play();assert_eq!(engine.generator_mask()&6,6);command(&mut engine,"stop");assert_eq!(engine.generator_mask(),0);
+    }
+
+    #[test] fn bass_generator_cancel_restores_host_capture_without_a_prior_recipe() {
+        let mut engine=fixture();let saved=engine.undo_snapshot();let mut original=crate::part_settings::Settings::comp();original.0[11]=1;original.0[12]=4;
+        command(&mut engine,"gexplore 1 4 64 64 1");
+        // The production RecipeCapture response supplies host-only settings.
+        engine.generator_restore[1]=Some(original);engine.recipe_tick(&mut Vec::new());
+        assert_eq!(engine.recipe_seen[1].unwrap().0[4],0);assert!(engine.recipe_bases[1].is_none());
+        let events=command(&mut engine,"gexplore off");
+        for (key,value) in [(4,2),(11,1),(12,4)] {assert!(events.iter().any(|event|matches!(event,OutEvent::RecipeParam{track:1,key:actual,value:setting} if *actual==key&&*setting==value)));}
+        assert!(engine.recipe_seen[1].is_none());assert_eq!(engine.undo_snapshot(),saved);
+    }
 
 }

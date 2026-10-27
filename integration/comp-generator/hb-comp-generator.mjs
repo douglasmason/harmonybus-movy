@@ -23,16 +23,16 @@ globalThis.host_module_set_param_blocking=(key,value)=>{
 };
 chord.restoreChord(null);chord.setChordEnabled(true);seqState.recording=false;seqState.countingIn=false;seqState.playing=false;
 let page=chord.chordPage();let index=page.ctl.pages.findIndex(entry=>entry.level==='cp_comp_generator');assert(index>=0);page.goToPage(index);
-assert.equal(panelSpec('Chord Play',page.ctl.page).group,'Comp');
+assert.equal(panelSpec('Chord Play',page.ctl.page).group,'Libraries');
 assert.equal(panelSpec('Chord Play',page.ctl.page).owner,'Comp');
-assert.deepEqual(Array.from({length:8},(_,knob)=>page.keyAt(knob)),[...generator.generatorKeys,'cp_off']);
+assert.deepEqual(Array.from({length:5},(_,knob)=>page.keyAt(knob)),generator.generatorKeys);assert.equal(page.keyAt(7),'cp_off');
 const port=chord.chordPanelPort(3);port.getParam('midi_fx1:chain_params');
 commands=[];port.setParam('midi_fx1:cg_family','Sync');port.setParam('midi_fx1:cg_style','3-3-2');port.setParam('midi_fx1:cg_complexity','80');
 assert.equal(generator.generatorRead('cg_style',2),'3-3-2');
 assert.deepEqual(generator.generatorParameters().find(meta=>meta.key==='cg_style').options,['Sparse','3-3-2']);
 assert.equal(commands.length,0,'browsing leaves clips and parameters untouched');
 // Real capacitive touch starts only an ephemeral source. It never fills/launches.
-chord.chordMidi([0x90,5,127]);chord.chordMidi([0x80,5,0]);
+chord.chordMidi([0x90,3,127]);chord.chordMidi([0x80,3,0]);
 assert(commands.some(([key,value])=>key==='cmd'&&value.includes('gexplore 2 3')));
 assert(!commands.some(([,value])=>/\b(pload|clipfill|launch|aset|alabel)\b/.test(value)));
 assert.equal(generator.generatorRecordCommand(),'rec 2');

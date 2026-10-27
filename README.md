@@ -1,3 +1,12 @@
+## Actor generator browser (hbclean.281)
+
+Choose Comp or Bass, filter authored styles by genre, then explore temporarily.
+The existing Record button captures Complexity, Intensity and Style; recorded
+recipes support overdub, one-pass Undo and Bake. Bass includes Root / Fifth,
+Sustain, Sparse and Syncopated, with independent actor controls and mapped
+single-note articulation. See [Actor Generator](docs/comp-generator.md).
+Pair with HarmonyBus **0.2.308**.
+
 ## Context-aware Chord Discovery (hbclean.280)
 
 Starts from current or queue-tail harmony, keeps audition notes fixed until Refresh, and removes duplicate voicings while preserving distinct chord scales and functions. Pair with HarmonyBus 0.2.308. See [controls and validation](docs/contextual-discovery.md).
