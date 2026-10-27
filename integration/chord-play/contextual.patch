@@ -1,0 +1,12 @@
+diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
+index 19658580..13b54114 100644
+--- a/src/seq/chord-play.ts
++++ b/src/seq/chord-play.ts
+@@ -55,6 +55,7 @@ import {ChordDiscovery,discoveryParameters} from './chord-discovery.js';
+ 
+ export const chordDiscovery=new ChordDiscovery({
+     conductor:()=>conductorTrack(),source:()=>setup.slots[setup.selected],colorView:()=>setup.colorView,
++    queued:()=>!!setup.playMode,identity:()=>[conductorTrack(),soundTrack(),setup.source].join(','),
+     sound:()=>{const owner=portFor(soundTrack());return {get:key=>owner.getParam('midi_fx1:'+key),set:(key,value)=>{owner.setParam('midi_fx1:'+key,value);}};},
+     commit:slot=>{send(setup.playMode?'chord_queue':'chord_select',[conductorTrack(),...chordEvent(slot)].join(','));if(setup.playMode&&portFor(conductorTrack()).getParam('midi_fx1:chord_queue_depth')==='Touch Phrase')send('chord_queue','commit');activeSlot=-1;invalidateStatus();bankPollAt=-Infinity;bankUrgentUntil=Date.now()+100;},
+     save:(index,slot)=>{setup.slots[index]={...slot};setup.selected=index;bankDefinitionsDirty=true;bankPageDirty=true;markUiStateDirty();},

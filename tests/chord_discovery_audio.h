@@ -7,6 +7,7 @@ static void test_chord_discovery(void){
     set("ch0:midi_fx1:arp_playback","Together");set("ch0:midi_fx1:chord_register","0");
     set("ch0:midi_fx1:chord_voicing","Close");set("ch0:midi_fx1:chord_inversion","Root");
     set("ch0:midi_fx1:chord_queue_depth","Touch Phrase");render(8);
+    set("ch0:midi_fx1:master_transpose","C");
     set("cmd","jrec 1 1");render(800);
     set("chord_queue","0,7,1,0,1,0,1,12");render(8);
     char queue_before[512],queue_after[512],probe[512];
@@ -24,10 +25,27 @@ static void test_chord_discovery(void){
         set("ch0:midi_fx1:hb_chord_discovery_audition","off");render(8);
         assert(render(8)==0&&sent_on==sent_off);
     }
+    set("ch0:midi_fx1:hb_chord_discovery_context","0,1;2,2,2,1,0,1,12,0,0,0");
+    char context[640],request[160],frozen[160];unsigned epoch=0;
+    api->get_param(instance,"ch0:midi_fx1:hb_chord_discovery_context",context,sizeof(context));
+    assert(sscanf(context,"dc1|%u|",&epoch)==1&&strstr(context,"|Queue|cd1|G|"));
+    snprintf(request,sizeof(request),"c2,%u,0,1;2,2,2,1,0,1,12,0,0,0",epoch);
+    set("ch0:midi_fx1:hb_chord_discovery_probe",request);
+    api->get_param(instance,"ch0:midi_fx1:hb_chord_discovery_probe",probe,sizeof(probe));
+    const char *notes=probe;for(int field=0;field<3;field++){notes=strchr(notes,'|');assert(notes);notes++;}
+    const char *end=strchr(notes,'|');assert(end&&end-notes<120);
+    snprintf(frozen,sizeof(frozen),"notes:%.*s",(int)(end-notes),notes);
+    set("ch0:midi_fx1:master_transpose","D");
+    set("ch0:midi_fx1:hb_chord_discovery_probe",request);
+    api->get_param(instance,"ch0:midi_fx1:hb_chord_discovery_probe",probe,sizeof(probe));assert(!strcmp(probe,"--"));
+    rendered_mask=0;set("ch0:midi_fx1:hb_chord_discovery_audition",frozen);
+    assert(render(8)>0&&rendered_mask==((1u<<7)|(1u<<11)|(1u<<2)));
+    set("ch0:midi_fx1:hb_chord_discovery_audition","off");render(8);assert(render(8)==0&&sent_on==sent_off);
+    set("ch0:midi_fx1:master_transpose","C");
     api->get_param(instance,"state",state_after,sizeof(state_after));
     api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",queue_after,sizeof(queue_after));
     assert(!strcmp(state_before,state_after)&&!strstr(state_after,"\nra 0 "));
     assert(!strcmp(queue_before,queue_after));
     set("cmd","stop");render(8);
-    puts("Chord discovery: seven real PCM previews, balanced routed notes, unchanged armed recording and pending queue pass");
+    puts("Chord discovery: PCM voicings, queue-tail context, frozen MIDI across key changes, balanced releases and unchanged armed recording/queue pass");
 }
