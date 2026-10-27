@@ -1,4 +1,4 @@
-# Pad position — Movy 0.34.1-hbclean.269
+# Pad position — Movy 0.34.1-hbclean.270
 
 During melodic note play, Left/Right move the keyboard pattern one pad column in
 the indicated direction. Chord Play and Joint Play use this behavior too, including
@@ -32,7 +32,7 @@ the pattern while holding notes preserves their onset pitches and pressure;
 release closes those same notes. The next press uses the new position. Changing
 the target track still releases notes owned by the previous target.
 
-Requires HarmonyBus 0.2.303, unchanged from Movy .268. Update Movy through
+Requires HarmonyBus 0.2.303, unchanged from Movy .269. Update Movy through
 `douglasmason/harmonybus-movy` in Schwung's repository installer, then restart.
 
 Verification covers all keyboard layouts, available scale cardinalities and keys,
