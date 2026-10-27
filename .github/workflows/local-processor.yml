@@ -32,7 +32,14 @@ jobs:
       - name: Build production processor and compare native/API behavior
         run: bash dev/local/setup.sh
       - name: Install test browser
-        run: dev/local/node_modules/.bin/playwright install --with-deps chromium --only-shell
+        timeout-minutes: 5
+        run: |
+          # Use signed Ubuntu packages from the primary mirror, as release builds do.
+          printf 'https://archive.ubuntu.com/ubuntu\n' | sudo tee /etc/apt/apt-mirrors.txt
+          if test -f /etc/apt/sources.list.d/ubuntu.sources; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
+          fi
+          dev/local/node_modules/.bin/playwright install --with-deps chromium --only-shell
       - name: Exercise production browser controls
         run: |
           node dev/local/browser-test.cjs
