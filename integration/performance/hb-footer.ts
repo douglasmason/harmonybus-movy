@@ -1,3 +1,5 @@
+import { OPERATION_TOKEN_LABELS } from '../operation-catalog.js';
+import type { RelativeFeedback } from '../keyboard/relative-feedback.js';
 /** Compact musical context from the existing pad snapshot. ASCII fits Move's font. */
 import { fontPrint, fontWidth } from '../font/index.js';
 import { G } from '../font/glyphs.js';
@@ -28,11 +30,11 @@ export function harmonyLabel(key:number,root:number,mask:number,kind=0,target=0)
     const degrees=['I','bII','II','bIII','III','IV','#IV','V','bVI','VI','bVII','VII'];
     return chordLabel(chordName(root,mask),secondary?secondary+'/'+degrees[(target-key+12)%12]:romanHarmony(key,root,mask));
 }
-export function chordName(root:number,mask:number):string {
+export function chordName(root:number,mask:number,name=roots[root]):string {
     if(root<0||!mask)return '--';
     const quality=romanHarmony(root,root,mask).replace(/^[b#]?[ivIV]+/,'');
     const minor=!!(mask&(1<<((root+3)%12)))&&!(mask&(1<<((root+4)%12)));
-    return roots[root]+(minor&&!quality.startsWith('o')&&!quality.startsWith('h')?'m':'')+quality;
+    return name+(minor&&!quality.startsWith('o')&&!quality.startsWith('h')?'m':'')+quality;
 }
 export function fitFooter(text:string):string {
     if(fontWidth(text)<=126)return text;
@@ -66,7 +68,14 @@ export function queueFooterText(next:string,status:string,snapshot=''):string {
     }
     return fitFooter(line(left,right));
 }
-export function harmonyFooterText(mode:number,track:number,data?:readonly number[]):string{
+export function relativeFeedbackText(feedback:RelativeFeedback):string {
+    const operation=OPERATION_TOKEN_LABELS[feedback.token];
+    if(!operation)return '';
+    const result=feedback.chord?chordName(feedback.root,feedback.mask,feedback.rootName).replace(/o(7)?$/, 'dim$1').replace(/h7$/, 'm7b5'):feedback.rootName;
+    return fitFooter(feedback.targetName+' > '+operation+' '+result);
+}
+export function harmonyFooterText(mode:number,track:number,data?:readonly number[],feedback?:RelativeFeedback):string{
+    if(feedback){const text=relativeFeedbackText(feedback);if(text)return text;}
     const prefix=(mode?'P'+mode:'S')+' T'+(track+1);
     if(!data)return prefix;
     const [key,scale,current,currentMask,next,nextMask,currentKind,currentTarget,nextKind,nextTarget]=data;
