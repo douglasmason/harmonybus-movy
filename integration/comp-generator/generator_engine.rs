@@ -1,45 +1,49 @@
 impl Engine {
-    pub fn generator_exploring(&self,track:usize)->bool {self.generator_explore.is_some_and(|state|state.track==track)}
-    pub fn generator_free(&self,track:usize)->bool {self.generator_explore.is_some_and(|state|state.track==track&&state.source.is_none())}
+    pub fn generator_exploring(&self,track:usize)->bool {self.generator_explore.get(track).is_some_and(Option::is_some)}
+    pub fn generator_free(&self,track:usize)->bool {self.generator_explore.get(track).copied().flatten().is_some_and(|state|state.source.is_none())}
     pub fn generator_owns(&self,track:usize)->bool {
         self.generator_exploring(track)||self.tracks.get(track).and_then(|target|target.playing()).is_some_and(|clip|clip.generator.is_some())
     }
     pub fn generator_mask(&self)->u16 {(0..NUM_TRACKS).filter(|track|self.generator_exploring(*track)||(self.playing&&(self.generator_owns(*track)||self.tracks[*track].playing().is_some_and(|clip|clip.recipe.as_ref().is_some_and(|recipe|matches!(recipe.name.as_str(),"Comp-Generator"|"Bass-Generator")))))).fold(0,|mask,track|mask|(1<<track))}
     pub fn generator_settings(&self,track:usize)->Option<crate::part_settings::Settings> {
-        self.generator_explore.filter(|state|state.track==track).and_then(|state|self.generator_restore[track].map(|settings|if state.source.is_none(){state.current.settings(settings)}else{settings}))
+        self.generator_explore[track].and_then(|state|self.generator_restore[track].map(|settings|if state.source.is_none(){state.current.settings(settings)}else{settings}))
     }
     pub fn generator_info(&self,track:usize)->String {
         let Some(target)=self.tracks.get(track) else {return "error:Invalid track".into();};
         let clip=target.active();
         let step=if self.playing&&target.playing_slot==Some(target.active_clip) {(target.pos_tick/TICKS_PER_STEP) as u16}else{clip.loop_start_steps};
         let mut config=clip.generator.map(|config|config.at(clip,&target.lane_label,step)).unwrap_or_default();
-        let state=self.generator_explore.filter(|state|state.track==track&&state.source.is_none_or(|slot|slot==target.active_clip&&clip.generator.is_some()));
+        let state=self.generator_explore[track].filter(|state|state.source.is_none_or(|slot|slot==target.active_clip&&clip.generator.is_some()));
         if let Some(state)=state {
             if state.source.is_none(){config=state.desired;}else{config=Self::generator_override(config,state.desired,state.touched);}
         }
         let mode=if let Some(state)=state {if self.recording&&self.records_track(track){if state.source.is_some(){"Overdub"}else{"Recording"}}else if state.source.is_some(){"Preview"}else{"Exploring"}}
             else if target.active().generator.is_some(){"Recorded"}else{"Off"};
-        format!("{}|{}|{}|{}",mode,target.active_clip,config.wire(),self.generator_result)
+        format!("{}|{}|{}|{}|{}",mode,target.active_clip,config.wire(),self.generator_result,self.generator_record_track().map_or(-1,|owner|owner as i32))
     }
     /// Audition commands never enter the edit/dirty/Undo path.
     pub fn generator_explore_set(&mut self,message:&str,out:&mut Vec<OutEvent>)->bool {
         let fields:Vec<_>=message.split_whitespace().collect();
         if fields.len()==2&&fields[1]=="off" {self.generator_cancel(out);return true;}
+        if fields.len()==3&&fields[2]=="off" {
+            let Some(track)=fields[1].parse::<usize>().ok().filter(|track|*track<NUM_TRACKS) else{return false;};
+            self.generator_cancel_track(track,out);return true;
+        }
         if fields.len()!=6 {self.generator_result="Invalid generator".into();return false;}
         let Some(track)=fields[1].parse::<usize>().ok().filter(|track|*track<NUM_TRACKS&&!self.track_is_drum(*track)) else {self.generator_result="Choose a melodic actor track".into();return false;};
         let Some(config)=crate::generator::Config::parse(&fields[2..].join(" ")) else {return false;};
-        if self.part_recording_busy() {
-            let Some(state)=self.generator_explore.as_mut().filter(|state|state.track==track) else {self.generator_result="Finish recording first".into();return false;};
+        if self.part_recording_busy()&&self.records_track(track) {
+            let Some(state)=self.generator_explore[track].as_mut() else {self.generator_result="Finish recording first".into();return false;};
             if config.seed!=state.desired.seed {self.generator_result="Seed locked during recording".into();return false;}
             if !state.current.accepts_style(config.style){self.generator_result="Finish this actor take first".into();return false;}
             state.desired=config;return true;
         }
         if self.tracks[track].active().generator.is_some(){self.generator_result="Use the recorded clip controls".into();return false;}
-        if let Some(state)=self.generator_explore.as_mut().filter(|state|state.track==track) {state.desired=config;return true;}
-        self.generator_cancel(out);
+        if let Some(state)=self.generator_explore[track].as_mut() {if !state.current.accepts_style(config.style){self.generator_result="Stop this track before changing actor".into();return false;}state.desired=config;return true;}
+        self.generator_cancel_track(track,out);
         self.flush_track_gates(track,out);
         self.generator_restore[track]=self.recipe_seen[track].or(self.recipe_bases[track]);
-        self.generator_explore=Some(crate::generator::Explore {track,desired:config,current:config,take:None,source:None,touched:7});
+        self.generator_explore[track]=Some(crate::generator::Explore {track,desired:config,current:config,take:None,destination:None,source:None,touched:7});
         self.generator_result="Explore - Rec saves to an empty clip".into();
         out.push(OutEvent::RecipeCapture{track:track as u8});true
     }
@@ -59,9 +63,9 @@ impl Engine {
         let Some(config)=target.clips[slot].generator else {self.generator_result="Select a recorded generator clip".into();return false;};
         if target.active_clip!=slot {self.generator_result="Clip changed".into();return false;}
         if self.playing&&target.playing_slot!=Some(slot) {self.generator_result="Play the selected actor clip first".into();return false;}
-        let same=self.generator_explore.is_some_and(|state|state.track==track&&state.source==Some(slot));
-        let adopting=self.generator_explore.is_none()&&self.records_track(track)&&self.joint_record_mask==0&&!self.source_routes[track].enabled;
-        if self.part_recording_busy()&&!same&&!adopting {self.generator_result="Finish recording first".into();return false;}
+        let same=self.generator_explore[track].is_some_and(|state|state.source==Some(slot));
+        let adopting=self.generator_explore[track].is_none()&&self.records_track(track)&&self.joint_record_mask==0&&!self.source_routes[track].enabled;
+        if self.part_recording_busy()&&self.records_track(track)&&!same&&!adopting {self.generator_result="Finish recording first".into();return false;}
         let edit=if fields.len()==5 {
             let Some(field)=fields[3].parse::<usize>().ok().filter(|field|*field<3) else{return false;};
             let Some(value)=fields[4].parse::<u8>().ok().filter(|value|*value<=127&&(field!=2||(*value as usize)<crate::generator::STYLES.len())) else{return false;};
@@ -69,29 +73,42 @@ impl Engine {
             Some((field,value))
         }else{None};
         if !same {
-            self.generator_cancel(out);
+            self.generator_cancel_track(track,out);
             let target=&self.tracks[track];let clip=&target.clips[slot];
             let step=if self.playing {(target.pos_tick/TICKS_PER_STEP) as u16}else{clip.loop_start_steps};
             let current=config.at(clip,&target.lane_label,step);
             self.generator_restore[track]=clip.recipe.as_ref().map(|recipe|recipe.settings).or(self.recipe_bases[track]);
-            self.generator_explore=Some(crate::generator::Explore {track,desired:current,current,take:None,source:Some(slot),touched:0});
+            self.generator_explore[track]=Some(crate::generator::Explore {track,desired:current,current,take:None,destination:if self.part_recording_busy()&&self.records_track(track){Some(slot)}else{None},source:Some(slot),touched:0});
         }
         if let Some((field,value))=edit {
-            let state=self.generator_explore.as_mut().unwrap();state.touched|=1<<field;
+            let state=self.generator_explore[track].as_mut().unwrap();state.touched|=1<<field;
             match field {0=>state.desired.complexity=value,1=>state.desired.intensity=value,2=>state.desired.style=value,_=>{}}
         }
         self.generator_result="Preview - Record captures changes".into();true
     }
+    /// Recording is owned by the ordinary recorder, never by the browsed actor.
+    pub fn generator_record_track(&self)->Option<usize> {
+        (self.part_recording_busy()&&self.generator_exploring(self.rec_track)).then_some(self.rec_track)
+    }
     fn generator_check_target(&mut self,out:&mut Vec<OutEvent>) {
-        if self.generator_explore.is_some_and(|state|state.source.is_some_and(|slot| {
-            let track=&self.tracks[state.track];
-            track.active_clip!=slot||track.playing_slot!=Some(slot)||track.clips[slot].generator.is_none()
-        })) {self.generator_cancel(out);self.generator_result="Preview ended: clip changed".into();}
+        for track in 0..NUM_TRACKS {
+            let changed=self.generator_explore[track].is_some_and(|state| {
+                let target=&self.tracks[track];
+                state.destination.is_some_and(|slot|target.active_clip!=slot||
+                    (self.recording&&self.records_track(track)&&target.playing_slot!=Some(slot))) ||
+                state.source.is_some_and(|slot|target.active_clip!=slot||
+                    (self.playing&&self.count_in_left==0&&target.playing_slot!=Some(slot))||target.clips[slot].generator.is_none())
+            });
+            if changed {self.generator_cancel_track(track,out);self.generator_result="Preview ended: clip changed".into();}
+        }
     }
     pub fn generator_cancel(&mut self,out:&mut Vec<OutEvent>) {
-        if let Some(state)=self.generator_explore.take() {
-            if self.part_recording_busy()&&self.records_track(state.track) {if self.pending_rec {self.tracks[state.track].queued_slot=None;}self.recording=false;self.pending_rec=false;self.count_in_left=0;}
-            self.flush_track_gates(state.track,out);
+        for track in 0..NUM_TRACKS {self.generator_cancel_track(track,out);}
+    }
+    pub fn generator_cancel_track(&mut self,track:usize,out:&mut Vec<OutEvent>) {
+        if let Some(state)=self.generator_explore[track].take() {
+            if self.part_recording_busy()&&self.records_track(track) {if self.pending_rec {self.tracks[track].queued_slot=None;}self.recording=false;self.pending_rec=false;self.count_in_left=0;}
+            self.flush_track_gates(track,out);
             self.generator_finish_take(state);
             self.recipe_tick(out);
         }
@@ -104,8 +121,8 @@ impl Engine {
         }
     }
     /// Validate before the normal Record command creates or arms a destination.
-    fn generator_prepare_record(&mut self)->bool {
-        let Some(state)=self.generator_explore else {return true;};
+    fn generator_prepare_record(&mut self,track:usize)->bool {
+        let Some(state)=self.generator_explore.get(track).copied().flatten() else {return true;};
         if self.generator_restore[state.track].is_some_and(|settings|!settings.mapped()) {self.generator_result="Actor needs mapped input".into();return false;}
         let track=&self.tracks[state.track];
         let clip=track.active();
@@ -118,17 +135,18 @@ impl Engine {
         if self.source_routes[state.track].enabled {self.generator_result="Set actor sources to Own before recording".into();return false;}
         let available=(0..8).filter(|lane|!track.lane_assigned[*lane]||crate::generator::internal(&track.lane_label[*lane])).count();
         if available<3 {self.generator_result="Three automation lanes needed".into();return false;}
+        self.generator_explore[state.track].as_mut().unwrap().destination=Some(track.active_clip);
         self.generator_result="Recording armed".into();true
     }
     fn generator_capture_tick(&mut self,track:usize,slot:usize,pos:u32,out:&mut Vec<OutEvent>) {
-        let Some(mut state)=self.generator_explore.filter(|state|state.track==track) else {return;};
+        let Some(mut state)=self.generator_explore[track] else {return;};
         if !self.recording||!self.records_track(track) {return;}
         if state.source.is_some() {
-            state.take=Some(slot);self.generator_explore=Some(state);
+            state.take=Some(slot);self.generator_explore[track]=Some(state);
             if pos%TICKS_PER_STEP==0 {
                 match self.generator_overdub_step(track,slot,(pos/TICKS_PER_STEP) as u16,state) {
                     Ok(changed)=>self.dirty|=changed,
-                    Err(error)=>{self.generator_cancel(out);self.generator_result=error.into();}
+                    Err(error)=>{self.generator_cancel_track(track,out);self.generator_result=error.into();}
                 }
             }
             return;
@@ -136,7 +154,7 @@ impl Engine {
         if state.take.is_none() {
             let available=(0..8).filter(|lane|!self.tracks[track].lane_assigned[*lane]||crate::generator::internal(&self.tracks[track].lane_label[*lane])).count();
             if available<3 {self.recording=false;self.generator_result="Three automation lanes needed".into();return;}
-            state.take=Some(slot);self.generator_explore=Some(state);
+            state.take=Some(slot);self.generator_explore[track]=Some(state);
             let clip=&mut self.tracks[track].clips[slot];
             clip.generator=Some(state.current);
             clip.input_key=crate::follower_input::InputKey::new(0,1);
@@ -198,8 +216,8 @@ impl Engine {
             self.generator_result="Actor needs Relative or Closest Split mapping".into();return;
         }
         let slot=self.tracks[track].playing_slot.unwrap_or(self.tracks[track].active_clip);
-        if self.generator_explore.is_some_and(|state|state.track==track&&state.take.is_some_and(|take|take!=slot||self.tracks[track].clips[take].generator.is_none())) {
-            self.generator_cancel(out);self.generator_result="Recording ended: clip changed".into();return;
+        if self.generator_explore[track].is_some_and(|state|state.take.is_some_and(|take|take!=slot||self.tracks[track].clips[take].generator.is_none())) {
+            self.generator_cancel_track(track,out);self.generator_result="Recording ended: clip changed".into();return;
         }
         let recording=self.recording&&self.records_track(track);
         let free=self.generator_free(track)&&!recording;
@@ -207,7 +225,7 @@ impl Engine {
         let clip=&self.tracks[track].clips[slot];
         let base=clip.generator.map(|config|config.at(clip,&self.tracks[track].lane_label,(pos/TICKS_PER_STEP) as u16));
         let loop_start=clip.loop_start_ticks();
-        if let Some(state)=self.generator_explore.as_mut().filter(|state|state.track==track) {
+        if let Some(state)=self.generator_explore[track].as_mut() {
             let mut accepted=state.current;
             if pos%TICKS_PER_STEP==0 {accepted.complexity=state.desired.complexity;accepted.intensity=state.desired.intensity;}
             if pos%crate::TICKS_PER_BAR==0||(state.source.is_some()&&pos==loop_start) {accepted.style=state.desired.style;accepted.seed=state.desired.seed;}
@@ -224,7 +242,7 @@ impl Engine {
             if tick<start||tick>=end {continue;}
             let fire=(tick+self.swing_delay(step,snum,sden)).min(end-1);
             if fire!=pos {continue;}
-            let config=if let Some(state)=self.generator_explore.filter(|state|state.track==track) {state.current}
+            let config=if let Some(state)=self.generator_explore[track] {state.current}
                 else {let clip=&self.tracks[track].clips[slot];clip.generator.unwrap().at(clip,&self.tracks[track].lane_label,step)};
             if let Some(note)=config.note(step) {
                 if config.bass() {
@@ -249,7 +267,7 @@ impl Engine {
         if fields.len()!=3 {return Err("Invalid Bake target");}
         let track=fields[1].parse::<usize>().map_err(|_|"Invalid track")?;
         let slot=fields[2].parse::<usize>().map_err(|_|"Invalid clip")?;
-        if self.part_recording_busy()||self.generator_explore.is_some(){return Err("Stop exploring or recording first");}
+        if self.part_recording_busy()||self.generator_exploring(track){return Err("Stop exploring or recording first");}
         let target=self.tracks.get(track).ok_or("Invalid track")?;
         if slot!=target.active_clip{return Err("Clip changed");}
         let clip=target.clips.get(slot).ok_or("Invalid clip")?;

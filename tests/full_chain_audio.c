@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 static int sent_on,sent_off,rejected;
+static int duet_capture,duet_balance[16][128];
 static int capture_register,register_low=128,register_high=-1;
 static unsigned routed_channel_on[16];
 static int source_velocity_check;
@@ -25,6 +26,11 @@ static double position(void){return beat;}
 static int clock_status(void){return 0;}
 static int send_packet(const uint8_t *packet,int length){
     if(length!=4){rejected++;return 0;}
+    if(duet_capture&&((packet[1]&0xf0)==0x90||(packet[1]&0xf0)==0x80)){
+        int on=(packet[1]&0xf0)==0x90&&packet[3];
+        duet_balance[packet[1]&15][packet[2]]+=on?1:-1;
+        assert(duet_balance[packet[1]&15][packet[2]]>=0);
+    }
     if(drum_clip_capture&&((packet[1]&0xf0)==0x90||(packet[1]&0xf0)==0x80)){
         assert((packet[1]&15)==0&&drum_clip_packet_count<128);
         for(int field=0;field<3;field++)drum_clip_packets[drum_clip_packet_count][field]=packet[field+1];
