@@ -1,4 +1,4 @@
-name: Chord discovery and performance verification
+name: Parent key and pad position verification
 on:
   push:
     branches: [main]
@@ -9,6 +9,7 @@ on:
       - tests/chord_discovery_audio.h
       - docs/pad-position.md
       - tests/audio_probe.c
+      - tests/pad_parent_key_audio.h
       - integration/harmonybus.ref
       - integration/operation-catalog.ts
       - integration/scale-catalog.ts
@@ -88,6 +89,7 @@ on:
       - tests/chord_discovery_audio.h
       - docs/pad-position.md
       - tests/audio_probe.c
+      - tests/pad_parent_key_audio.h
       - integration/harmonybus.ref
       - integration/operation-catalog.ts
       - integration/scale-catalog.ts
@@ -165,7 +167,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.273
+  SOURCE_VERSION: 0.34.1-hbclean.274
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -209,6 +211,7 @@ jobs:
       - name: Native sequencer, DSP and full production chain
         run: |
           cargo test --manifest-path movy/engine/Cargo.toml -p seq-core -p movy-dsp
+          grep -q HB_PARENT_KEY_WITHOUT_CONDUCTOR harmonybus/modules/harmonybus/dsp/harmonybus.c
           test -f harmonybus/src/chord_queue.h
           grep -q HB_SELECTION_INTENT_TAG harmonybus/src/chord_selection.h
           grep -q 'key->count=hb_cp_voice_semantic' harmonybus/src/chord_selection_input.h
@@ -252,7 +255,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: chord-discovery-273
+          name: parent-key-274
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -273,10 +276,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.272':
-              raise SystemExit('Expected Movy 272 before chord discovery release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.273':
+              raise SystemExit('Expected Movy 273 before parent key release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Chord Discovery" --notes-file docs/chord-discovery.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Parent Key and Pad Position" --notes-file docs/pad-position.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -289,7 +292,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.272':
+          if metadata['version'] != '0.34.1-hbclean.273':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
@@ -297,5 +300,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add release.json
-          git commit -m "Publish verified Chord Discovery $SOURCE_VERSION [skip ci]"
+          git commit -m "Publish verified Parent Key and Pad Position $SOURCE_VERSION [skip ci]"
           git push origin HEAD:main
