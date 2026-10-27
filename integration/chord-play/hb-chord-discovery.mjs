@@ -43,7 +43,7 @@ const queued=commands.slice(queuedBefore).filter(([key])=>key==='chord_queue');
 assert.equal(queued.length,2);assert(queued[0][1].startsWith('0,'));assert.equal(queued[1][1],'commit');
 assert(controls.setParam('midi_fx1:cp_play_mode','Immediate'));
 // Owner is captured at touch-down, even if the route changes before release.
-chord.chordMidi([144,16,100]);chord.setChordCompSource(1);chord.chordMidi([128,16,0]);assert.equal(requests.at(-1)[1],'off');
+chord.chordMidi([144,16,100]);chord.setChordCompSource(1);tick();assert.equal(requests.at(-1)[1],'off','routing changes release the original owner before physical release');chord.chordMidi([128,16,0]);
 chord.setChordCompSource(0);tick();
 visit('cp_voicings');for(let index=0;index<7;index++)tick();
 chord.chordMidi([144,2,100]);chord.chordMidi([128,2,0]);const beforeKeep=commands.length;

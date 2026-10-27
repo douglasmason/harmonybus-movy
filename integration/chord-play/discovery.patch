@@ -72,7 +72,7 @@ index de1e90d7..edbd78e2 100644
  const specCache=new WeakMap<object,Map<string,PanelSpec>>();
  /** Generated overflow retains its owner's group, but never inherits a Core slot. */
 diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
-index e61779f8..62d0e622 100644
+index e61779f8..e0017769 100644
 --- a/src/seq/chord-play.ts
 +++ b/src/seq/chord-play.ts
 @@ -50,6 +50,16 @@ import { recToggle } from '../undo/rec-pass.js';
@@ -151,7 +151,7 @@ index e61779f8..62d0e622 100644
      for(const [name,track,panels] of actorPanels()){
          for(const source of panels){const original=levels[source];if(!original)continue;
              const key='cp_'+name+'_'+source,remap=(key:string)=>name==='Melody'?key:'cp_track_'+track+'_'+key;
-@@ -383,6 +401,10 @@ export function tickChord():void{
+@@ -383,10 +401,14 @@ export function tickChord():void{
      const melody=appState.activeTrack.index;
      if(melody===setup.comp||melody===setup.conductor||melody===setup.bass){setChordEnabled(false);seqToast('Choose distinct tracks');return;}
      refreshBank();
@@ -162,6 +162,11 @@ index e61779f8..62d0e622 100644
      if(setup.playMode)queueStatus();
      const followMelody=setup.source===2||(setup.source===0&&!conductorRenders);
      const next=[melody,setup.comp,followMelody?1:setup.source===0&&conductorRenders?2:0].join(',')+(setup.bassClip?','+setup.bass:'');
+-    if(next!==route){send('chord_route',next);route=next;}
++    if(next!==route){chordDiscovery.stop();send('chord_route',next);route=next;}
+     if(bankPageDirty&&!touches.size&&!controls.size&&!steps.size&&!rangeTouches.size&&!queuePhrase.active){const current=chordPage(),level=current.ctl.page?.level,index=current.pageIndex,navigation=current.ctl.hbNavigation?.state();current.reload();const next=current.ctl.pages.findIndex((entry:any)=>entry.level===level);current.goToPage(next<0?index:next);current.ctl.hbNavigation?.restore(navigation);bankPageDirty=false;}
+     if(page)updateChordLabels(page);
+     if(!settingsActive()){
 @@ -402,6 +424,7 @@ export function chordPadModalActive():boolean {
  }
  export function chordMidi(data:number[],panels=true,surface?:SchwungPage):boolean{
