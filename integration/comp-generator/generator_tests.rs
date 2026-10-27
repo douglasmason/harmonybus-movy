@@ -116,6 +116,100 @@
         assert!(engine.undo_restore(&before));engine.humanize=crate::humanize::Humanize::parse("hu1,10,0,0,4",4);
         let before=engine.undo_snapshot();command(&mut engine,"gbake 2 0");assert!(!engine.generator_result.starts_with("Baked"));assert_eq!(before,engine.undo_snapshot());
     }
+    #[test] fn generator_existing_preview_preserves_clock_notes_settings_and_saved_bytes() {
+        let (mut engine,_)=record();engine.stop(&mut Vec::new());
+        let clip=&mut engine.tracks[2].clips[0];
+        clip.loop_start_steps=16;clip.length_steps=48;clip.scale_num=3;clip.scale_den=2;clip.transpose=12;
+        clip.notes.push(Config::default().note(16).unwrap());engine.swing_pct=63;
+        let saved=engine.undo_snapshot();let mut reference=fixture();assert!(crate::persist::load(&mut reference,&saved));
+        reference.play();let expected=ticks(&mut reference,768);
+        engine.dirty=false;engine.play();command(&mut engine,"gpreview 2 0");
+        assert_eq!(ticks(&mut engine,768),expected,"a transparent preview uses the clip clock and retains manual notes");
+        let position=engine.tracks[2].pos_tick;command(&mut engine,"gpreview 2 0 1 127");ticks(&mut engine,72);
+        let resumed_position=engine.tracks[2].pos_tick;assert_ne!(position,resumed_position);
+        command(&mut engine,"gexplore off");assert_eq!(engine.tracks[2].pos_tick,resumed_position);
+        assert_eq!(engine.undo_snapshot(),saved);assert!(!engine.dirty);
+    }
+    #[test] fn generator_overdub_changes_only_visited_control_intervals_and_has_one_native_undo() {
+        let (mut engine,_)=record();engine.stop(&mut Vec::new());
+        engine.auto_label(2,5,"synth:cutoff");engine.tracks[2].clips[0].set_lock(5,8,83);
+        engine.tracks[2].clips[0].notes.push(Config::default().note(4).unwrap());
+        let original=engine.tracks[2].clips[0].clone();let saved=engine.undo_snapshot();
+        engine.play();ticks(&mut engine,101);command(&mut engine,"gpreview 2 0 1 127;usnap 911;rec 2");
+        assert!(engine.recording);assert!(!engine.pending_rec);assert!(!engine.rec_empty_start);assert_eq!(engine.tracks[2].pos_tick,101);
+        ticks(&mut engine,200);command(&mut engine,"rec 2;ucommit 911");
+        let clip=&engine.tracks[2].clips[0];let labels=&engine.tracks[2].lane_label;
+        assert_eq!(clip.generator,original.generator);assert_eq!(clip.length_steps,original.length_steps);assert_eq!(clip.notes.len(),original.notes.len());
+        for step in 0..128 {
+            let before=original.generator.unwrap().at(&original,labels,step);let after=clip.generator.unwrap().at(clip,labels,step);
+            assert_eq!(after.intensity,if (5..13).contains(&step){127}else{before.intensity},"punch interval step {step}");
+            assert_eq!(after.complexity,before.complexity);assert_eq!(after.style,before.style);
+        }
+        assert_eq!(clip.lock_at(5,8),Some(83));
+        assert!(clip.locks.len()<original.locks.len()+5,"a held control does not accumulate one redundant lock per tick");
+        command(&mut engine,"stop;uswap 911 912");assert_eq!(engine.undo_snapshot(),saved);
+    }
+    #[test] fn generator_overdub_without_movement_is_noop_and_multiple_loops_keep_length() {
+        let (mut engine,_)=record();engine.stop(&mut Vec::new());let saved=engine.undo_snapshot();
+        command(&mut engine,"gpreview 2 0;rec 2");assert_eq!(engine.count_in_left,crate::TICKS_PER_BAR);
+        ticks(&mut engine,crate::TICKS_PER_BAR+6200);command(&mut engine,"rec 2;stop");
+        assert_eq!(engine.undo_snapshot(),saved,"no knob movement must leave the original curves intact");
+        engine.play();command(&mut engine,"gpreview 2 0 0 127;rec 2");ticks(&mut engine,6200);command(&mut engine,"rec 2;stop");
+        assert_eq!(engine.tracks[2].clips[0].length_steps,128);assert_eq!(engine.tracks[2].clips[0].generator.unwrap().end,3072);
+        assert!(engine.tracks[2].clips[0].locks.len()<20,"looped latch recording remains compact");
+    }
+    #[test] fn generator_overdub_style_accepts_on_bar_and_restores_the_following_bar() {
+        let (mut engine,_)=record();engine.stop(&mut Vec::new());let original=engine.tracks[2].clips[0].clone();
+        engine.play();ticks(&mut engine,100);command(&mut engine,"gpreview 2 0 2 1;rec 2");
+        ticks(&mut engine,285);command(&mut engine,"rec 2");
+        let clip=&engine.tracks[2].clips[0];let labels=&engine.tracks[2].lane_label;
+        for step in 0..128 {
+            assert_eq!(clip.generator.unwrap().at(clip,labels,step).style,if (16..32).contains(&step){1}else{original.generator.unwrap().at(&original,labels,step).style});
+        }
+    }
+    #[test] fn generator_overdub_selection_change_and_count_in_cancel_cannot_write_another_clip() {
+        let (mut engine,_)=record();engine.stop(&mut Vec::new());
+        engine.tracks[2].clips[1]=engine.tracks[2].clips[0].clone();let saved=engine.undo_snapshot();
+        command(&mut engine,"gpreview 2 0 0 127;rec 2");ticks(&mut engine,50);command(&mut engine,"gexplore off");
+        assert!(!engine.part_recording_busy());ticks(&mut engine,400);engine.stop(&mut Vec::new());assert_eq!(engine.undo_snapshot(),saved);
+        engine.play();command(&mut engine,"gpreview 2 0 0 127;rec 2");ticks(&mut engine,100);
+        let other=engine.tracks[2].clips[1].clone();engine.select_clip(2,1);ticks(&mut engine,1);
+        assert!(engine.generator_explore.is_none());assert!(!engine.part_recording_busy());
+        assert_eq!(engine.tracks[2].clips[1].locks,other.locks);assert!(engine.gates.iter().all(|gate|gate.track!=2));
+    }
+    #[test] fn generator_overdub_replay_reload_and_bake_match_recorded_midi_with_speed_and_swing() {
+        let (mut engine,_)=record();engine.stop(&mut Vec::new());
+        engine.tracks[2].clips[0].scale_num=2;engine.swing_pct=63;
+        engine.play();command(&mut engine,"gpreview 2 0 1 127;rec 2");let recorded=ticks(&mut engine,1536);
+        command(&mut engine,"rec 2;stop");let saved=engine.undo_snapshot();
+        let mut restored=fixture();assert!(crate::persist::load(&mut restored,&saved));restored.play();
+        assert_eq!(ticks(&mut restored,1536),recorded);
+        restored.stop(&mut Vec::new());command(&mut restored,"gbake 2 0");restored.play();assert_eq!(ticks(&mut restored,1536),recorded);
+    }
+    #[test] fn generator_overdub_full_automation_capacity_refuses_the_whole_boundary_edit() {
+        let (mut engine,_)=record();engine.stop(&mut Vec::new());
+        for lane in 3..8 {for step in 0..256 {
+            if engine.tracks[2].clips[0].locks.len()<crate::clip::MAX_LOCKS {engine.tracks[2].clips[0].set_lock(lane,step,61);}
+        }}
+        engine.play();command(&mut engine,"gpreview 2 0 1 127;rec 2");let before=engine.undo_snapshot();
+        ticks(&mut engine,1);assert!(!engine.part_recording_busy());assert!(engine.generator_explore.is_none());
+        assert_eq!(engine.generator_result,"Automation capacity reached");assert_eq!(engine.undo_snapshot(),before);
+    }
+    #[test] fn generator_overdub_can_join_an_ordinary_record_pass_on_the_same_comp_clip() {
+        let (mut engine,_)=record();engine.stop(&mut Vec::new());engine.play();ticks(&mut engine,100);
+        command(&mut engine,"rec 2");assert!(engine.recording);assert!(engine.generator_explore.is_none());
+        command(&mut engine,"gpreview 2 0 1 101");assert_eq!(engine.generator_explore.unwrap().source,Some(0));
+        assert_eq!(engine.tracks[2].pos_tick,100);ticks(&mut engine,25);command(&mut engine,"rec 2");
+        let clip=&engine.tracks[2].clips[0];assert_eq!(clip.generator.unwrap().at(clip,&engine.tracks[2].lane_label,5).intensity,101);
+        assert_eq!(clip.length_steps,128);
+    }
+    #[test] fn generator_overdub_trimmed_loop_accepts_style_at_its_start() {
+        let (mut engine,_)=record();engine.stop(&mut Vec::new());
+        engine.tracks[2].clips[0].set_loop(16,16);engine.tracks[2].clips[0].set_clip_length(5);engine.play();command(&mut engine,"gpreview 2 0 2 2;rec 2");
+        ticks(&mut engine,120);command(&mut engine,"rec 2;stop");
+        let clip=&engine.tracks[2].clips[0];assert_eq!(clip.loop_start_steps,16);assert_eq!(clip.length_steps,5);
+        for step in 16..21 {assert_eq!(clip.generator.unwrap().at(clip,&engine.tracks[2].lane_label,step).style,2);}
+    }
     #[test] fn generator_audio_block_sizes_do_not_change_the_sequence() {
         let (engine,_)=record();let saved=engine.undo_snapshot();
         let run=|block:u32| {

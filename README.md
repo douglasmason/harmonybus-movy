@@ -1,3 +1,5 @@
+Movy **0.34.1-hbclean.278** adds generator automation overdubbing with the existing Record button: recall a recorded Comp recipe, audition controls temporarily, then capture only the controls you move. One Undo restores the whole pass. Preserves loop timing, other automation and the saved seed. See [Comp Generator](docs/comp-generator.md). Pair with HarmonyBus **0.2.307**.
+
 ## UI responsiveness (hbclean.277)
 
 Bounds failed light-feedback retries, batches approach status, and pauses hidden
