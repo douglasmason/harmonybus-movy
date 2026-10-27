@@ -1,10 +1,12 @@
-name: Adaptive operations, scales and performance verification
+name: Chord discovery and performance verification
 on:
   push:
     branches: [main]
     paths:
       - integration/pad-position/**
       - scripts/patch_pad_position.py
+      - scripts/patch_chord_discovery.py
+      - tests/chord_discovery_audio.h
       - docs/pad-position.md
       - tests/audio_probe.c
       - integration/harmonybus.ref
@@ -15,7 +17,7 @@ on:
       - integration/approach/**
       - scripts/patch_approach_mode.py
       - tests/relative_operations_ui.mjs
-      - docs/relative-operations.md
+      - docs/chord-discovery.md
       - integration/single-conductor/**
       - scripts/patch_single_conductor.py
       - tests/single_conductor_audio.h
@@ -82,6 +84,8 @@ on:
     paths:
       - integration/pad-position/**
       - scripts/patch_pad_position.py
+      - scripts/patch_chord_discovery.py
+      - tests/chord_discovery_audio.h
       - docs/pad-position.md
       - tests/audio_probe.c
       - integration/harmonybus.ref
@@ -92,7 +96,7 @@ on:
       - integration/approach/**
       - scripts/patch_approach_mode.py
       - tests/relative_operations_ui.mjs
-      - docs/relative-operations.md
+      - docs/chord-discovery.md
       - integration/single-conductor/**
       - scripts/patch_single_conductor.py
       - tests/single_conductor_audio.h
@@ -161,7 +165,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.272
+  SOURCE_VERSION: 0.34.1-hbclean.273
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -192,7 +196,7 @@ jobs:
           npm run typecheck
           npm run build:browser
           node browser-test/logic.mjs
-          for suite in hb-pad-position hb-ui-overhead hb-ui-tick-overhead hb-settings-case hb-chord-settings hb-panel-catalog hb-interface-usage hb-footer-test hb-performance-controls hb-drum-gesture hb-conductor-content hb-joint-chords hb-chord-queue hb-chord-range hb-navigation-lights hb-single-conductor hb-clips-fill hb-part-library hb-clips-view hb-panel-navigation hb-chord-play hb-chord-pad-feedback hb-pad-colors hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
+          for suite in hb-chord-discovery hb-pad-position hb-ui-overhead hb-ui-tick-overhead hb-settings-case hb-chord-settings hb-panel-catalog hb-interface-usage hb-footer-test hb-performance-controls hb-drum-gesture hb-conductor-content hb-joint-chords hb-chord-queue hb-chord-range hb-navigation-lights hb-single-conductor hb-clips-fill hb-part-library hb-clips-view hb-panel-navigation hb-chord-play hb-chord-pad-feedback hb-pad-colors hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
             node "browser-test/$suite.mjs"
           done
           # Legacy app-loop fails unchanged on the pre-routing hbclean.209 baseline.
@@ -248,7 +252,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: adaptive-scales-272
+          name: chord-discovery-273
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -269,10 +273,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.271':
-              raise SystemExit('Expected Movy 271 before pad position release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.272':
+              raise SystemExit('Expected Movy 272 before chord discovery release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Adaptive Operations and Scales" --notes-file docs/relative-operations.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Chord Discovery" --notes-file docs/chord-discovery.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -285,7 +289,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.271':
+          if metadata['version'] != '0.34.1-hbclean.272':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
@@ -293,5 +297,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add release.json
-          git commit -m "Publish verified Adaptive Operations and Scales $SOURCE_VERSION [skip ci]"
+          git commit -m "Publish verified Chord Discovery $SOURCE_VERSION [skip ci]"
           git push origin HEAD:main

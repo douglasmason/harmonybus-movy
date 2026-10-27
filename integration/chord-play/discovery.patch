@@ -1,0 +1,232 @@
+diff --git a/browser-test/hb-chord-settings.mjs b/browser-test/hb-chord-settings.mjs
+index f079adb5..6ecb28ea 100644
+--- a/browser-test/hb-chord-settings.mjs
++++ b/browser-test/hb-chord-settings.mjs
+@@ -29,8 +29,8 @@ for(const [owner,sources] of [
+ for(const key of ['cp_track_0_track_defaults_reset','cp_style','cp_gate','cp_register','bp_style','bp_gate','bp_register'])assert(keys.has(key),key);
+ assert(!page.ctl.pages.some(candidate=>candidate.level.endsWith('_more')),'no single-control overflow pages');
+ const counts=Object.fromEntries([...new Set(page.ctl.pages.map(candidate=>panelSpec('Chord Play',candidate).group))].map(group=>[group,page.ctl.pages.filter(candidate=>panelSpec('Chord Play',candidate).group===group).length]));
+-assert.deepEqual(counts,{Core:8,Sound:3,'Conductor Content':6,'Chord Editing':2,'Conductor Settings':8,Comp:10,'Melody Mapping':3,'Melody Sound':3,'Melody Operations':6,Libraries:2,Setup:1});
+-assert.equal(page.ctl.pages.length,52);
++assert.deepEqual(counts,{Core:8,Discovery:3,Sound:3,'Conductor Content':6,'Chord Editing':2,'Conductor Settings':8,Comp:10,'Melody Mapping':3,'Melody Sound':3,'Melody Operations':6,Libraries:2,Setup:1});
++assert.equal(page.ctl.pages.length,55);
+ for(const candidate of page.ctl.pages)assert.equal(candidate.keys[7],'cp_off');
+ 
+ visit('cp_Sound_output');
+@@ -65,4 +65,4 @@ conductor.setParam('midi_fx1:render_channel','Off');flush();assert.match(page.ct
+ visit('cp_comp_library');assert.equal(page.ctl.page.name,'Comp T3 Clip');
+ assert.equal(page.ctl.metaAt(5).name,'Stored Clip Note Length %');assert.equal(page.ctl.metaAt(6).name,'Stored Clip Pitch Shift');
+ assert(!page.ctl.page.keys.includes('cp_velocity'),'clip-shaping controls do not masquerade as the current sound');
+-console.log('Chord settings: 67 -> 52 pages, complete native controls, eight Core panels, output ownership, inheritance, route continuity and clip labels pass');
++console.log('Chord settings: 55 pages including Discovery, complete native controls, eight Core panels, output ownership, inheritance, route continuity and clip labels pass');
+diff --git a/browser-test/hb-panel-navigation.mjs b/browser-test/hb-panel-navigation.mjs
+index fa3bf75b..7959cbe5 100644
+--- a/browser-test/hb-panel-navigation.mjs
++++ b/browser-test/hb-panel-navigation.mjs
+@@ -7,7 +7,7 @@ const {portFor}=await import('../dist/esm/track/registry.js');
+ const {settingsPage}=await import('../dist/esm/seq/hb-settings.js');
+ let page=chordPage(),navigation=page.ctl.hbNavigation;
+ page.goToPage(0);
+-assert.deepEqual(navigation.state().groups,['Sound','Conductor Content','Chord Editing','Conductor Settings','Comp','Melody Mapping','Melody Sound','Melody Operations','Libraries','Setup']);
++assert.deepEqual(navigation.state().groups,['Sound','Discovery','Conductor Content','Chord Editing','Conductor Settings','Comp','Melody Mapping','Melody Sound','Melody Operations','Libraries','Setup']);
+ const coreLevels=navigation.state().indices.map(index=>page.ctl.pages[index].level);
+ assert.deepEqual(coreLevels,['root','cp_bank_0','cp_bank_1','cp_bank_2','cp_scale_controls','cp_Conductor_follower_touch','cp_Conductor_operations_9_16','cp_Conductor_motif_play'],
+  'Chord Play keeps exactly eight playing panels; editors and overflow remain in Settings');
+diff --git a/build/browser.mjs b/build/browser.mjs
+index bfb40412..ae4f5703 100644
+--- a/build/browser.mjs
++++ b/build/browser.mjs
+@@ -17,6 +17,7 @@ rmSync(resolve(root, 'dist/esm'), { recursive: true, force: true });
+ 
+ await esbuild.build({
+     entryPoints: [
++        resolve(root, 'src/seq/chord-discovery.ts'),
+         resolve(root, 'src/seq/pad-position.ts'),
+         resolve(root, 'src/seq/chord-labels.ts'),
+         resolve(root, 'src/app/interaction-log.ts'),
+diff --git a/src/renderer/panel-catalog.ts b/src/renderer/panel-catalog.ts
+index de1e90d7..edbd78e2 100644
+--- a/src/renderer/panel-catalog.ts
++++ b/src/renderer/panel-catalog.ts
+@@ -1,5 +1,5 @@
+ /** Stable panel identities and deliberate navigation policy, independent of labels. */
+-export const PANEL_LAYOUT_VERSION = 3;
++export const PANEL_LAYOUT_VERSION = 4;
+ export type PanelSpec = {id:string; group:string; order:number; owner:string; known:boolean};
+ const shared:Record<string,string> = {};
+ function register(group:string,levels:string[]):void {for(const level of levels)shared[level]=group;}
+@@ -26,13 +26,13 @@ const chordCore=['root','cp_bank_0','cp_bank_1','cp_bank_2','cp_scale_controls',
+ const playCore=['root','harmony_status','follower_touch','operations_9_16'];
+ const motifCore=['root','approach_bank_0','approach_bank_1','harm_play_controls','follower_touch','operations_9_16','pitch_play','secondary','harmony_status'];
+ const chord:Record<string,string>={cp_clips:'Conductor Content',cp_motifs:'Conductor Content',cp_edit:'Chord Editing',cp_edit_scale:'Chord Editing',cp_overview:'Conductor Settings',cp_comp_library:'Libraries',cp_bass_library:'Libraries',cp_setup:'Setup'};
+-Object.assign(chord,{cp_Sound_output:'Sound',cp_Conductor_operation_details:'Conductor Settings',cp_Comp_operation_details:'Comp',cp_Melody_operation_details:'Melody Operations',cp_Melody_sound_details:'Melody Sound'});
++Object.assign(chord,{cp_discovery:'Discovery',cp_voicings:'Discovery',cp_discovery_actions:'Discovery',cp_Sound_output:'Sound',cp_Conductor_operation_details:'Conductor Settings',cp_Comp_operation_details:'Comp',cp_Melody_operation_details:'Melody Operations',cp_Melody_sound_details:'Melody Sound'});
+ for(const family of ['Sound','Conductor','Comp','Melody']){
+     for(const level of ['chord_player','arp_player','chord_forms','follower_source','follower_play','follower_touch','operations_9_16','motif_play','motif_global','motif_load','motif_targets','global_transpose','explicit_key','secondary_scale','rhythm_generate','rhythm_edit','motion_operation','motion_timing','motion_conditions','track_scales','live']){
+         chord[`cp_${family}_${level}`]=family==='Sound'?'Sound':family==='Conductor'?(['motif_load','motif_targets','rhythm_generate','rhythm_edit'].includes(level)?'Conductor Content':'Conductor Settings'):family==='Melody'?(level.startsWith('motion_')||['follower_touch','operations_9_16'].includes(level)?'Melody Operations':['chord_player','arp_player'].includes(level)?'Melody Sound':'Melody Mapping'):'Comp';
+     }
+ }
+-const groupOrder=['Sound','Conductor Content','Chord Editing','Conductor Settings','Root','Bass','Comp','Melody','Melody Mapping','Melody Sound','Melody Operations','Song Sections','Recording','Operation Settings','Harmony & Timing','Harmony & Scales','Chords & Arp','Rhythm & Motifs','Mapping','Libraries','Defaults','Display','Routing','Diagnostics','Usage','Setup','Other Settings'];
++const groupOrder=['Sound','Discovery','Conductor Content','Chord Editing','Conductor Settings','Root','Bass','Comp','Melody','Melody Mapping','Melody Sound','Melody Operations','Song Sections','Recording','Operation Settings','Harmony & Timing','Harmony & Scales','Chords & Arp','Rhythm & Motifs','Mapping','Libraries','Defaults','Display','Routing','Diagnostics','Usage','Setup','Other Settings'];
+ export function normalizedMode(name:string):string{return name.replace(/ Setup$/, '').replace(/^Play$/, 'Normal Play').replace(/^Joint$/, 'Joint Play');}
+ const specCache=new WeakMap<object,Map<string,PanelSpec>>();
+ /** Generated overflow retains its owner's group, but never inherits a Core slot. */
+diff --git a/src/seq/chord-play.ts b/src/seq/chord-play.ts
+index e61779f8..e0017769 100644
+--- a/src/seq/chord-play.ts
++++ b/src/seq/chord-play.ts
+@@ -50,6 +50,16 @@ import { recToggle } from '../undo/rec-pass.js';
+ import { settingsActive } from './hb-settings.js';
+ 
+ import {compactChordSettings} from './chord-settings-layout.js';
++import {ChordDiscovery,discoveryParameters} from './chord-discovery.js';
++
++export const chordDiscovery=new ChordDiscovery({
++    conductor:()=>conductorTrack(),source:()=>setup.slots[setup.selected],colorView:()=>setup.colorView,
++    sound:()=>{const owner=portFor(soundTrack());return {get:key=>owner.getParam('midi_fx1:'+key),set:(key,value)=>{owner.setParam('midi_fx1:'+key,value);}};},
++    commit:slot=>{send(setup.playMode?'chord_queue':'chord_select',[conductorTrack(),...chordEvent(slot)].join(','));if(setup.playMode&&portFor(conductorTrack()).getParam('midi_fx1:chord_queue_depth')==='Touch Phrase')send('chord_queue','commit');activeSlot=-1;invalidateStatus();bankPollAt=-Infinity;bankUrgentUntil=Date.now()+100;},
++    save:(index,slot)=>{setup.slots[index]={...slot};setup.selected=index;bankDefinitionsDirty=true;bankPageDirty=true;markUiStateDirty();},
++    changed:()=>{appState.dirty=true;},toast:seqToast
++});
++const discoveryLevel=():string=>!settingsActive()&&!page?.ctl.hbNavigation?.isMenu()?page?.ctl.page?.level??'':'';
+ 
+ const send=(key:string,value:string):void=>{if(engineReady())fieldEngineSet(key,value);};
+ const bankNames=['Home','Parallel','Blues'];
+@@ -185,6 +195,7 @@ export const chordEnabled=():boolean=>enabled;
+ export const chordActive=():boolean=>enabled&&!seqState.sessionMode;
+ export function chordSnapshot():Setup&{contents:ConductorContent}{return {...setup,contents:conductorContentSnapshot(),slots:setup.slots.map(slot=>({...slot}))};}
+ export function restoreChord(value:unknown):void{
++    chordDiscovery.reset();
+     setChordEnabled(false);setup=fresh();restoreConductorContent(value&&typeof value==='object'?(value as {contents?:unknown}).contents:null);
+     if(value&&typeof value==='object'){
+         const input=value as Partial<Setup>;
+@@ -200,6 +211,7 @@ export function restoreChord(value:unknown):void{
+     page=null;route='';resetBank();
+ }
+ export function releaseChordTouches():void{
++    chordDiscovery.stop();
+     if(queuePhrase.active)endQueuePhrase(queuePhrase.length);queuePhrase.cancel();rangeTouches.clear();rangeTurns.clear();
+     cancelConductorPhrase();
+     for(const key of steps)chordStepRelease(key);
+@@ -216,6 +228,7 @@ export function setChordEnabled(value:boolean):void{
+     page=null;appState.dirty=true;
+ }
+ export function selectChordSlot(index:number,control?:number):void{
++    chordDiscovery.reset();
+     if(!controlsActive()||!engineReady()||!Number.isInteger(index)||index<0||index>=setup.slots.length)return;
+     const slot=setup.slots[index];if(!slot.enabled)return;setup.selected=index;if(!setup.playMode)activeSlot=index;
+     const payload=[conductorTrack(),...chordEvent(slot)].join(',');
+@@ -248,7 +261,7 @@ export function chordPanelPort(track:number):TrackPort{
+         const bare=key.replace(/:(base|modulated)$/,'').split(':').pop()??'';
+         if(bare==='chain_params'){
+             const text=native.getParam(key);if(!text)return text;
+-            const source=JSON.parse(text);metadata=parameters(source);
++            const source=JSON.parse(text);metadata=[...parameters(source),...discoveryParameters()];
+             metadata.push({key:'cp_sound_path',name:'Sound Owner / Output',short_name:'Sounds',type:'string',readOnly:true,access:'read'});
+             for(const entry of metadata){
+                 if(entry.key.startsWith('cp_slot_')){const index=Number(entry.key.slice(8)),slot=setup.slots[index];entry.viz={kind:'custom:hb-chord-label'};Object.assign(entry,chordLabelMetadata(index,slot.intent,slot.target,bankStatus?.slots[index]));}
+@@ -271,6 +284,7 @@ export function chordPanelPort(track:number):TrackPort{
+         const meta=metadata.find(entry=>entry.key===bare);
+         if(!meta)return native.getParam(key);
+         if(key.endsWith(':modulated'))return '0';
++        const discoveryValue=chordDiscovery.read(bare);if(discoveryValue!==null)return discoveryValue;
+         const slot=setup.slots[setup.selected];
+         const content=conductorContentRead(bare);if(content!==null)return content;
+         if(bare.startsWith('cp_blank_'))return '';
+@@ -289,6 +303,7 @@ export function chordPanelPort(track:number):TrackPort{
+         return meta.options[value]??meta.options[0];
+     };
+     const setParam=(key:string,value:string):boolean=>{
++        const discoveryResult=chordDiscovery.write(key.split(':').pop()??'',value);if(discoveryResult!==null)return discoveryResult;
+         const target=alias(key);if(target){invalidateStatus();if(target.key.endsWith('render_channel'))routingPollAt=-Infinity;return portFor(target.track).setParam(target.key,value);}
+         const bare=key.split(':').pop()??'';const partResult=partWrite(bare,value,partOwner(bare));if(partResult!==null)return partResult;
+         const content=conductorContentWrite(bare,value);if(content!==null)return content;
+@@ -342,6 +357,9 @@ export function chordHierarchy(hierarchy:any):any{
+     add('cp_edit','Chord Editor',['cp_selected','cp_intent','cp_target','cp_root','cp_quality','cp_form','cp_bass']);
+     add('cp_edit_scale','Chord Scale Context',['cp_policy','cp_tonic','cp_scale','cp_enabled','cp_resolved','cp_relation']);
+     add('cp_overview','Harmony Overview',statusFields.map(field=>'cp_status_'+field));
++    add('cp_discovery','Next Chord Preview',Array.from({length:7},(_,index)=>'cp_discovery_choice_'+index));
++    add('cp_voicings','Voicing Preview',Array.from({length:7},(_,index)=>'cp_voicing_choice_'+index));
++    add('cp_discovery_actions','Discovery Actions',['cp_discovery_target','cp_discovery_picked','cp_discovery_keep','cp_discovery_save_slot','cp_discovery_save','cp_discovery_refresh','cp_discovery_source']);
+     for(const [name,track,panels] of actorPanels()){
+         for(const source of panels){const original=levels[source];if(!original)continue;
+             const key='cp_'+name+'_'+source,remap=(key:string)=>name==='Melody'?key:'cp_track_'+track+'_'+key;
+@@ -383,10 +401,14 @@ export function tickChord():void{
+     const melody=appState.activeTrack.index;
+     if(melody===setup.comp||melody===setup.conductor||melody===setup.bass){setChordEnabled(false);seqToast('Choose distinct tracks');return;}
+     refreshBank();
++    chordDiscovery.tick(discoveryLevel());
++    if(page&&chordDiscovery.owns(discoveryLevel()))for(let index=0;index<7;index++){
++        const meta=page.ctl.state.metaIndex.get((discoveryLevel()==='cp_voicings'?'cp_voicing_choice_':'cp_discovery_choice_')+index);if(meta){meta.name=meta.label=chordDiscovery.label(index);meta.short_name=String(index+1);}
++    }
+     if(setup.playMode)queueStatus();
+     const followMelody=setup.source===2||(setup.source===0&&!conductorRenders);
+     const next=[melody,setup.comp,followMelody?1:setup.source===0&&conductorRenders?2:0].join(',')+(setup.bassClip?','+setup.bass:'');
+-    if(next!==route){send('chord_route',next);route=next;}
++    if(next!==route){chordDiscovery.stop();send('chord_route',next);route=next;}
+     if(bankPageDirty&&!touches.size&&!controls.size&&!steps.size&&!rangeTouches.size&&!queuePhrase.active){const current=chordPage(),level=current.ctl.page?.level,index=current.pageIndex,navigation=current.ctl.hbNavigation?.state();current.reload();const next=current.ctl.pages.findIndex((entry:any)=>entry.level===level);current.goToPage(next<0?index:next);current.ctl.hbNavigation?.restore(navigation);bankPageDirty=false;}
+     if(page)updateChordLabels(page);
+     if(!settingsActive()){
+@@ -402,6 +424,7 @@ export function chordPadModalActive():boolean {
+ }
+ export function chordMidi(data:number[],panels=true,surface?:SchwungPage):boolean{
+     const status=data[0]&240,key=data[1],value=data[2],down=status===144&&value>0,up=status===128||(status===144&&!value);
++    if(up&&chordDiscovery.stop(key))return true;
+     if(up&&queuePhrase.owns(key)){const phrase=queuePhrase.release(key);if(phrase!==null)endQueuePhrase(phrase.length);steps.delete(key);rangeTouches.delete(key);invalidateStatus();return true;}
+     if(up&&conductorPhraseTouch('',key,false)){steps.delete(key);return true;}
+     if(up&&controls.delete(key)){releasePerformanceTouch(key);return true;}
+@@ -412,6 +435,16 @@ export function chordMidi(data:number[],panels=true,surface?:SchwungPage):boolea
+     }
+     if(up&&steps.delete(key)){rangeTouches.delete(key);chordStepRelease(key);return true;}
+     if(surface?!controlsActive():!chordActive())return false;
++    if(!surface&&panels&&chordDiscovery.owns(discoveryLevel())){
++        if((down||up)&&key>=16&&key<32&&!seqState.loopMode&&!seqState.trackSelectHold&&!appState.shiftHeld&&!muteHeld()){
++            if(down){const index=key-16;if(index<7)chordDiscovery.audition(index,key);else if(index===7||index===15)harmonyOff();else if(index===8)chordDiscovery.keep();else if(index===9)chordDiscovery.save();else if(index===10)chordDiscovery.refresh();}
++            return true;
++        }
++        const candidate=/^cp_(?:discovery|voicing)_choice_(\d)$/.exec(page?.keyAt(key)??'');
++        if((down||up)&&key<7&&candidate){if(down)chordDiscovery.audition(Number(candidate[1]),key);return true;}
++        if(down&&key<7&&chordDiscovery.action(page?.keyAt(key)??''))return true;
++        if(status===176&&[14,51,3].includes(key)&&value)chordDiscovery.stop();
++    }
+     const ownerTrack=conductorTrack(),conductorOwner=performanceOwner(ownerTrack);
+     const currentKey=(surface??page)?.keyAt(key)??'',controlTarget=alias(currentKey);if(rangeControlMidi(data,surface??page))return true;
+     if((down||up)&&key<8&&motifLoaderTouch(conductorOwner,controlTarget?.track===ownerTrack?controlTarget.key:null,key,down,()=>controlsActive()&&conductorTrack()===ownerTrack)){
+@@ -466,6 +499,7 @@ export function chordMidi(data:number[],panels=true,surface?:SchwungPage):boolea
+ export function chordKnobLEDMask():number{
+     const current=jointConductor!==null?jointSurface:page;
+     if(!controlsActive()||settingsActive()||!current||current.ctl.hbNavigation?.isMenu())return 0;
++    if(chordActive()&&['cp_discovery','cp_voicings'].includes(discoveryLevel()))return 255;
+     let mask=0;for(let knob=0;knob<8;knob++)if(current.keyAt(knob)==='cp_off'||/^cp_(slot_|clip_launch_|motif_launch_)/.test(current.keyAt(knob)??''))mask|=1<<knob;
+     return mask;
+ }
+@@ -478,6 +512,13 @@ export function chordOperationOwner():PerformancePort|null {
+     return null;
+ }
+ export function paintChordSteps():boolean{
++    if(chordActive()&&chordDiscovery.owns(discoveryLevel())){
++        for(let index=0;index<16;index++){const color=index<7?chordDiscovery.color(index):[7,8,9,10,15].includes(index)?123:0;cachedSetAnimLED(16+index,color,color,0);}
++        if(discoveryLevel()!=='cp_discovery_actions')for(let knob=0;knob<8;knob++){
++            const color=knob===7?123:chordDiscovery.color(knob);cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);
++        }
++        bankKnobs=true;return true;
++    }
+     const operationOwner=chordOperationOwner();if(operationOwner)return paintHbPerformance(operationOwner);
+     if(!controlsActive())return false;
+     if(chordActive())for(let index=0;index<16;index++){const slot=stepSlot(index),contentKey=contentStepKey(index),color=contentKey?(conductorContentColor(contentKey,conductorTrack())??123):slot<0?123:chordSlotColor(slot);cachedSetAnimLED(16+index,color,chordSlotQueued(slot)?0:color,chordSlotQueued(slot)?ANIM_PULSE_SLOW:0);}
+@@ -499,6 +540,7 @@ function contextVisible(current:SchwungPage):boolean {
+ }
+ export function chordContextTrail():string|null {
+     const current=chordPage();if(!contextVisible(current))return null;
++    if(chordDiscovery.owns(discoveryLevel()))return chordDiscovery.footer();
+     if(setup.playMode)return queueFooterText(performanceStatus('queue_next'),performanceStatus('queue_count'),performanceStatus('queue_snapshot'));if(current.ctl.page?.level==='root')return 'Touch chords / K8:Off';
+     if(['cp_clips','cp_motifs'].includes(current.ctl.page?.level??''))return current.ctl.page.level==='cp_clips'?'Turn:clip Tap:launch K8:Off':'Turn:motif Tap:preview K8:Off';
+     if(current.ctl.page?.level==='cp_overview')return 'Chord>Cond K8:Off';
+@@ -573,6 +615,7 @@ export function resetChordDefaults():void{
+     markUiStateDirty();appState.dirty=true;seqToast('Chord defaults restored');
+ }
+ export function harmonyOff():void{
++    chordDiscovery.stop();
+     queuePhrase.cancel();
+     // Clearing musical content never changes the user's Immediate/Queued choice.
+     if(bankStatus)for(const slot of bankStatus.slots)slot.queued=false;
