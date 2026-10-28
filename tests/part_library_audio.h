@@ -66,8 +66,9 @@ static void test_part_library(void){
     set("state","movy1\nbpm 12000\nlink 0\ntk 2 0 0\ncl 2 0 16 0 \n");
 #ifdef HB_TEST_CLIP_FILL
     static char library_command[40100];
-    snprintf(library_command,sizeof(library_command),"filllibrary 16 7 %s",entry);
-    set("cmd",library_command);render(2);fill_part_track(2,"16_7_99_99_0_2");
+    snprintf(library_command,sizeof(library_command),"filllibrary 16 %d %s",HB_COMP_STOCK_COUNT,entry);
+    char user_request[64];snprintf(user_request,sizeof(user_request),"16_%d_99_99_0_2",HB_COMP_STOCK_COUNT);
+    set("cmd",library_command);render(2);fill_part_track(2,user_request);
 #else
     load_part("user",entry);
 #endif

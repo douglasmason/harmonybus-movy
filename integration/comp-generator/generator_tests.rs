@@ -380,4 +380,71 @@
         duet_ticks(&mut engine,400);assert!(!engine.part_recording_busy());assert!(engine.tracks[2].clips[2].generator.is_none());
     }
 
+    #[test] fn generator_phrase_structure_repeats_without_flattening_and_complexity_retains_core() {
+        for style in 8..16 {
+            let config=Config {style,complexity:0,intensity:64,seed:37,end:0};
+            let definition=&crate::generator::STYLES[style as usize];
+            let steps=crate::part_catalog::generator_source_steps(config.bass(),definition.catalog);
+            assert_eq!(steps,if style%4==3 {64}else{32});
+            let core=crate::part_catalog::generator_source_notes(config.bass(),definition.catalog);
+            let attacks:Vec<_>=(0..steps).filter_map(|step|config.note(step).map(|n|(step,n.gate,n.pitch,n.vel))).collect();
+            assert_eq!(attacks,core,"the stock library and generator share authored essentials");
+            let first:Vec<_>=attacks.iter().filter(|n|n.0<16).copied().collect();
+            let second:Vec<_>=attacks.iter().filter(|n|(16..32).contains(&n.0)).map(|n|(n.0-16,n.1,n.2,n.3)).collect();
+            assert_ne!(first,second,"the answer bar must not repeat the opening");
+            let signature=|config:Config,step:u16|config.note(step).map(|n|(n.gate,n.pitch,n.vel));
+            for complexity in [0,32,64,96,127] {
+                let current=Config {complexity,..config};
+                for step in 0..64 {
+                    assert_eq!(signature(current,step),signature(current,step+64),"phrase and seed wrap together");
+                    if let Some(note)=config.note(step) {
+                        assert_eq!(signature(current,step),Some((note.gate,note.pitch,note.vel)));
+                    }
+                    if complexity>0&&(Config {complexity:complexity-1,..config}).note(step).is_some(){assert!(current.note(step).is_some());}
+                }
+            }
+            let dense=Config {complexity:127,..config};
+            assert!((0..steps).filter(|step|dense.note(*step).is_some()).count()>core.len());
+            assert!((0..steps).any(|step|dense.note(step).is_none()),"rests survive maximum complexity");
+            for step in 0..steps {
+                let quiet=Config {intensity:0,..dense}.note(step);
+                let loud=Config {intensity:127,..dense}.note(step);
+                assert_eq!(quiet.as_ref().map(|n|(n.step,n.pitch,n.gate)),loud.as_ref().map(|n|(n.step,n.pitch,n.gate)));
+                if let (Some(quiet),Some(loud))=(quiet,loud){assert!(loud.vel>quiet.vel);}
+            }
+        }
+        // Authored late-phrase pickups are not accidentally folded into bar one.
+        assert!(Config {style:8,complexity:127,..Config::default()}.note(31).is_some());
+        assert!(Config {style:8,complexity:0,..Config::default()}.note(31).is_none());
+        assert!(Config {style:11,complexity:0,..Config::default()}.note(56).is_some());
+        assert!(Config {style:11,complexity:0,..Config::default()}.note(8).is_none());
+    }
+    #[test] fn generator_phrases_record_automation_reload_bake_and_undo_with_identical_timing() {
+        for style in 8..16 {
+            let mut engine=fixture();let before=engine.undo_snapshot();
+            command(&mut engine,&format!("gexplore 2 {style} 0 32 37"));
+            engine.play();let audition=ticks(&mut engine,1536);engine.stop(&mut Vec::new());
+            assert_eq!(before,engine.undo_snapshot(),"audition cannot persist phrase notes or lanes");
+            command(&mut engine,&format!("gexplore 2 {style} 0 32 37"));
+            engine.play();engine.toggle_record(2);
+            let mut captured=ticks(&mut engine,384);
+            assert_eq!(captured,audition.iter().filter(|(tick,_)|*tick<384).cloned().collect::<Vec<_>>());
+            command(&mut engine,&format!("gexplore 2 {style} 127 100 37"));
+            captured.extend(ticks(&mut engine,500).into_iter().map(|(tick,event)|(tick+384,event)));
+            let next=if style<12 {11}else{15};
+            command(&mut engine,&format!("gexplore 2 {next} 64 80 37"));
+            captured.extend(ticks(&mut engine,2188).into_iter().map(|(tick,event)|(tick+884,event)));
+            command(&mut engine,"rec 2;stop");
+            let clip=&engine.tracks[2].clips[0];assert!(clip.notes.is_empty());assert_eq!(clip.length_steps,128);
+            assert_eq!(clip.generator.unwrap().at(clip,&engine.tracks[2].lane_label,47).style,style);
+            assert_eq!(clip.generator.unwrap().at(clip,&engine.tracks[2].lane_label,48).style,next);
+            let saved=engine.undo_snapshot();let mut restored=fixture();assert!(crate::persist::load(&mut restored,&saved));
+            restored.play();assert_eq!(ticks(&mut restored,3072),captured,"recorded phrase and control curves replay exactly");
+            command(&mut restored,"stop;gbake 2 0");assert_eq!(restored.generator_result,"Baked - Undo available");
+            restored.play();assert_eq!(ticks(&mut restored,3072),captured,"Bake keeps later bars and Bass gate ownership");
+            command(&mut restored,"stop");assert!(restored.undo_restore(&saved));
+            assert!(restored.tracks[2].clips[0].generator.is_some());assert!(engine.undo_restore(&before));
+            assert_eq!(engine.undo_snapshot(),before);
+        }
+    }
 }

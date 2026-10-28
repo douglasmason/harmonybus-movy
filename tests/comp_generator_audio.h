@@ -136,4 +136,25 @@ static void test_comp_generator(void){
     }
     puts("Actor duet: simultaneous production MIDI, independent stops, both Record destinations, transient companion automation and Undo retaining audition pass");
 
+    /* Each paired phrase runs through HB mapping and the production gate owner,
+       including the answer bars and the four-bar wrap, without persisting it. */
+    for(int phrase=0;phrase<4;phrase++){
+        set("cmd","stop");set("chord_select","off");render(16);
+        set("state","movy1\nbpm 12000\nlink 0\ntk 1 0 0\ntk 2 0 0\n");
+        set("ch1:midi_fx1:travel_map","Relative");set("ch1:midi_fx1:render_channel","2");
+        set("ch2:midi_fx1:travel_map","Relative");set("ch2:midi_fx1:render_channel","3");
+        set("chord_route","3,2,0,1");render(8);
+        assert(api->get_param(instance,"state",before,sizeof(before))>0);
+        sent_on=sent_off=0;memset(routed_channel_on,0,sizeof(routed_channel_on));
+        duet_capture=1;memset(duet_balance,0,sizeof(duet_balance));
+        char command[128];snprintf(command,sizeof(command),"gexplore 2 %d 127 96 37;gexplore 1 %d 127 96 37;play",8+phrase,12+phrase);
+        set("cmd",command);render(3400);
+        assert(routed_channel_on[1]>8&&routed_channel_on[2]>8);
+        set("cmd","stop");render(16);duet_capture=0;
+        for(int channel=0;channel<16;channel++)for(int pitch=0;pitch<128;pitch++)assert(duet_balance[channel][pitch]==0);
+        assert(sent_on==sent_off);
+        assert(api->get_param(instance,"state",after,sizeof(after))>0&&!strcmp(before,after));
+    }
+    puts("Actor phrases: four paired styles, full phrase wraps, mapped production MIDI and balanced releases without persistent changes pass");
+
 }

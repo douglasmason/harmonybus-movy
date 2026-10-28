@@ -6,5 +6,13 @@
   {"actor":"Bass","name":"Root / Fifth","family":"Pulse","genres":["Pop","Rock","Country"],"catalog":0,"optional":[[2,24,36,72,45],[6,24,43,70,75],[10,24,36,76,35],[14,24,43,70,90]]},
   {"actor":"Bass","name":"Sustain","family":"Pulse","genres":["Pop","Soul","Ambient"],"catalog":1,"optional":[[8,72,36,82,50],[12,48,43,74,90]]},
   {"actor":"Bass","name":"Sparse","family":"Sync","genres":["Jazz","Soul"],"catalog":2,"optional":[[6,36,36,76,45],[14,24,43,70,90]]},
-  {"actor":"Bass","name":"Syncopated","family":"Sync","genres":["Funk","Latin","Pop"],"catalog":3,"optional":[[2,18,36,68,60],[5,18,43,72,85],[8,30,36,76,40],[13,18,43,68,100]]}
+  {"actor":"Bass","name":"Syncopated","family":"Sync","genres":["Funk","Latin","Pop"],"catalog":3,"optional":[[2,18,36,68,60],[5,18,43,72,85],[8,30,36,76,40],[13,18,43,68,100]]},
+  {"actor":"Comp","name":"Pop Answer 2b","family":"Phrase","genres":["Pop"],"catalog":7,"optional":[[6,24,60,72,40],[11,18,60,66,80],[18,24,60,70,50],[23,18,60,64,95],[30,18,60,76,60],[31,12,60,62,115]]},
+  {"actor":"Comp","name":"Funk Pocket 2b","family":"Phrase","genres":["Funk"],"catalog":8,"optional":[[5,12,60,58,45],[9,12,60,62,80],[15,12,60,72,95],[17,12,60,58,65],[25,12,60,66,50],[31,12,60,70,105]]},
+  {"actor":"Comp","name":"Bossa 2b","family":"Phrase","genres":["Bossa","Latin"],"catalog":9,"optional":[[4,24,60,66,55],[10,24,60,70,85],[16,24,60,68,40],[22,24,60,64,90],[28,24,60,70,65]]},
+  {"actor":"Comp","name":"Soul Space 4b","family":"Phrase","genres":["Soul"],"catalog":10,"optional":[[10,48,60,62,55],[18,36,60,68,75],[30,24,60,70,95],[40,48,60,66,45],[52,48,60,72,65],[62,24,60,68,100],[63,12,60,58,120]]},
+  {"actor":"Bass","name":"Pop Answer 2b","family":"Phrase","genres":["Pop"],"catalog":6,"optional":[[6,36,43,76,45],[14,36,36,80,70],[20,60,48,82,55],[28,36,43,74,95],[31,12,43,66,115]]},
+  {"actor":"Bass","name":"Funk Pocket 2b","family":"Phrase","genres":["Funk"],"catalog":7,"optional":[[3,18,36,62,45],[9,18,48,70,85],[14,18,43,76,60],[19,18,36,64,50],[29,18,36,72,95],[31,12,43,66,115]]},
+  {"actor":"Bass","name":"Bossa 2b","family":"Phrase","genres":["Bossa","Latin"],"catalog":8,"optional":[[7,18,43,68,55],[15,18,36,66,85],[23,18,43,70,65],[30,24,36,74,45],[31,12,43,62,110]]},
+  {"actor":"Bass","name":"Soul Space 4b","family":"Phrase","genres":["Soul"],"catalog":9,"optional":[[12,60,43,66,65],[24,72,48,72,90],[30,36,43,64,110],[42,72,43,70,55],[54,72,48,74,80],[62,24,36,72,100],[63,12,43,60,120]]}
 ]

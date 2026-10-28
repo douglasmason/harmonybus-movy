@@ -32,7 +32,8 @@ fn write(engine:&mut Engine,request:&str,out:&mut Vec<OutEvent>)->String {
             assert!(!engine.playing);assert_eq!(engine.tracks[2].playing_slot,None);assert_eq!(engine.tracks[2].active_clip,0);
             apply_batch(&mut engine,"uswap 101 102",&mut output);assert_eq!(engine.undo_snapshot(),before);
             write(&mut engine,&format!("{bank}_{choice}_99_99_3_2"),&mut output);
-            assert_eq!(engine.tracks[2].clips[5].notes.len(),expected.clip.notes.len()*3);
+            let expected_steps:Vec<_>=(0..48).filter(|step|expected.clip.notes.iter().any(|note|note.step==step%expected.clip.length_steps)).collect();
+            assert_eq!(engine.tracks[2].clips[5].notes.iter().map(|note|note.step).collect::<Vec<_>>(),expected_steps);
             assert_eq!(engine.tracks[2].clips[5].length_steps,48);
             assert!(engine.fill_preview(&format!("{bank}_{choice}_1_0_1_0")).contains("original rhythm"));
         }
@@ -110,7 +111,7 @@ fn stage_saved_fill(engine:&mut Engine,payload:&str,output:&mut Vec<OutEvent>)->
     let changed=engine.part_export(1);stage_saved_fill(&mut engine,&changed,&mut output);
     let before=engine.undo_snapshot();apply_batch(&mut engine,&command,&mut output);
     assert!(engine.part_result.contains("Source changed"));assert_eq!(engine.undo_snapshot(),before);
-    apply_batch(&mut engine,"filllibrary 16 7 broken",&mut output);
+    apply_batch(&mut engine,&format!("filllibrary 16 {} broken",crate::part_catalog::NAMES.len()),&mut output);
     assert!(engine.fill_preview(&request).starts_with("error:"),"failed staging cannot reuse old material");
     stage_saved_fill(&mut engine,&payload,&mut output);
     for lane in 0..8 {engine.auto_label(2,lane,&format!("synth:unrelated{lane}"));}
