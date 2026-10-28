@@ -1,11 +1,12 @@
 /** Device-local persistence and portable backups; engine serialization stays in the Worker. */
 const MAX_BYTES=8*1024*1024;
 function database(){return new Promise((resolve,reject)=>{const request=indexedDB.open('harmonybus-browser',1);request.onupgradeneeded=()=>request.result.createObjectStore('sessions');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
-async function stored(value){
+async function storeSession(value,key='current'){
  const db=await database();
- try{return await new Promise((resolve,reject)=>{const tx=db.transaction('sessions',value===undefined?'readonly':'readwrite'),store=tx.objectStore('sessions');const request=value===undefined?store.get('current'):store.put(value,'current');let result;request.onsuccess=()=>{result=request.result;};tx.oncomplete=()=>resolve(result);tx.onabort=tx.onerror=()=>reject(tx.error??new Error('Device storage failed'));});}finally{db.close();}
+ try{return await new Promise((resolve,reject)=>{const tx=db.transaction('sessions',value===undefined?'readonly':'readwrite'),store=tx.objectStore('sessions');const request=value===undefined?store.get(key):store.put(value,key);let result;request.onsuccess=()=>{result=request.result;};tx.oncomplete=()=>resolve(result);tx.onabort=tx.onerror=()=>reject(tx.error??new Error('Device storage failed'));});}finally{db.close();}
 }
-export async function mountSessions({sessions,captureUI,restoreUI,disableAudio,isStopped,release}){
+export async function mountSessions({sessions,captureUI,restoreUI,disableAudio,isStopped,release,storageKey='current'}){
+ const stored=value=>storeSession(value,storageKey);
  const panel=document.querySelector('#sessions');panel.hidden=false;
  const status=document.querySelector('#session-status'),buttons=[...panel.querySelectorAll('button')];
  let busy=false,armed=false,lastSavedPayload=null;

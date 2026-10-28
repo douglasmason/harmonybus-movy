@@ -17,7 +17,9 @@ self.onmessage=({data})=>{
    const info=await fetch('../build/full/build-info.json');
    if(!info.ok)throw new Error('Missing engine build identification');
    const build=await info.json();
-   service=await createJointService(await response.json(),emit,build);
+   if(data.surface!==undefined&&!['joint','move'].includes(data.surface))throw new Error('Unknown surface');
+   const createSurface=data.surface==='move'?(await import('../../local/build/move-runtime.mjs')).createMoveRuntime:null;
+   service=await createJointService(await response.json(),emit,build,createSurface);
    service.visibility(data.hidden);postMessage({type:'ready',metadata:service.metadata,build});
   }else if(!service)throw new Error('Engine not initialized');
   else if(data.type==='audio-start')service.attachAudio(data.port);

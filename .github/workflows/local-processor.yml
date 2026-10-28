@@ -56,13 +56,14 @@ jobs:
           bash dev/wasm/prepare.sh
           node --test dev/wasm/test.mjs
           node dev/wasm/browser-test.mjs
-          node --test dev/wasm/full/lighting-test.mjs dev/wasm/full/test.mjs dev/wasm/full/pcm-worklet-test.mjs dev/wasm/full/pcm-monitor-test.mjs dev/wasm/full/session-test.mjs dev/wasm/full/service-test.mjs
+          node --test dev/wasm/full/lighting-test.mjs dev/wasm/full/test.mjs dev/wasm/full/pcm-worklet-test.mjs dev/wasm/full/pcm-monitor-test.mjs dev/wasm/full/session-test.mjs dev/wasm/full/service-test.mjs dev/wasm/full/move-test.mjs
           node dev/wasm/full/browser-test.mjs
           node dev/wasm/package.mjs
           WASM_PACKAGED=1 node dev/wasm/full/browser-test.mjs
           WASM_PACKAGED=1 node dev/wasm/full/audio-browser-test.mjs
           WASM_PACKAGED=1 node dev/wasm/full/performance-browser-test.mjs
           WASM_PACKAGED=1 node dev/wasm/full/session-browser-test.mjs
+          WASM_PACKAGED=1 node dev/wasm/full/move-browser-test.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: browser-joint-static

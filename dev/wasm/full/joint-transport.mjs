@@ -1,8 +1,9 @@
 /** Page transport only. A dedicated worker owns the engine and its clock. */
 import {PcmMonitor} from './pcm-monitor.mjs';
-export async function openBrowserConnection(){
- document.title='Joint Play · Browser HB';
- document.querySelector('a[href="/movy"]')?.remove();
+export async function openBrowserConnection({surface='joint'}={}){
+ document.title=surface==='move'?'Move · Browser Movy':'Joint Play · Browser HB';
+ const moveLink=document.querySelector('a[href="/movy"]');
+ if(moveLink){moveLink.href='/move/';moveLink.textContent='Full Move surface & clip editing';}
  const worker=new Worker(new URL('./joint-worker.mjs',import.meta.url),{type:'module'});
  const audio=new PcmMonitor(worker);
  let serial=0,closed=false;
@@ -35,7 +36,7 @@ export async function openBrowserConnection(){
   };
  });
  document.addEventListener('visibilitychange',visibility);window.addEventListener('pagehide',close);
- worker.postMessage({type:'init',hidden:document.hidden});
+ worker.postMessage({type:'init',hidden:document.hidden,surface});
  const metadata=await ready;
  try{await audio.prepare();}catch(error){close();throw error;}
  // Asynchronous, read-only development inspection across the worker boundary.

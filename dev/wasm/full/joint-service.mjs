@@ -3,7 +3,7 @@ import {createFullEngine} from './engine.mjs';
 import {prepareMetadata,trackKey,jointAction,routingKeys,readableKey,validateEngineCommand} from '../../local/protocol-policy.mjs';
 import {capturePayload,sealSession,validateSession,restoreCandidate} from './session.mjs';
 import {observation,eventObservation} from '../../local/observations.mjs';
-export async function createJointService(raw,emit,build=null){
+export async function createJointService(raw,emit,build=null,createSurface=null){
  const {metadata,readable,enabledWrites}=prepareMetadata(raw);
  const engineOptions={expectedWasmSha256:build?.wasmSha256};
  let engine=await createFullEngine(engineOptions);
@@ -15,12 +15,13 @@ export async function createJointService(raw,emit,build=null){
  let audioPort=null,audioEpoch=0,audioLast=0;
  let hidden=false,blocksProcessed=0;
  let loading=false,epoch=1,snapshotSequence=0,sampleFrame=0;
- let sequence=0,recent=[],watches=[],timer=null,last=performance.now(),remainder=0,beat=0;
+ let sequence=0,recent=[],watches=[],timer=null,last=performance.now(),remainder=0,beat=0,lastSnapshot=0;
  const touches=new Map(),physical=new Set();
  const socket={readyState:1,onmessage:event=>emit(JSON.parse(event.data)),onclose:null,onerror:null,onopen:null,send,close};
  const base=['status','song_section'];
  const clipInfo=new Map();
- for(let track=0;track<4;track++)for(const key of ['role','version','travel_map','master_transpose','harmony_snapshot','harmony_source_snapshot','follower_snapshot','shared_context_snapshot','pad_view','field_outputs_view2'])base.push(`ch${track}:midi_fx1:${key}`);
+ if(!createSurface)for(let track=0;track<4;track++)for(const key of ['role','version','travel_map','master_transpose','harmony_snapshot','harmony_source_snapshot','follower_snapshot','shared_context_snapshot','pad_view','field_outputs_view2'])base.push(`ch${track}:midi_fx1:${key}`);
+ const surface=createSurface?.({request,metadata:raw});
  function request(...args){
   const result=engine.request(...args);
   if(['step','render'].includes(args[0]))sampleFrame+=Number(args[1])*128;
@@ -34,9 +35,11 @@ export async function createJointService(raw,emit,build=null){
     params[key]=clipInfo.get(key).value;
    }else params[key]=request('get',key).value;
   }
-  socket.onmessage?.({data:JSON.stringify({type:'param_update',params,beat,events:recent,observation:observation(params,{epoch,sequence:++snapshotSequence,sampleFrame,build}),requestId:id})});
+  lastSnapshot=now;
+  socket.onmessage?.({data:JSON.stringify({type:'param_update',params,beat,events:recent,observation:observation(params,{epoch,sequence:++snapshotSequence,sampleFrame,build}),move:surface?.snapshot(),requestId:id})});
  }
  function cleanup(){
+  surface?.release();
   for(const note of physical)request('midi',`128,${note},0`);physical.clear();
   for(const [key,cancel] of touches)request('set',key,cancel);touches.clear();
   request('set','cmd','stop');request('set','joint_release','1');
@@ -51,7 +54,7 @@ export async function createJointService(raw,emit,build=null){
   detachAudio();audioPort=port;audioLast=performance.now();
   port.onmessage=({data})=>{
    if(port!==audioPort||hidden||data.type!=='pull'||data.epoch!==audioEpoch)return;
-   audioLast=performance.now();
+   audioLast=performance.now();surface?.tick();
    const {pcm}=request('render',8);beat+=1024/44100*2;blocksProcessed+=8;
    let peak=0;for(const sample of pcm)peak=Math.max(peak,Math.abs(sample)/32768);
    port.postMessage({type:'pcm',epoch:audioEpoch,pcm,peak},[pcm.buffer]);
@@ -63,7 +66,7 @@ export async function createJointService(raw,emit,build=null){
  }
  function close(){
   if(socket.readyState!==1)return;
-  detachAudio();clearInterval(timer);
+  detachAudio();clearInterval(timer);surface?.dispose();engine.dispose?.();
   socket.readyState=3;socket.onclose?.();
  }
  function visibility(value){hidden=value;if(hidden){cleanup();snapshot();}last=performance.now();remainder=0;}
@@ -72,15 +75,17 @@ export async function createJointService(raw,emit,build=null){
   timer=setInterval(()=>{
    const now=performance.now(),elapsed=now-last;last=now;
    if(hidden||loading)return;
+   surface?.tick();
    if(audioPort){
     if(now-audioLast>2000){detachAudio();emit({type:'audio_error',message:'No AudioWorklet requests for 2 seconds; tap Enable audio to resume'});}
-    snapshot();return;
+    if(now-lastSnapshot>=40)snapshot();return;
    }
    // A suspended page stops rather than replaying a backlog of timed events.
    if(elapsed>250){cleanup();remainder=0;snapshot();return;}
    remainder+=elapsed*44.1;const blocks=Math.floor(remainder/128);remainder-=blocks*128;
-   if(blocks){beat+=blocks*128/44100*2;request('step',blocks);blocksProcessed+=blocks;}snapshot();
-  },40);
+   if(blocks){beat+=blocks*128/44100*2;request('step',blocks);blocksProcessed+=blocks;}
+   if(now-lastSnapshot>=40)snapshot();
+  },surface?5:40);
  }
  function send(encoded){
   if(socket.readyState!==1)return;
@@ -88,7 +93,10 @@ export async function createJointService(raw,emit,build=null){
    if(socket.readyState!==1)return;
    try{
     const message=JSON.parse(encoded);
-    if(message.type==='set_param'){
+    if(message.type==='move_midi'){
+     if(!surface)throw new Error('Move surface is unavailable');
+     surface.input(message.data);
+    }else if(message.type==='set_param'){
      const key=String(message.key??'').replace(/^overtake_dsp:/,''),value=String(message.value??'');
      if(value.length>1024||/[\r\n\t]/.test(value))throw new Error('Invalid value');
      const match=trackKey.exec(key);
@@ -123,20 +131,22 @@ export async function createJointService(raw,emit,build=null){
  }
  async function save(ui){
   if(/(?:^| )play=1/.test(engine.request('get','status').value))throw new Error('Stop playback before saving a session');
-  if(physical.size||touches.size)throw new Error('Release held controls before saving');
-  return sealSession(capturePayload(engine,ui),build??{harmonybus:raw.version});
+  if(physical.size||touches.size||surface?.isHeld())throw new Error('Release held controls before saving');
+  return sealSession(capturePayload(engine,surface?{...ui,move:surface.capture()}:ui),build??{harmonybus:raw.version});
  }
  async function open(session){
   await validateSession(session);
+  surface?.validate(session.payload.ui.move);
   loading=true;
   let candidate;
   try{
    candidate=await createFullEngine(engineOptions);
    const ui=await restoreCandidate(candidate,session);
    cleanup();const previous=engine;engine=candidate;candidate=null;previous.dispose?.();
+   surface?.restore(ui.move);
    epoch++;clipInfo.clear();recent=[];last=performance.now();remainder=0;beat=0;sampleFrame=0;
    snapshot();return ui;
   }finally{candidate?.dispose?.();loading=false;last=performance.now();}
  }
- return {metadata,socket,visibility,attachAudio,detachAudio,mix,save,open,read:key=>engine.request('get',key).value,stats:()=>({blocksProcessed,sequence,epoch,audioClock:!!audioPort})};
+ return {metadata,socket,visibility,attachAudio,detachAudio,mix,save,open,read:key=>engine.request('get',key).value,stats:()=>({blocksProcessed,sequence,epoch,audioClock:!!audioPort,move:surface?.diagnostic()})};
 }

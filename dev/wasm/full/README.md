@@ -14,8 +14,32 @@ and Schwung parameter pages are shared. `joint-connection.mjs` selects:
 - Static server `/joint?engine=wasm`: worker-owned compiled engine via an adapter
   using the same parameter/update messages. No WebSocket or native process.
 
-This reuses the Joint performance view; full Schwung Manager and the other
-remote routes have not been connected to the browser engine.
+`/move/` now runs the **complete production Movy application loop** in the same
+worker as the DSP, with synchronous host parameter reads/writes. Its framebuffer
+and LED output feed the existing Schwung **Move Mirror** drawing. An accessible
+overlay adds touch, mouse and keyboard input using that drawing's coordinates.
+Pads, steps, modifiers, relative encoders, track selection, clip editing and Undo
+all go through Movy's real MIDI router. No second sequencer or clip model exists.
+The original Joint performance/lighting view remains at `/joint?engine=wasm`.
+
+Tap a pad, then a step to enter a note. Hold a step and turn Volume to change its
+velocity. Undo and Shift+Undo use Movy's production history. Note/Session opens
+the current mode menu; turn Jog and click it to choose a mode. Shift+Note/Session
+opens Clips, whose step row selects any of the 16 tracks. Drag an encoder
+vertically, use arrow keys while focused, or select it above the surface and use
+the minus/plus buttons. Escape and Stop cancel held gestures without turning an
+interrupted step press into a note edit.
+
+`dev/local/build-move.mjs` extracts the drawing from the pinned Schwung source
+and bundles the integration's patched Movy sources. Its fail-closed adapters
+replace device Set discovery/autosave with the browser session owner, omit a
+duplicate chain restore already verified on the candidate DSP, and fix track
+ownership to Movy's browser chains. Device builds are unaffected. The full
+Schwung Manager, Move OS, stock sounds, device master volume, master FX, external
+MIDI and Move Set files are not emulated. Use the browser monitor level for
+output gain; track+Volume still edits the real track mix. Only HB + NuSaw sessions
+can be saved. The two surfaces keep separate IndexedDB autosaves; portable
+exports transfer engine state between them.
 
 After building native assets as documented in `dev/local/README.md`, activate
 Rust 1.99.1 and Emscripten 4.0.10, then install both Rust targets:
@@ -28,10 +52,12 @@ node dev/wasm/browser-test.mjs
 node dev/wasm/full/browser-test.mjs
 node dev/wasm/full/audio-browser-test.mjs
 node dev/wasm/full/session-browser-test.mjs
+node --test dev/wasm/full/move-test.mjs
+node dev/wasm/full/move-browser-test.mjs
 node dev/wasm/serve.mjs
 ```
 
-Open http://127.0.0.1:7702/joint?engine=wasm. All processing stays in the browser;
+Open http://127.0.0.1:7702/move/ or http://127.0.0.1:7702/joint?engine=wasm. All processing stays in the browser;
 the server only delivers static files. The automated browser test switches
 networking off after the page loads. There is no service-worker/offline-install
 feature yet, so this does not promise an offline reload.
@@ -249,12 +275,13 @@ status, dependencies, toolchains and Wasm SHA-256. It is displayed in diagnostic
 and included in saved sessions. Site packaging commits remain separate.
 
 After building, run `node dev/wasm/package.mjs`. The output in
-`dev/wasm/build/site` contains only static assets and opens Joint by default. Serve
+`dev/wasm/build/site` contains only static assets and opens Move by default. Serve
 that directory at an HTTPS origin root with JavaScript and `application/wasm`
 MIME types. CI tests the copied package and uploads `browser-joint-static`; it
 does not deploy automatically. Preserve the Site's private audience and any
-concurrent UI overlay when publishing. Full Remote UI/Manager, ordinary clip
-editing, offline reload caching and external MIDI integration remain separate.
+concurrent UI overlay when publishing. The Move surface now runs production clip
+editing. Full Remote UI/Manager services, offline reload caching and external MIDI
+integration remain separate.
 
 ## Lighting preview
 
