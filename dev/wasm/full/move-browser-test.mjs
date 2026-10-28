@@ -5,8 +5,9 @@ import {serve} from '../serve.mjs';
 const server=serve(0,process.env.WASM_PACKAGED?new URL('../build/site/',import.meta.url):null);
 await new Promise(resolve=>server.once('listening',resolve));
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required']});
+let page;
 try{
- const page=await browser.newPage({viewport:{width:1024,height:768},hasTouch:true}),errors=[];
+ page=await browser.newPage({viewport:{width:1024,height:768},hasTouch:true});const errors=[];
  page.on('pageerror',error=>errors.push(error.message));
  await page.goto(`http://127.0.0.1:${server.address().port}/${process.env.WASM_PACKAGED?'':'move/'}`);
  const button=name=>page.getByRole('button',{name,exact:true});
@@ -57,7 +58,10 @@ try{
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'control grid fits '+viewport.width);
   assert(await button('Pad 1').isVisible());assert(await button('Record').isVisible());
  }
- await page.context().setOffline(true);await button('Track 1').tap();await button('Step 2').tap();
+ await page.context().setOffline(true);await button('Track 13').tap();await button('Step 2').tap();
  assert.equal(await page.locator('#error').textContent(),'');assert.deepEqual(errors,[]);
  console.log('PASS adaptable HB/Movy touch surface, large display, complete Movy app, clip edit/Undo/Redo, PCM replay, independent audio clock, session reload, track 16, tablet/phone layouts and offline gestures');
+}catch(error){
+ if(page)console.error('Move browser failure:',await page.evaluate(async()=>({feedback:document.querySelector('#feedback')?.textContent,error:document.querySelector('#error')?.textContent,held:[...document.querySelectorAll('[data-held=true]')].map(el=>el.getAttribute('aria-label')),state:await globalThis.__wasmRead?.('state'),stats:await globalThis.__wasmStats?.()})).catch(String));
+ throw error;
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

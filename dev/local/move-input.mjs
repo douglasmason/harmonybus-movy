@@ -61,7 +61,7 @@ export function mountMoveInput({controls,send}){
   };
   button.onblur=()=>{if(active.has(control))release();};
   // Assistive technology can activate a button without pointer/key events.
-  button.onclick=event=>{if(event.detail===0&&!active.has(control)){begin(control,button);end(control);if(control.click)clickJog();}};
+  button.onclick=event=>{if(event.detail===0&&!event.pointerType&&!active.has(control)){begin(control,button);end(control);if(control.click)clickJog();}};
  }
  for(const [id,delta]of [['increase',1],['decrease',-1]])document.querySelector('#'+id).onclick=()=>{
   const control=controls.find(control=>control.type==='encoder'&&control.index===Number(selector.value));

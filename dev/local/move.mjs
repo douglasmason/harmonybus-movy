@@ -40,7 +40,7 @@ try{
  socket.onclose=()=>{feedback.textContent='Engine closed · reload to reconnect';};
  send({type:'subscribe_tool'});
  for(const id of ['audio','audio-test','stop'])document.querySelector('#'+id).disabled=false;
- document.querySelector('#build').textContent=`Movy ${audio.build?.integrationVersion??'unknown'} · HarmonyBus ${metadata.version} · engine ${audio.build?.engineSource?.commit?.slice(0,12)??'unknown'} · UI ${audio.build?.hostSource?.commit?.slice(0,12)??'local'} · 44,100 Hz`;
+ document.querySelector('#build').textContent=`Movy ${audio.build?.engineSource?.integrationVersion??'unknown'} · HarmonyBus ${metadata.version} · engine ${audio.build?.engineSource?.commit?.slice(0,12)??'unknown'} · UI ${audio.build?.hostSource?.commit?.slice(0,12)??'local'} · 44,100 Hz`;
  audio.onDiagnostic(audio.diagnostic());
  document.addEventListener('visibilitychange',()=>{if(document.hidden)disableAudio();});
  const zoom=document.querySelector('#display-size'),expand=document.querySelector('#display-expand');

@@ -1,10 +1,12 @@
 /** Copy the static server whitelist into a self-contained website directory. */
-import {mkdir,copyFile,writeFile,readFile} from 'node:fs/promises';
+import {mkdir,copyFile,writeFile,readFile,rm} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {files} from './serve.mjs';
 export const siteRoot=new URL('./build/site/',import.meta.url);
+// This directory is generated solely from the whitelist. Drop retired assets.
+await rm(siteRoot,{recursive:true,force:true});
 for(const [route,source] of files){
  const target=new URL(route==='/'?'index.html':['/joint','/move'].includes(route)?route.slice(1)+'/index.html':route.slice(1),siteRoot);
  await mkdir(new URL('.',target),{recursive:true});
