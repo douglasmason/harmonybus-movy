@@ -8,7 +8,7 @@ type Actor='Comp'|'Bass';
 type Draft={config:number[];genre:string};
 let selectedActor:Actor='Comp',generation=-1,recordingTrack:number|null=null,pageDirty=false,selectedTrack=2;
 let tracks={Comp:2,Bass:1};
-const shortStyles:Record<string,string>={'Root / Fifth':'R+5',Syncopated:'Sync',Quarters:'Qtrs',Offbeats:'Offbt',Sustain:'Hold'};
+const shortStyles:Record<string,string>={'Root / Fifth':'R+5',Syncopated:'Sync',Quarters:'Qtrs',Offbeats:'Offbt',Sustain:'Hold','Pop Answer 2b':'Pop 2b','Funk Pocket 2b':'Funk 2b','Bossa 2b':'Bosa 2b','Soul Space 4b':'Soul 4b'};
 const drafts=new Map<string,Draft>();
 const liveModes=['Exploring','Recording','Preview','Overdub'];
 const recordedModes=['Recorded','Preview','Overdub'];

@@ -21,10 +21,16 @@ def patch_comp_generator(root: Path) -> None:
         actor: str = style['actor'].lower()
         if actor not in catalog or not 0 <= style['catalog'] < len(catalog[actor]):
             raise ValueError('Unknown generator actor/catalog source')
-        essential_steps: set[int] = {note[0] for note in catalog[actor][style['catalog']]['notes']}
+        pattern: dict[str, Any] = catalog[actor][style['catalog']]
+        steps: int = pattern['steps']
+        if steps not in (16, 32, 64):
+            raise ValueError('Generator phrases must span one, two or four bars')
+        essential_steps: set[int] = {note[0] for note in pattern['notes']}
+        if len(essential_steps) != len(pattern['notes']):
+            raise ValueError('Generator source must have at most one attack per step')
         optional_steps: set[int] = set()
         for step, gate, pitch, velocity, threshold in style['optional']:
-            if step in essential_steps or step in optional_steps or not (0 <= step < 16 and 1 <= gate <= 384 and 0 <= pitch <= 127 and 1 <= velocity <= 127 and 1 <= threshold <= 127):
+            if step in essential_steps or step in optional_steps or not (0 <= step < steps and 1 <= gate <= steps * 24 and 0 <= pitch <= 127 and 1 <= velocity <= 127 and 1 <= threshold <= 127):
                 raise ValueError('Invalid or colliding generator detail')
             optional_steps.add(step)
         optional: str = ','.join('(' + ','.join(map(str, attack)) + ')' for attack in style['optional'])
@@ -35,6 +41,7 @@ def patch_comp_generator(root: Path) -> None:
     path.write_text(path.read_text() + '\npub mod generator;\n')
     path = core / 'part_catalog.rs'
     path.write_text(path.read_text() + '\npub fn generator_source_notes(bass:bool,choice:usize)->&\'static [(u16,u32,u8,u8)] {(if bass{BASS}else{COMP}).get(choice).map_or(&[],|pattern|pattern.notes)}\n')
+    path.write_text(path.read_text() + '\npub fn generator_source_steps(bass:bool,choice:usize)->u16 {(if bass{BASS}else{COMP}).get(choice).map_or(16,|pattern|pattern.steps)}\n')
     path = core / 'clip.rs'
     source: str = replace_once(path.read_text(),'pub struct Clip {','pub struct Clip {\n    pub generator:Option<crate::generator::Config>,')
     source = replace_once(source,'        Clip {','        Clip {\n            generator:None,')
@@ -179,6 +186,7 @@ def patch_comp_generator(root: Path) -> None:
         (root / 'browser-test/hb-comp-generator.mjs').write_text((assets / 'hb-comp-generator.mjs').read_text())
     (root / 'browser-test/hb-actor-generator.mjs').write_text((assets / 'hb-actor-generator.mjs').read_text())
     (root / 'browser-test/hb-generator-duet.mjs').write_text((assets / 'hb-generator-duet.mjs').read_text())
+    (root / 'browser-test/hb-generator-phrases.mjs').write_text((assets / 'hb-generator-phrases.mjs').read_text())
     if (assets / 'hb-generator-overdub.mjs').exists():
         (root / 'browser-test/hb-generator-overdub.mjs').write_text((assets / 'hb-generator-overdub.mjs').read_text())
 

@@ -35,7 +35,7 @@ impl Config {
     pub fn note(self,step:u16)->Option<Note> {
         if self.end>0&&step as u32*TICKS_PER_STEP>=self.end {return None;}
         let style=STYLES.get(self.style as usize)?;
-        let local=step%16;
+        let local=step%crate::part_catalog::generator_source_steps(style.bass,style.catalog);
         let essential=crate::part_catalog::generator_source_notes(style.bass,style.catalog).iter().find(|note|note.0==local);
         let (gate,pitch,velocity)=if let Some(&(_,gate,pitch,velocity))=essential {(gate,pitch,velocity)} else {
             let &(_,gate,pitch,velocity,threshold)=style.optional.iter().find(|note|note.0==local)?;

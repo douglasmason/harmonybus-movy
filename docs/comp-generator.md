@@ -1,4 +1,4 @@
-# Actor generator browser and automation — hbclean.283
+# Actor generator browser and automation — hbclean.285
 
 Chord Play's **Libraries** category now contains a shared Comp/Bass generator.
 Choose an actor first; each actor uses its configured track and keeps its own
@@ -9,7 +9,7 @@ the selected recording slot. The same controls work on Move and in the browser.
 | --- | --- |
 | 1 | Actor: Comp or Bass |
 | 2 | Genre filter: All or one of this actor's authored tags |
-| 3 | Family: Pulse or Sync |
+| 3 | Family: Pulse, Sync or Phrase |
 | 4 | Style within the family and filter |
 | 8 | Existing Range / tap Harmony Off |
 
@@ -27,6 +27,10 @@ Sustain under Pulse, plus Sparse and Syncopated under Sync. All reuse the existi
 actor catalog; optional attacks are explicitly authored. Complexity retains the
 core attacks and adds detail; Intensity independently scales velocity. The seed
 repeats its four-bar variation and never rerolls on repaint or audio blocks.
+
+The Phrase family adds Pop Answer, Funk Pocket and Bossa (two bars), plus Soul
+Space (four bars), for both actors. Later bars have authored responses and rests.
+See [phrase styles and timing](actor-phrases.md).
 
 Genre is a browser filter, not a recorded musical parameter. Changing it sends
 no engine command and never changes the sounding style. The current style/family

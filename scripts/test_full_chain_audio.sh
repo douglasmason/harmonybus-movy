@@ -42,7 +42,10 @@ else
   echo 'Pinned HB predates Chord Play; running the existing production-chain regressions'
 fi
 if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/part_load.rs" && grep -q 'key->count=hb_cp_voice_semantic' "$HB_SOURCE/src/chord_selection_input.h" 2>/dev/null; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_PART_LIBRARY); fi
-if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/clip_fill.rs"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CLIP_FILL); fi
+if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/clip_fill.rs"; then
+  COMP_STOCK_COUNT=$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["comp"]))' "$MOVY_SOURCE/src/seq/part-catalog.json")
+  CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CLIP_FILL "-DHB_COMP_STOCK_COUNT=$COMP_STOCK_COUNT")
+fi
 if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/generator.rs"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_COMP_GENERATOR); fi
 if test -f "$HB_SOURCE/src/chord_queue.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CHORD_QUEUE); fi
 if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/chord_step.rs" && test -f "$HB_SOURCE/src/chord_queue.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_JOINT_CHORDS); fi
