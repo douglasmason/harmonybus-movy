@@ -16,8 +16,9 @@ and Schwung parameter pages are shared. `joint-connection.mjs` selects:
 
 `/move/` now runs the **complete production Movy application loop** in the same
 worker as the DSP, with synchronous host parameter reads/writes. Its framebuffer
-and LED output feed the existing Schwung **Move Mirror** drawing. An accessible
-overlay adds touch, mouse and keyboard input using that drawing's coordinates.
+and LED output feed the adaptable HB/Movy display, knob, pad and step grid.
+The enlarged screen has size choices and a full-screen reading view; labeled
+HTML controls support touch, mouse and keyboard without fixed canvas coordinates.
 Pads, steps, modifiers, relative encoders, track selection, clip editing and Undo
 all go through Movy's real MIDI router. No second sequencer or clip model exists.
 The original Joint performance/lighting view remains at `/joint?engine=wasm`.
@@ -30,8 +31,8 @@ vertically, use arrow keys while focused, or select it above the surface and use
 the minus/plus buttons. Escape and Stop cancel held gestures without turning an
 interrupted step press into a note edit.
 
-`dev/local/build-move.mjs` extracts the drawing from the pinned Schwung source
-and bundles the integration's patched Movy sources. Its fail-closed adapters
+`dev/local/build-move.mjs` bundles our `move-surface.mjs` using the same Movy
+palette as Joint, alongside the integration's patched Movy sources. Its fail-closed adapters
 replace device Set discovery/autosave with the browser session owner, omit a
 duplicate chain restore already verified on the candidate DSP, and fix track
 ownership to Movy's browser chains. Device builds are unaffected. The full

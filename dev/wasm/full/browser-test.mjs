@@ -8,7 +8,7 @@ try{
  const context=await browser.newContext({viewport:{width:1000,height:1000}});
  const page=await context.newPage(),errors=[],sockets=[];
  page.on('pageerror',error=>errors.push(error.message));page.on('websocket',socket=>sockets.push(socket.url()));
- await page.goto(`http://127.0.0.1:${server.address().port}/${siteRoot?'':'joint?engine=wasm'}`);
+ await page.goto(`http://127.0.0.1:${server.address().port}/joint?engine=wasm`);
  await page.waitForFunction(()=>globalThis.__joint?.page().ready);
  await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Browser Joint'));
  await context.setOffline(true);

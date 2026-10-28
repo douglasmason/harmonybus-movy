@@ -7,7 +7,7 @@ Open `/joint?engine=wasm` on the static server after building. The small slice
 below remains a focused compiler test; its earlier architecture assessment is
 retained as the record of what that first experiment established.
 
-Open `/move/` for the full production Movy UI on Schwung's existing Move Mirror
+Open `/move/` for the full production Movy UI on our adaptable HB/Movy control grid
 surface: pads, clips, steps, Undo, knobs and all sixteen tracks, running beside
 the actual engine in the browser. See the full host guide for controls and limits.
 

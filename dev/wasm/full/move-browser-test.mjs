@@ -8,10 +8,18 @@ const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disab
 try{
  const page=await browser.newPage({viewport:{width:1024,height:768},hasTouch:true}),errors=[];
  page.on('pageerror',error=>errors.push(error.message));
- await page.goto(`http://127.0.0.1:${server.address().port}/move/`);
+ await page.goto(`http://127.0.0.1:${server.address().port}/${process.env.WASM_PACKAGED?'':'move/'}`);
  const button=name=>page.getByRole('button',{name,exact:true});
  await button('Step 1').waitFor();await page.waitForFunction(()=>!document.querySelector('[aria-label="Step 1"]').disabled);
  await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('Autosaves'));
+ assert.equal(await page.locator('#device').count(),0,'use our adaptable grid, not a fixed device drawing');
+ assert.equal(await page.locator('#knobs .control').count(),8);
+ assert.equal(await page.locator('#pads .control').count(),32);
+ assert.equal(await page.locator('#steps .control').count(),16);
+ await page.locator('#display-size').selectOption('640');
+ await button('Enlarge display').click();
+ assert(await page.locator('#hero').evaluate(el=>el.getBoundingClientRect().width>900));
+ await button('Close large display').click();
  await button('Pad 2').tap();await button('Step 1').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('1 note'));
  const clip=await page.evaluate(()=>__wasmRead('state'));
@@ -33,6 +41,7 @@ try{
  await page.getByText('Session files',{exact:true}).click();await page.locator('#session-save').click();
  await page.waitForFunction(()=>!document.querySelector('#session-save').disabled&&document.querySelector('#session-status').textContent.includes('Saved'));
  await page.reload();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
+ assert.equal(await page.locator('#display-size').inputValue(),'640');
  assert.equal(await page.evaluate(()=>__wasmRead('state')),clip);
  // Production mode menu and Shift+Session shortcut reach Clips and all tracks.
  await page.locator('#shift').check();await button('Note / Session').tap();await page.locator('#shift').uncheck();await button('Step 16').tap();
@@ -43,7 +52,12 @@ try{
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  const pads=await page.locator('.control[data-kind=note]').evaluateAll(buttons=>buttons.filter(button=>Number(button.dataset.index)>=68).map(button=>{const r=button.getBoundingClientRect();return {width:r.width,height:r.height};}));
  assert(pads.every(pad=>pad.width>=40&&pad.height>=28));
+ for(const viewport of [{width:768,height:1024},{width:390,height:844},{width:1180,height:820}]){
+  await page.setViewportSize(viewport);
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'control grid fits '+viewport.width);
+  assert(await button('Pad 1').isVisible());assert(await button('Record').isVisible());
+ }
  await page.context().setOffline(true);await button('Track 1').tap();await button('Step 2').tap();
  assert.equal(await page.locator('#error').textContent(),'');assert.deepEqual(errors,[]);
- console.log('PASS Move Mirror touch surface, complete Movy app, clip edit/Undo/Redo, PCM replay, independent audio clock, session reload, track 16 and offline gestures');
+ console.log('PASS adaptable HB/Movy touch surface, large display, complete Movy app, clip edit/Undo/Redo, PCM replay, independent audio clock, session reload, track 16, tablet/phone layouts and offline gestures');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

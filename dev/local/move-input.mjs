@@ -1,6 +1,6 @@
-/** Accessible touch/keyboard overlay on the pinned Move Mirror geometry. */
-export function mountMoveInput({controls,dimensions,send}){
- const container=document.querySelector('#surface-controls'),selector=document.querySelector('#encoder');
+/** Touch and keyboard gestures for the adaptable HB/Movy control grid. */
+export function mountMoveInput({controls,send}){
+ const selector=document.querySelector('#encoder');
  const active=new Map(),buttons=new Map();
  const midi=data=>send({type:'move_midi',data});
  const touch=(control,on)=>midi([on?144:128,control.touch,on?127:0]);
@@ -28,8 +28,8 @@ export function mountMoveInput({controls,dimensions,send}){
   const button=document.createElement('button');button.className='control';button.disabled=true;
   button.setAttribute('aria-label',control.name);button.title=control.name;
   button.dataset.kind=control.type;button.dataset.index=control.index;buttons.set(control,button);
-  for(const [key,value]of Object.entries({left:control.x/dimensions.width,top:control.y/dimensions.height,width:control.width/dimensions.width,height:control.height/dimensions.height}))button.style[key]=value*100+'%';
-  const label=document.createElement('span');label.className='control-label';label.textContent=control.name;button.append(label);container.append(button);
+  button.dataset.group=control.group;
+  const label=document.createElement('span');label.className='control-label';label.textContent=control.name.replace(/^(Pad|Step) /,'');button.append(label);document.querySelector('#'+control.group).append(button);
   if(control.type==='encoder'){const option=document.createElement('option');option.value=control.index;option.textContent=control.name;selector.append(option);}
   let lastY=0,moved=false,pointer=null;
   button.onpointerdown=event=>{
