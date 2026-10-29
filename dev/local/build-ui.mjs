@@ -13,3 +13,5 @@ await buildMovy({root,source,esbuild});
 
 const {buildJoint}=await import('./build-joint.mjs');
 await buildJoint({root,source,schwung:process.env.SCHWUNG_SOURCE,esbuild});
+const {buildMove}=await import('./build-move.mjs');
+await buildMove({root,source,schwung:process.env.SCHWUNG_SOURCE,esbuild});
