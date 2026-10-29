@@ -42,6 +42,6 @@ export async function openBrowserConnection({surface='joint'}={}){
  // Asynchronous, read-only development inspection across the worker boundary.
  globalThis.__wasmRead=key=>inspect('read',key);
  globalThis.__wasmStats=()=>inspect('stats');
- const sessions={save:ui=>inspect('session-save',null,ui),open:session=>inspect('session-open',null,session)};
+ const sessions={save:ui=>inspect('session-save',null,ui),open:session=>inspect('session-open',null,session),newSession:ui=>inspect('session-new',null,ui)};
  return {metadata,socket,audio,sessions,label:'Browser Joint Play connected · WebAssembly Worker'};
 }

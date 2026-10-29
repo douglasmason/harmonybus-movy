@@ -25,8 +25,8 @@ self.onmessage=({data})=>{
   else if(data.type==='audio-start')service.attachAudio(data.port);
   else if(data.type==='audio-stop')service.detachAudio();
   else if(data.type==='audio-mix')service.mix(data.actor,data.level);
-  else if(data.type==='session-save'||data.type==='session-open'){
-   try{postMessage({type:'reply',id:data.id,value:await (data.type==='session-save'?service.save(data.value):service.open(data.value))});}
+  else if(['session-save','session-open','session-new'].includes(data.type)){
+   try{postMessage({type:'reply',id:data.id,value:await service[{'session-save':'save','session-open':'open','session-new':'newSession'}[data.type]](data.value)});}
    catch(error){postMessage({type:'reply',id:data.id,error:error.message});}
   }
   else if(data.type==='send')service.socket.send(data.data);

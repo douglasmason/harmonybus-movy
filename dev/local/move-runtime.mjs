@@ -7,7 +7,8 @@ import {appState} from 'movy/app/state.ts';
 import {seqState} from 'movy/seq/state.ts';
 import {seqCmdFlush,engineReady,resetSeqEngine} from 'movy/seq/engine.ts';
 import {setFlag,resetFlags} from 'movy/seq/flags.ts';
-import {serializeUiState,applyUiState} from 'movy/seq/ui-state.ts';
+import {serializeUiState,applyUiState,resetUiState,freshHarmonyBusChains} from 'movy/seq/ui-state.ts';
+import {readPrefDefaultQuant} from 'movy/seq/prefs.ts';
 import {refreshModelsForSet} from 'movy/app/model-refresh.ts';
 import {resetHeldInput} from 'movy/app/input-reset.ts';
 import {releaseAllLive} from 'movy/keyboard/release.ts';
@@ -103,6 +104,14 @@ export function createMoveRuntime({request,metadata}){
   }
  });
  resetFlags();setFlag('chtracks',1);resetSeqEngine();init();
+ // Musical defaults come from the same new-Set factory as the device. Only
+ // the host instrument/mix remains browser-specific (audible NuSaw).
+ resetUiState(true);
+ for(const track of freshHarmonyBusChains())for(const component of track.comp)
+  if(component.m==='harmonybus')set(`ch${track.t}:${component.c}:state`,component.s);
+ refreshModelsForSet();
+ for(let count=0;count<32;count++)runTick();
+ seqCmdFlush();
  function runTick(){
   if(closed)return;const start=performance.now();tick();ticks++;
   const duration=performance.now()-start;maxTickMs=Math.max(maxTickMs,duration);totalTickMs+=duration;
@@ -151,6 +160,10 @@ export function createMoveRuntime({request,metadata}){
   jointPanelSet(group*4,'joint_comp',String(source));runTick();seqCmdFlush();
  }
  const initialState=serializeUiState();
+ function fresh(){
+  const state=JSON.parse(initialState);state.defaultQuant=readPrefDefaultQuant();
+  return {state:JSON.stringify(state),files:Object.fromEntries(files)};
+ }
  function validate(saved){
   if(saved===undefined)return;
   if(!saved||typeof saved.state!=='string'||saved.state.length>65536)throw new Error('Invalid Move UI state');
@@ -172,7 +185,7 @@ export function createMoveRuntime({request,metadata}){
   applyUiState(JSON.stringify(state));refreshModelsForSet();
   for(let count=0;count<32;count++)runTick();
  }
- return {tick:runTick,input,release,capture,restore,validate,setCompSource,isHeld:()=>held.size>0,
+ return {tick:runTick,input,release,capture,restore,validate,fresh,setCompSource,isHeld:()=>held.size>0,
   diagnostic:()=>({ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0,held:held.size,track:appState.activeTrack.index,view:appState.currentView,mode:sessionPlayMode()}),
   snapshot:()=>({screen:Array.from(screen),surface:Array.from(surface),track:appState.activeTrack.index,view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
   dispose:()=>{release();closed=true;}};

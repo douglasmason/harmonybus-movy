@@ -22,6 +22,7 @@ export async function createJointService(raw,emit,build=null,createSurface=null)
  const clipInfo=new Map();
  if(!createSurface)for(let track=0;track<4;track++)for(const key of ['role','version','travel_map','master_transpose','harmony_snapshot','harmony_source_snapshot','follower_snapshot','shared_context_snapshot','pad_view','field_outputs_view2'])base.push(`ch${track}:midi_fx1:${key}`);
  const surface=createSurface?.({request,metadata:raw});
+ const freshPayload=surface?capturePayload(engine,{move:surface.capture()}):null;
  function request(...args){
   const result=engine.request(...args);
   if(['step','render'].includes(args[0]))sampleFrame+=Number(args[1])*128;
@@ -137,7 +138,7 @@ export async function createJointService(raw,emit,build=null,createSurface=null)
   if(physical.size||touches.size||surface?.isHeld())throw new Error('Release held controls before saving');
   return sealSession(capturePayload(engine,surface?{...ui,move:surface.capture()}:ui),build??{harmonybus:raw.version});
  }
- async function open(session){
+ async function open(session,newSession=false){
   await validateSession(session);
   surface?.validate(session.payload.ui.move);
   loading=true;
@@ -145,11 +146,17 @@ export async function createJointService(raw,emit,build=null,createSurface=null)
   try{
    candidate=await createFullEngine(engineOptions);
    const ui=await restoreCandidate(candidate,session);
+   if(newSession)candidate.request('set','cmd',`dq ${JSON.parse(ui.move.state).defaultQuant}`);
    cleanup();const previous=engine;engine=candidate;candidate=null;previous.dispose?.();
    surface?.restore(ui.move);
    epoch++;clipInfo.clear();recent=[];last=performance.now();remainder=0;beat=0;sampleFrame=0;
    snapshot();return ui;
   }finally{candidate?.dispose?.();loading=false;last=performance.now();}
  }
- return {metadata,socket,visibility,attachAudio,detachAudio,mix,save,open,read:key=>engine.request('get',key).value,stats:()=>({blocksProcessed,sequence,epoch,audioClock:!!audioPort,move:surface?.diagnostic()})};
+ async function newSession(ui){
+  if(!surface)throw new Error('New session requires the Move surface');
+  const payload=structuredClone(freshPayload);payload.ui={...ui,move:surface.fresh()};
+  return open(await sealSession(payload,build??{harmonybus:raw.version}),true);
+ }
+ return {metadata,socket,visibility,attachAudio,detachAudio,mix,save,open,newSession,read:key=>engine.request('get',key).value,stats:()=>({blocksProcessed,sequence,epoch,audioClock:!!audioPort,move:surface?.diagnostic()})};
 }

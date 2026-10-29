@@ -31,10 +31,26 @@ vertically, use arrow keys while focused, or select it above the surface and use
 the minus/plus buttons. Escape and Stop cancel held gestures without turning an
 interrupted step press into a note edit.
 
+Fresh `/move/` sessions use the production `resetUiState(true)` and
+`freshHarmonyBusChains()` defaults: one conductor, Comp in Conductor Chord mode,
+Played Top Note inversion, and the production role/travel/channel settings.
+NuSaw and the audible browser mix replace device instruments/output only. Older
+saved sessions keep their own settings; the diagnostic Joint/native fixtures
+remain explicit test configurations. **Session files → New session** adopts the
+production defaults without replacing older saves.
+
+For Chord Play, choose it in Note/Session, tap a chord on the step row, then tap
+Record and play melody pads while changing chords. The default conductor is
+silent; its selections carry harmony and melody triggers the Comp voice. Use
+Play / Stop to end the take and replay. After reopening a session, select Chord
+Play again to use that routing. The full-engine regression verifies distinct
+stored harmonic descriptors and rendered Comp/melody notes before and after load.
+
 The Comp accompaniment strip shows the selected bank's melody/comp pair and
 edits the existing Joint Setup source setting. Follow remains active in Normal
-Play: Track 4 also triggers Track 3, so an approach and its target can sound
-together while target pads double in unison. Choose **Clip · independent** for
+Play: Track 4 also triggers Track 3 according to its HarmonyBus settings. The
+older browser fixture doubled targets in unison and harmonized approaches;
+fresh sessions use the production Comp chord settings. Choose **Clip · independent** for
 Track 4 pads without that linked comp voice. Clip, Pads and Clip + Guide keep
 their production meanings; choices persist per bank in saved sessions. Chord
 Play owns its own accompaniment, so the shortcut is disabled there.
@@ -172,6 +188,11 @@ exhaustive synth parity or validation of Move hardware deadlines/crackles.
 The browser Session panel autosaves to IndexedDB every five seconds while stopped
 and after Stop. It restores on reload before enabling autosave. **Save on device**,
 **Open saved**, **Export backup** and **Import backup** provide explicit control.
+The Move surface also has **New session** and **Previous sessions → Open selected**.
+Both preserve the current session in a separate IndexedDB entry before switching;
+if preservation fails, the current engine is retained. New session clears clips
+and Undo while retaining machine preferences and user parts. Archives survive
+reload, but remain browser data: export backups for storage outside the browser.
 Stop recording/playback and release controls before saving. Export a backup before
 clearing browser data; private browsing, browser eviction or quota limits can
 prevent or remove device storage. A failed startup restore does not overwrite the

@@ -30,7 +30,7 @@ try{
  await button('Close large display').click();
  await button('Pad 2').tap();await button('Step 1').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('1 note'));
- const clip=await page.evaluate(()=>__wasmRead('state'));
+ let clip=await page.evaluate(()=>__wasmRead('state'));
  await button('Undo').tap();await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('0 notes'));
  await page.locator('#shift').check();await button('Undo').tap();await page.locator('#shift').uncheck();
  await page.waitForFunction(async()=>(await __wasmRead('state')).includes('cl 0 0'));
@@ -38,6 +38,10 @@ try{
  // A cancelled hold must never toggle a note on pointer release.
  await button('Step 2').focus();await page.keyboard.down('Space');await page.keyboard.press('Escape');await page.keyboard.up('Space');
  assert.equal(await page.evaluate(()=>__wasmRead('state')),clip);
+ // The production conductor sends harmony, while Track 4 renders local audio.
+ await button('Track 4').tap();await button('Pad 2').tap();await button('Step 1').tap();
+ await page.waitForFunction(async()=>Number((await __wasmRead('motif_clip_info_3')).split(',')[4])===1);
+ clip=await page.evaluate(()=>__wasmRead('state'));
  await page.locator('#audio').click();await page.waitForFunction(()=>document.querySelector('#audio').textContent==='Disable audio');
  await button('Play / Stop').tap();
  await page.waitForFunction(()=>{try{return JSON.parse(document.querySelector('#audio-report').textContent).peak>.0001;}catch{return false;}});
@@ -54,6 +58,29 @@ try{
  await page.locator('#comp-source').selectOption('0');
  await page.waitForFunction(()=>document.querySelector('#comp-explanation').textContent.includes('also triggers'));
  assert.equal(await page.evaluate(()=>__wasmRead('state')),clip);
+ // Starting fresh must preserve and expose the previous session, including
+ // its clips and source choices. Reload keeps both the blank and its archive.
+ await page.getByText('Session files',{exact:true}).click();
+ // A failed preservation write must not clear the live engine or its current save.
+ await page.evaluate(()=>{window.archiveAdd=IDBObjectStore.prototype.add;IDBObjectStore.prototype.add=function(){throw new DOMException('Test storage full','QuotaExceededError');};});
+ await page.locator('#session-new').click();
+ await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('Current session retained'));
+ assert.equal(await page.evaluate(()=>__wasmRead('state')),clip);
+ assert.equal(await page.locator('#session-previous option').count(),1);
+ await page.evaluate(()=>{IDBObjectStore.prototype.add=window.archiveAdd;delete window.archiveAdd;});
+ await page.locator('#session-new').click();
+ await page.waitForFunction(()=>document.querySelector('#session-status').textContent.startsWith('New session ·'));
+ assert.equal(Number((await page.evaluate(()=>__wasmRead('motif_clip_info_0'))).split(',')[4]),0);
+ assert.equal(await page.evaluate(()=>__wasmRead('ch2:midi_fx1:chord_mode')),'Conductor Chord');
+ assert.equal(await page.locator('#session-previous option').count(),2);
+ await page.reload();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
+ await page.getByText('Session files',{exact:true}).click();
+ assert.equal(await page.locator('#session-previous option').count(),2);
+ await page.locator('#session-previous').selectOption({index:1});await page.locator('#session-open-previous').click();
+ await page.waitForFunction(()=>!document.querySelector('#session-open-previous').disabled&&document.querySelector('#session-status').textContent.includes('restored'));
+ assert.equal(await page.evaluate(()=>__wasmRead('state')),clip);
+ assert.equal(await page.locator('#session-previous option').count(),3,'opening an archive also preserves the session being left');
+ await page.getByText('Session files',{exact:true}).click();
  // Production mode menu and Shift+Session shortcut reach Clips and all tracks.
  await page.locator('#shift').check();await button('Note / Session').tap();await page.locator('#shift').uncheck();await button('Step 16').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 16'));

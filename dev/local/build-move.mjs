@@ -38,7 +38,9 @@ export async function buildMove({root,source,schwung,esbuild}){
     for(const [before,after] of [
      ['chains: captureChains(chainDoc),','chains: undefined,'],
      ['sends: captureSends(chainDoc),','sends: undefined,'],
-     ['const n = restoreChains(o.chains, o.sends);','const n = 0;']
+     ['const n = restoreChains(o.chains, o.sends);','const n = 0;'],
+     ['function freshHarmonyBusChains() {','export function freshHarmonyBusChains() {'],
+     ['const hbFreshCount = restoreChains(freshHarmonyBusChains(), null);','const hbFreshCount = 0;']
     ]){if(contents.split(before).length!==2)throw new Error('Movy UI state seam changed: '+before);contents=contents.replace(before,after);}
     return {contents,loader:'ts'};
    });
