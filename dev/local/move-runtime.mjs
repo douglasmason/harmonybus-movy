@@ -12,6 +12,8 @@ import {refreshModelsForSet} from 'movy/app/model-refresh.ts';
 import {resetHeldInput} from 'movy/app/input-reset.ts';
 import {releaseAllLive} from 'movy/keyboard/release.ts';
 import {sessionPlayMode} from 'movy/seq/router-buttons.ts';
+import {jointSnapshot,jointPanelSet} from 'movy/seq/joint-play.ts';
+import {chordEnabled} from 'movy/seq/chord-play.ts';
 import {decodeBulk,encodeBulk} from 'movy/track/bulk.ts';
 import {resetBrowserUserParts} from 'movy/seq/part-storage.ts';
 import {resetBrowserUsage} from 'movy/app/interface-usage.ts';
@@ -136,6 +138,18 @@ export function createMoveRuntime({request,metadata}){
   held.clear();seqCmdFlush();surface.fill(0,1560,1944);
  }
  function capture(){return {state:serializeUiState(),files:Object.fromEntries(files)};}
+ function accompaniment(){
+  const group=Math.floor(appState.activeTrack.index/4),base=group*4;
+  return {group,melody:base+3,comp:base+2,source:jointSnapshot()[group].comp,overridden:chordEnabled()};
+ }
+ function setCompSource(group,source){
+  if(!Number.isInteger(group)||group<0||group>3||!Number.isInteger(source)||source<0||source>3)throw new Error('Invalid Comp source');
+  if(held.size)throw new Error('Release held controls before changing Comp source');
+  if(chordEnabled())throw new Error('Chord Play controls its own accompaniment');
+  // Use the production setting and its normal routing/held-note teardown.
+  // An explicit group keeps a delayed edit tied to the bank shown when sent.
+  jointPanelSet(group*4,'joint_comp',String(source));runTick();seqCmdFlush();
+ }
  const initialState=serializeUiState();
  function validate(saved){
   if(saved===undefined)return;
@@ -158,8 +172,8 @@ export function createMoveRuntime({request,metadata}){
   applyUiState(JSON.stringify(state));refreshModelsForSet();
   for(let count=0;count<32;count++)runTick();
  }
- return {tick:runTick,input,release,capture,restore,validate,isHeld:()=>held.size>0,
+ return {tick:runTick,input,release,capture,restore,validate,setCompSource,isHeld:()=>held.size>0,
   diagnostic:()=>({ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0,held:held.size,track:appState.activeTrack.index,view:appState.currentView,mode:sessionPlayMode()}),
-  snapshot:()=>({screen:Array.from(screen),surface:Array.from(surface),track:appState.activeTrack.index,view:appState.currentView,ready:engineReady(),playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
+  snapshot:()=>({screen:Array.from(screen),surface:Array.from(surface),track:appState.activeTrack.index,view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
   dispose:()=>{release();closed=true;}};
 }

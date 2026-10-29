@@ -17,6 +17,13 @@ try{
  assert.equal(await page.locator('#knobs .control').count(),8);
  assert.equal(await page.locator('#pads .control').count(),32);
  assert.equal(await page.locator('#steps .control').count(),16);
+ await button('Track 4').tap();
+ await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 4'));
+ assert.match(await page.locator('#comp-route').textContent(),/Track 4 melody · Track 3 comp/);
+ assert.equal(await page.locator('#comp-source').inputValue(),'0');
+ await page.locator('#comp-source').selectOption('1');
+ await page.waitForFunction(()=>document.querySelector('#comp-explanation').textContent.includes('without linked comp'));
+ await button('Track 1').tap();
  await page.locator('#display-size').selectOption('640');
  await button('Enlarge display').click();
  assert(await page.locator('#hero').evaluate(el=>el.getBoundingClientRect().width>900));
@@ -43,10 +50,15 @@ try{
  await page.waitForFunction(()=>!document.querySelector('#session-save').disabled&&document.querySelector('#session-status').textContent.includes('Saved'));
  await page.reload();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
  assert.equal(await page.locator('#display-size').inputValue(),'640');
+ assert.equal(await page.locator('#comp-source').inputValue(),'1','Comp source survives save and reload');
+ await page.locator('#comp-source').selectOption('0');
+ await page.waitForFunction(()=>document.querySelector('#comp-explanation').textContent.includes('also triggers'));
  assert.equal(await page.evaluate(()=>__wasmRead('state')),clip);
  // Production mode menu and Shift+Session shortcut reach Clips and all tracks.
  await page.locator('#shift').check();await button('Note / Session').tap();await page.locator('#shift').uncheck();await button('Step 16').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 16'));
+ assert.match(await page.locator('#comp-route').textContent(),/Track 16 melody · Track 15 comp/);
+ assert.equal(await page.locator('#comp-source').inputValue(),'0','each bank retains its own source');
  await button('Step 1').tap();
  await page.waitForFunction(async()=>Number((await __wasmRead('motif_clip_info_15')).split(',')[4])===1);
  // Landscape tablet geometry has no horizontal overflow or overlapping pad targets.

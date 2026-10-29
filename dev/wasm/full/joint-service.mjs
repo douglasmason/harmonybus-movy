@@ -96,6 +96,9 @@ export async function createJointService(raw,emit,build=null,createSurface=null)
     if(message.type==='move_midi'){
      if(!surface)throw new Error('Move surface is unavailable');
      surface.input(message.data);
+    }else if(message.type==='move_comp_source'){
+     if(!surface)throw new Error('Move surface is unavailable');
+     surface.setCompSource(message.group,message.source);
     }else if(message.type==='set_param'){
      const key=String(message.key??'').replace(/^overtake_dsp:/,''),value=String(message.value??'');
      if(value.length>1024||/[\r\n\t]/.test(value))throw new Error('Invalid value');

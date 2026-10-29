@@ -9,6 +9,12 @@ try{
  const send=message=>socket.send(JSON.stringify(message));
  const inputs=mountMoveInput({controls,send}),surface=mountMoveSurface();
  const audioButton=document.querySelector('#audio'),audioStatus=document.querySelector('#audio-status');
+ const compSource=document.querySelector('#comp-source');
+ let accompaniment=null;
+ compSource.onchange=()=>{
+  if(!accompaniment)return;
+  send({type:'move_comp_source',group:accompaniment.group,source:Number(compSource.value)});
+ };
  let stopped=true,lastTrack=-1;
  const disableAudio=()=>audio.disable();
  audio.onStatus=text=>{audioStatus.textContent=text;};
@@ -28,6 +34,23 @@ try{
   if(message.type==='error'||message.type==='audio_error'){errorBox.textContent=message.message;return;}
   if(!message.move)return;
   const frame=message.move;
+  accompaniment=frame.accompaniment;
+  if(accompaniment){
+   const {melody,comp,source}=accompaniment;
+   if(compSource.dataset.setting!==`${accompaniment.group}:${source}`){compSource.value=String(source);compSource.dataset.setting=`${accompaniment.group}:${source}`;}
+   compSource.disabled=!frame.ready||frame.held>0||accompaniment.overridden;
+   document.querySelector('#comp-route').textContent=`Track ${melody+1} melody · Track ${comp+1} comp`;
+   document.querySelector('#comp-explanation').textContent=[
+    `Playing Track ${melody+1} also triggers Track ${comp+1}. Approach pads can sound together with their target. Choose Clip for independent playing.`,
+    `Track ${comp+1} plays its own clip. Track ${melody+1} pads play without linked comp accompaniment.`,
+    `Track ${comp+1} uses independent pads in Joint Play. It does not follow Track ${melody+1}.`,
+    `Track ${comp+1} keeps its clip rhythm; Track ${melody+1} guides its register.`
+   ][source];
+   if(accompaniment.overridden){
+    document.querySelector('#comp-route').textContent='Chord Play accompaniment';
+    document.querySelector('#comp-explanation').textContent='Use the on-screen Chord Play controls for its accompaniment. The bank’s Comp source resumes when you leave Chord Play.';
+   }
+  }
   const status=Object.fromEntries((message.params?.status??'').split(' ').map(field=>field.split('=')));
   surface.update(frame,Number(status.bpm)/100);
   stopped=status.play==='0';
@@ -37,7 +60,7 @@ try{
   if(frame.ready)inputs.enable();
  };
  socket.onerror=error=>{errorBox.textContent=error.message??'Engine connection failed';};
- socket.onclose=()=>{feedback.textContent='Engine closed · reload to reconnect';};
+ socket.onclose=()=>{feedback.textContent='Engine closed · reload to reconnect';compSource.disabled=true;};
  send({type:'subscribe_tool'});
  for(const id of ['audio','audio-test','stop'])document.querySelector('#'+id).disabled=false;
  document.querySelector('#build').textContent=`Movy ${audio.build?.engineSource?.integrationVersion??'unknown'} · HarmonyBus ${metadata.version} · engine ${audio.build?.engineSource?.commit?.slice(0,12)??'unknown'} · UI ${audio.build?.hostSource?.commit?.slice(0,12)??'local'} · 44,100 Hz`;

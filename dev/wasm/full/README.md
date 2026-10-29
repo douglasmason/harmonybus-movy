@@ -31,6 +31,14 @@ vertically, use arrow keys while focused, or select it above the surface and use
 the minus/plus buttons. Escape and Stop cancel held gestures without turning an
 interrupted step press into a note edit.
 
+The Comp accompaniment strip shows the selected bank's melody/comp pair and
+edits the existing Joint Setup source setting. Follow remains active in Normal
+Play: Track 4 also triggers Track 3, so an approach and its target can sound
+together while target pads double in unison. Choose **Clip · independent** for
+Track 4 pads without that linked comp voice. Clip, Pads and Clip + Guide keep
+their production meanings; choices persist per bank in saved sessions. Chord
+Play owns its own accompaniment, so the shortcut is disabled there.
+
 `dev/local/build-move.mjs` bundles our `move-surface.mjs` using the same Movy
 palette as Joint, alongside the integration's patched Movy sources. Its fail-closed adapters
 replace device Set discovery/autosave with the browser session owner, omit a

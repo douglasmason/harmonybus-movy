@@ -19,6 +19,35 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   await send({type:'subscribe_tool'});await until(()=>updates.at(-1)?.move?.ready&&updates.at(-1).move.screen.some(value=>value>0));
   assert(updates.at(-1).move.screen.some(value=>value>0),'production renderer must draw a screen');
   assert(updates.at(-1).move.surface.slice(24,152).some(value=>value>0),'production LED writers must paint the surface');
+  // Melody approaches sound against the target on the linked Comp track.
+  // The browser shortcut changes that production source, without remapping pads.
+  await cc(40);assert.equal(service.stats().move.track,3);
+  const strike=async pad=>{
+   const after=service.stats().sequence;await midi([144,pad,100]);await wait(80);
+   const events=new Map();for(const frame of updates)for(const event of frame.events??[])if(event.sequence>after&&(event.packet[1]&240)===144&&event.packet[3])events.set(event.sequence,event.packet);
+   const notes=[...events.values()].map(packet=>[packet[1]&15,packet[2]]).sort((a,b)=>a[0]-b[0]);
+   await midi([128,pad,0]);return notes;
+  };
+  assert.deepEqual(await strike(68),[[2,48],[3,48]],'target is doubled in unison');
+  assert.deepEqual(await strike(76),[[2,48],[3,43]],'approach and comp target form the reported harmony');
+  await send({type:'move_comp_source',group:0,source:1});
+  assert.equal(updates.at(-1).move.accompaniment.source,1);
+  for(let pad=68;pad<100;pad++){
+   const notes=await strike(pad);assert.equal(notes.length,1,'independent pad '+pad);assert.equal(notes[0][0],3);
+  }
+  const independent=await service.save({});
+  await send({type:'move_comp_source',group:0,source:0});
+  assert.deepEqual(await strike(76),[[2,48],[3,43]],'Follow can be restored');
+  await service.open(independent);await wait(100);
+  // Opening retains the source choice, regardless of the restored active track.
+  assert.equal(JSON.parse((await service.save({})).payload.ui.move.state).jointPlay[0].comp,1);
+  await cc(40);assert.deepEqual(await strike(76),[[3,43]]);
+  await send({type:'move_comp_source',group:1,source:2});
+  let groups=JSON.parse((await service.save({})).payload.ui.move.state).jointPlay;
+  assert.equal(groups[0].comp,1);assert.equal(groups[1].comp,2,'edit is scoped to its displayed bank');
+  await send({type:'move_comp_source',group:0,source:0});
+  await send({type:'move_comp_source',group:1,source:0});
+  await cc(43);
   assert.equal(count(0),0);
   await note(69);await note(16);assert.equal(count(0),1);
   const first=service.read('state');assert.match(first,/cl 0 0 .*:[0-9]+:100:0/);
