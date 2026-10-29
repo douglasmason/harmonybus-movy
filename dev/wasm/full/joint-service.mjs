@@ -39,8 +39,8 @@ export async function createJointService(raw,emit,build=null,createSurface=null)
   lastSnapshot=now;
   socket.onmessage?.({data:JSON.stringify({type:'param_update',params,beat,events:recent,observation:observation(params,{epoch,sequence:++snapshotSequence,sampleFrame,build}),move:surface?.snapshot(),requestId:id})});
  }
- function cleanup(){
-  surface?.release();
+ function cleanup(preserveContext=true){
+  surface?.release(preserveContext);
   for(const note of physical)request('midi',`128,${note},0`);physical.clear();
   for(const [key,cancel] of touches)request('set',key,cancel);touches.clear();
   request('set','cmd','stop');request('set','joint_release','1');
@@ -147,7 +147,7 @@ export async function createJointService(raw,emit,build=null,createSurface=null)
    candidate=await createFullEngine(engineOptions);
    const ui=await restoreCandidate(candidate,session);
    if(newSession)candidate.request('set','cmd',`dq ${JSON.parse(ui.move.state).defaultQuant}`);
-   cleanup();const previous=engine;engine=candidate;candidate=null;previous.dispose?.();
+   cleanup(false);const previous=engine;engine=candidate;candidate=null;previous.dispose?.();
    surface?.restore(ui.move);
    epoch++;clipInfo.clear();recent=[];last=performance.now();remainder=0;beat=0;sampleFrame=0;
    snapshot();return ui;

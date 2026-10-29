@@ -42,8 +42,10 @@ production defaults without replacing older saves.
 For Chord Play, choose it in Note/Session, tap a chord on the step row, then tap
 Record and play melody pads while changing chords. The default conductor is
 silent; its selections carry harmony and melody triggers the Comp voice. Use
-Play / Stop to end the take and replay. After reopening a session, select Chord
-Play again to use that routing. The full-engine regression verifies distinct
+Play / Stop or Stop & release to end the take and replay. Reopening restores the
+selected mode and track, including Chord Play routing; no mode reselection is
+required. Stop, Escape, interrupted holds and backgrounding cancel musical gates
+while retaining that context. The full-engine regression verifies distinct
 stored harmonic descriptors and rendered Comp/melody notes before and after load.
 
 The Comp accompaniment strip shows the selected bank's melody/comp pair and
@@ -191,7 +193,11 @@ and after Stop. It restores on reload before enabling autosave. **Save on device
 The Move surface also has **New session** and **Previous sessions → Open selected**.
 Both preserve the current session in a separate IndexedDB entry before switching;
 if preservation fails, the current engine is retained. New session clears clips
-and Undo while retaining machine preferences and user parts. Archives survive
+and Undo while retaining machine preferences and user parts. New session starts
+in Normal Play on Track 1. Saved sessions also retain the playing mode, selected
+track and performance owner beneath Clips/Settings; old exports without this
+optional context retain their Normal/Motif fallback. Opening always stays stopped
+with audio disabled. Archives survive
 reload, but remain browser data: export backups for storage outside the browser.
 Stop recording/playback and release controls before saving. Export a backup before
 clearing browser data; private browsing, browser eviction or quota limits can

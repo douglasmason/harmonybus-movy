@@ -12,7 +12,8 @@ import {readPrefDefaultQuant} from 'movy/seq/prefs.ts';
 import {refreshModelsForSet} from 'movy/app/model-refresh.ts';
 import {resetHeldInput} from 'movy/app/input-reset.ts';
 import {releaseAllLive} from 'movy/keyboard/release.ts';
-import {sessionPlayMode} from 'movy/seq/router-buttons.ts';
+import {sessionPlayMode,selectInputMode} from 'movy/seq/router-buttons.ts';
+import {selectTrack} from 'movy/track/focus.ts';
 import {jointSnapshot,jointPanelSet} from 'movy/seq/joint-play.ts';
 import {chordEnabled} from 'movy/seq/chord-play.ts';
 import {decodeBulk,encodeBulk} from 'movy/track/bulk.ts';
@@ -139,14 +140,26 @@ export function createMoveRuntime({request,metadata}){
   if(index>=68&&index<=99&&kind!==176&&kind!==160)request('midi',data.join(','));
   seqCmdFlush();
  }
- function release(){
+ function context(){return {track:appState.activeTrack.index,mode:sessionPlayMode(),performance:sessionPlayMode(false)};}
+ function restoreContext(value){
+  selectTrack(value.track);
+  selectInputMode(value.performance,false);
+  if(value.mode!==value.performance)selectInputMode(value.mode);
+  // Clips can focus a conductor/comp track while Chord Play is underneath.
+  // Activating the performance owner may temporarily choose its playing track.
+  selectTrack(value.track);
+ }
+ function release(preserveContext=true){
   // Cancellation is not a tap: a synthetic step/button release could toggle a
   // note or launch recording. Drop gesture latches and release musical gates.
+  const previous=preserveContext?context():null;
   releaseAllLive();resetHeldInput(true);
   for(const data of held.values())if(data[0]===128&&data[1]>=68)request('midi',data.join(','));
-  held.clear();seqCmdFlush();surface.fill(0,1560,1944);
+  held.clear();
+  if(previous)restoreContext(previous);
+  seqCmdFlush();surface.fill(0,1560,1944);
  }
- function capture(){return {state:serializeUiState(),files:Object.fromEntries(files)};}
+ function capture(){return {state:serializeUiState(),files:Object.fromEntries(files),context:context()};}
  function accompaniment(){
   const group=Math.floor(appState.activeTrack.index/4),base=group*4;
   return {group,melody:base+3,comp:base+2,source:jointSnapshot()[group].comp,overridden:chordEnabled()};
@@ -160,9 +173,10 @@ export function createMoveRuntime({request,metadata}){
   jointPanelSet(group*4,'joint_comp',String(source));runTick();seqCmdFlush();
  }
  const initialState=serializeUiState();
+ const initialContext=context();
  function fresh(){
   const state=JSON.parse(initialState);state.defaultQuant=readPrefDefaultQuant();
-  return {state:JSON.stringify(state),files:Object.fromEntries(files)};
+  return {state:JSON.stringify(state),files:Object.fromEntries(files),context:{...initialContext}};
  }
  function validate(saved){
   if(saved===undefined)return;
@@ -173,6 +187,14 @@ export function createMoveRuntime({request,metadata}){
    if(!(key in defaults)||typeof value!==typeof defaults[key]||Array.isArray(value)!==Array.isArray(defaults[key]))throw new Error('Invalid Move UI field: '+key);
   }
   if(!saved.files||typeof saved.files!=='object'||Array.isArray(saved.files)||Object.entries(saved.files).some(([path,value])=>!validFile(path,value)))throw new Error('Invalid Move preferences');
+  if(saved.context!==undefined){
+   const value=saved.context;
+   if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['track','mode','performance'].includes(key))||
+    !Number.isInteger(value.track)||value.track<0||value.track>15||!Number.isInteger(value.mode)||value.mode<0||value.mode>7||
+    !Number.isInteger(value.performance)||value.performance<1||value.performance>6||
+    ![0,7,value.performance].includes(value.mode))throw new Error('Invalid Move performance context');
+   if(value.mode===6&&[state.chordPlay?.conductor??0,state.chordPlay?.bass??1,state.chordPlay?.comp??2].includes(value.track))throw new Error('Invalid Chord Play track');
+  }
  }
  function restore(saved){
   files.clear();for(const [path,value]of Object.entries(saved?.files??{}))files.set(path,value);
@@ -182,11 +204,15 @@ export function createMoveRuntime({request,metadata}){
   // The verified sequencer is authoritative when importing from either surface.
   const status=Object.fromEntries(get('status').split(' ').map(field=>field.split('=')));
   state.defaultQuant=Number(status.dquant)||0;seqState.sessionMode=false;
-  applyUiState(JSON.stringify(state));refreshModelsForSet();
+  applyUiState(JSON.stringify(state));
+  // Older exports have no context; retain their flag-derived Normal/Motif mode.
+  const previous=saved?.context??{track:0,mode:state.flags?.hbsteprow===2?2:1,performance:state.flags?.hbsteprow===2?2:1};
+  selectTrack(previous.track);refreshModelsForSet();
   for(let count=0;count<32;count++)runTick();
+  restoreContext(previous);runTick();seqCmdFlush();
  }
  return {tick:runTick,input,release,capture,restore,validate,fresh,setCompSource,isHeld:()=>held.size>0,
   diagnostic:()=>({ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0,held:held.size,track:appState.activeTrack.index,view:appState.currentView,mode:sessionPlayMode()}),
-  snapshot:()=>({screen:Array.from(screen),surface:Array.from(surface),track:appState.activeTrack.index,view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
-  dispose:()=>{release();closed=true;}};
+  snapshot:()=>({screen:Array.from(screen),surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
+  dispose:()=>{release(false);closed=true;}};
 }

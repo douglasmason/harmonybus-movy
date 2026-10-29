@@ -35,6 +35,7 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   // Existing browser sessions retain their original fixture settings. Exercise
   // the previous pad regression on that saved configuration, never as defaults.
   legacy.payload.ui.move={...fresh.payload.ui.move,state:JSON.stringify({...freshUI,roleLayout:0})};
+  delete legacy.payload.ui.move.context; // Older exports predate mode/focus storage.
   await service.open(await sealSession(legacy.payload,{}));
   assert.equal(service.read('ch2:midi_fx1:chord_mode'),'Off');
   // Melody approaches sound against the target on the linked Comp track.
@@ -135,9 +136,12 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   await note(16);await cc(86);await until(()=>/rec=1/.test(service.read('status')));
   await note(17);await midi([144,70,100]);await wait(300);await midi([128,70,0]);
   await note(18);await midi([144,72,100]);await wait(300);await midi([128,72,0]);
-  await cc(85);assert.match(service.read('status'),/play=0/);
+  await send({type:'dev_release'});assert.match(service.read('status'),/play=0/);
+  assert.equal(service.stats().move.mode,6,'Stop & release retains Chord Play');
+  assert.equal(service.stats().move.track,3);
   assert(count(0)>=2,'chord choices are recorded on the conductor');
   const chordSession=await service.save({}),chordState=service.read('state');
+  assert.deepEqual(chordSession.payload.ui.move.context,{mode:6,performance:6,track:3});
   const descriptors=chordState.split('\n').filter(line=>line.startsWith('ra 0 0 ')).map(line=>BigInt(line.split(' ')[4].split(',')[1]));
   assert(descriptors.length>=2,'recordings retain abstract harmonic descriptors');
   assert(new Set(descriptors).size>=2,'different chord choices retain distinct intent');
@@ -150,13 +154,36 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   };
   const replayed=await replay();
   assert(new Set(replayed.filter(packet=>(packet[1]&15)===2).map(packet=>packet[2])).size>=3);
+  // Invalid context must be rejected before it can replace the current engine.
+  const badContext=structuredClone(chordSession.payload);badContext.ui.move.context.track=16;
+  await assert.rejects(()=>sealSession(badContext,{}).then(session=>service.open(session)),/Invalid Move performance context/);
+  assert.equal(service.read('state'),chordState);assert.equal(service.stats().move.mode,6);
+  // Cancellation releases a physical pad without leaving the selected mode.
+  await midi([144,70,100]);assert.equal(service.stats().move.held,1);
+  service.visibility(true);assert.equal(service.stats().move.held,0);assert.equal(service.stats().move.mode,6);
+  service.visibility(false);
   await service.newSession({});assert.equal(count(0),0);
   await service.open(chordSession);assert.equal(service.read('state'),chordState);
-  await cc(50);await midi([176,14,5]);await cc(3);
+  assert.equal(service.stats().move.mode,6,'reopening restores Chord Play with no mode-selection gesture');
+  assert.equal(service.stats().move.track,3,'reopening restores the playing track');
   const loadedReplay=await replay();
   assert(new Set(loadedReplay.filter(packet=>(packet[1]&15)===2).map(packet=>packet[2])).size>=3);
   const pitches=events=>[...new Set(events.map(packet=>`${packet[1]&15}:${packet[2]}`))].sort();
   assert.deepEqual(pitches(loadedReplay),pitches(replayed),'reloaded intent renders the same Comp and melody pitches');
+  // Every selector destination survives Stop and reopen. Settings and Clips
+  // retain their underlying performance owner, rather than forcing Normal.
+  await midi([176,49,127]);await cc(50);await midi([176,49,0]);await note(31);
+  assert.equal(service.stats().move.track,15,'exercise context in the fourth bank');
+  for(const mode of [7,0,1,2,3,4,5,6]){
+   const previous=service.stats().move.mode;
+   await cc(50);await midi([176,14,(mode-previous+128)%128]);await cc(3);
+   assert.equal(service.stats().move.mode,mode,'select mode '+mode);
+   const context=(await service.save({})).payload.ui.move.context;
+   await send({type:'dev_release'});
+   assert.deepEqual((await service.save({})).payload.ui.move.context,context,'Stop preserves mode '+mode);
+   const session=await service.save({});await service.open(session);
+   assert.deepEqual((await service.save({})).payload.ui.move.context,context,'open preserves mode '+mode);
+  }
   await service.open(saved);assert.equal(service.read('state'),before);
   assert.equal(service.read('ch2:midi_fx1:chord_mode'),'Off','older sessions keep their own settings');
   assert.deepEqual(updates.filter(update=>update.type==='error'),[]);

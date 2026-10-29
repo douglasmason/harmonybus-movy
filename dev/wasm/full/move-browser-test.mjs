@@ -80,7 +80,40 @@ try{
  await page.waitForFunction(()=>!document.querySelector('#session-open-previous').disabled&&document.querySelector('#session-status').textContent.includes('restored'));
  assert.equal(await page.evaluate(()=>__wasmRead('state')),clip);
  assert.equal(await page.locator('#session-previous option').count(),3,'opening an archive also preserves the session being left');
+ // Record abstract chords plus melody through the real controls, stop with
+ // the browser button, reload, and press Play without reselecting the mode.
+ await page.locator('#session-new').click();
+ await page.waitForFunction(()=>document.querySelector('#session-status').textContent.startsWith('New session ·'));
  await page.getByText('Session files',{exact:true}).click();
+ await button('Note / Session').tap();await page.locator('#encoder').selectOption('14');
+ for(let turn=0;turn<5;turn++)await page.locator('#increase').click();
+ await page.locator('#enter').click();
+ await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 4 · Chord Play'));
+ await button('Step 1').tap();await button('Record').tap();
+ await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Recording'));
+ for(const [step,pad] of [['Step 2','Pad 3'],['Step 3','Pad 5']]){
+  await button(step).tap();await button(pad).focus();await page.keyboard.down('Space');
+  await page.waitForTimeout(250);await page.keyboard.up('Space');
+ }
+ await page.locator('#stop').click();
+ await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Chord Play · Stopped'));
+ const chordClip=await page.evaluate(()=>__wasmRead('state'));
+ assert(chordClip.split('\n').filter(line=>line.startsWith('ra 0 0 ')).length>=2,'harmonic descriptors are recorded');
+ await page.getByText('Session files',{exact:true}).click();await page.locator('#session-save').click();
+ await page.waitForFunction(()=>!document.querySelector('#session-save').disabled&&document.querySelector('#session-status').textContent.includes('Saved'));
+ await page.reload();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
+ await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 4 · Chord Play'));
+ assert.equal(await page.evaluate(()=>__wasmRead('state')),chordClip);
+ await page.locator('#audio').click();await page.waitForFunction(()=>document.querySelector('#audio').textContent==='Disable audio');
+ await button('Play / Stop').tap();
+ await page.waitForFunction(()=>{try{return JSON.parse(document.querySelector('#audio-report').textContent).peak>.0001;}catch{return false;}});
+ await page.locator('#stop').click();
+ await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Chord Play · Stopped'));
+ // Resume the ordinary clip/track checks in Normal Play.
+ await button('Note / Session').tap();await page.locator('#encoder').selectOption('14');
+ for(let turn=0;turn<5;turn++)await page.locator('#decrease').click();
+ await page.locator('#enter').click();
+ await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Normal Play'));
  // Production mode menu and Shift+Session shortcut reach Clips and all tracks.
  await page.locator('#shift').check();await button('Note / Session').tap();await page.locator('#shift').uncheck();await button('Step 16').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 16'));
@@ -99,7 +132,7 @@ try{
  }
  await page.context().setOffline(true);await button('Track 13').tap();await button('Step 2').tap();
  assert.equal(await page.locator('#error').textContent(),'');assert.deepEqual(errors,[]);
- console.log('PASS adaptable HB/Movy touch surface, large display, complete Movy app, clip edit/Undo/Redo, PCM replay, independent audio clock, session reload, track 16, tablet/phone layouts and offline gestures');
+ console.log('PASS adaptable HB/Movy touch surface, clip edit/Undo/Redo, PCM, independent audio clock, preserved session archives, Chord Play Record/Stop/Save/Reload/Play without mode reselection, track 16, tablet/phone layouts and offline gestures');
 }catch(error){
  if(page)console.error('Move browser failure:',await page.evaluate(async()=>({feedback:document.querySelector('#feedback')?.textContent,error:document.querySelector('#error')?.textContent,held:[...document.querySelectorAll('[data-held=true]')].map(el=>el.getAttribute('aria-label')),state:await globalThis.__wasmRead?.('state'),stats:await globalThis.__wasmStats?.()})).catch(String));
  throw error;
