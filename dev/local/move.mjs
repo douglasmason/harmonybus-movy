@@ -13,6 +13,7 @@ try{
  let accompaniment=null;
  compSource.onchange=()=>{
   if(!accompaniment)return;
+  compSource.dataset.setting=''; // Reconcile the selection even if the engine refuses it.
   send({type:'move_comp_source',group:accompaniment.group,source:Number(compSource.value)});
  };
  let stopped=true,lastTrack=-1;
