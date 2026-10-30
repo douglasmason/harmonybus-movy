@@ -2,14 +2,15 @@ import {vectorShapes} from './move-vectors.mjs';
 
 /** Record one display in two forms: exact device pixels and scalable shapes. */
 export function createMoveDrawing(screen){
- let display=[],revision=0,depth=0,precise=false;
+ let display=[],revision=0,depth=0,precise=false,panelBar=null;
  const targets=new Map();
  const begin=command=>{
   if(!depth){display.push(command);revision++;}
   depth++;return ()=>{depth--;};
  };
  return {
-  clear(){screen.fill(0);display=[];targets.clear();revision++;},
+  clear(){screen.fill(0);display=[];targets.clear();panelBar=null;revision++;},
+  panelBar(value){panelBar=value;},
   target(slot,bounds){targets.set(slot,{slot,bounds});},
   round(value){return precise?value:Math.round(value);},
   beginVector(kind,...args){
@@ -21,6 +22,7 @@ export function createMoveDrawing(screen){
   beginText(left,top,text,color,width,height){return begin([1,left,top,width,height,color,text]);},
   fillRect(left,top,width,height,color){
    if(!depth){
+    if(height>2&&panelBar?.segments.some(([x,y,w])=>left<x+w&&left+width>x&&top<=y&&top+height>y))panelBar=null;
     // A later card/menu repaint covers the controls below it. Label highlights
     // fit within one cell; larger opaque rectangles invalidate intersected cells.
     if(height>8)for(const [slot,{bounds:[x,y,w,h]}]of targets)
@@ -35,6 +37,6 @@ export function createMoveDrawing(screen){
    if(endX<=startX)return;
    for(let row=Math.max(0,Math.trunc(top));row<Math.min(64,Math.ceil(top+height));row++)screen.fill(color?255:0,row*128+startX,row*128+endX);
   },
-  snapshot:()=>({display,displayRevision:revision,screenTargets:[...targets.values()]})
+  snapshot:()=>({display,displayRevision:revision,screenTargets:[...targets.values()],panelBar})
  };
 }

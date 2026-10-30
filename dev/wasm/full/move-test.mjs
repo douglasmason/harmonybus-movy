@@ -5,6 +5,52 @@ import {createJointService} from './joint-service.mjs';
 import {createMoveRuntime} from '../../local/build/move-runtime.mjs';
 import {sealSession} from './session.mjs';
 
+test('panel shortcuts use production groups and reject stale or held navigation',async()=>{
+ const raw=JSON.parse(await readFile(new URL('../build/full/modules/midi_fx/harmonybus/module.json',import.meta.url)));
+ let frame;const errors=[];
+ const service=await createJointService(raw,value=>{if(value.move)frame=value.move;if(value.type==='error')errors.push(value);},null,createMoveRuntime);
+ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+ const send=async message=>{service.socket.send(JSON.stringify(message));await wait(50);};
+ const midi=data=>send({type:'move_midi',data});
+ const cc=async index=>{await midi([176,index,127]);await midi([176,index,0]);};
+ const until=async predicate=>{const deadline=Date.now()+6000;while(!predicate()){if(Date.now()>deadline)throw new Error('Panel navigation timeout: '+JSON.stringify(frame?.panels));await wait(20);}};
+ try{
+  await send({type:'subscribe_tool'});await until(()=>frame?.panels);
+  let previousMode=1;
+  for(const mode of [1,2,3,4,5,6,7]){
+   if(mode!==previousMode){await cc(50);await midi([176,14,mode-previousMode]);await cc(3);previousMode=mode;}
+   if(mode===4){await until(()=>frame.mode===4);assert.equal(frame.panels,null,'Grid overview has no parameter ruler');await midi([176,14,1]);}
+   await until(()=>frame?.mode===mode&&frame.panels?.entries.length>1);
+   const original=frame.panels,originalIndex=original.index;
+   const destination=original.segments.find(segment=>segment.index!==originalIndex)??original.entries.find(entry=>entry.index!==originalIndex);
+   const before=service.read('state');
+   await send({type:'move_panel',token:original.token,index:destination.index});
+   await until(()=>frame.panels?.index===destination.index);
+   if(frame.panels.segments.length)assert.equal(frame.panelBar.index,frame.panels.segments.findIndex(segment=>segment.index===destination.index));
+   assert.equal(service.read('state'),before,'panel jump does not edit musical state in mode '+mode);
+   assert(frame.knobLabels.some(Boolean),'selected settings retain their real controls');
+   // A held pad keeps ownership; the browser cannot switch its page mid-gesture.
+   await midi([144,68,100]);const heldPanel=frame.panels;
+   await send({type:'move_panel',token:heldPanel.token,index:originalIndex});
+   assert.equal(frame.panels?.index,destination.index);await midi([128,68,0]);
+   await send({type:'move_panel',token:frame.panels.token,index:originalIndex});await until(()=>frame.panels?.index===originalIndex);
+   const otherGroup=frame.panels.entries.find(entry=>entry.group!==frame.panels.entries[originalIndex].group);
+   if(otherGroup){
+    const stale=frame.panels.token;
+    await send({type:'move_panel',token:stale,index:otherGroup.index});await until(()=>frame.panels?.index===otherGroup.index);
+    assert.notEqual(frame.panels.token,stale);
+    await send({type:'move_panel',token:stale,index:originalIndex});assert.equal(frame.panels.index,otherGroup.index,'old group selection is rejected');
+    await send({type:'move_panel',token:frame.panels.token,index:originalIndex});await until(()=>frame.panels?.index===originalIndex);
+   }
+   const token=frame.panels.token;
+   await cc(50);await until(()=>frame.panels===null);
+   await send({type:'move_panel',token,index:destination.index});assert.equal(frame.panels,null,'menu cannot invoke hidden settings');
+   await cc(51);await until(()=>frame.panels?.index===originalIndex);
+  }
+  assert.deepEqual(errors,[]);
+ }finally{service.socket.close();}
+});
+
 test('complete Movy UI edits real clips, undoes, records, replays and restores without a device',async()=>{
  const raw=JSON.parse(await readFile(new URL('../build/full/modules/midi_fx/harmonybus/module.json',import.meta.url)));
  const fixture=await createJointService(raw,()=>{});

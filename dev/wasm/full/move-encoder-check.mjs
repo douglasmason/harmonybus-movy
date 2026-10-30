@@ -19,10 +19,11 @@ export async function checkEncoderActions(browser,url){
   const packets=()=>page.evaluate(()=>window.inputPackets.filter(packet=>packet.type==='move_midi').map(packet=>packet.data));
   const clear=()=>page.evaluate(()=>{window.inputPackets=[];});
   assert.equal(await page.locator('.encoder-card').count(),10);
-  assert.equal(await page.locator('.encoder-action').count(),62);
-  // Every physical encoder has exactly the normal and modified action rows.
+  assert.equal(await page.locator('.encoder-action').count(),14);
+  // Eight knobs and Volume reuse the two selected-encoder rows; Jog keeps its own.
   for(const [name,index,touch] of [...Array.from({length:8},(_,slot)=>['Knob '+(slot+1),71+slot,slot]),['Volume',79,8],['Jog',14,9]]){
-   const card=page.locator(`.encoder-card[data-encoder="${index}"]`);
+   if(name!=='Jog')await page.locator('#encoder').selectOption(String(index));
+   const card=page.locator(name==='Jog'?'.encoder-card[data-encoder="14"]':'#encoder-actions');
    assert.equal(await card.locator('.encoder-action-row').count(),2);
    for(const shift of [false,true]){
     const actions=['left','touch',...(name==='Jog'?['click']:[]),'right'];
@@ -45,12 +46,14 @@ export async function checkEncoderActions(browser,url){
   // Two independent shifted touches and a duplicate alias share one modifier.
   await clear();
   const event=async(name,type)=>page.getByRole('button',{name,exact:true}).dispatchEvent(type,{key:'Enter',bubbles:true});
-  await event('Shift + Knob 1 touch','keydown');await event('Shift + Volume touch','keydown');
+  await page.locator('#encoder').selectOption('71');
+  await event('Shift + Knob 1 touch','keydown');await event('Shift + Jog touch','keydown');
+  assert(await page.locator('#encoder').isDisabled(),'selection stays attached to a held gesture');
   await event('Knob 1 touch','keydown');await event('Knob 1 touch','keyup');
   await event('Shift + Knob 1 touch','keyup');
-  assert.deepEqual(await packets(),[[176,49,127],[144,0,127],[144,8,127],[144,0,0]]);
-  await event('Shift + Volume touch','keyup');
-  assert.deepEqual((await packets()).slice(-2),[[144,8,0],[176,49,0]]);
+  assert.deepEqual(await packets(),[[176,49,127],[144,0,127],[144,9,127],[144,0,0]]);
+  await event('Shift + Jog touch','keyup');
+  assert.deepEqual((await packets()).slice(-2),[[144,9,0],[176,49,0]]);
   // The large Jog's tap cannot release an already-held explicit Click.
   await clear();await event('Jog click','keydown');await button('Jog').press('Enter');
   assert.deepEqual(await packets(),[[176,3,127],[144,9,127],[144,9,0]]);
@@ -62,6 +65,8 @@ export async function checkEncoderActions(browser,url){
   for(const viewport of [{width:768,height:1024},{width:390,height:844},{width:601,height:850},{width:850,height:850},{width:1180,height:820}]){
    await page.setViewportSize(viewport);
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+   assert.equal(await page.locator('#knobs').isVisible(),viewport.width>850,'individual knobs collapse on small screens');
+   assert(await page.locator('#encoder-actions').evaluate(element=>element.getBoundingClientRect().top>=document.querySelector('#encoder').getBoundingClientRect().bottom),'actions sit below the selector');
    assert(await page.locator('.encoder-action').evaluateAll(elements=>elements.every(element=>element.scrollWidth<=element.clientWidth&&element.getBoundingClientRect().width>=32)),'action labels fit '+viewport.width);
   }
   console.log('PASS all 62 encoder actions, distinct Jog touch/click, Shift ownership, cancellation and responsive labels');

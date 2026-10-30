@@ -3,6 +3,19 @@ export function mountMoveInput({controls,send}){
  const selector=document.querySelector('#encoder');
  const status=document.querySelector('#control-status');
  const active=new Map(),buttons=new Map(),aliases=new Set(),shiftOwners=new Set(),shiftButtons=new Set();
+ const selectedActions=[];
+ const selectedControl=()=>controls.find(control=>control.type==='encoder'&&control.index===Number(selector.value));
+ function refreshSelected(){
+  const control=selectedControl();if(!control)return;
+  selector.disabled=!enabled||selectedActions.some(button=>button.dataset.held==='true');
+  document.querySelector('#encoder-reading').textContent=buttons.get(control).title;
+  for(const button of selectedActions){
+   const action=button.dataset.action,shift=button.parentElement.dataset.shift==='true';
+   button.parentElement.setAttribute('aria-label',(shift?'Shift + ':'')+control.name+' actions');
+   const name=(shift?'Shift + ':'')+control.name+' '+(['left','right'].includes(action)?'turn '+action:action);
+   button.title=name;button.setAttribute('aria-label',name);
+  }
+ }
  let enabled=false;
  const midi=data=>send({type:'move_midi',data});
  const touch=(control,on)=>midi([144,control.touch,on?127:0]);
@@ -17,8 +30,9 @@ export function mountMoveInput({controls,send}){
   active.set(control,button);button.dataset.held='true';
   if(shiftButtons.has(button))setShift(button,true);
   status.dataset.encoder=control.type==='encoder'?String(control.index):'';status.textContent=button.title;
-  if(control.type==='encoder'){if(!control.click)selector.value=String(control.index);touch(control,true);}
+  if(control.type==='encoder'){if(!control.click&&!selector.disabled)selector.value=String(control.index);touch(control,true);}
   else edge(control,true,button);
+  refreshSelected();
   return true;
  }
  function end(control,button){
@@ -26,6 +40,7 @@ export function mountMoveInput({controls,send}){
   active.delete(control);button.dataset.held='false';
   if(control.type==='encoder')touch(control,false);else edge(control,false,button);
   if(shiftButtons.has(button))setShift(button,false);
+  refreshSelected();
   return true;
  }
  function turn(control,delta){
@@ -34,13 +49,15 @@ export function mountMoveInput({controls,send}){
  function clickJog(){if([...active.keys()].some(control=>control.type==='cc'&&control.index===3))return;midi([176,3,127]);midi([176,3,0]);}
  function release(){
   for(const button of active.values())button.dataset.held='false';active.clear();shiftOwners.clear();
-  document.querySelector('#shift').checked=false;send({type:'dev_release'});
+  document.querySelector('#shift').checked=false;send({type:'dev_release'});refreshSelected();
  }
  // Both the physical control grid and the screen cells use this one gesture
  // owner. A second finger on an alias cannot release the first finger's knob.
- function bind(control,button,{shift=false,delta=0,drag=true,click=!!control.click}={}){
+ function bind(source,button,{shift=false,delta=0,drag=true,click=!!source.click}={}){
+  const resolveControl=typeof source==='function'?source:()=>source;
+  let control=resolveControl();
   if(shift)shiftButtons.add(button);
-  function start(){if(!begin(control,button))return false;if(delta)turn(control,delta);return true;}
+  function start(){const next=resolveControl();if(!begin(next,button))return false;control=next;if(delta)turn(control,delta);return true;}
   let lastY=0,moved=false,pointer=null;
   button.onpointerdown=event=>{
    if(pointer!==null)return;event.preventDefault();
@@ -75,6 +92,11 @@ export function mountMoveInput({controls,send}){
  }
  function encoderCard(control,button){
   const card=document.createElement('div');card.className='encoder-card';card.dataset.encoder=control.index;card.append(button);
+  if(control.click)actionRows(card,control);
+  return card;
+ }
+ function actionRows(container,source){
+  const control=typeof source==='function'?source():source;
   const clickControl=control.click?{type:'cc',index:control.click,name:'Jog click'}:null;
   for(const shift of [false,true]){
    const row=document.createElement('div');row.className='encoder-action-row';row.dataset.shift=String(shift);
@@ -84,11 +106,11 @@ export function mountMoveInput({controls,send}){
     const name=(shift?'Shift + ':'')+control.name+' '+(delta?'turn '+action:action);
     actionButton.textContent=(shift?'⇧ ':'')+label;actionButton.title=name;actionButton.setAttribute('aria-label',name);
     actionButton.dataset.action=action;row.append(actionButton);aliases.add(actionButton);
-    bind(action==='click'?clickControl:control,actionButton,{shift,delta,drag:false,click:false});
+    if(typeof source==='function')selectedActions.push(actionButton);
+    bind(action==='click'?clickControl:source,actionButton,{shift,delta,drag:false,click:false});
    }
-   card.append(row);
+   container.append(row);
   }
-  return card;
  }
  const padRows=new Map();
  for(let row=3;row>=0;row--){
@@ -114,21 +136,18 @@ export function mountMoveInput({controls,send}){
   if(control.type==='encoder'&&!control.click){const option=document.createElement('option');option.value=control.index;option.textContent=control.name;selector.append(option);}
   bind(control,button);
  }
- for(const [id,delta]of [['increase',1],['decrease',-1]])document.querySelector('#'+id).onclick=()=>{
-  const index=Number(selector.value);
-  const control=controls.find(control=>control.type==='encoder'&&control.index===index);
-  status.dataset.encoder=String(index);status.textContent=buttons.get(control).title;
-  if(active.has(control))turn(control,delta);
-  else {touch(control,true);turn(control,delta);touch(control,false);}
- };
+ actionRows(document.querySelector('#encoder-actions'),selectedControl);
  selector.onchange=()=>{
   const control=controls.find(control=>control.type==='encoder'&&control.index===Number(selector.value));
   status.dataset.encoder=String(control.index);status.textContent=buttons.get(control).title;
+  refreshSelected();
  };
+ refreshSelected();
  document.querySelector('#shift').onchange=event=>setShift(event.target,event.target.checked);
  window.addEventListener('blur',release);document.addEventListener('visibilitychange',()=>{if(document.hidden)release();});
  document.addEventListener('keydown',event=>{if(event.key==='Escape')release();});
- return {release,isHeld:()=>active.size>0||shiftOwners.size>0,
+ return {release,refreshSelected,isHeld:()=>active.size>0||shiftOwners.size>0,
+  selectPanel:(token,index)=>{if(!active.size&&!shiftOwners.size)send({type:'move_panel',token,index});},
   bindAlias(control,button){aliases.add(button);button.disabled=!enabled;bind(control,button);return ()=>active.get(control)===button;},
-  enable:()=>{enabled=true;for(const button of [...buttons.values(),...aliases])button.disabled=false;for(const id of ['encoder','decrease','increase','shift'])document.querySelector('#'+id).disabled=false;}};
+  enable:()=>{enabled=true;for(const button of [...buttons.values(),...aliases])button.disabled=false;document.querySelector('#shift').disabled=false;refreshSelected();}};
 }
