@@ -248,7 +248,10 @@ try{
   await page.setViewportSize(viewport);
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'control grid fits '+viewport.width);
   assert(await button('Pad 1').isVisible());assert(await button('Record').isVisible());
-  assert(await button('Knob 2').evaluate(element=>element.scrollWidth<=element.clientWidth),'full knob labels fit '+viewport.width);
+  assert.equal(await page.locator('#knobs').isVisible(),viewport.width>850,'knob cards collapse on narrow screens');
+  if(viewport.width>850)assert(await button('Knob 2').evaluate(element=>element.scrollWidth<=element.clientWidth),'full knob labels fit '+viewport.width);
+  assert(await page.locator('#encoder-reading').isVisible(),'selected reading remains visible');
+  assert(await page.locator('#encoder-reading').evaluate(element=>element.scrollWidth<=element.clientWidth),'selected reading fits '+viewport.width);
  }
  await checkEncoderActions(browser,page.url());
  await page.context().setOffline(true);await button('Track 13').tap();await button('Step 2').tap();
