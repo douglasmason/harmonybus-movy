@@ -31,10 +31,10 @@ test('browser values retain complete words and fit their available space',()=>{
 test('partial label repaint discards covered semantic shapes',()=>{
  const drawing=createMoveDrawing(new Uint8Array(8192));
  for(let index=0;index<1000;index++){
-  drawing.fillRect(0,27,32,7,0);
+  if(index%2===0)drawing.fillRect(0,27,32,7,0);
   drawing.beginVector('label',0,27,32,7,'Chord Anticipation',index%2===0,true,true)();
  }
- assert.equal(drawing.snapshot().display.length,2);
+ assert.equal(drawing.snapshot().display.length,1,'repainting with or without a clear replaces the previous strip');
  drawing.fillRect(0,20,64,20,0);
  assert.equal(drawing.snapshot().display.length,1,'covering menu removes the label');
 });

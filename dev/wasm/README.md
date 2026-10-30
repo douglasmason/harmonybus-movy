@@ -133,7 +133,7 @@ retains the exact device text, geometry and animation.
 High-resolution parameter strips also use full names, such as Chord Anticipation
 and Follower Travel. They reuse the same measured text fitting and wrap only at
 word boundaries. Touching a knob still displays its full value on a highlighted
-strip; action controls keep their name. Automation dots and modulation marks
+strip; native action controls keep their name. Automation dots and modulation marks
 have reserved space beside the text. Both native Movy and shared Schwung cells
 retain their device bitmap behavior.
 
