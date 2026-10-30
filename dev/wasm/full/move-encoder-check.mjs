@@ -59,7 +59,7 @@ export async function checkEncoderActions(browser,url){
   await clear();await event('Shift + Jog click','keydown');await page.keyboard.press('Escape');await event('Shift + Jog click','keyup');
   assert.deepEqual(await page.evaluate(()=>window.inputPackets),[{type:'move_midi',data:[176,49,127]},{type:'move_midi',data:[176,3,127]},{type:'dev_release'}]);
   await page.waitForFunction(async()=>(await __wasmStats()).move.held===0);
-  for(const viewport of [{width:768,height:1024},{width:390,height:844},{width:1180,height:820}]){
+  for(const viewport of [{width:768,height:1024},{width:390,height:844},{width:601,height:850},{width:850,height:850},{width:1180,height:820}]){
    await page.setViewportSize(viewport);
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
    assert(await page.locator('.encoder-action').evaluateAll(elements=>elements.every(element=>element.scrollWidth<=element.clientWidth&&element.getBoundingClientRect().width>=32)),'action labels fit '+viewport.width);
