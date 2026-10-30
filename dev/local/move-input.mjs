@@ -24,18 +24,30 @@ export function mountMoveInput({controls,send}){
   for(const button of active.values())button.dataset.held='false';active.clear();
   document.querySelector('#shift').checked=false;send({type:'dev_release'});
  }
+ const padRows=new Map();
+ for(let row=3;row>=0;row--){
+  const section=document.createElement('div');section.className='pad-row';
+  const heading=document.createElement('div');heading.className='pad-row-label';heading.dataset.row=row;
+  heading.textContent=`Pads ${row*8+1}–${row*8+8}`;
+  const rowButtons=document.createElement('div');rowButtons.className='pad-row-buttons';
+  section.append(heading,rowButtons);document.querySelector('#pads').append(section);padRows.set(row,rowButtons);
+ }
  for(const control of controls){
   const button=document.createElement('button');button.className='control';button.disabled=true;
   button.setAttribute('aria-label',control.name);button.title=control.name;
   button.dataset.kind=control.type;button.dataset.index=control.index;buttons.set(control,button);
   button.dataset.group=control.group;
-  const label=document.createElement('span');label.className='control-label';label.textContent=control.name.replace(/^(Pad|Step) /,'');button.append(label);document.querySelector('#'+control.group).append(button);
+  const label=document.createElement('span');label.className='control-label';label.textContent=control.name.replace(/^(Pad|Step) /,'');button.append(label);
+  if(control.group==='pads'){
+   const secondary=document.createElement('span');secondary.className='pad-note';button.append(secondary);
+   padRows.get(Math.floor((control.index-68)/8)).append(button);
+  }else document.querySelector('#'+control.group).append(button);
   if(control.type==='encoder'){const option=document.createElement('option');option.value=control.index;option.textContent=control.name;selector.append(option);}
   let lastY=0,moved=false,pointer=null;
   button.onpointerdown=event=>{
    if(pointer!==null)return;event.preventDefault();pointer=event.pointerId;
    button.setPointerCapture(pointer);lastY=event.clientY;moved=false;begin(control,button);
-   document.querySelector('#control-status').textContent=control.name;
+   document.querySelector('#control-status').textContent=button.title;
   };
   button.onpointermove=event=>{
    if(pointer!==event.pointerId||control.type!=='encoder'||!active.has(control))return;

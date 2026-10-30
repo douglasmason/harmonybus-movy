@@ -19,6 +19,7 @@ import {chordEnabled} from 'movy/seq/chord-play.ts';
 import {decodeBulk,encodeBulk} from 'movy/track/bulk.ts';
 import {resetBrowserUserParts} from 'movy/seq/part-storage.ts';
 import {resetBrowserUsage} from 'movy/app/interface-usage.ts';
+import {createPadLabels} from './move-labels.mjs';
 
 // These are RAM-backed user files, never device paths or module overrides. Use
 // the same boundary for writes and imports so every saved session can reopen.
@@ -36,18 +37,21 @@ function validFile(path,value){
  try{const parsed=JSON.parse(value);return !!parsed&&typeof parsed==='object'&&!Array.isArray(parsed);}catch{return false;}
 }
 
-export function createMoveRuntime({request,metadata}){
+export function createMoveRuntime({request:engineRequest,metadata}){
  const screen=new Uint8Array(8192),surface=new Uint8Array(2232),view=new DataView(surface.buffer);
  surface.fill(255,152,280);surface.fill(255,408,536);
  const held=new Map(),files=new Map();
  let ticks=0,maxTickMs=0,totalTickMs=0,closed=false;
+ let lastPlayed=null,lastOutput=null,pressSerial=0,outputSerial=0;
+ const request=engineRequest;
  const get=key=>request('get',key).value;
+ const padLabels=createPadLabels(get);
  const set=(key,value)=>{
   // The worker already instantiated the fixed registry. Device library paths
   // cannot replace it, and native transport/worker settings have no browser host.
   if(['chain_host','load'].includes(key))return true;
   if(key==='cmd')value=String(value).split(';').map(command=>/^link\s/.test(command)?'link 0':command).join(';');
-  request('set',key,String(value));return true;
+  request('set',key,String(value));padLabels.route(key,value);return true;
  };
  const led=(kind,index,value,animation=0)=>{
   if(index<0||index>127)return;
@@ -136,9 +140,13 @@ export function createMoveRuntime({request,metadata}){
   }
   // As on the device: dispatch UI, synchronize its routing, then deliver a raw
   // pad edge once to DSP. Session/clip-edit modes switch the native padmap off.
+  const padPress=kind===144&&value>0&&index>=68&&index<=99;
+  if(padPress)padLabels.invalidate();
+  const label=padPress?padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0)?.pads[index-68]:null;
   onMidiMessageInternal(data);runTick();
   if(index>=68&&index<=99&&kind!==176&&kind!==160)request('midi',data.join(','));
   seqCmdFlush();
+  if(padPress)lastPlayed=label?{serial:++pressSerial,pad:index-68,label:{...label}}:null;
  }
  function context(){return {track:appState.activeTrack.index,mode:sessionPlayMode(),performance:sessionPlayMode(false)};}
  function restoreContext(value){
@@ -197,6 +205,7 @@ export function createMoveRuntime({request,metadata}){
   }
  }
  function restore(saved){
+  lastPlayed=lastOutput=null;padLabels.invalidate();
   files.clear();for(const [path,value]of Object.entries(saved?.files??{}))files.set(path,value);
   resetBrowserUserParts();resetBrowserUsage();
   resetFlags();setFlag('chtracks',1);resetSeqEngine();init();
@@ -211,8 +220,11 @@ export function createMoveRuntime({request,metadata}){
   for(let count=0;count<32;count++)runTick();
   restoreContext(previous);runTick();seqCmdFlush();
  }
- return {tick:runTick,input,release,capture,restore,validate,fresh,setCompSource,isHeld:()=>held.size>0,
+ return {observeOutput(packets){
+   const outputs=padLabels.outputs(packets);
+   if(outputs.length)lastOutput={serial:++outputSerial,outputs};
+  },tick:runTick,input,release,capture,restore,validate,fresh,setCompSource,isHeld:()=>held.size>0,
   diagnostic:()=>({ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0,held:held.size,track:appState.activeTrack.index,view:appState.currentView,mode:sessionPlayMode()}),
-  snapshot:()=>({screen:Array.from(screen),surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
+  snapshot:()=>({screen:Array.from(screen),surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),padLabels:padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0),lastPlayed,lastOutput,playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
   dispose:()=>{release(false);closed=true;}};
 }

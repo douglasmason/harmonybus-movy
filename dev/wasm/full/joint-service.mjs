@@ -21,12 +21,14 @@ export async function createJointService(raw,emit,build=null,createSurface=null)
  const base=['status','song_section'];
  const clipInfo=new Map();
  if(!createSurface)for(let track=0;track<4;track++)for(const key of ['role','version','travel_map','master_transpose','harmony_snapshot','harmony_source_snapshot','follower_snapshot','shared_context_snapshot','pad_view','field_outputs_view2'])base.push(`ch${track}:midi_fx1:${key}`);
- const surface=createSurface?.({request,metadata:raw});
+ let surface=null;
+ surface=createSurface?.({request,metadata:raw});
  const freshPayload=surface?capturePayload(engine,{move:surface.capture()}):null;
  function request(...args){
   const result=engine.request(...args);
   if(['step','render'].includes(args[0]))sampleFrame+=Number(args[1])*128;
   for(const packet of result.events)recent.push({...eventObservation(packet,{epoch,sequence:++sequence,sampleFrame,operation:args[0],key:args[1]}),beat});
+  if(result.events.length)surface?.observeOutput?.(result.events);
   recent=recent.slice(-256);return result;
  }
  function snapshot(id){

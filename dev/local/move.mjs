@@ -16,7 +16,7 @@ try{
   compSource.dataset.setting=''; // Reconcile the selection even if the engine refuses it.
   send({type:'move_comp_source',group:accompaniment.group,source:Number(compSource.value)});
  };
- let stopped=true,lastTrack=-1;
+ let stopped=true,lastTrack=-1,lastPress=null,lastOutput=null;
  const disableAudio=()=>audio.disable();
  audio.onStatus=text=>{audioStatus.textContent=text;};
  audio.onDisable=()=>{audioButton.textContent='Enable audio';audioButton.setAttribute('aria-pressed','false');};
@@ -54,6 +54,16 @@ try{
   }
   const status=Object.fromEntries((message.params?.status??'').split(' ').map(field=>field.split('=')));
   surface.update(frame,Number(status.bpm)/100);
+  if(lastPress!==frame.lastPlayed?.serial){
+   lastPress=frame.lastPlayed?.serial;
+   document.querySelector('#played-intent').textContent=frame.lastPlayed?`Pad ${frame.lastPlayed.pad+1} · ${frame.lastPlayed.label.description}`:'Tap a pad to inspect its musical input.';
+  }
+  if(lastOutput!==frame.lastOutput?.serial){
+   lastOutput=frame.lastOutput?.serial;
+   document.querySelector('#played-output').textContent=frame.lastOutput?
+    frame.lastOutput.outputs.map(output=>`Ch ${output.channel}: ${output.names.join(' · ')}`).join(' / '):
+    'Rendered notes appear here, grouped by MIDI channel.';
+  }
   stopped=status.play==='0';
   const info=(message.params?.['motif_clip_info_'+frame.track]??'').split(','),notes=Number(info[4]??0);
   const mode=['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings'][frame.mode]??'Normal Play';

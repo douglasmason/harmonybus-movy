@@ -23,6 +23,18 @@ Pads, steps, modifiers, relative encoders, track selection, clip editing and Und
 all go through Movy's real MIDI router. No second sequencer or clip model exists.
 The original Joint performance/lighting view remains at `/joint?engine=wasm`.
 
+In Normal, Joint and Chord Play, the enlarged pad surface labels the exact maps
+Movy sends to DSP: scale degree, approach arrow, input/target note, and row actor.
+Approach operation names come from HB's existing sequence/row readbacks. They
+are input intent, not a prediction of the final chord or voicing. Other views
+and held-step editing keep physical pad numbers instead of misleading note labels.
+Last played freezes that input at the press. Latest output independently shows
+the engine's most recent note-on group by MIDI channel, including deferred live
+notes, accompaniment, arpeggios and clips; it does not claim per-pad causality.
+Both readouts clear when opening or creating a session and never enter exports.
+Label refreshes use bounded lightweight reads; they never request another DSP
+preview, rerender audio or advance the musical clock.
+
 Tap a pad, then a step to enter a note. Hold a step and turn Volume to change its
 velocity. Undo and Shift+Undo use Movy's production history. Note/Session opens
 the current mode menu; turn Jog and click it to choose a mode. Shift+Note/Session
