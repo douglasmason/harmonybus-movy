@@ -19,10 +19,17 @@ worker as the DSP, with synchronous host parameter reads/writes. Its framebuffer
 and LED output feed the adaptable HB/Movy display, knob, pad and step grid.
 The enlarged screen has size choices and a full-screen reading view; labeled
 HTML controls support touch, mouse and keyboard without fixed canvas coordinates.
-High resolution is enabled by default: the shared production font blitter supplies
-scalable browser text with the same text bounds and drawing order. Graphics and
-overlays retain the production geometry. Turn it off for the exact 128×64 bitmap;
-the choice is saved with the browser session. This does not change device rendering.
+High resolution is enabled by default for the whole screen. The production
+drawing functions supply scalable text, smooth knob arcs, switches, pan controls,
+faders, envelopes, filter/EQ curves, LFOs, sample waveforms and trail curves.
+Hatching and curve masses use greyscale; guides remain quieter than active marks.
+Grids, menus, selection boxes and overlays retain their production geometry and
+draw order. The browser build observes shapes before rasterization and samples
+the existing curve functions at fractional coordinates; it does not recreate
+parameter logic or fetch extra engine state. Bitmap-only assets retain their
+original appearance. Turn high resolution off for the exact 128×64 bitmap; the
+choice is saved with the browser session. This does not change device rendering.
+The build compares adapted and unmodified production renderers pixel-for-pixel.
 Jog is directly below the display: tap it to click, drag to turn, or use its own
 minus/plus buttons below it. The separate encoder selector contains only knobs
 and Volume, so using Jog does not change the selected knob.

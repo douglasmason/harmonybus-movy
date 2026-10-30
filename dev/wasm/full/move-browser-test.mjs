@@ -38,6 +38,7 @@ try{
  await page.waitForFunction(()=>document.querySelector('[aria-label="Knob 2"] .knob-name').textContent==='Follower Travel');
  assert.equal(await button('Knob 1').locator('.knob-name').textContent(),'Follower Content');
  assert.equal(await button('Knob 2').locator('.knob-value').textContent(),'None');
+ assert(await page.locator('#screen-sharp rect[rx]').count()>0,'switches use smooth geometry');
  assert.match(await page.locator('#encoder option[value="72"]').textContent(),/Follower Travel/);
  await page.locator('#encoder').selectOption('72');
  for(let detent=0;detent<4;detent++)await button('Increase selected encoder').click();
@@ -158,11 +159,23 @@ try{
  await page.waitForFunction(()=>{try{return JSON.parse(document.querySelector('#audio-report').textContent).peak>.0001;}catch{return false;}});
  await page.locator('#stop').click();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Chord Play · Stopped'));
- // Resume the ordinary clip/track checks in Normal Play.
- await button('Note / Session').tap();
- for(let turn=0;turn<5;turn++)await button('Decrease jog').click();
- await button('Jog').tap();
- await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Normal Play'));
+ // Every production mode uses the same scalable display and bitmap toggle.
+ const modes=['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings'];
+ let currentMode=6;
+ for(const mode of [7,0,1,2,3,4,5,6,1]){
+  await button('Note / Session').tap();
+  for(let turn=0;turn<Math.abs(mode-currentMode);turn++)await button(mode>currentMode?'Increase jog':'Decrease jog').click();
+  await button('Jog').tap();currentMode=mode;
+  await page.waitForFunction(name=>document.querySelector('#feedback').textContent.includes(name),modes[mode]);
+  await page.waitForFunction(()=>document.querySelectorAll('#screen-sharp text').length>0);
+  const shapes=await page.locator('#screen-sharp').innerHTML();
+  assert(!/NaN|Infinity/.test(shapes),modes[mode]+' has finite geometry');
+  assert(await page.locator('#screen-sharp rect, #screen-sharp path, #screen-sharp circle, #screen-sharp ellipse').count()>0,modes[mode]+' has graphics');
+  const state=await page.evaluate(()=>__wasmRead('state'));
+  await page.locator('#display-sharp').uncheck();assert(await page.locator('#hero').isVisible());
+  await page.locator('#display-sharp').check();assert(await page.locator('#screen-sharp').isVisible());
+  assert.equal(await page.evaluate(()=>__wasmRead('state')),state,modes[mode]+' display toggle preserves musical state');
+ }
  // Production mode menu and Shift+Session shortcut reach Clips and all tracks.
  await page.locator('#shift').check();await button('Note / Session').tap();await page.locator('#shift').uncheck();await button('Step 16').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 16'));

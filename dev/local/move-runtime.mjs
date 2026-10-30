@@ -1,5 +1,6 @@
 /** Device host callbacks for the unmodified Movy app, beside its actual DSP. */
 import './build/joint-env.mjs';
+import {createMoveDrawing} from './move-drawing.mjs';
 import {init} from 'movy/app/init.ts';
 import {tick} from 'movy/app/tick.ts';
 import {onMidiMessageInternal} from 'movy/midi/router.ts';
@@ -39,7 +40,7 @@ function validFile(path,value){
 
 export function createMoveRuntime({request:engineRequest,metadata}){
  const screen=new Uint8Array(8192),surface=new Uint8Array(2232),view=new DataView(surface.buffer);
- let display=[],displayRevision=0,drawingText=false;
+ const drawing=createMoveDrawing(screen);
  let knobLabels=Array(8).fill(null);
  surface.fill(255,152,280);surface.fill(255,408,536);
  const held=new Map(),files=new Map();
@@ -87,7 +88,7 @@ export function createMoveRuntime({request:engineRequest,metadata}){
  const moduleRoot='/data/UserData/schwung/modules/';
  const synthMetadata={id:'nusaw',name:'NuSaw',component_type:'sound_generator',capabilities:{chain_params:JSON.parse(get('ch0:synth:chain_params')||'[]'),ui_hierarchy:JSON.parse(get('ch0:synth:ui_hierarchy')||'{}')}};
  const listDir=path=>path===moduleRoot+'midi_fx'?['harmonybus']:path===moduleRoot+'sound_generators'?['nusaw']:[];
- const clearScreen=()=>{screen.fill(0);display=[];displayRevision++;};
+ const clearScreen=()=>drawing.clear();
  Object.assign(globalThis,{
   host_browser_engine_ready:()=>!closed,
   host_module_get_param:get,host_module_set_param:set,host_module_set_param_blocking:set,
@@ -108,16 +109,10 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   host_browser_clear_overlay:clearScreen,
   host_browser_knob:(slot,label)=>{if(Number.isInteger(slot)&&slot>=0&&slot<8)knobLabels[slot]={
    name:String(label.name??''),value:String(label.value??''),readOnly:!!label.readOnly,action:!!label.action};},
-  host_browser_begin_text:(left,top,text,value,width,height)=>{
-   display.push([1,left,top,width,height,value,text]);drawingText=true;displayRevision++;
-   return ()=>{drawingText=false;};
-  },
-  fill_rect:(left,top,width,height,value)=>{
-   if(!drawingText){display.push([0,left,top,width,height,value]);displayRevision++;}
-   const startX=Math.min(128,Math.max(0,Math.trunc(left))),endX=Math.max(0,Math.min(128,Math.ceil(left+width)));
-   if(endX<=startX)return;
-   for(let row=Math.max(0,Math.trunc(top));row<Math.min(64,Math.ceil(top+height));row++)screen.fill(value?255:0,row*128+startX,row*128+endX);
-  }
+  host_browser_begin_text:drawing.beginText,
+  host_browser_begin_vector:drawing.beginVector,
+  host_browser_round:drawing.round,
+  fill_rect:drawing.fillRect
  });
  resetFlags();setFlag('chtracks',1);resetSeqEngine();init();
  // Musical defaults come from the same new-Set factory as the device. Only
@@ -236,6 +231,6 @@ export function createMoveRuntime({request:engineRequest,metadata}){
    if(outputs.length)lastOutput={serial:++outputSerial,outputs};
   },tick:runTick,input,release,capture,restore,validate,fresh,setCompSource,isHeld:()=>held.size>0,
   diagnostic:()=>({ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0,held:held.size,track:appState.activeTrack.index,view:appState.currentView,mode:sessionPlayMode()}),
-  snapshot:()=>({screen:Array.from(screen),display,displayRevision,knobLabels,surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),padLabels:padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0),lastPlayed,lastOutput,playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
+  snapshot:()=>({screen:Array.from(screen),...drawing.snapshot(),knobLabels,surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),padLabels:padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0),lastPlayed,lastOutput,playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
   dispose:()=>{release(false);closed=true;}};
 }

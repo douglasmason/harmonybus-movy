@@ -1,4 +1,4 @@
-/** Replay the production draw order with scalable text, or its exact bitmap. */
+/** Replay production geometry at screen resolution, or its exact bitmap. */
 export function mountMoveDisplay(){
  const canvas=document.querySelector('#hero'),context=canvas.getContext('2d'),pixels=context.createImageData(128,64);
  const sharp=document.querySelector('#screen-sharp'),toggle=document.querySelector('#display-sharp');
@@ -17,7 +17,8 @@ export function mountMoveDisplay(){
    const nodes=[];
    for(const command of frame.display??[]){
     const [kind,x,y,width,height,color,text]=command;
-    if(kind===0)nodes.push(node('rect',{x,y,width,height,fill:color?'white':'black'}));
+    if(kind===2){for(const shape of command[1])nodes.push(node(shape.tag,shape.attributes));}
+    else if(kind===0)nodes.push(node('rect',{x,y,width,height,fill:color?'white':'black'}));
     else if(width>0&&text){
      // Cap height follows the native font; its measured advance keeps text
      // inside the same cells. All backgrounds/overlays retain their draw order.

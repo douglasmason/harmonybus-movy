@@ -1,11 +1,14 @@
 /** Bundle the production Movy application and our existing HB/Movy surface. */
 import {readFile,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
+import {createVectorAdapter} from './move-vector-build.mjs';
 
 export async function buildMove({root,source,schwung,esbuild}){
+ const vectors=createVectorAdapter(source);
  await esbuild.build({entryPoints:[resolve(root,'move-runtime.mjs')],bundle:true,format:'esm',platform:'browser',
   outfile:resolve(root,'build/move-runtime.mjs'),alias:{movy:resolve(source,'src')},define:{__MOVY_DEBUG__:'false'},
   plugins:[{name:'browser-move-host',setup(build){
+   build.onLoad({filter:vectors.filter},async args=>({contents:vectors.transform(await readFile(args.path,'utf8'),args.path),loader:args.path.endsWith('.ts')?'ts':'js'}));
    // Enum feedback covers the pixels, but the same eight knobs still own
    // the page. Preserve their freshly rendered labels through that clear.
    build.onLoad({filter:/\/renderer\/schwung-page\.ts$/},async args=>{
@@ -27,7 +30,7 @@ export async function buildMove({root,source,schwung,esbuild}){
         globalThis.host_browser_knob?.(slot, { name: meta.label || meta.key, value: fullDisplay,
             readOnly: !!meta.readOnly, action: !!meta.writeOnly });
         const display = fitDev(ctx, fullDisplay, g.cellW - 2);`);
-    return {contents,loader:'js'};
+    return {contents:vectors.transform(contents,args.path),loader:'js'};
    });
    build.onLoad({filter:/\/renderer\/label\.ts$/},async args=>{
     let contents=await readFile(args.path,'utf8');
