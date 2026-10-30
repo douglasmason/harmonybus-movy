@@ -1,10 +1,11 @@
 /** The existing HB/Movy grid surface, connected to production framebuffer/LEDs. */
 import {PAD_PALETTE} from 'movy/keyboard/pad-palette.ts';
+import {mountMoveDisplay} from './move-display.mjs';
 
 export const controls=[];
 const add=(group,name,type,index,extra={})=>controls.push({group,name,type,index,...extra});
 for(let index=0;index<8;index++)add('knobs','Knob '+(index+1),'encoder',71+index,{touch:index});
-add('navigation','Jog','encoder',14,{touch:9,click:3});
+add('jog','Jog','encoder',14,{touch:9,click:3});
 add('navigation','Volume','encoder',79,{touch:8});
 for(const [name,index] of [['Back',51],['Note / Session',50],['Left',62],['Right',63],['Down',54],['Up',55]])add('navigation',name,'cc',index,{white:true});
 for(let row=0;row<4;row++)add('tracks','Track '+(row+1),'cc',43-row);
@@ -15,7 +16,7 @@ for(let index=0;index<16;index++)add('steps','Step '+(index+1),'note',16+index);
 add('transport','Play / Stop','cc',85);add('transport','Record','cc',86);
 
 export function mountMoveSurface(){
- const canvas=document.querySelector('#hero'),context=canvas.getContext('2d'),pixels=context.createImageData(128,64);
+ const display=mountMoveDisplay();
  const buttons=controls.map(control=>{
   const button=document.querySelector(`.control[data-kind="${control.type}"][data-index="${control.index}"]`);
   return {control,button,label:button.querySelector('.control-label'),note:button.querySelector('.pad-note')};
@@ -26,10 +27,7 @@ export function mountMoveSurface(){
  function paint(now){
   animation=null;if(!frame||document.hidden)return;
   if(frame!==lastFrame){
-   for(let index=0;index<8192;index++){
-    const offset=index*4;pixels.data[offset]=pixels.data[offset+1]=pixels.data[offset+2]=frame.screen[index];pixels.data[offset+3]=255;
-   }
-   context.putImageData(pixels,0,0);
+   display.update(frame);
   for(const heading of rowHeadings){
    const row=Number(heading.dataset.row),label=frame.padLabels?.rows[row];
    text(heading,label?`${label.owner} · ${label.kind}${label.operation?' · '+label.operation:''}`:`Pads ${row*8+1}–${row*8+8}`);

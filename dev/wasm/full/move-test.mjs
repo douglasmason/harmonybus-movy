@@ -20,6 +20,8 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
  try{
   await send({type:'subscribe_tool'});await until(()=>updates.at(-1)?.move?.ready&&updates.at(-1).move.screen.some(value=>value>0));
   assert(updates.at(-1).move.screen.some(value=>value>0),'production renderer must draw a screen');
+  assert(updates.at(-1).move.display.some(command=>command[0]===1&&typeof command[6]==='string'),'shared production text is available before rasterization');
+  assert(updates.at(-1).move.display.some(command=>command[0]===0),'graphics retain their original draw order beside text');
   assert(updates.at(-1).move.surface.slice(24,152).some(value=>value>0),'production LED writers must paint the surface');
   const fresh=await service.save({});
   const freshUI=JSON.parse(fresh.payload.ui.move.state);

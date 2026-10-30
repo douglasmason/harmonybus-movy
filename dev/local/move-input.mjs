@@ -8,7 +8,7 @@ export function mountMoveInput({controls,send}){
  function begin(control,button){
   if(active.has(control))return;
   active.set(control,button);button.dataset.held='true';
-  if(control.type==='encoder'){selector.value=String(control.index);touch(control,true);}
+  if(control.type==='encoder'){if(!control.click)selector.value=String(control.index);touch(control,true);}
   else edge(control,true);
  }
  function end(control){
@@ -42,7 +42,7 @@ export function mountMoveInput({controls,send}){
    const secondary=document.createElement('span');secondary.className='pad-note';button.append(secondary);
    padRows.get(Math.floor((control.index-68)/8)).append(button);
   }else document.querySelector('#'+control.group).append(button);
-  if(control.type==='encoder'){const option=document.createElement('option');option.value=control.index;option.textContent=control.name;selector.append(option);}
+  if(control.type==='encoder'&&!control.click){const option=document.createElement('option');option.value=control.index;option.textContent=control.name;selector.append(option);}
   let lastY=0,moved=false,pointer=null;
   button.onpointerdown=event=>{
    if(pointer!==null)return;event.preventDefault();pointer=event.pointerId;
@@ -75,14 +75,14 @@ export function mountMoveInput({controls,send}){
   // Assistive technology can activate a button without pointer/key events.
   button.onclick=event=>{if(event.detail===0&&!event.pointerType&&!active.has(control)){begin(control,button);end(control);if(control.click)clickJog();}};
  }
- for(const [id,delta]of [['increase',1],['decrease',-1]])document.querySelector('#'+id).onclick=()=>{
-  const control=controls.find(control=>control.type==='encoder'&&control.index===Number(selector.value));
+ for(const [id,delta]of [['increase',1],['decrease',-1],['jog-increase',1],['jog-decrease',-1]])document.querySelector('#'+id).onclick=()=>{
+  const index=id.startsWith('jog-')?14:Number(selector.value);
+  const control=controls.find(control=>control.type==='encoder'&&control.index===index);
   touch(control,true);turn(control,delta);touch(control,false);
  };
- document.querySelector('#enter').onclick=clickJog;
  document.querySelector('#shift').onchange=event=>midi([176,49,event.target.checked?127:0]);
  window.addEventListener('blur',release);document.addEventListener('visibilitychange',()=>{if(document.hidden)release();});
  document.addEventListener('keydown',event=>{if(event.key==='Escape')release();});
  return {release,isHeld:()=>active.size>0||document.querySelector('#shift').checked,
-  enable:()=>{for(const button of buttons.values())button.disabled=false;for(const id of ['encoder','decrease','increase','enter','shift'])document.querySelector('#'+id).disabled=false;}};
+  enable:()=>{for(const button of buttons.values())button.disabled=false;for(const id of ['encoder','decrease','increase','jog-decrease','jog-increase','shift'])document.querySelector('#'+id).disabled=false;}};
 }

@@ -17,6 +17,22 @@ try{
  assert.equal(await page.locator('#knobs .control').count(),8);
  assert.equal(await page.locator('#pads .control').count(),32);
  assert.equal(await page.locator('#steps .control').count(),16);
+ assert.equal(await page.locator('#encoder option[value="14"]').count(),0,'Jog has dedicated controls');
+ assert.equal(await page.locator('#enter').count(),0,'no duplicate Jog click');
+ assert(await page.locator('#display-sharp').isChecked());
+ await page.waitForFunction(()=>document.querySelectorAll('#screen-sharp text').length>0);
+ assert(await page.locator('#screen-sharp').isVisible());
+ assert(!(await page.locator('#hero').isVisible()));
+ const jogBox=await button('Jog').boundingBox(),screenBox=await page.locator('#screen').boundingBox();
+ const minusBox=await button('Decrease jog').boundingBox();
+ assert(jogBox.y>=screenBox.y+screenBox.height&&minusBox.y>=jogBox.y+jogBox.height,'Jog and its turns sit below the screen');
+ await button('Note / Session').tap();
+ await page.waitForFunction(()=>document.querySelector('#screen-sharp').textContent.includes('Normal Play'));
+ const beforeJog=await page.locator('#screen-sharp').innerHTML();
+ await button('Increase jog').click();
+ await page.waitForFunction(before=>document.querySelector('#screen-sharp').innerHTML!==before,beforeJog);
+ await button('Decrease jog').click();await button('Jog').tap();
+ assert.equal(await page.locator('#encoder').inputValue(),'71','Jog does not disturb the knob selector');
  await button('Track 4').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 4'));
  await page.waitForFunction(()=>document.querySelector('#pads [data-index="76"] .control-label').textContent==='→1');
@@ -37,8 +53,12 @@ try{
  await button('Track 1').tap();
  await page.locator('#display-size').selectOption('640');
  await button('Enlarge display').click();
- assert(await page.locator('#hero').evaluate(el=>el.getBoundingClientRect().width>900));
+ assert(await page.locator('#screen').evaluate(el=>el.getBoundingClientRect().width>900));
  await button('Close large display').click();
+ await page.locator('#display-sharp').uncheck();
+ assert(await page.locator('#hero').isVisible());
+ assert(!(await page.locator('#screen-sharp').isVisible()));
+ assert(await page.locator('#hero').evaluate(el=>el.getContext('2d').getImageData(0,0,128,64).data.some((value,index)=>index%4!==3&&value>0)),'original bitmap remains rendered');
  await button('Pad 2').tap();await button('Step 1').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('1 note'));
  let clip=await page.evaluate(()=>__wasmRead('state'));
@@ -65,6 +85,9 @@ try{
  await page.waitForFunction(()=>!document.querySelector('#session-save').disabled&&document.querySelector('#session-status').textContent.includes('Saved'));
  await page.reload();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
  assert.equal(await page.locator('#display-size').inputValue(),'640');
+ assert(!(await page.locator('#display-sharp').isChecked()),'screen mode survives reload');
+ await page.locator('#display-sharp').check();
+ await page.waitForFunction(()=>document.querySelectorAll('#screen-sharp text').length>0);
  assert.equal(await page.locator('#comp-source').inputValue(),'1','Comp source survives save and reload');
  await page.locator('#comp-source').selectOption('0');
  await page.waitForFunction(()=>document.querySelector('#comp-explanation').textContent.includes('also triggers'));
@@ -96,9 +119,9 @@ try{
  await page.locator('#session-new').click();
  await page.waitForFunction(()=>document.querySelector('#session-status').textContent.startsWith('New session ·'));
  await page.getByText('Session files',{exact:true}).click();
- await button('Note / Session').tap();await page.locator('#encoder').selectOption('14');
- for(let turn=0;turn<5;turn++)await page.locator('#increase').click();
- await page.locator('#enter').click();
+ await button('Note / Session').tap();
+ for(let turn=0;turn<5;turn++)await button('Increase jog').click();
+ await button('Jog').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 4 · Chord Play'));
  await button('Step 1').tap();await button('Record').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Recording'));
@@ -121,9 +144,9 @@ try{
  await page.locator('#stop').click();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Chord Play · Stopped'));
  // Resume the ordinary clip/track checks in Normal Play.
- await button('Note / Session').tap();await page.locator('#encoder').selectOption('14');
- for(let turn=0;turn<5;turn++)await page.locator('#decrease').click();
- await page.locator('#enter').click();
+ await button('Note / Session').tap();
+ for(let turn=0;turn<5;turn++)await button('Decrease jog').click();
+ await button('Jog').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Normal Play'));
  // Production mode menu and Shift+Session shortcut reach Clips and all tracks.
  await page.locator('#shift').check();await button('Note / Session').tap();await page.locator('#shift').uncheck();await button('Step 16').tap();

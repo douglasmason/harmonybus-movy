@@ -6,6 +6,34 @@ export async function buildMove({root,source,schwung,esbuild}){
  await esbuild.build({entryPoints:[resolve(root,'move-runtime.mjs')],bundle:true,format:'esm',platform:'browser',
   outfile:resolve(root,'build/move-runtime.mjs'),alias:{movy:resolve(source,'src')},define:{__MOVY_DEBUG__:'false'},
   plugins:[{name:'browser-move-host',setup(build){
+   // Observe the one shared text blitter before it becomes tiny bitmap runs.
+   // Keep its original raster path intact for device-faithful display mode.
+   build.onLoad({filter:/\/font\/blit\.ts$/},async args=>{
+    let contents=await readFile(args.path,'utf8');
+    const before='    let cx = x;';
+    if(contents.split(before).length!==2||!contents.trimEnd().endsWith('}'))throw new Error('Movy text blitter seam changed');
+    contents=contents.replace(before,`    const endText = globalThis.host_browser_begin_text?.(x, y, str, color,
+        glyphRunWidth(str, glyphFor, fallbackAdv, gap), glyphFor(72)?.[3] ?? 5);
+    try {
+${before}`).replace(/\n}\s*$/, '\n    } finally { endText?.(); }\n}\n');
+    return {contents,loader:'ts'};
+   });
+   // Schwung parameter cells use their own shared font families. Observe the
+   // same public print/measure pair, keeping every original raster call.
+   build.onLoad({filter:/\/param_pages\/font(4x5|5x3|_tamzen6x12|_big_num)\.mjs$/},async args=>{
+    let contents=await readFile(args.path,'utf8');
+    const suffix=args.path.endsWith('font4x5.mjs')?'4x5':args.path.endsWith('font5x3.mjs')?'5x3':'';
+    const print='fontPrint'+suffix,width='fontWidth'+suffix;
+    const height=suffix==='4x5'?'FONT4_HEIGHT':suffix==='5x3'?'FONT5_HEIGHT':'HEIGHT';
+    const before=`export function ${print}(ctx, x, y, str, color) {`;
+    if(contents.split(before).length!==2)throw new Error('Schwung font seam changed: '+args.path);
+    contents=contents.replace(before,`function rasterPrint(ctx, x, y, str, color) {`);
+    contents+=`\nexport function ${print}(ctx, x, y, str, color) {
+ const endText=globalThis.host_browser_begin_text?.(x,y,String(str??''),color,${width}(str),${height});
+ try { rasterPrint(ctx,x,y,str,color); } finally { endText?.(); }
+}\n`;
+    return {contents,loader:'js'};
+   });
    // Expose the existing selector for browser session restore. The optional
    // query skips Clips/Settings overlays so their performance owner survives.
    build.onLoad({filter:/\/seq\/router-buttons\.ts$/},async args=>{
