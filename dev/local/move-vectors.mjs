@@ -9,6 +9,15 @@ function samples(left,right){
  return Array.from({length:count},(_,index)=>left+(right-left)*index/(count-1));
 }
 export function vectorShapes(kind,args){
+ if(kind==='label'){
+  const [x,y,width,height,value,inverted=false,modulated=false,automated=false]=args,color=inverted?0:1;
+  const left=x+1+(modulated?4:0),span=width-2-(modulated?4:0)-(automated?3:0);
+  const text=String(value??''),shapes=[shape('rect',{x,y,width,height,fill:ink(inverted?1:0),'data-label-band':text}),
+   {tag:'text',attributes:{fill:ink(color),'data-label':text},text,box:[left,y,span,height],maxSize:4.5}];
+  if(modulated)shapes.push(shape('path',{d:`M${x+.5} ${y+height/2}q1-3 2 0t2 0`,...stroke(color),'data-mark':'modulation'}));
+  if(automated)shapes.push(shape('circle',{cx:x+width-1.5,cy:y+1.5,r:1,fill:ink(color),'data-mark':'automation'}));
+  return shapes;
+ }
  if(kind==='enum'){
   const [x,y,width,height,value,readOnly=false]=args;
   return [shape('rect',{x:x+.5,y:y+.5,width:width-1,height:height-1,rx:1,...stroke(1,readOnly?.55:1),...(readOnly?{'stroke-dasharray':'1 1.5'}:{})}),

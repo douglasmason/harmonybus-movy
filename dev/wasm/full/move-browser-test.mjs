@@ -235,10 +235,12 @@ try{
   if(mode===6){
    await page.waitForFunction(()=>document.querySelector('#screen-sharp text[data-value="Immediate"]'));
    assert.deepEqual(await page.locator('#screen-sharp text[data-value="Immediate"] tspan').allTextContents(),['Immediate'],'complete enum words replace device fragments');
+   await page.waitForFunction(()=>document.querySelector('#screen-sharp text[data-label="Chord Anticipation"]'));
+   assert.equal((await page.locator('#screen-sharp text[data-label="Chord Anticipation"] tspan').allTextContents()).join(' '),'Chord Anticipation','complete parameter names replace device abbreviations');
   }
-  const values=await page.locator('#screen-sharp text[data-value]').evaluateAll(elements=>elements.map(element=>{
+  const values=await page.locator('#screen-sharp text[data-value], #screen-sharp text[data-label]').evaluateAll(elements=>elements.map(element=>{
    const bounds=element.getBBox(),frame=element.previousElementSibling.getBBox();
-   return {value:element.dataset.value,lines:[...element.querySelectorAll('tspan')].map(line=>line.textContent),
+   return {value:element.dataset.value??element.dataset.label,lines:[...element.querySelectorAll('tspan')].map(line=>line.textContent),
     fits:bounds.x>=frame.x&&bounds.y>=frame.y&&bounds.x+bounds.width<=frame.x+frame.width&&bounds.y+bounds.height<=frame.y+frame.height};
   }));
   for(const value of values){assert.equal(value.lines.join(' '),value.value.trim().replace(/\s+/g,' '));assert(value.fits,modes[mode]+' value stays inside its frame: '+value.value);}

@@ -17,7 +17,7 @@ export function createMoveDrawing(screen){
    if(depth){depth++;return ()=>{depth--;};}
    let shapes;
    precise=true;try{shapes=vectorShapes(kind,args);}finally{precise=false;}
-   return begin([2,shapes]);
+   return begin([2,shapes,...(['label','enum'].includes(kind)?[args.slice(0,4)]:[])]);
   },
   beginText(left,top,text,color,width,height){return begin([1,left,top,width,height,color,text]);},
   fillRect(left,top,width,height,color){
@@ -30,7 +30,10 @@ export function createMoveDrawing(screen){
     // Some modes repaint only a footer each tick. Discard covered text/rects
     // instead of retaining an ever-growing history behind the opaque repaint.
     if(left<=0&&top<=0&&left+width>=128&&top+height>=64)display=[];
-    else display=display.filter(([kind,x,y,w,h])=>kind===2||x<left||y<top||x+w>left+width||y+h>top+height);
+    else display=display.filter(command=>{
+     const bounds=command[0]===2?command[2]:command.slice(1,5);if(!bounds)return true;
+     const [x,y,w,h]=bounds;return x<left||y<top||x+w>left+width||y+h>top+height;
+    });
     display.push([0,left,top,width,height,color]);revision++;
    }
    const startX=Math.min(128,Math.max(0,Math.trunc(left))),endX=Math.max(0,Math.min(128,Math.ceil(left+width)));

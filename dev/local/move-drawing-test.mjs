@@ -21,6 +21,22 @@ test('browser values retain complete words and fit their available space',()=>{
  }
  assert.deepEqual(fitValueText('Immediate',24,13,measure).lines,['Immediate']);
  assert.deepEqual(fitValueText('Closest Split',24,13,measure).lines,['Closest','Split']);
+ for(const label of ['Chord Anticipation','Follower Key Center Travel','Range / Tap Off']){
+  const fitted=fitValueText(label,23,7,measure,4.5);
+  assert.equal(fitted.lines.join(' '),label);assert(fitted.size<=4.5);
+  assert(fitted.lines.every(line=>measure(line)*fitted.size<=23+1e-9));
+ }
+});
+
+test('partial label repaint discards covered semantic shapes',()=>{
+ const drawing=createMoveDrawing(new Uint8Array(8192));
+ for(let index=0;index<1000;index++){
+  drawing.fillRect(0,27,32,7,0);
+  drawing.beginVector('label',0,27,32,7,'Chord Anticipation',index%2===0,true,true)();
+ }
+ assert.equal(drawing.snapshot().display.length,2);
+ drawing.fillRect(0,20,64,20,0);
+ assert.equal(drawing.snapshot().display.length,1,'covering menu removes the label');
 });
 
 test('production graphics retain exact device pixels while emitting scalable geometry',async()=>{
@@ -29,7 +45,7 @@ test('production graphics retain exact device pixels while emitting scalable geo
  const directory=await mkdtemp(resolve(tmpdir(),'movy-drawing-'));
  const shared=resolve(source,'src/vendor/schwung/shared/param_pages');
  const input=[['page',shared+'/render_page_movy.mjs'],['viz',shared+'/viz_draw.mjs'],['meta',shared+'/param_meta.mjs'],['peaks',shared+'/wav_peaks.mjs'],
-  ['primitives',resolve(source,'src/renderer/primitives.ts')],['knob',resolve(source,'src/renderer/knob.ts')],['pan',resolve(source,'src/renderer/pan-dial.ts')],['wave',resolve(source,'src/renderer/lfo-wave.ts')],
+  ['primitives',resolve(source,'src/renderer/primitives.ts')],['knob',resolve(source,'src/renderer/knob.ts')],['label',resolve(source,'src/renderer/label.ts')],['pan',resolve(source,'src/renderer/pan-dial.ts')],['wave',resolve(source,'src/renderer/lfo-wave.ts')],
   ['filter',resolve(source,'src/renderer/filter-curve.ts')],['eq',resolve(source,'src/renderer/eq-curve.ts')],['sample',resolve(source,'src/renderer/wav-form.ts')],['header',resolve(source,'src/renderer/header.ts')]]
   .map(([name,path])=>`export * as ${name} from ${JSON.stringify(path)};`).join('\n');
  try{
@@ -42,6 +58,13 @@ test('production graphics retain exact device pixels while emitting scalable geo
    modules.push(await import(pathToFileURL(outfile).href));
   }
   const cases=[
+   ...[false,true].map(touched=>['native label '+touched,ui=>ui.label.drawLabelCell(0,27,{shortName:'CAntcp',fullName:'Chord Anticipation',displayValue:'Immediate',touched,modulated:true,automated:true})]),
+   ['native trigger label',ui=>ui.label.drawLabelCell(0,27,{shortName:'CAntcp',fullName:'Chord Anticipation',displayValue:'idle',trigger:true,touched:true})],
+   ...[false,true].map(touched=>['shared label '+touched,(ui,ctx)=>ui.page.drawLabelCell(ctx,{x0:0,cellW:32},0,27,'CAntcp','Imm',touched,touched,true,true,'Chord Anticipation','Immediate')]),
+   ...[false,true].map(touched=>['shared row label '+touched,(ui,ctx)=>ui.page.drawKnobRow(ctx,{
+    page:{keys:['anticipation']},metaIndex:ui.meta.buildMetaIndex({chainParams:[{key:'anticipation',label:'Chord Anticipation',type:'enum',options:['Immediate'],short_name:'CAntcp',short_options:['Imm']}]}),
+    values:{anticipation:0},touched:touched?0:-1
+   },0,11,27)]),
    ['native full enum',ui=>ui.knob.drawKnobWidget(0,10,{type:'enum',options:['Immediate'],enumIndex:0,displayValue:'Immediate'})],
    ['shared full enum',(ui,ctx)=>ui.page.drawEnumSquare(ctx,2,10,'Immediate')],
    ['shared readonly enum',(ui,ctx)=>ui.page.drawEnumSquare(ctx,2,10,'Closest Split',null,0,'',0,true)],
@@ -82,6 +105,16 @@ test('production graphics retain exact device pixels while emitting scalable geo
    assert.deepEqual(images[1],images[0],name+' device bitmap changed');
    assert(commands[1].some(command=>command[0]===2),name+' has no vector geometry');
    assert(!/NaN|Infinity/.test(JSON.stringify(commands[1])),name+' invalid coordinates');
+   if(name.includes('label')){
+    const shapes=commands[1].flatMap(command=>command[0]===2?command[1]:[]),label=shapes.find(shape=>'data-label' in shape.attributes);
+    const touched=name.endsWith('true');
+    assert.equal(label?.text,touched?'Immediate':'Chord Anticipation',name+' preserves the complete semantic label');
+    assert.equal(label.attributes.fill,touched||name==='native trigger label'?'black':'white');
+    if(!name.includes('row')&&!name.includes('trigger')){
+     assert.equal(shapes.filter(shape=>shape.attributes['data-mark']).length,2,'automation and modulation remain visible');
+     assert(label.box[0]>=5&&label.box[0]+label.box[2]<=29,'text leaves room for both marks');
+    }
+   }
    if(name.includes('enum')||name==='shared short option'){
     const value=commands[1].flatMap(command=>command[0]===2?command[1]:[]).find(shape=>shape.box);
     assert.equal(value?.text,name==='shared readonly enum'?'Closest Split':'Immediate',name+' retains the full value');
