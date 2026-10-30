@@ -230,6 +230,16 @@ try{
    await page.waitForFunction(value=>document.querySelector('#settings-panel').dataset.panelIndex===value,selection);
   }
   const shapes=await page.locator('#screen-sharp').innerHTML();
+  if(mode===6){
+   await page.waitForFunction(()=>document.querySelector('#screen-sharp text[data-value="Immediate"]'));
+   assert.deepEqual(await page.locator('#screen-sharp text[data-value="Immediate"] tspan').allTextContents(),['Immediate'],'complete enum words replace device fragments');
+  }
+  const values=await page.locator('#screen-sharp text[data-value]').evaluateAll(elements=>elements.map(element=>{
+   const bounds=element.getBBox(),frame=element.previousElementSibling.getBBox();
+   return {value:element.dataset.value,lines:[...element.querySelectorAll('tspan')].map(line=>line.textContent),
+    fits:bounds.x>=frame.x&&bounds.y>=frame.y&&bounds.x+bounds.width<=frame.x+frame.width&&bounds.y+bounds.height<=frame.y+frame.height};
+  }));
+  for(const value of values){assert.equal(value.lines.join(' '),value.value.trim().replace(/\s+/g,' '));assert(value.fits,modes[mode]+' value stays inside its frame: '+value.value);}
   assert(!/NaN|Infinity/.test(shapes),modes[mode]+' has finite geometry');
   assert(await page.locator('#screen-sharp rect, #screen-sharp path, #screen-sharp circle, #screen-sharp ellipse').count()>0,modes[mode]+' has graphics');
   assert(await page.locator('#screen-sharp text').count()<80,modes[mode]+' does not accumulate hidden footer text');

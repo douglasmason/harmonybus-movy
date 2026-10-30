@@ -123,6 +123,13 @@ display. Held controls and stale choices cannot change modes; the dropdown
 always follows the engine's confirmed mode, including device-button changes
 and restored sessions. Opening settings leaves playback running.
 
+High-resolution enum boxes show complete values such as Immediate and Observed,
+using the available cell width and real browser font metrics. Multiword values
+wrap at spaces; single words stay intact. Both native Movy and shared Schwung
+cells use the same browser treatment, including full options where the device
+uses short_options. Read-only frames stay dotted. The original bitmap toggle
+retains the exact device text, geometry and animation.
+
 Choose a knob or Volume, then use the two action rows immediately below the
 selector for normal or Shift turn/touch. The selected knob retains its full live
 parameter name and value. The eight individual knob cards are visible above
