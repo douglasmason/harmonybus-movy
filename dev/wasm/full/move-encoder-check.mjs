@@ -14,7 +14,7 @@ export async function checkEncoderActions(browser,url){
     return postMessage.call(this,message,...rest);
    };
   });
-  await page.goto(url);await page.waitForFunction(()=>!document.querySelector('[aria-label="Step 1"]')?.disabled);
+  await page.goto(url);await page.waitForFunction(()=>{const button=document.querySelector('[aria-label="Step 1"]');return button&&!button.disabled;});
   const button=name=>page.getByRole('button',{name,exact:true});
   const packets=()=>page.evaluate(()=>window.inputPackets.filter(packet=>packet.type==='move_midi').map(packet=>packet.data));
   const clear=()=>page.evaluate(()=>{window.inputPackets=[];});
