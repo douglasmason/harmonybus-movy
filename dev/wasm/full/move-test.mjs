@@ -47,6 +47,11 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   await until(()=>updates.at(-1).move.knobLabels[1]?.value===service.read('ch3:midi_fx1:travel_map')&&updates.at(-1).move.knobLabels[1]?.value!=='None');
   await midi([144,1,127]);await midi([176,72,124]);await midi([128,1,0]);
   await until(()=>updates.at(-1).move.knobLabels[1]?.value==='None');
+  await midi([144,1,127]);await midi([176,72,4]);await send({type:'dev_release'});
+  await until(()=>updates.at(-1).move.screenTargets.some(target=>target.slot===1));
+  assert.equal(service.stats().move.held,0,'cancelled enum touch cannot strand its overlay');
+  await midi([144,1,127]);await midi([176,72,124]);await midi([128,1,0]);
+  await until(()=>updates.at(-1).move.knobLabels[1]?.value==='None');
   await cc(50);await until(()=>updates.at(-1).move.knobLabels.every(label=>label===null));
   assert.deepEqual(updates.at(-1).move.screenTargets,[],'menus cannot adjust hidden parameters');
   await cc(51);await until(()=>updates.at(-1).move.knobLabels[1]?.name==='Follower Travel');

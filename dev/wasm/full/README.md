@@ -37,7 +37,10 @@ production renderer; read-only cells and controls covered by menus/cards are
 not active targets. The screen and physical knob row share the same gesture
 owner, MIDI routing, cancellation and parameter automation behavior.
 Jog is directly below the display: tap it to click, drag to turn, or use its own
-minus/plus buttons below it. The separate encoder selector contains only knobs
+two action rows below it. Every knob and Volume has left / Touch / right,
+then Shift+left / Shift+Touch / Shift+right. Jog adds a separate Click in both
+rows: Touch never clicks, and Click sends its own press/release. Shift remains
+held while any shifted gesture, the Shift button, or Hold Shift still owns it. The separate encoder selector contains only knobs
 and Volume, so using Jog does not change the selected knob.
 The eight browser knobs also show the current parameters' full names and values
 before device-width shortening. The encoder selector uses those same names, and

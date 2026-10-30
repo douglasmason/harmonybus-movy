@@ -41,6 +41,7 @@ function validFile(path,value){
 export function createMoveRuntime({request:engineRequest,metadata}){
  const screen=new Uint8Array(8192),surface=new Uint8Array(2232),view=new DataView(surface.buffer);
  const drawing=createMoveDrawing(screen);
+ const touchedControllers=new Set();
  let knobLabels=Array(8).fill(null);
  surface.fill(255,152,280);surface.fill(255,408,536);
  const held=new Map(),files=new Map();
@@ -107,6 +108,7 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   setLED:(index,value)=>led(0,index,value),setButtonLED:(index,value)=>led(1,index,value),
   clear_screen:()=>{clearScreen();knobLabels=Array(8).fill(null);},
   host_browser_clear_overlay:clearScreen,
+  host_browser_track_touch:controller=>touchedControllers.add(controller),
   host_browser_knob:(slot,label)=>{if(Number.isInteger(slot)&&slot>=0&&slot<8){
    knobLabels[slot]={name:String(label.name??''),value:String(label.value??''),readOnly:!!label.readOnly,action:!!label.action};
    if(!label.readOnly&&Array.isArray(label.bounds)&&label.bounds.length===4&&label.bounds.every(Number.isFinite))drawing.target(slot,label.bounds);
@@ -170,6 +172,10 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   // note or launch recording. Drop gesture latches and release musical gates.
   const previous=preserveContext?context():null;
   releaseAllLive();resetHeldInput(true);
+  // Generic Schwung cells own touch state outside Movy's model reset. Cancel
+  // through the controller, without synthesizing an action-triggering release.
+  for(const controller of touchedControllers)controller.clearTouch();
+  touchedControllers.clear();appState.dirty=true;
   for(const data of held.values())if(data[0]===128&&data[1]>=68)request('midi',data.join(','));
   held.clear();
   if(previous)restoreContext(previous);

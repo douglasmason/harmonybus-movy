@@ -16,6 +16,9 @@ export async function buildMove({root,source,schwung,esbuild}){
     const before='ctl.renderOverlays(ctx, { clearScreen: () => clear_screen() });';
     if(contents.split(before).length!==2)throw new Error('Schwung overlay label seam changed');
     contents=contents.replace(before,'ctl.renderOverlays(ctx, { clearScreen: () => globalThis.host_browser_clear_overlay() });');
+    const touch='knobTouch: (slot: number, down: boolean) => {';
+    if(contents.split(touch).length!==2)throw new Error('Schwung touch cancellation seam changed');
+    contents=contents.replace(touch,touch+'\n            if(down)globalThis.host_browser_track_touch?.(ctl);');
     return {contents,loader:'ts'};
    });
    // Publish the labels/values already resolved for the visible cells, before
