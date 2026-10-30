@@ -39,6 +39,34 @@ try{
  assert.equal(await button('Knob 1').locator('.knob-name').textContent(),'Follower Content');
  assert.equal(await button('Knob 2').locator('.knob-value').textContent(),'None');
  assert(await page.locator('#screen-sharp rect[rx]').count()>0,'switches use smooth geometry');
+ const screenTravel=page.locator('.screen-parameter[data-slot="1"]');
+ await screenTravel.waitFor({state:'visible'});
+ assert.match(await screenTravel.getAttribute('aria-label'),/Follower Travel/);
+ // The enlarged screen edits the real parameter through the same encoder path.
+ await button('Enlarge display').click();
+ const cell=await screenTravel.boundingBox();
+ await page.mouse.move(cell.x+cell.width/2,cell.y+cell.height/2);await page.mouse.down();
+ await page.mouse.move(cell.x+cell.width/2,cell.y+cell.height/2-16,{steps:4});await page.mouse.up();
+ await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')!=='None');
+ for(let detent=0;detent<4;detent++){
+  await screenTravel.waitFor({state:'visible'});await screenTravel.press('ArrowDown');
+ }
+ await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')==='None');
+ await button('Close large display').click();
+ // A concurrent alias cannot release another surface's encoder hold.
+ await page.evaluate(()=>{
+  const physical=document.querySelector('[aria-label="Knob 2"]'),screen=document.querySelector('.screen-parameter[data-slot="1"]');
+  physical.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true}));
+  screen.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+  screen.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',bubbles:true}));
+ });
+ await page.waitForFunction(async()=>(await __wasmStats()).move.held===1);
+ assert.equal(await button('Knob 2').getAttribute('data-held'),'true');
+ await page.keyboard.press('Escape');
+ await page.waitForFunction(async()=>(await __wasmStats()).move.held===0);
+ await screenTravel.waitFor({state:'visible'});
+ await screenTravel.press('ArrowDown');
+ await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')==='None');
  assert.match(await page.locator('#encoder option[value="72"]').textContent(),/Follower Travel/);
  await page.locator('#encoder').selectOption('72');
  for(let detent=0;detent<4;detent++)await button('Increase selected encoder').click();
@@ -49,6 +77,7 @@ try{
  await page.waitForFunction(()=>document.querySelector('[aria-label="Knob 2"] .knob-value').textContent==='None');
  await button('Note / Session').tap();
  await page.waitForFunction(()=>[...document.querySelectorAll('.knob-name')].every(element=>element.textContent===''));
+ assert.equal(await page.locator('.screen-parameter:visible').count(),0,'menu hides underlying parameter targets');
  await button('Back').tap();
  await page.waitForFunction(()=>document.querySelector('[aria-label="Knob 2"] .knob-name').textContent==='Follower Travel');
  await page.waitForFunction(()=>document.querySelector('#pads [data-index="76"] .control-label').textContent==='→1');
@@ -74,6 +103,7 @@ try{
  await page.locator('#display-sharp').uncheck();
  assert(await page.locator('#hero').isVisible());
  assert(!(await page.locator('#screen-sharp').isVisible()));
+ assert(await page.locator('.screen-parameter:visible').count()>0,'direct cells also follow the original bitmap geometry');
  assert(await page.locator('#hero').evaluate(el=>el.getContext('2d').getImageData(0,0,128,64).data.some((value,index)=>index%4!==3&&value>0)),'original bitmap remains rendered');
  await button('Pad 2').tap();await button('Step 1').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('1 note'));

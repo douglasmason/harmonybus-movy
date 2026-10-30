@@ -28,6 +28,7 @@ export async function buildMove({root,source,schwung,esbuild}){
     if(contents.split(before).length!==2)throw new Error('Schwung knob label seam changed');
     contents=contents.replace(before,`        const fullDisplay = (cellText === null || cellText === undefined) ? displayValue(raw, meta) : String(cellText);
         globalThis.host_browser_knob?.(slot, { name: meta.label || meta.key, value: fullDisplay,
+            bounds: [cellX, rowY, g.cellW, lblY + LBL_H - rowY],
             readOnly: !!meta.readOnly, action: !!meta.writeOnly });
         const display = fitDev(ctx, fullDisplay, g.cellW - 2);`);
     return {contents:vectors.transform(contents,args.path),loader:'js'};
@@ -38,6 +39,7 @@ export async function buildMove({root,source,schwung,esbuild}){
     if(contents.split(before).length!==2)throw new Error('Movy knob label seam changed');
     contents=contents.replace(before,before+`\n    globalThis.host_browser_knob?.(col + (lblY === LBL1_Y ? 4 : 0), {
         name: pvm.fullName || pvm.shortName, value: pvm.displayValue,
+        bounds: [col * CELL_W, lblY === LBL1_Y ? ROW1_Y : ROW0_Y, CELL_W, lblY + LBL_H - (lblY === LBL1_Y ? ROW1_Y : ROW0_Y)],
         readOnly: !!pvm.readOnly, action: !!pvm.trigger });`);
     return {contents,loader:'ts'};
    });

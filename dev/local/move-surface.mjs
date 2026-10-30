@@ -1,6 +1,7 @@
 /** The existing HB/Movy grid surface, connected to production framebuffer/LEDs. */
 import {PAD_PALETTE} from 'movy/keyboard/pad-palette.ts';
 import {mountMoveDisplay} from './move-display.mjs';
+import {mountScreenControls} from './move-screen-controls.mjs';
 
 export const controls=[];
 const add=(group,name,type,index,extra={})=>controls.push({group,name,type,index,...extra});
@@ -15,8 +16,9 @@ for(const [name,index] of [['Capture',52],['Sample',118],['Loop',58],['Mute',88]
 for(let index=0;index<16;index++)add('steps','Step '+(index+1),'note',16+index);
 add('transport','Play / Stop','cc',85);add('transport','Record','cc',86);
 
-export function mountMoveSurface(){
+export function mountMoveSurface(inputs){
  const display=mountMoveDisplay();
+ const screenControls=mountScreenControls(inputs,controls.filter(control=>control.group==='knobs'));
  const status=document.querySelector('#control-status');
  const buttons=controls.map(control=>{
   const button=document.querySelector(`.control[data-kind="${control.type}"][data-index="${control.index}"]`);
@@ -31,6 +33,7 @@ export function mountMoveSurface(){
   animation=null;if(!frame||document.hidden)return;
   if(frame!==lastFrame){
    display.update(frame);
+   screenControls.update(frame);
   for(const heading of rowHeadings){
    const row=Number(heading.dataset.row),label=frame.padLabels?.rows[row];
    text(heading,label?`${label.owner} · ${label.kind}${label.operation?' · '+label.operation:''}`:`Pads ${row*8+1}–${row*8+8}`);

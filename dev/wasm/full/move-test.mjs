@@ -16,7 +16,7 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
  const note=async index=>{await midi([144,index,100]);await midi([128,index,0]);};
  const cc=async index=>{await midi([176,index,127]);await midi([176,index,0]);};
  const count=track=>Number(service.read('motif_clip_info_'+track).split(',')[4]);
- const until=async predicate=>{const deadline=Date.now()+6000;while(!predicate()){if(Date.now()>deadline)throw new Error('Timed out waiting for real Movy UI/DSP');await wait(20);}};
+ const until=async predicate=>{const deadline=Date.now()+6000;while(!predicate()){if(Date.now()>deadline)throw new Error('Timed out waiting for real Movy UI/DSP: '+service.read('status')+' '+JSON.stringify(service.stats().move));await wait(20);}};
  try{
   await send({type:'subscribe_tool'});await until(()=>updates.at(-1)?.move?.ready&&updates.at(-1).move.screen.some(value=>value>0));
   assert(updates.at(-1).move.screen.some(value=>value>0),'production renderer must draw a screen');
@@ -38,12 +38,17 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   await cc(40);await until(()=>updates.at(-1).move.knobLabels[1]?.name==='Follower Travel');
   assert.equal(updates.at(-1).move.knobLabels[1].value,'None');
   assert.equal(updates.at(-1).move.knobLabels[0].name,'Follower Content');
+  const travelCell=updates.at(-1).move.screenTargets.find(target=>target.slot===1);
+  assert(travelCell&&travelCell.bounds.length===4,'production cell provides its interactive bounds');
+  assert(travelCell.bounds[0]>=0&&travelCell.bounds[0]+travelCell.bounds[2]<=128);
+  assert(travelCell.bounds[1]>=0&&travelCell.bounds[1]+travelCell.bounds[3]<=64);
   // The production enum controller advances one option per four detents.
   await midi([144,1,127]);await midi([176,72,4]);await midi([128,1,0]);
   await until(()=>updates.at(-1).move.knobLabels[1]?.value===service.read('ch3:midi_fx1:travel_map')&&updates.at(-1).move.knobLabels[1]?.value!=='None');
   await midi([144,1,127]);await midi([176,72,124]);await midi([128,1,0]);
   await until(()=>updates.at(-1).move.knobLabels[1]?.value==='None');
   await cc(50);await until(()=>updates.at(-1).move.knobLabels.every(label=>label===null));
+  assert.deepEqual(updates.at(-1).move.screenTargets,[],'menus cannot adjust hidden parameters');
   await cc(51);await until(()=>updates.at(-1).move.knobLabels[1]?.name==='Follower Travel');
   // Existing browser sessions retain their original fixture settings. Exercise
   // the previous pad regression on that saved configuration, never as defaults.

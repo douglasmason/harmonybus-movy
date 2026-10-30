@@ -107,8 +107,10 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   setLED:(index,value)=>led(0,index,value),setButtonLED:(index,value)=>led(1,index,value),
   clear_screen:()=>{clearScreen();knobLabels=Array(8).fill(null);},
   host_browser_clear_overlay:clearScreen,
-  host_browser_knob:(slot,label)=>{if(Number.isInteger(slot)&&slot>=0&&slot<8)knobLabels[slot]={
-   name:String(label.name??''),value:String(label.value??''),readOnly:!!label.readOnly,action:!!label.action};},
+  host_browser_knob:(slot,label)=>{if(Number.isInteger(slot)&&slot>=0&&slot<8){
+   knobLabels[slot]={name:String(label.name??''),value:String(label.value??''),readOnly:!!label.readOnly,action:!!label.action};
+   if(!label.readOnly&&Array.isArray(label.bounds)&&label.bounds.length===4&&label.bounds.every(Number.isFinite))drawing.target(slot,label.bounds);
+  }},
   host_browser_begin_text:drawing.beginText,
   host_browser_begin_vector:drawing.beginVector,
   host_browser_round:drawing.round,

@@ -7,7 +7,7 @@ const errorBox=document.querySelector('#error'),feedback=document.querySelector(
 try{
  const {socket,audio,sessions,metadata}=await openBrowserConnection({surface:'move'});
  const send=message=>socket.send(JSON.stringify(message));
- const inputs=mountMoveInput({controls,send}),surface=mountMoveSurface();
+ const inputs=mountMoveInput({controls,send}),surface=mountMoveSurface(inputs);
  const audioButton=document.querySelector('#audio'),audioStatus=document.querySelector('#audio-status');
  const compSource=document.querySelector('#comp-source');
  let accompaniment=null;
