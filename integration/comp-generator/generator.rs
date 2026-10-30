@@ -69,3 +69,23 @@ pub struct Explore {
     /// A recorded source keeps its normal clock; None is a new free audition.
     pub source:Option<usize>,pub touched:u8,
 }
+
+/// User generator styles retain only the supported abstract source and its three
+/// controls. Refuse edits that this temporary source cannot reproduce faithfully.
+pub fn library_valid(clip:&Clip,labels:&[String;8])->Result<(),&'static str> {
+    let config=clip.generator.ok_or("Choose a saved generator recipe")?;
+    if !clip.notes.is_empty()||!clip.shared_events.is_empty()||!clip.operation_intervals.is_empty()||!clip.grid_gates.is_empty()||!clip.trigs.is_empty()
+        ||clip.locks.iter().any(|lock|labels.get(lock.lane as usize).is_none_or(|label|!internal(label))) {
+        return Err("Bake edited notes or extra automation before saving");
+    }
+    if clip.loop_start_steps!=0||clip.scale_num!=1||clip.scale_den!=1||clip.transpose!=0||clip.length_steps==0||clip.length_steps>256||clip.length_steps%16!=0 {
+        return Err("Recipe needs whole bars, zero start/transpose and 1x speed");
+    }
+    if !clip.recipe.as_ref().is_some_and(|recipe|recipe.settings.mapped()) {return Err("Recipe needs mapped actor settings");}
+    for (field,label) in LABELS.iter().enumerate() {
+        let lane=labels.iter().position(|name|name==label).ok_or("Generator automation lanes missing")?;
+        if clip.lock_at(lane as u8,0).is_none(){return Err("Generator automation must start at zero");}
+        if field==2&&clip.locks.iter().filter(|lock|lock.lane==lane as u8).any(|lock|!config.accepts_style(lock.val)) {return Err("Generator style belongs to another actor");}
+    }
+    Ok(())
+}

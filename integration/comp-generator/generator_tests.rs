@@ -447,4 +447,88 @@
             assert_eq!(engine.undo_snapshot(),before);
         }
     }
+    fn saved_user_recipe(bass:bool)->(Engine,String) {
+        let mut engine=fixture();let style=if bass{12}else{8};
+        command(&mut engine,&format!("gexplore 2 {style} 0 32 37"));engine.play();engine.toggle_record(2);
+        ticks(&mut engine,384);command(&mut engine,&format!("gexplore 2 {} 90 100 37",style+1));
+        ticks(&mut engine,768);command(&mut engine,&format!("gexplore 2 {} 127 64 37",style+3));
+        ticks(&mut engine,384);command(&mut engine,"rec 2;stop");
+        engine.tracks[2].clips[0].recipe.as_mut().unwrap().gate=75;
+        let payload=engine.part_export(2);assert!(payload.starts_with("70617274320a"),"{payload}");(engine,payload)
+    }
+    #[test] fn generator_user_recipe_export_import_and_temporary_playback_keep_abstract_curves() {
+        for bass in [false,true] {
+            let (mut reference,payload)=saved_user_recipe(bass);
+            let prepared=crate::part_load::prepare_part("user",&payload).unwrap();
+            assert_eq!(prepared.clip.generator,reference.tracks[2].clips[0].generator);
+            assert_eq!(prepared.clip.locks,reference.tracks[2].clips[0].locks);
+            assert_eq!(prepared.clip.recipe,reference.tracks[2].clips[0].recipe);
+            reference.play();let expected=ticks(&mut reference,3072);
+            let mut audition=fixture();audition.tracks[2].clips[0]=crate::part_catalog::comp(5).unwrap();
+            let saved=audition.undo_snapshot();audition.dirty=false;
+            command(&mut audition,&format!("guser 2 {} {payload}",if bass{"bass"}else{"comp"}));
+            assert!(audition.generator_library[2].is_some());assert_eq!(audition.generator_settings(2),prepared.clip.recipe.as_ref().map(|recipe|recipe.settings));
+            audition.play();assert_eq!(ticks(&mut audition,3072),expected,"saved recipe uses the existing clock, gates and control curve");
+            assert_eq!(audition.undo_snapshot(),saved);assert!(!audition.dirty);
+            command(&mut audition,"guser 2 edit 1 127");ticks(&mut audition,200);
+            command(&mut audition,"stop");assert_eq!(audition.undo_snapshot(),saved);assert!(audition.generator_library[2].is_none());
+        }
+    }
+    #[test] fn generator_user_recipe_record_adopts_at_first_tick_remaps_lanes_and_replays_exactly() {
+        for bass in [false,true] {
+            let (mut reference,payload)=saved_user_recipe(bass);reference.play();let expected=ticks(&mut reference,3072);
+            let mut engine=fixture();engine.auto_label(2,0,"synth:cutoff");engine.tracks[2].lane_base[0]=73;
+            let before=engine.undo_snapshot();
+            command(&mut engine,&format!("guser 2 {} {payload};usnap 1201;rec 2",if bass{"bass"}else{"comp"}));
+            ticks(&mut engine,crate::TICKS_PER_BAR-1);assert!(engine.tracks[2].clips[0].generator.is_none());
+            assert_eq!(ticks(&mut engine,3072),expected,"Record's first onset must not double-fire when the source is adopted");
+            command(&mut engine,"rec 2;ucommit 1201;stop");
+            assert_eq!(engine.tracks[2].clips[0].length_steps,64,"saved recipes keep their full length through looped overdub");
+            assert!(engine.tracks[2].clips[0].notes.is_empty());assert_eq!(engine.tracks[2].lane_label[0],"synth:cutoff");assert_eq!(engine.tracks[2].lane_base[0],73);
+            for label in LABELS {assert!(engine.tracks[2].lane_label.iter().position(|name|name==label).unwrap()>0);}
+            let saved=engine.undo_snapshot();let mut restored=fixture();assert!(crate::persist::load(&mut restored,&saved));
+            restored.play();assert_eq!(ticks(&mut restored,3072),expected);command(&mut restored,"stop;gbake 2 0");restored.play();assert_eq!(ticks(&mut restored,3072),expected);
+            command(&mut engine,"uswap 1201 1202");assert_eq!(engine.undo_snapshot(),before);
+        }
+    }
+    #[test] fn generator_user_recipe_overrides_record_then_follow_ordinary_overdub_and_undo() {
+        let (_,payload)=saved_user_recipe(false);let mut engine=fixture();let before=engine.undo_snapshot();
+        command(&mut engine,&format!("guser 2 comp {payload};guser 2 edit 0 127;usnap 1211;rec 2"));
+        ticks(&mut engine,crate::TICKS_PER_BAR-1);let mut captured=ticks(&mut engine,400);
+        command(&mut engine,"guser 2 edit 1 110");captured.extend(ticks(&mut engine,1136).into_iter().map(|(tick,event)|(tick+400,event)));
+        command(&mut engine,"rec 2;ucommit 1211;stop");
+        let clip=&engine.tracks[2].clips[0];assert_eq!(clip.length_steps,64);
+        for step in 0..64 {assert_eq!(clip.generator.unwrap().at(clip,&engine.tracks[2].lane_label,step).complexity,127);}
+        let saved=engine.undo_snapshot();let mut restored=fixture();assert!(crate::persist::load(&mut restored,&saved));restored.play();assert_eq!(ticks(&mut restored,1536),captured);
+        command(&mut engine,"uswap 1211 1212");assert_eq!(engine.undo_snapshot(),before);
+    }
+    #[test] fn generator_user_recipe_refuses_wrong_actor_and_lossy_edits_before_mutation() {
+        let (mut source,payload)=saved_user_recipe(false);let mut engine=fixture();let before=engine.undo_snapshot();
+        command(&mut engine,&format!("guser 2 bass {payload}"));assert!(engine.generator_result.contains("another actor"));assert_eq!(engine.undo_snapshot(),before);assert!(engine.generator_explore[2].is_none());
+        command(&mut engine,&format!("guser 2 comp {payload}"));
+        let exploring=engine.generator_explore[2].unwrap().current;
+        command(&mut engine,&format!("guser 2 bass {payload}"));
+        assert!(engine.generator_result.contains("another actor"));assert_eq!(engine.generator_explore[2].unwrap().current,exploring);assert!(engine.generator_library[2].is_some());
+        for lane in 0..6 {engine.auto_label(2,lane,&format!("synth:param{lane}"));}
+        let before=engine.undo_snapshot();engine.toggle_record(2);assert!(!engine.part_recording_busy());assert_eq!(engine.undo_snapshot(),before);
+        let original=source.tracks[2].clips[0].clone();source.tracks[2].clips[0].notes.push(Config::default().note(0).unwrap());
+        assert!(source.part_export(2).contains("Bake edited"));source.tracks[2].clips[0]=original.clone();source.tracks[2].clips[0].scale_num=2;
+        assert!(source.part_export(2).contains("1x speed"));source.tracks[2].clips[0]=original;
+        let lane=source.tracks[2].lane_label.iter().position(|name|name==LABELS[2]).unwrap();source.tracks[2].clips[0].set_lock(lane as u8,16,12);
+        assert!(source.part_export(2).contains("another actor"));
+        let mut fill=fixture();let user=crate::part_catalog::NAMES.len();command(&mut fill,&format!("filllibrary 16 {user} {payload}"));
+        assert!(!fill.fill_preview(&format!("16_{user}_99_99_0_2")).starts_with("error:"));
+        assert!(fill.fill_preview(&format!("16_{user}_99_99_2_2")).contains("Style length"));
+    }
+    #[test] fn generator_user_recipe_count_in_cancel_and_companion_undo_keep_transient_sources() {
+        let (_,comp)=saved_user_recipe(false);let (_,bass)=saved_user_recipe(true);let mut engine=fixture();
+        engine.follower_inputs[1]=crate::follower_input::InputKey::new(0,1);
+        command(&mut engine,&format!("guser 2 comp {comp};guser 1 bass {bass};rec 2"));ticks(&mut engine,100);command(&mut engine,"gexplore 2 off");
+        assert!(!engine.part_recording_busy());ticks(&mut engine,500);assert!(engine.tracks[2].clips[0].generator.is_none());assert!(engine.generator_library[1].is_some());
+        command(&mut engine,"stop");engine.tracks[2].clips[0].clear();
+        command(&mut engine,&format!("guser 2 comp {comp};guser 1 bass {bass};usnap 1221;rec 2"));ticks(&mut engine,crate::TICKS_PER_BAR+500);
+        command(&mut engine,"rec 1;ucommit 1221;uswap 1221 1222");
+        assert!(engine.tracks[2].clips[0].generator.is_none());assert!(engine.generator_library[1].is_some());assert!(engine.generator_exploring(1));
+        assert!(engine.tracks[1].clips[0].generator.is_none());command(&mut engine,"stop");assert!(engine.gates.is_empty());
+    }
 }

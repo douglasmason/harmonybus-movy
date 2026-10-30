@@ -1,11 +1,13 @@
 /** Shared actor browser and temporary performance source; Record owns persistence. */
 import styles from './generator-styles.json';
+import {userParts,isGeneratorPart,type PartKind} from './part-storage.js';
+import {portFor} from '../track/registry.js';
 import {seqCmd,seqCmdFlush,engineReady,engineGeneration} from './engine.js';
 import {seqState} from './state.js';
 import {seqToast} from './render.js';
 import {undoableEdit} from '../undo/edit.js';
 type Actor='Comp'|'Bass';
-type Draft={config:number[];genre:string};
+type Draft={config:number[];genre:string;user:number|null;auditioned?:boolean};
 let selectedActor:Actor='Comp',generation=-1,recordingTrack:number|null=null,pageDirty=false,selectedTrack=2;
 let tracks={Comp:2,Bass:1};
 const shortStyles:Record<string,string>={'Root / Fifth':'R+5',Syncopated:'Sync',Quarters:'Qtrs',Offbeats:'Offbt',Sustain:'Hold','Pop Answer 2b':'Pop 2b','Funk Pocket 2b':'Funk 2b','Bossa 2b':'Bosa 2b','Soul Space 4b':'Soul 4b'};
@@ -19,12 +21,28 @@ export function generatorActor():Actor{return selectedActor;}
 export function generatorTarget(comp:number,bass:number):number {tracks={Comp:comp,Bass:bass};selectedTrack=tracks[selectedActor];return selectedTrack;}
 function draft(track=selectedTrack):Draft {
  const key=selectedActor+':'+track;let value=drafts.get(key);
- if(!value){value={config:[styles.findIndex(style=>style.actor===selectedActor),32,64,1],genre:'All'};drafts.set(key,value);}
+ if(!value){value={config:[styles.findIndex(style=>style.actor===selectedActor),32,64,1],genre:'All',user:null};drafts.set(key,value);}
  return value;
 }
+/** Existing library Load can start the same temporary source and Record path. */
+export function generatorAuditionUser(track:number,kind:PartKind,index:number):boolean {
+ const actor:Actor=kind==='bass'?'Bass':'Comp',entry=userParts(kind)[index];
+ if(!entry||!isGeneratorPart(entry)||(entry.generator&&entry.generator!==actor)){seqToast('Choose a saved generator recipe');return false;}
+ if(entry.synth!==(portFor(track).getParam('synth_module')??'')){seqToast('User preset needs its saved instrument');return false;}
+ if(!engineReady())return false;
+ seqCmd('guser '+track+' '+kind+' '+entry.payload);seqCmdFlush();cached.clear();
+ const state=info(track,true);
+ if(state[5]!=='1'||!state[3]?.startsWith('Explore saved recipe')){seqToast(state[3]??'Recipe unavailable');return false;}
+ selectedActor=actor;selectedTrack=track;tracks[actor]=track;
+ const current=draft(track);current.user=index;current.auditioned=true;current.genre='All';pageDirty=true;readState(track,true);return true;
+}
+function editUser(track:number,field:number,value:number):boolean {
+ seqCmd('guser '+track+' edit '+field+' '+value);seqCmdFlush();cached.clear();
+ const state=readState(track,true);if((state[5]!=='1'&&state[0]!=='Overdub')||!state[3]?.startsWith('Explore saved recipe')){seqToast(state[3]??'Recipe unavailable');return false;}return true;
+}
 function choices(genre=draft().genre){return styles.filter(style=>style.actor===selectedActor&&(genre==='All'||style.genres.includes(genre)));}
-function familyChoices():string[]{return [...new Set([...choices().map(style=>style.family),styles[draft().config[0]].family])];}
-function styleChoices():string[]{const family=styles[draft().config[0]].family;return [...new Set([...choices().filter(style=>style.family===family).map(style=>style.name),styles[draft().config[0]].name])];}
+function familyChoices():string[]{return [...new Set([...choices().map(style=>style.family),styles[draft().config[0]].family,...(draft().genre==='All'||draft().user!==null?['User']:[])])];}
+function styleChoices():string[]{if(draft().user!==null)return Array.from({length:8},(_,index)=>'User '+(index+1));const family=styles[draft().config[0]].family;return [...new Set([...choices().filter(style=>style.family===family).map(style=>style.name),styles[draft().config[0]].name])];}
 export function generatorParameters():any[]{return [
  {key:'cg_actor',name:'Generator Actor',short_name:'Actor',type:'enum',options:['Comp','Bass'],options_as_string:true,default:'Comp'},
  {key:'cg_genre',name:'Genre Filter',short_name:'Genre',type:'enum',options:['All',...new Set(styles.filter(style=>style.actor===selectedActor).flatMap(style=>style.genres))],options_as_string:true,default:'All'},
@@ -58,6 +76,7 @@ function readState(track:number,fresh=false):string[]{
   if(values?.length===4&&values.every(Number.isFinite)&&Number.isInteger(values[0])&&styles[values[0]]){
    if(styles[current.config[0]].family!==styles[values[0]].family)pageDirty=true;
    current.config=values;
+   if(recordedModes.includes(state[0])&&current.user!==null&&current.auditioned){current.user=null;pageDirty=true;}
   }
  }
  return state;
@@ -91,8 +110,8 @@ export function generatorRead(key:string,track:number):string|null {
  readState(track);const current=draft(track),config=current.config,field=key.slice(3);
  if(field==='actor')return selectedActor;
  if(field==='genre')return current.genre;
- if(field==='family')return styles[config[0]].family;
- if(field==='style')return styles[config[0]].name;
+ if(field==='family')return current.user!==null?'User':styles[config[0]].family;
+ if(field==='style')return current.user!==null?'User '+(current.user+1):styles[config[0]].name;
  if(field==='complexity'||field==='intensity')return String(Math.round(config[field==='complexity'?1:2]*100/127));
  if(field==='seed')return String(config[3]);
  if(field==='explore')return active(track)?'Stop':'Start';
@@ -111,12 +130,28 @@ export function generatorWrite(key:string,value:string,track:number):boolean|nul
   if(value!=='All'&&!styles.some(style=>style.actor===selectedActor&&style.genres.includes(value)))return false;
   current.genre=value;pageDirty=true;return true;
  }
+ const userChoice=field==='family'&&value==='User'?0:field==='style'&&current.user!==null&&/^User [1-8]$/.test(value)?Number(value.slice(5))-1:null;
+ if(userChoice!==null){
+  if(recordingTarget()===track){seqToast('Finish this actor take first');return false;}
+  if(active(track))return generatorAuditionUser(track,selectedActor==='Bass'?'bass':'comp',userChoice);
+  current.user=userChoice;current.auditioned=false;pageDirty=true;return true;
+ }
+ if(field==='seed'&&current.user!==null){seqToast('Seed fixed for saved recipes');return false;}
  const next=[...current.config];
  if(field==='family'){const index=styles.findIndex(style=>style.actor===selectedActor&&style.family===value&&(current.genre==='All'||style.genres.includes(current.genre)));if(index<0)return false;next[0]=index;}
  else if(field==='style'){const index=styles.findIndex(style=>style.actor===selectedActor&&style.name===value&&style.family===styles[current.config[0]].family&&(current.genre==='All'||style.genres.includes(current.genre)));if(index<0)return false;next[0]=index;}
  else if(field==='complexity'||field==='intensity'){const number=Number(value);if(!Number.isFinite(number))return false;next[field==='complexity'?1:2]=Math.round(Math.max(0,Math.min(100,number))*127/100);}
  else if(field==='seed'){if(recorded){seqToast('Seed fixed for recorded clips');return false;}if(recordingTarget()===track){seqToast('Seed locked during recording');return false;}const number=Number(value);if(!Number.isFinite(number))return false;next[3]=Math.max(1,Math.min(65535,Math.round(number)));}
  else return true;
+ if(current.user!==null){
+  if(field==='family'||field==='style'){
+   if(recordingTarget()===track){seqToast('Finish this actor take first');return false;}
+   const wasActive=active(track);if(wasActive)generatorStop(track);current.user=null;current.config=next;pageDirty=true;
+   return wasActive?send(track):true;
+  }
+  if(active(track))return editUser(track,field==='complexity'?0:1,next[field==='complexity'?1:2]);
+  seqToast('Start recipe exploration to change its controls');return false;
+ }
  if(styles[current.config[0]].family!==styles[next[0]].family)pageDirty=true;
  current.config=next;
  if(recorded){const index=field==='complexity'?0:field==='intensity'?1:2;return preview(track,Number(state[1]),index,next[index===2?0:index+1]);}
@@ -127,7 +162,7 @@ export function generatorTouch(key:string,track:number,down:boolean):boolean {
  if(!['cg_explore','cg_bake'].includes(key))return false;if(!down)return true;
  const state=readState(track,true);
  if(!compatible(state)){seqToast('Clip belongs to another actor');return true;}
- if(key==='cg_explore') {if(active(track))generatorStop(track);else {if(state[0]==='Recorded')preview(track,Number(state[1]));else if(send(track))seqToast('Explore: Play starts / Rec saves');}return true;}
+ if(key==='cg_explore') {if(active(track))generatorStop(track);else {if(draft(track).user!==null)generatorAuditionUser(track,selectedActor==='Bass'?'bass':'comp',draft(track).user!);else if(state[0]==='Recorded')preview(track,Number(state[1]));else if(send(track))seqToast('Explore: Play starts / Rec saves');}return true;}
  const slot=Number(state[1]);
  if(state[0]!=='Recorded'||seqState.recording||seqState.countingIn){seqToast('Stop exploration; record a take first');return true;}
  undoableEdit('BAKE '+selectedActor.toUpperCase(),'T'+(track+1),()=>seqCmd('gbake '+track+' '+slot));seqCmdFlush();cached.clear();

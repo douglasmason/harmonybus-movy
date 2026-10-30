@@ -1,12 +1,13 @@
 /** Global user entries live outside the installed module and every individual Set. */
-export interface UserPart { payload:string; synth:string; }
+export interface UserPart { payload:string; synth:string; generator?:'Comp'|'Bass'; }
 export type PartKind='comp'|'bass';
+export const isGeneratorPart=(entry:UserPart|null|undefined):boolean=>!!entry?.payload.startsWith('70617274320a');
 const path='/data/UserData/schwung/harmonybus-parts.json';
 let entries:Record<PartKind,(UserPart|null)[]>|null=null;
 function validated(value:unknown):(UserPart|null)[]{
     return Array.from({length:8},(_,index)=>{
         const entry=Array.isArray(value)?value[index]:null;
-        return entry&&typeof entry.synth==='string'&&entry.synth.length<128&&typeof entry.payload==='string'&&/^[0-9a-f]{2,36000}$/.test(entry.payload)?{payload:entry.payload,synth:entry.synth}:null;
+        return entry&&typeof entry.synth==='string'&&entry.synth.length<128&&typeof entry.payload==='string'&&/^[0-9a-f]{2,36000}$/.test(entry.payload)?{payload:entry.payload,synth:entry.synth,...(['Comp','Bass'].includes(entry.generator)?{generator:entry.generator}:{})}:null;
     });
 }
 export function userParts(kind:PartKind='comp'):(UserPart|null)[]{

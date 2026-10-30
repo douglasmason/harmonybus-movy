@@ -13,7 +13,7 @@ fn repeat_style(source:&Clip,bars:usize)->Result<Clip,&'static str> {
     let mut clip=source.clone();
     for note in &mut clip.notes {note.fired=false;note.suppress=false;}
     if bars==0||bars as u32*16*TICKS_PER_STEP==source.length_ticks(){return Ok(clip);}
-    if !source.trigs.is_empty()||!source.operation_intervals.is_empty()||!source.grid_gates.is_empty()
+    if source.generator.is_some()||!source.trigs.is_empty()||!source.operation_intervals.is_empty()||!source.grid_gates.is_empty()
         ||source.quant!=0||source.scale_num!=source.scale_den {
         return Err("Use Style length for this saved timing");
     }

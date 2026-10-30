@@ -27,10 +27,13 @@ pub fn prepare_part(kind:&str,value:&str)->Result<PreparedPart,&'static str> {
     }
     if kind!="user" {return Err("Unsupported preset source");}
     let text=decode(value).ok_or("Invalid saved preset")?;
-    if !text.starts_with("part1\n") {return Err("Unsupported preset version");}
+    let generator=text.starts_with("part2\n");
+    if !generator&&!text.starts_with("part1\n") {return Err("Unsupported preset version");}
     let mut source=Engine::new(48000,12000);
     if !crate::persist::load(&mut source,&text[6..]) {return Err("Invalid preset state");}
     let clip=source.tracks[0].clips[0].clone();
+    if generator!=clip.generator.is_some(){return Err("Invalid generator preset");}
+    if generator {crate::generator::library_valid(&clip,&source.tracks[0].lane_label)?;}
     if !valid(&clip,&source.tracks[0].lane_label) {return Err("Preset must contain mapped input");}
     Ok(PreparedPart{clip,lanes:PartLanes::from_track(&source.tracks[0])})
 }
@@ -95,12 +98,15 @@ impl Engine {
     }
     pub fn part_export(&self,track:usize)->String {
         let Some(target)=self.tracks.get(track) else{return "error:Invalid track".into();};
-        if self.recording {return "error:Finish recording first".into();}
-        let clip=target.active();if !valid(clip,&target.lane_label){return "error:Load a mapped style first".into();}
+        if self.part_recording_busy() {return "error:Finish recording first".into();}
+        if self.generator_exploring(track){return "error:Stop exploration before saving".into();}
+        let clip=target.active();
+        if clip.generator.is_some(){if let Err(error)=crate::generator::library_valid(clip,&target.lane_label){return format!("error:{error}");}}
+        if !valid(clip,&target.lane_label){return "error:Load a mapped style first".into();}
         let mut preset=Engine::new(48000,12000);
         preset.tracks[0].clips[0]=clip.clone();
         preset.tracks[0].lane_label=target.lane_label.clone();preset.tracks[0].lane_assigned=target.lane_assigned;preset.tracks[0].lane_base=target.lane_base;
-        let text=format!("part1\n{}",crate::persist::serialize(&preset));
+        let text=format!("{}\n{}",if clip.generator.is_some(){"part2"}else{"part1"},crate::persist::serialize(&preset));
         if text.len()>18000{return "error:Preset exceeds transfer capacity".into();}
         text.bytes().map(|byte|format!("{byte:02x}")).collect()
     }
@@ -110,7 +116,7 @@ fn valid(clip:&Clip,labels:&[String;8])->bool {
     // must not silently turn either off; other renderer automation is retained.
     if clip.locks.iter().any(|lock|labels.get(lock.lane as usize).map_or(true,|label|matches!(label.as_str(),"midi_fx1:travel_map"|"midi_fx1:track_role"|"midi_fx1:role"))){return false;}
 
-    clip.exists()&&!clip.notes.is_empty()&&clip.recipe.as_ref().is_some_and(|recipe|recipe.settings.mapped())&&
+    clip.exists()&&(!clip.notes.is_empty()||clip.generator.is_some())&&clip.recipe.as_ref().is_some_and(|recipe|recipe.settings.mapped())&&
         clip.shared_events.is_empty()&&clip.notes.iter().all(|note|!note.rendered&&note.input_key.is_some()&&!note.actions.as_ref().is_some_and(crate::recorded_actions::chord_selection))
 }
 fn decode(value:&str)->Option<String>{

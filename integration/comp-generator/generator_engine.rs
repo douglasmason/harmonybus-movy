@@ -1,4 +1,64 @@
 impl Engine {
+    /// Decode the existing actor-library payload only on explicit selection.
+    /// The template is transient and is never serialized in a Set or Undo blob.
+    pub fn generator_user_set(&mut self,message:&str,out:&mut Vec<OutEvent>)->bool {
+        self.generator_result=match self.generator_user_checked(message,out) {
+            Ok(())=>"Explore saved recipe - Rec saves to an empty clip".into(),Err(error)=>error.into(),
+        };
+        self.generator_result.starts_with("Explore saved")
+    }
+    fn generator_user_checked(&mut self,message:&str,out:&mut Vec<OutEvent>)->Result<(),&'static str> {
+        let fields:Vec<_>=message.split_whitespace().collect();
+        if !matches!(fields.len(),4|5){return Err("Invalid saved recipe request");}
+        let track=fields[1].parse::<usize>().ok().filter(|track|*track<NUM_TRACKS&&!self.track_is_drum(*track)).ok_or("Choose a melodic actor track")?;
+        if fields[2]=="edit"&&fields.len()==5 {
+            if self.generator_library[track].is_none(){
+                // Record can adopt the template between two UI polls. Route a
+                // control already in flight into that same ordinary overdub.
+                if let Some(slot)=self.generator_explore[track].filter(|state|state.take.is_some()&&self.recording&&self.records_track(track)).and_then(|state|state.source){
+                    if self.generator_preview_set(&format!("gpreview {track} {slot} {} {}",fields[3],fields[4]),out){return Ok(());}
+                }
+                return Err("Choose a saved generator recipe");
+            }
+            let field=fields[3].parse::<usize>().ok().filter(|field|*field<3).ok_or("Invalid generator control")?;
+            let value=fields[4].parse::<u8>().ok().filter(|value|*value<=127).ok_or("Invalid generator value")?;
+            let state=self.generator_explore[track].as_mut().ok_or("Start recipe exploration first")?;
+            if field==2&&!state.current.accepts_style(value){return Err("Choose a style for this actor");}
+            state.touched|=1<<field;
+            match field {0=>state.desired.complexity=value,1=>state.desired.intensity=value,_=>state.desired.style=value}
+            return Ok(());
+        }
+        if fields.len()!=4||!matches!(fields[2],"comp"|"bass"){return Err("Invalid saved recipe actor");}
+        if self.part_recording_busy()&&self.records_track(track){return Err("Finish this actor take first");}
+        let part=crate::part_load::prepare_part("user",fields[3])?;
+        crate::generator::library_valid(&part.clip,&part.lanes.labels)?;
+        let config=part.clip.generator.unwrap();
+        if config.bass()!=(fields[2]=="bass"){return Err("Saved recipe belongs to another actor");}
+        self.generator_cancel_track(track,out);self.flush_track_gates(track,out);
+        self.generator_restore[track]=self.recipe_seen[track].or(self.recipe_bases[track]);
+        let current=config.at(&part.clip,&part.lanes.labels,0);
+        self.generator_library[track]=Some(part);
+        self.generator_explore[track]=Some(crate::generator::Explore{track,desired:current,current,take:None,destination:None,source:None,touched:0});
+        out.push(OutEvent::RecipeCapture{track:track as u8});Ok(())
+    }
+    /// Record adopts the complete saved recipe at its first recording tick,
+    /// then uses ordinary fixed-length automation overdub. Count-in is transient.
+    fn generator_adopt_user(&mut self,track:usize,out:&mut Vec<OutEvent>)->Result<(),&'static str> {
+        let part=self.generator_library[track].as_ref().ok_or("Saved recipe unavailable")?;
+        let mut clip=part.clip.clone();
+        let lanes=crate::part_load::remap_part_lanes(&mut clip,&part.lanes,&self.tracks[track])?;
+        let slot=self.generator_explore[track].and_then(|state|state.destination).ok_or("Recording destination missing")?;
+        self.flush_track_gates(track,out);
+        if let Some(base)=self.generator_restore[track]{self.recipe_bases[track].get_or_insert(base);}
+        let target=&mut self.tracks[track];
+        target.clips[slot]=clip;target.lane_label=lanes.labels;target.lane_assigned=lanes.assigned;target.lane_base=lanes.bases;
+        target.last_auto_step=-1;target.auto_cur=[-1;8];
+        let state=self.generator_explore[track].as_mut().unwrap();state.source=Some(slot);state.take=Some(slot);
+        self.generator_restore[track]=self.tracks[track].clips[slot].recipe.as_ref().map(|recipe|recipe.settings);
+        self.generator_library[track]=None;self.rec_empty_start=false;self.dirty=true;
+        out.push(OutEvent::RecipeLanes{track:track as u8});Ok(())
+    }
+
     pub fn generator_exploring(&self,track:usize)->bool {self.generator_explore.get(track).is_some_and(Option::is_some)}
     pub fn generator_free(&self,track:usize)->bool {self.generator_explore.get(track).copied().flatten().is_some_and(|state|state.source.is_none())}
     pub fn generator_owns(&self,track:usize)->bool {
@@ -6,6 +66,7 @@ impl Engine {
     }
     pub fn generator_mask(&self)->u16 {(0..NUM_TRACKS).filter(|track|self.generator_exploring(*track)||(self.playing&&(self.generator_owns(*track)||self.tracks[*track].playing().is_some_and(|clip|clip.recipe.as_ref().is_some_and(|recipe|matches!(recipe.name.as_str(),"Comp-Generator"|"Bass-Generator")))))).fold(0,|mask,track|mask|(1<<track))}
     pub fn generator_settings(&self,track:usize)->Option<crate::part_settings::Settings> {
+        if let Some(part)=&self.generator_library[track]{return part.clip.recipe.as_ref().map(|recipe|recipe.settings);}
         self.generator_explore[track].and_then(|state|self.generator_restore[track].map(|settings|if state.source.is_none(){state.current.settings(settings)}else{settings}))
     }
     pub fn generator_info(&self,track:usize)->String {
@@ -15,11 +76,11 @@ impl Engine {
         let mut config=clip.generator.map(|config|config.at(clip,&target.lane_label,step)).unwrap_or_default();
         let state=self.generator_explore[track].filter(|state|state.source.is_none_or(|slot|slot==target.active_clip&&clip.generator.is_some()));
         if let Some(state)=state {
-            if state.source.is_none(){config=state.desired;}else{config=Self::generator_override(config,state.desired,state.touched);}
+            if self.generator_library[track].is_some(){config=Self::generator_override(state.current,state.desired,state.touched);}else if state.source.is_none(){config=state.desired;}else{config=Self::generator_override(config,state.desired,state.touched);}
         }
         let mode=if let Some(state)=state {if self.recording&&self.records_track(track){if state.source.is_some(){"Overdub"}else{"Recording"}}else if state.source.is_some(){"Preview"}else{"Exploring"}}
             else if target.active().generator.is_some(){"Recorded"}else{"Off"};
-        format!("{}|{}|{}|{}|{}",mode,target.active_clip,config.wire(),self.generator_result,self.generator_record_track().map_or(-1,|owner|owner as i32))
+        format!("{}|{}|{}|{}|{}|{}",mode,target.active_clip,config.wire(),self.generator_result,self.generator_record_track().map_or(-1,|owner|owner as i32),u8::from(self.generator_library[track].is_some()))
     }
     /// Audition commands never enter the edit/dirty/Undo path.
     pub fn generator_explore_set(&mut self,message:&str,out:&mut Vec<OutEvent>)->bool {
@@ -32,6 +93,7 @@ impl Engine {
         if fields.len()!=6 {self.generator_result="Invalid generator".into();return false;}
         let Some(track)=fields[1].parse::<usize>().ok().filter(|track|*track<NUM_TRACKS&&!self.track_is_drum(*track)) else {self.generator_result="Choose a melodic actor track".into();return false;};
         let Some(config)=crate::generator::Config::parse(&fields[2..].join(" ")) else {return false;};
+        if self.generator_library[track].is_some(){self.generator_result="Stop saved recipe before choosing a stock source".into();return false;}
         if self.part_recording_busy()&&self.records_track(track) {
             let Some(state)=self.generator_explore[track].as_mut() else {self.generator_result="Finish recording first".into();return false;};
             if config.seed!=state.desired.seed {self.generator_result="Seed locked during recording".into();return false;}
@@ -100,6 +162,9 @@ impl Engine {
                     (self.playing&&self.count_in_left==0&&target.playing_slot!=Some(slot))||target.clips[slot].generator.is_none())
             });
             if changed {self.generator_cancel_track(track,out);self.generator_result="Preview ended: clip changed".into();}
+            else if self.recording&&self.records_track(track)&&self.generator_library[track].is_some(){
+                if let Err(error)=self.generator_adopt_user(track,out){self.generator_cancel_track(track,out);self.generator_result=error.into();}
+            }
         }
     }
     pub fn generator_cancel(&mut self,out:&mut Vec<OutEvent>) {
@@ -110,6 +175,7 @@ impl Engine {
             if self.part_recording_busy()&&self.records_track(track) {if self.pending_rec {self.tracks[track].queued_slot=None;}self.recording=false;self.pending_rec=false;self.count_in_left=0;}
             self.flush_track_gates(track,out);
             self.generator_finish_take(state);
+            self.generator_library[track]=None;
             self.recipe_tick(out);
         }
     }
@@ -123,7 +189,7 @@ impl Engine {
     /// Validate before the normal Record command creates or arms a destination.
     fn generator_prepare_record(&mut self,track:usize)->bool {
         let Some(state)=self.generator_explore.get(track).copied().flatten() else {return true;};
-        if self.generator_restore[state.track].is_some_and(|settings|!settings.mapped()) {self.generator_result="Actor needs mapped input".into();return false;}
+        if self.generator_settings(state.track).is_some_and(|settings|!settings.mapped()) {self.generator_result="Actor needs mapped input".into();return false;}
         let track=&self.tracks[state.track];
         let clip=track.active();
         if let Some(slot)=state.source {
@@ -133,6 +199,10 @@ impl Engine {
             }
         }else if clip.exists() {self.generator_result="Choose an empty actor clip".into();return false;}
         if self.source_routes[state.track].enabled {self.generator_result="Set actor sources to Own before recording".into();return false;}
+        if let Some(part)=&self.generator_library[state.track]{
+            let mut clip=part.clip.clone();
+            if let Err(error)=crate::part_load::remap_part_lanes(&mut clip,&part.lanes,track){self.generator_result=error.into();return false;}
+        }
         let available=(0..8).filter(|lane|!track.lane_assigned[*lane]||crate::generator::internal(&track.lane_label[*lane])).count();
         if available<3 {self.generator_result="Three automation lanes needed".into();return false;}
         self.generator_explore[state.track].as_mut().unwrap().destination=Some(track.active_clip);
@@ -212,7 +282,7 @@ impl Engine {
     /// emit_clip_note ownership. No plan building or catalog parsing on ticks.
     fn generator_tick(&mut self,track:usize,out:&mut Vec<OutEvent>) {
         if !self.generator_owns(track)||self.tracks[track].muted {return;}
-        if self.generator_exploring(track)&&self.generator_restore[track].is_some_and(|settings|!settings.mapped()) {
+        if self.generator_exploring(track)&&self.generator_settings(track).is_some_and(|settings|!settings.mapped()) {
             self.generator_result="Actor needs Relative or Closest Split mapping".into();return;
         }
         let slot=self.tracks[track].playing_slot.unwrap_or(self.tracks[track].active_clip);
@@ -221,20 +291,23 @@ impl Engine {
         }
         let recording=self.recording&&self.records_track(track);
         let free=self.generator_free(track)&&!recording;
-        let pos=if free {self.master_tick.saturating_sub(1) as u32% (crate::TICKS_PER_BAR*4)} else {self.tracks[track].pos_tick};
+        let free_end=self.generator_library[track].as_ref().map_or(crate::TICKS_PER_BAR*4,|part|part.clip.length_ticks());
+        let pos=if free {self.master_tick.saturating_sub(1) as u32%free_end} else {self.tracks[track].pos_tick};
         let clip=&self.tracks[track].clips[slot];
-        let base=clip.generator.map(|config|config.at(clip,&self.tracks[track].lane_label,(pos/TICKS_PER_STEP) as u16));
+        let template=self.generator_library[track].as_ref();
+        let base=if let Some(part)=template{part.clip.generator.map(|config|config.at(&part.clip,&part.lanes.labels,(pos/TICKS_PER_STEP) as u16))}
+            else{clip.generator.map(|config|config.at(clip,&self.tracks[track].lane_label,(pos/TICKS_PER_STEP) as u16))};
         let loop_start=clip.loop_start_ticks();
         if let Some(state)=self.generator_explore[track].as_mut() {
             let mut accepted=state.current;
             if pos%TICKS_PER_STEP==0 {accepted.complexity=state.desired.complexity;accepted.intensity=state.desired.intensity;}
             if pos%crate::TICKS_PER_BAR==0||(state.source.is_some()&&pos==loop_start) {accepted.style=state.desired.style;accepted.seed=state.desired.seed;}
-            state.current=if state.source.is_some(){Self::generator_override(base.unwrap(),accepted,state.touched)}else{accepted};
+            state.current=if state.source.is_some()||template.is_some(){Self::generator_override(base.unwrap(),accepted,state.touched)}else{accepted};
         }
         self.generator_capture_tick(track,slot,pos,out);
         // At most sixteen grid positions; only one can fire at this tick.
         let clip=&self.tracks[track].clips[slot];
-        let (start,end,snum,sden)=if free {(0,crate::TICKS_PER_BAR*4,1,1)}else{(clip.loop_start_ticks(),clip.loop_end_ticks(),clip.scale_num,clip.scale_den)};
+        let (start,end,snum,sden)=if free {(0,free_end,1,1)}else{(clip.loop_start_ticks(),clip.loop_end_ticks(),clip.scale_num,clip.scale_den)};
         let bar=pos/crate::TICKS_PER_BAR*16;
         for local in 0..16 {
             let step=(bar+local) as u16;
@@ -244,7 +317,8 @@ impl Engine {
             if fire!=pos {continue;}
             let config=if let Some(state)=self.generator_explore[track] {state.current}
                 else {let clip=&self.tracks[track].clips[slot];clip.generator.unwrap().at(clip,&self.tracks[track].lane_label,step)};
-            if let Some(note)=config.note(step) {
+            if let Some(mut note)=config.note(step) {
+                if let Some(part)=&self.generator_library[track]{if let Some(recipe)=&part.clip.recipe{note.gate=((note.gate as u64*recipe.gate as u64)/100).clamp(1,u32::MAX as u64) as u32;}}
                 if config.bass() {
                     let mut index=0;
                     while index<self.gates.len() {
@@ -279,6 +353,13 @@ impl Engine {
         let mut baked=clip.clone();
         let mut generated:Vec<_>=(clip.loop_start_steps..clip.loop_start_steps+clip.length_steps)
             .filter_map(|step|config.at(clip,&target.lane_label,step).note(step)).collect();
+        // Materialize the recipe's gate scale once, before Bass's next-attack
+        // cutoff. Keeping the scale on the baked clip would shorten it twice.
+        let gate_scale=clip.recipe.as_ref().map_or(100,|recipe|recipe.gate) as u64;
+        for note in generated.iter_mut().chain(baked.notes.iter_mut()) {
+            note.gate=((note.gate as u64*gate_scale)/100).clamp(1,u32::MAX as u64) as u32;
+        }
+        if let Some(recipe)=&mut baked.recipe{recipe.gate=100;}
         if config.bass()&&!generated.is_empty() {
             let end=clip.loop_end_ticks();let span=end-clip.loop_start_ticks();
             let fire:Vec<_>=generated.iter().map(|note|(note.tick+self.swing_delay(note.step,clip.scale_num,clip.scale_den)).min(end-1)).collect();
