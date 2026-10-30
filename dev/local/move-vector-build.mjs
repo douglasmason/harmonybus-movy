@@ -15,6 +15,7 @@ export function createVectorAdapter(source){
    hook('drawDottedRect','dottedRect','x,y,w,h'),
    hook('hatchRect','shade','x,y,w,h,color,.35')],
   '/renderer/knob.ts':[
+   hook('drawEnumSquare','enum','kx+(KW-28)/2,ky,28,KW,options ? (options[enumIndex] ?? String(enumIndex)) : String(enumIndex)'),
    hook('drawCircleBorder','circle','cx,cy,r'),
    hook('drawCircle','ellipse','kx+7.5,ky+7.5,3.5,3.5,1,solid'),
    hook('drawDashedFrame','dottedRect','kx,ky,KW,KW'),
@@ -29,6 +30,7 @@ export function createVectorAdapter(source){
    hook('fillDithered','shade','x,y,w,h,1,Array.from({length:16},(_,i)=>pattern(x+i%4,y+Math.floor(i/4))?1:0).reduce((a,b)=>a+b,0)/16'),
    hook('dashedVRule','line','x,y,x,y+h-1,1,.4'),hook('notchCorners','corners','x,y,w,h')],
   '/param_pages/render_page_movy.mjs':[
+   hook('drawEnumSquare','enum','kx,ky,ENUM_W,BOX_H,browserText,!!readOnly'),
    hook('drawLine','line','x0,y0,x1,y1'),
    hook('drawArcKnob','knob','kx+KNOB_R,ky+KNOB_R,KNOB_R,normVal,KNOB_START_DEG,KNOB_SWEEP_DEG,ARC_START_DEG,ARC_SWEEP_DEG,POINTER_INNER,POINTER_OUTER'),
    hook('ellipseOutline','ellipse','cx,cy,rx,ry,color,false,bottomOnly'),
@@ -61,6 +63,16 @@ export function createVectorAdapter(source){
  return {filter:/\/(?:renderer\/(?:primitives|knob|pan-dial|lfo-wave|filter-curve|cut-curve|eq-curve|wav-form|trail-curves)\.ts|param_pages\/(?:render_page|viz_draw)\.mjs)$/,
   transform(contents,path){
    const key=Object.keys(rules).find(suffix=>path.endsWith(suffix));if(!key)return contents;
+   if(key==='/param_pages/render_page_movy.mjs'){
+    // The device may use short_options. Carry the already-resolved full value
+    // to the browser observation without changing the device's text argument.
+    for(const [before,after] of [
+     ['export function drawEnumSquare(ctx, kx, ky, text, anim, nowMs, animKey, raw, readOnly) {',
+      'export function drawEnumSquare(ctx, kx, ky, text, anim, nowMs, animKey, raw, readOnly, browserText = text) {'],
+     ['anim, nowMs, animKey, shown, !!meta.readOnly);',
+      'anim, nowMs, animKey, shown, !!meta.readOnly, displayValue(shown, meta));']
+    ]){if(contents.split(before).length!==2)throw new Error('Enum value seam changed: '+before);contents=contents.replace(before,after);}
+   }
    const tree=ts.createSourceFile(path,contents,ts.ScriptTarget.Latest,true),edits=[];
    for(const {name,kind,args,start,end}of rules[key]){
     const matches=tree.statements.filter(node=>ts.isFunctionDeclaration(node)&&node.name?.text===name);

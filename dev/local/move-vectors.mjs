@@ -9,6 +9,11 @@ function samples(left,right){
  return Array.from({length:count},(_,index)=>left+(right-left)*index/(count-1));
 }
 export function vectorShapes(kind,args){
+ if(kind==='enum'){
+  const [x,y,width,height,value,readOnly=false]=args;
+  return [shape('rect',{x:x+.5,y:y+.5,width:width-1,height:height-1,rx:1,...stroke(1,readOnly?.55:1),...(readOnly?{'stroke-dasharray':'1 1.5'}:{})}),
+   {tag:'text',attributes:{fill:'white','data-value':String(value??'')},text:String(value??''),box:[x+2,y+1,width-4,height-2]}];
+ }
  if(kind==='line'){
   const [x0,y0,x1,y1,color=1,opacity=1]=args;return [path([[x0,y0],[x1,y1]],color,opacity)];
  }

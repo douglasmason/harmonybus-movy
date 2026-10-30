@@ -8,6 +8,20 @@ import {createRequire} from 'node:module';
 import {createVectorAdapter} from './move-vector-build.mjs';
 import {createMoveDrawing} from './move-drawing.mjs';
 import {observePanelBar} from './move-panel-build.mjs';
+import {fitValueText} from './move-display.mjs';
+
+test('browser values retain complete words and fit their available space',()=>{
+ const measure=text=>text.length*.6;
+ for(const value of ['Immediate','Observed','On Grid','Closest Split','Chord + Arp','A much longer option name','♭VII / B♭7']){
+  const {lines,size}=fitValueText(value,24,13,measure);
+  assert.equal(lines.join(' '),value,'the value must not be abbreviated or fragmented');
+  assert(lines.length<=2&&size>0&&size<=6);
+  assert(lines.every(line=>measure(line)*size<=24+1e-9));
+  assert(size*lines.length*1.2<=13+1e-9);
+ }
+ assert.deepEqual(fitValueText('Immediate',24,13,measure).lines,['Immediate']);
+ assert.deepEqual(fitValueText('Closest Split',24,13,measure).lines,['Closest','Split']);
+});
 
 test('production graphics retain exact device pixels while emitting scalable geometry',async()=>{
  const source=process.env.MOVY_SOURCE;assert(source,'MOVY_SOURCE must identify the prepared production UI');
@@ -15,7 +29,7 @@ test('production graphics retain exact device pixels while emitting scalable geo
  const directory=await mkdtemp(resolve(tmpdir(),'movy-drawing-'));
  const shared=resolve(source,'src/vendor/schwung/shared/param_pages');
  const input=[['page',shared+'/render_page_movy.mjs'],['viz',shared+'/viz_draw.mjs'],['meta',shared+'/param_meta.mjs'],['peaks',shared+'/wav_peaks.mjs'],
-  ['primitives',resolve(source,'src/renderer/primitives.ts')],['pan',resolve(source,'src/renderer/pan-dial.ts')],['wave',resolve(source,'src/renderer/lfo-wave.ts')],
+  ['primitives',resolve(source,'src/renderer/primitives.ts')],['knob',resolve(source,'src/renderer/knob.ts')],['pan',resolve(source,'src/renderer/pan-dial.ts')],['wave',resolve(source,'src/renderer/lfo-wave.ts')],
   ['filter',resolve(source,'src/renderer/filter-curve.ts')],['eq',resolve(source,'src/renderer/eq-curve.ts')],['sample',resolve(source,'src/renderer/wav-form.ts')],['header',resolve(source,'src/renderer/header.ts')]]
   .map(([name,path])=>`export * as ${name} from ${JSON.stringify(path)};`).join('\n');
  try{
@@ -28,6 +42,10 @@ test('production graphics retain exact device pixels while emitting scalable geo
    modules.push(await import(pathToFileURL(outfile).href));
   }
   const cases=[
+   ['native full enum',ui=>ui.knob.drawKnobWidget(0,10,{type:'enum',options:['Immediate'],enumIndex:0,displayValue:'Immediate'})],
+   ['shared full enum',(ui,ctx)=>ui.page.drawEnumSquare(ctx,2,10,'Immediate')],
+   ['shared readonly enum',(ui,ctx)=>ui.page.drawEnumSquare(ctx,2,10,'Closest Split',null,0,'',0,true)],
+   ['shared short option',(ui,ctx)=>ui.page.drawKnobWidget(ctx,{x0:0,cellW:32},0,10,{kind:'enum',type:'enum',options:['Immediate'],short_options:['Imm']},0)],
    ['arc', (ui,ctx)=>ui.page.drawArcKnob(ctx,3,12,.371)],
    ['switch on',(ui,ctx,meta)=>ui.viz.drawSwitch(ctx,{x:0,y:10,w:32,h:16},'on',{on:'On'},meta)],
    ['switch off',(ui,ctx,meta)=>ui.viz.drawSwitch(ctx,{x:0,y:10,w:32,h:16},'on',{on:'Off'},meta)],
@@ -64,6 +82,12 @@ test('production graphics retain exact device pixels while emitting scalable geo
    assert.deepEqual(images[1],images[0],name+' device bitmap changed');
    assert(commands[1].some(command=>command[0]===2),name+' has no vector geometry');
    assert(!/NaN|Infinity/.test(JSON.stringify(commands[1])),name+' invalid coordinates');
+   if(name.includes('enum')||name==='shared short option'){
+    const value=commands[1].flatMap(command=>command[0]===2?command[1]:[]).find(shape=>shape.box);
+    assert.equal(value?.text,name==='shared readonly enum'?'Closest Split':'Immediate',name+' retains the full value');
+    assert(value.box[2]>20,'browser value uses the available cell width');
+    if(name==='shared readonly enum')assert(commands[1][0][1][0].attributes['stroke-dasharray']);
+   }
    sawGrey ||= commands[1].some(command=>command[0]===2&&command[1].some(shape=>shape.attributes.opacity>0&&shape.attributes.opacity<1));
   }
   assert(sawGrey,'dither coverage should become greyscale');
