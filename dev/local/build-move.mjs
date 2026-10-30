@@ -1,11 +1,46 @@
 /** Bundle the production Movy application and our existing HB/Movy surface. */
 import {readFile,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
+import {createVectorAdapter} from './move-vector-build.mjs';
 
 export async function buildMove({root,source,schwung,esbuild}){
+ const vectors=createVectorAdapter(source);
  await esbuild.build({entryPoints:[resolve(root,'move-runtime.mjs')],bundle:true,format:'esm',platform:'browser',
   outfile:resolve(root,'build/move-runtime.mjs'),alias:{movy:resolve(source,'src')},define:{__MOVY_DEBUG__:'false'},
   plugins:[{name:'browser-move-host',setup(build){
+   build.onLoad({filter:vectors.filter},async args=>({contents:vectors.transform(await readFile(args.path,'utf8'),args.path),loader:args.path.endsWith('.ts')?'ts':'js'}));
+   // Enum feedback covers the pixels, but the same eight knobs still own
+   // the page. Preserve their freshly rendered labels through that clear.
+   build.onLoad({filter:/\/renderer\/schwung-page\.ts$/},async args=>{
+    let contents=await readFile(args.path,'utf8');
+    const before='ctl.renderOverlays(ctx, { clearScreen: () => clear_screen() });';
+    if(contents.split(before).length!==2)throw new Error('Schwung overlay label seam changed');
+    contents=contents.replace(before,'ctl.renderOverlays(ctx, { clearScreen: () => globalThis.host_browser_clear_overlay() });');
+    return {contents,loader:'ts'};
+   });
+   // Publish the labels/values already resolved for the visible cells, before
+   // pixel-width shortening. No second metadata lookup or parameter read.
+   build.onLoad({filter:/\/param_pages\/render_page_movy\.mjs$/},async args=>{
+    let contents=await readFile(args.path,'utf8');
+    const before=`        const display = fitDev(ctx,
+            (cellText === null || cellText === undefined) ? displayValue(raw, meta) : String(cellText),
+            g.cellW - 2);`;
+    if(contents.split(before).length!==2)throw new Error('Schwung knob label seam changed');
+    contents=contents.replace(before,`        const fullDisplay = (cellText === null || cellText === undefined) ? displayValue(raw, meta) : String(cellText);
+        globalThis.host_browser_knob?.(slot, { name: meta.label || meta.key, value: fullDisplay,
+            readOnly: !!meta.readOnly, action: !!meta.writeOnly });
+        const display = fitDev(ctx, fullDisplay, g.cellW - 2);`);
+    return {contents:vectors.transform(contents,args.path),loader:'js'};
+   });
+   build.onLoad({filter:/\/renderer\/label\.ts$/},async args=>{
+    let contents=await readFile(args.path,'utf8');
+    const before='export function drawLabelCell(col: number, lblY: number, pvm: ParamVM): void {';
+    if(contents.split(before).length!==2)throw new Error('Movy knob label seam changed');
+    contents=contents.replace(before,before+`\n    globalThis.host_browser_knob?.(col + (lblY === LBL1_Y ? 4 : 0), {
+        name: pvm.fullName || pvm.shortName, value: pvm.displayValue,
+        readOnly: !!pvm.readOnly, action: !!pvm.trigger });`);
+    return {contents,loader:'ts'};
+   });
    // Observe the one shared text blitter before it becomes tiny bitmap runs.
    // Keep its original raster path intact for device-faithful display mode.
    build.onLoad({filter:/\/font\/blit\.ts$/},async args=>{

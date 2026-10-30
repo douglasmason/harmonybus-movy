@@ -17,9 +17,12 @@ add('transport','Play / Stop','cc',85);add('transport','Record','cc',86);
 
 export function mountMoveSurface(){
  const display=mountMoveDisplay();
+ const status=document.querySelector('#control-status');
  const buttons=controls.map(control=>{
   const button=document.querySelector(`.control[data-kind="${control.type}"][data-index="${control.index}"]`);
-  return {control,button,label:button.querySelector('.control-label'),note:button.querySelector('.pad-note')};
+  return {control,button,label:button.querySelector('.control-label'),note:button.querySelector('.pad-note'),
+   name:button.querySelector('.knob-name'),value:button.querySelector('.knob-value'),
+   option:document.querySelector(`#encoder option[value="${control.index}"]`)};
  });
  const rowHeadings=[...document.querySelectorAll('.pad-row-label')];
  const text=(node,value)=>{if(node.textContent!==value)node.textContent=value;};
@@ -32,7 +35,16 @@ export function mountMoveSurface(){
    const row=Number(heading.dataset.row),label=frame.padLabels?.rows[row];
    text(heading,label?`${label.owner} · ${label.kind}${label.operation?' · '+label.operation:''}`:`Pads ${row*8+1}–${row*8+8}`);
   }
-  for(const {control,button,label:primary,note}of buttons){
+  for(const {control,button,label:primary,note,name,value,option}of buttons){
+   if(control.group==='knobs'){
+    const label=frame.knobLabels?.[control.index-71];
+    text(name,label?.name??'');text(value,label?(label.action?'Action':label.value):'');
+    const description=label?`${label.name} · ${label.action?'Action':label.value}${label.readOnly?' · Read only':''}`:'';
+    const title=control.name+(description?' · '+description:'');
+    if(button.title!==title){button.title=title;button.setAttribute('aria-description',description);}
+    text(option,control.name+(label?' · '+label.name:''));
+    if(status.dataset.encoder===String(control.index))text(status,title);
+   }
    if(control.group==='pads'){
     const label=frame.padLabels?.pads[control.index-68];
     text(primary,label?.primary??String(control.index-67));text(note,label?.secondary??'');
