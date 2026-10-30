@@ -143,6 +143,16 @@ parameter name and value. The eight individual knob cards are visible above
 850 px; smaller windows use the selector and direct screen controls. Jog keeps
 its separate turn/touch/click rows beneath the display.
 
+Enlarge display opens the existing screen, Jog, mode/panel selectors and selected
+encoder controls together. Back, Note / Session, arrows and Volume remain usable.
+Wide windows place navigation beside the screen; phones stack it below. Short
+landscape windows scroll instead of shrinking the screen, with Close always
+available at the top. Keyboard focus stays in this view and returns to Enlarge
+display on closing. Escape closes it without stopping playback when nothing is
+held; cancelling a held gesture uses the existing Stop & release behavior.
+Opening is ignored during held gestures, and closing cancels any remaining hold.
+The original nodes and engine stay mounted, so modes, edits and audio continue.
+
 Settings panel lists the current production controller’s pages, grouped by the
 existing panel catalog. Clicking a top display segment jumps within its current
 group; the dropdown also jumps between groups. Both call the same controller’s

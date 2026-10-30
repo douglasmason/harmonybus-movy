@@ -18,7 +18,7 @@ for(let index=0;index<16;index++)add('steps','Step '+(index+1),'note',16+index);
 add('transport','Play / Stop','cc',85);add('transport','Record','cc',86);
 
 export function mountMoveSurface(inputs){
- const display=mountMoveDisplay();
+ const display=mountMoveDisplay(inputs);
  const screenControls=mountScreenControls(inputs,controls.filter(control=>control.group==='knobs'));
  const panelControls=mountPanelControls(inputs);
  const status=document.querySelector('#control-status');
