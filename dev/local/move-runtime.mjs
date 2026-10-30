@@ -174,7 +174,7 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   releaseAllLive();resetHeldInput(true);
   // Generic Schwung cells own touch state outside Movy's model reset. Cancel
   // through the controller, without synthesizing an action-triggering release.
-  for(const controller of touchedControllers)controller.clearTouch();
+  for(const controller of touchedControllers){controller.clearTouch();controller.dismissPeek();}
   touchedControllers.clear();appState.dirty=true;
   for(const data of held.values())if(data[0]===128&&data[1]>=68)request('midi',data.join(','));
   held.clear();
