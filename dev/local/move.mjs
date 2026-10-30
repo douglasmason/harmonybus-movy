@@ -10,6 +10,14 @@ try{
  const inputs=mountMoveInput({controls,send}),surface=mountMoveSurface(inputs);
  const audioButton=document.querySelector('#audio'),audioStatus=document.querySelector('#audio-status');
  const compSource=document.querySelector('#comp-source');
+ const playMode=document.querySelector('#play-mode');
+ let currentMode=null,modeNames='';
+ playMode.onchange=()=>{
+  if(currentMode===null)return;
+  if(!inputs.isHeld())send({type:'move_mode',previous:currentMode,mode:Number(playMode.value)});
+  // Reconcile from the engine, including a refused choice during motif editing.
+  playMode.value=String(currentMode);playMode.disabled=true;
+ };
  let accompaniment=null;
  compSource.onchange=()=>{
   if(!accompaniment)return;
@@ -35,6 +43,14 @@ try{
   if(message.type==='error'||message.type==='audio_error'){errorBox.textContent=message.message;return;}
   if(!message.move)return;
   const frame=message.move;
+  const names=JSON.stringify(frame.modes);
+  if(names!==modeNames){
+   modeNames=names;playMode.replaceChildren(...frame.modes.map((name,index)=>{
+    const option=document.createElement('option');option.value=index;option.textContent=name;return option;
+   }));
+  }
+  currentMode=frame.mode;playMode.value=String(currentMode);
+  playMode.disabled=!frame.ready||frame.held>0||inputs.isHeld();
   accompaniment=frame.accompaniment;
   if(accompaniment){
    const {melody,comp,source}=accompaniment;
@@ -66,13 +82,13 @@ try{
   }
   stopped=status.play==='0';
   const info=(message.params?.['motif_clip_info_'+frame.track]??'').split(','),notes=Number(info[4]??0);
-  const mode=['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings'][frame.mode]??'Normal Play';
+  const mode=frame.modes[frame.mode];
   feedback.textContent=`Track ${frame.track+1} · ${mode} · ${status.cin==='1'?'Count-in':status.rec==='1'?'Recording':stopped?'Stopped':'Playing'} · ${notes} ${notes===1?'note':'notes'}`;
   if(lastTrack!==frame.track){lastTrack=frame.track;send({type:'dev_watch',keys:['motif_clip_info_'+frame.track]});}
   if(frame.ready)inputs.enable();
  };
  socket.onerror=error=>{errorBox.textContent=error.message??'Engine connection failed';};
- socket.onclose=()=>{feedback.textContent='Engine closed · reload to reconnect';compSource.disabled=true;};
+ socket.onclose=()=>{feedback.textContent='Engine closed · reload to reconnect';compSource.disabled=playMode.disabled=true;};
  send({type:'subscribe_tool'});
  for(const id of ['audio','audio-test','stop'])document.querySelector('#'+id).disabled=false;
  document.querySelector('#build').textContent=`Movy ${audio.build?.engineSource?.integrationVersion??'unknown'} · HarmonyBus ${metadata.version} · engine ${audio.build?.engineSource?.commit?.slice(0,12)??'unknown'} · UI ${audio.build?.hostSource?.commit?.slice(0,12)??'local'} · 44,100 Hz`;

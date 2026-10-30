@@ -5,6 +5,45 @@ import {createJointService} from './joint-service.mjs';
 import {createMoveRuntime} from '../../local/build/move-runtime.mjs';
 import {sealSession} from './session.mjs';
 
+test('direct play-mode choices retain device Back history, playback and saved performance context',async()=>{
+ const raw=JSON.parse(await readFile(new URL('../build/full/modules/midi_fx/harmonybus/module.json',import.meta.url)));
+ let frame;const errors=[];
+ const service=await createJointService(raw,value=>{if(value.move)frame=value.move;if(value.type==='error')errors.push(value);},null,createMoveRuntime);
+ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+ const send=async message=>{service.socket.send(JSON.stringify(message));await wait(60);};
+ const midi=data=>send({type:'move_midi',data});
+ const cc=async index=>{await midi([176,index,127]);await midi([176,index,0]);};
+ const until=async predicate=>{const deadline=Date.now()+6000;while(!predicate()){if(Date.now()>deadline)throw new Error('Mode selector timeout: '+JSON.stringify({mode:frame?.mode,held:frame?.held}));await wait(20);}};
+ const choose=async mode=>{await send({type:'move_mode',previous:frame.mode,mode});await until(()=>frame.mode===mode);};
+ try{
+  await send({type:'subscribe_tool'});await until(()=>frame?.ready);
+  assert.deepEqual(frame.modes,['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings']);
+  const clips=service.read('state');
+  for(const mode of [6,7,0,2,4,5,3,1]){
+   const previous=frame.mode;await choose(mode);
+   assert.equal(service.read('state'),clips,'view selection must not edit clips');
+   await send({type:'move_mode',previous,mode:(mode+1)%8});assert.equal(frame.mode,mode,'stale selection cannot override current mode');
+  }
+  for(const mode of [-1,8,1.5,'3',null]){await send({type:'move_mode',previous:1,mode});assert.equal(frame.mode,1,'invalid choice ignored');}
+  for(const data of [[144,68,100],[144,0,127],[176,49,127]]){
+   await midi(data);await send({type:'move_mode',previous:1,mode:5});assert.equal(frame.mode,1,'held pad, touch or modifier owns input');
+   await midi([data[0],data[1],0]);
+  }
+  await choose(5);await cc(51);await until(()=>frame.mode===1);
+  await choose(6);await choose(7);await cc(51);await until(()=>frame.mode===6);
+  await cc(85);await until(()=>/play=1/.test(service.read('status')));
+  await choose(7);assert.match(service.read('status'),/play=1/,'opening settings leaves playback running');
+  await send({type:'dev_transport',action:'stop'});
+  const saved=await service.save({});assert.equal(saved.payload.ui.move.context.mode,7);assert.equal(saved.payload.ui.move.context.performance,6);
+  await choose(1);await service.open(saved);await until(()=>frame.mode===7);
+  assert.equal((await service.save({})).payload.ui.move.context.performance,6,'reopen retains Chord Play behind settings');
+  await choose(6);await choose(0);
+  assert.equal((await service.save({})).payload.ui.move.context.performance,6,'Clips retains its performance owner');
+  await choose(1);await cc(50);await midi([176,14,1]);await cc(3);await until(()=>frame.mode===2);
+  assert.deepEqual(errors,[],'device and dropdown mode selection share one state');
+ }finally{service.socket.close();}
+});
+
 test('panel shortcuts use production groups and reject stale or held navigation',async()=>{
  const raw=JSON.parse(await readFile(new URL('../build/full/modules/midi_fx/harmonybus/module.json',import.meta.url)));
  let frame;const errors=[];

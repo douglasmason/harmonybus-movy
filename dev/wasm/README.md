@@ -115,6 +115,14 @@ and controllers with our earlier `/joint/?engine=wasm` interface. Its adaptable
 Move-style HTML layout is a separate surface; the Joint Play & lights link keeps
 the earlier GUI available.
 
+Play mode beside Settings panel selects Clips, Normal, Motif, Joint, Grid,
+Field, Chord Play or HB Settings directly. Its labels and choices come from
+Movy's device mode selector; Back history, playing-track rules and session
+context use that same controller. It also stays available in the enlarged
+display. Held controls and stale choices cannot change modes; the dropdown
+always follows the engine's confirmed mode, including device-button changes
+and restored sessions. Opening settings leaves playback running.
+
 Choose a knob or Volume, then use the two action rows immediately below the
 selector for normal or Shift turn/touch. The selected knob retains its full live
 parameter name and value. The eight individual knob cards are visible above
