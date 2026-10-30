@@ -19,6 +19,7 @@ export function createPadLabels(read){
  }
  function describe(mode,track,editing=false){
   if(editing||![1,3,6].includes(mode))return null;
+  const ownerName=owner=>mode===6?'Melody':actorName(owner);
   const now=performance.now(),signature=[revision,mode,track,keyboardState.scale,keyboardState.rootPc].join(':');
   if(last?.signature===signature&&now-lastAt<100)return last;
   const cells=mode===3?jointMap.map(([owner,pitch,target,row])=>({track:owner,pitch,target,row:target>=0&&row!==3?row+1:0})):
@@ -38,10 +39,10 @@ export function createPadLabels(read){
    const targetLabel=/^\d+$/.test(degree)?'degree '+degree:degree;
    return {...cell,index,degree,operation,kind:pitch<0?'Silent':approach?'Approach':'Target',
     primary:pitch<0?'—':approach?'→'+degree:degree,secondary:pitchName(pitch),
-    description:`T${cell.track+1} ${actorName(cell.track)} · ${pitch<0?'Silent':approach?operation+' → '+targetLabel:targetLabel} · ${approach?'target ':''}${pitchName(pitch)}`};
+    description:`T${cell.track+1} ${ownerName(cell.track)} · ${pitch<0?'Silent':approach?operation+' → '+targetLabel:targetLabel} · ${approach?'target ':''}${pitchName(pitch)}`};
   });
   const rows=Array.from({length:4},(_,row)=>{
-   const section=pads.slice(row*8,row*8+8),owners=[...new Set(section.map(cell=>`T${cell.track+1} ${actorName(cell.track)}`))];
+   const section=pads.slice(row*8,row*8+8),owners=[...new Set(section.map(cell=>`T${cell.track+1} ${ownerName(cell.track)}`))];
    const kinds=[...new Set(section.filter(cell=>cell.kind!=='Silent').map(cell=>cell.kind))];
    const ops=[...new Set(section.map(cell=>cell.operation).filter(Boolean))];
    return {owner:owners.join(' / '),kind:kinds.join(' + ')||'Silent',operation:ops.join(' / ')};

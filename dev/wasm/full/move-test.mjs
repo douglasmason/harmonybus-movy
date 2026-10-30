@@ -199,6 +199,11 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   assert(new Set(loadedReplay.filter(packet=>(packet[1]&15)===2).map(packet=>packet[2])).size>=3);
   const pitches=events=>[...new Set(events.map(packet=>`${packet[1]&15}:${packet[2]}`))].sort();
   assert.deepEqual(pitches(loadedReplay),pitches(replayed),'reloaded intent renders the same Comp and melody pitches');
+  await midi([176,49,127]);await cc(50);await midi([176,49,0]);await note(20);
+  assert.equal(service.stats().move.track,4);
+  const beforeCustomMelody=service.stats().move.mode;
+  await cc(50);await midi([176,14,(6-beforeCustomMelody+128)%128]);await cc(3);await wait(100);
+  assert.equal(updates.at(-1).move.padLabels.rows[0].owner,'T5 Melody','Chord Play owns the chosen playing track regardless of its bank position');
   // Every selector destination survives Stop and reopen. Settings and Clips
   // retain their underlying performance owner, rather than forcing Normal.
   await midi([176,49,127]);await cc(50);await midi([176,49,0]);await note(31);
