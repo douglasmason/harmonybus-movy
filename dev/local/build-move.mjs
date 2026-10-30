@@ -46,7 +46,7 @@ export async function buildMove({root,source,schwung,esbuild}){
         name: pvm.fullName || pvm.shortName, value: pvm.displayValue,
         bounds: [col * CELL_W, lblY === LBL1_Y ? ROW1_Y : ROW0_Y, CELL_W, lblY + LBL_H - (lblY === LBL1_Y ? ROW1_Y : ROW0_Y)],
         readOnly: !!pvm.readOnly, action: !!pvm.trigger });`);
-    return {contents,loader:'ts'};
+    return {contents:vectors.transform(contents,args.path),loader:'ts'};
    });
    // Observe the one shared text blitter before it becomes tiny bitmap runs.
    // Keep its original raster path intact for device-faithful display mode.

@@ -23,6 +23,8 @@ export function createVectorAdapter(source){
    hook('drawSwitch','switch','kx-5,ky+2,26,11,kx-5+(on?16:1),ky+3,9,9,on,5'),
    hook('drawFader','fader','cx,top,bot,normVal,false', 'for (let y = top;'),
    hook('drawEnvStage','envStage','x,top,bot,w,len,stage','const dottedV =')],
+  '/renderer/label.ts':[
+   hook('drawLabelCell','label','col*CELL_W,lblY,CELL_W,LBL_H,(pvm.trigger||!pvm.touched)?(pvm.fullName||pvm.shortName):pvm.displayValue,!!pvm.touched,!!pvm.modulated,!!pvm.automated')],
   '/renderer/pan-dial.ts':[
    hook('drawPanDial','pan','cellX+Math.floor(CELL_W/2),ky+8,normVal,PAN_HALF')],
   '/param_pages/render_page.mjs':[
@@ -30,6 +32,7 @@ export function createVectorAdapter(source){
    hook('fillDithered','shade','x,y,w,h,1,Array.from({length:16},(_,i)=>pattern(x+i%4,y+Math.floor(i/4))?1:0).reduce((a,b)=>a+b,0)/16'),
    hook('dashedVRule','line','x,y,x,y+h-1,1,.4'),hook('notchCorners','corners','x,y,w,h')],
   '/param_pages/render_page_movy.mjs':[
+   hook('drawLabelCell','label','cellLeft(g,col),lblY,g.cellW,LBL_H,showValue?browserValue:browserLabel,!!inverted,!!modulated,!!automated'),
    hook('drawEnumSquare','enum','kx,ky,ENUM_W,BOX_H,browserText,!!readOnly'),
    hook('drawLine','line','x0,y0,x1,y1'),
    hook('drawArcKnob','knob','kx+KNOB_R,ky+KNOB_R,KNOB_R,normVal,KNOB_START_DEG,KNOB_SWEEP_DEG,ARC_START_DEG,ARC_SWEEP_DEG,POINTER_INNER,POINTER_OUTER'),
@@ -70,7 +73,11 @@ export function createVectorAdapter(source){
      ['export function drawEnumSquare(ctx, kx, ky, text, anim, nowMs, animKey, raw, readOnly) {',
       'export function drawEnumSquare(ctx, kx, ky, text, anim, nowMs, animKey, raw, readOnly, browserText = text) {'],
      ['anim, nowMs, animKey, shown, !!meta.readOnly);',
-      'anim, nowMs, animKey, shown, !!meta.readOnly, displayValue(shown, meta));']
+      'anim, nowMs, animKey, shown, !!meta.readOnly, displayValue(shown, meta));'],
+     ['export function drawLabelCell(ctx, g, col, lblY, label, displayValue, showValue, inverted, modulated, automated = false) {',
+      'export function drawLabelCell(ctx, g, col, lblY, label, displayValue, showValue, inverted, modulated, automated = false, browserLabel = label, browserValue = displayValue) {'],
+     ['automated ? !!automated(key) : false);',
+      'automated ? !!automated(key) : false, meta.label || meta.key, (cellText === null || cellText === undefined) ? displayValue(raw, meta) : String(cellText));']
     ]){if(contents.split(before).length!==2)throw new Error('Enum value seam changed: '+before);contents=contents.replace(before,after);}
    }
    const tree=ts.createSourceFile(path,contents,ts.ScriptTarget.Latest,true),edits=[];

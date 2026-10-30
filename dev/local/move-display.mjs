@@ -1,11 +1,11 @@
 /** Fit a complete value into one or two lines using real browser font metrics.
  * Break only at whitespace; shrinking never invents abbreviations or fragments. */
-export function fitValueText(value,width,height,measure){
+export function fitValueText(value,width,height,measure,maxSize=6){
  const text=String(value??'').trim().replace(/\s+/g,' '),candidates=[[text]];
  for(let index=0;index<text.length;index++)if(text[index]===' ')candidates.push([text.slice(0,index),text.slice(index+1)]);
  let best={lines:[text],size:0};
  for(const lines of candidates){
-  const size=Math.min(6,height/(lines.length*1.2),width/Math.max(1,...lines.map(measure)));
+  const size=Math.min(maxSize,height/(lines.length*1.2),width/Math.max(1,...lines.map(measure)));
   if(size>best.size)best={lines,size};
  }
  return best;
@@ -35,7 +35,7 @@ export function mountMoveDisplay(){
     const [kind,x,y,width,height,color,text]=command;
     if(kind===2){for(const shape of command[1]){
      if(!shape.box){nodes.push(node(shape.tag,shape.attributes));continue;}
-     const [left,top,span,rows]=shape.box,{lines,size}=fitValueText(shape.text,span,rows,measure);
+     const [left,top,span,rows]=shape.box,{lines,size}=fitValueText(shape.text,span,rows,measure,shape.maxSize);
      const label=node('text',{...shape.attributes,'font-family':fontFamily,'font-weight':500,'font-size':size,'text-anchor':'middle'});
      const title=node('title',{});title.textContent=shape.text;label.append(title);
      for(const [index,line]of lines.entries()){

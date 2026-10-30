@@ -130,6 +130,13 @@ cells use the same browser treatment, including full options where the device
 uses short_options. Read-only frames stay dotted. The original bitmap toggle
 retains the exact device text, geometry and animation.
 
+High-resolution parameter strips also use full names, such as Chord Anticipation
+and Follower Travel. They reuse the same measured text fitting and wrap only at
+word boundaries. Touching a knob still displays its full value on a highlighted
+strip; native action controls keep their name. Automation dots and modulation marks
+have reserved space beside the text. Both native Movy and shared Schwung cells
+retain their device bitmap behavior.
+
 Choose a knob or Volume, then use the two action rows immediately below the
 selector for normal or Shift turn/touch. The selected knob retains its full live
 parameter name and value. The eight individual knob cards are visible above
