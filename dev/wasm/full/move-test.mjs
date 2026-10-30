@@ -20,6 +20,8 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
  try{
   await send({type:'subscribe_tool'});await until(()=>updates.at(-1)?.move?.ready&&updates.at(-1).move.screen.some(value=>value>0));
   assert(updates.at(-1).move.screen.some(value=>value>0),'production renderer must draw a screen');
+  assert(updates.at(-1).move.display.some(command=>command[0]===1&&typeof command[6]==='string'),'shared production text is available before rasterization');
+  assert(updates.at(-1).move.display.some(command=>command[0]===0),'graphics retain their original draw order beside text');
   assert(updates.at(-1).move.surface.slice(24,152).some(value=>value>0),'production LED writers must paint the surface');
   const fresh=await service.save({});
   const freshUI=JSON.parse(fresh.payload.ui.move.state);
@@ -48,7 +50,13 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
    await midi([128,pad,0]);return notes;
   };
   assert.deepEqual(await strike(68),[[2,48],[3,48]],'target is doubled in unison');
+  assert.equal(updates.at(-1).move.lastPlayed.label.primary,'1');
+  assert.equal(updates.at(-1).move.lastPlayed.label.secondary,'C3');
   assert.deepEqual(await strike(76),[[2,48],[3,43]],'approach and comp target form the reported harmony');
+  assert.equal(updates.at(-1).move.lastPlayed.label.primary,'→1');
+  assert.equal(updates.at(-1).move.lastPlayed.label.target,48,'approach label identifies its resolution, not its output');
+  assert.deepEqual(updates.at(-1).move.lastOutput.outputs.map(output=>[output.channel,...output.notes]),[[3,48],[4,43]],'readout reports actual deferred Comp and melody output');
+  assert.equal(updates.at(-1).move.padLabels.rows[1].kind,'Approach');
   await send({type:'move_comp_source',group:0,source:1});
   assert.equal(updates.at(-1).move.accompaniment.source,1);
   for(let pad=68;pad<100;pad++){
@@ -61,6 +69,26 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   // Opening retains the source choice, regardless of the restored active track.
   assert.equal(JSON.parse((await service.save({})).payload.ui.move.state).jointPlay[0].comp,1);
   await cc(40);assert.deepEqual(await strike(76),[[3,43]]);
+  assert.deepEqual(updates.at(-1).move.lastOutput.outputs.map(output=>output.channel),[4],'independent source removes the Comp output');
+  // Physical tonic-location shifts change the labels through the real padmap.
+  await cc(63);await wait(100);
+  assert.equal(updates.at(-1).move.padLabels.pads[1].primary,'1');
+  assert.equal(updates.at(-1).move.padLabels.pads[1].secondary,'C3');
+  assert.equal(updates.at(-1).move.padLabels.pads[9].primary,'→1');
+  await cc(62);await wait(100);
+  for(const [scale,expected] of [
+   ['Whole Tone',['1','2','3','4','5','6','1','2']],
+   ['Whole-Half Diminished',['1','2','3','4','5','6','7','8']],
+   ['Harmonic Minor',['1','2','3','4','5','6','7','1']]
+  ]){
+   globalThis.host_module_set_param('ch3:midi_fx1:follower_scale',scale);await wait(200);
+   const pads=updates.at(-1).move.padLabels.pads;
+   assert.deepEqual(pads.slice(0,8).map(pad=>pad.primary),expected,scale+' uses the production scale cardinality');
+   if(scale==='Harmonic Minor')assert.equal(pads[6].pitch-pads[5].pitch,3,'augmented second is preserved');
+   const notes=await strike(69);
+   assert.deepEqual(updates.at(-1).move.lastOutput.outputs.flatMap(output=>output.notes),notes.map(note=>note[1]),'display reports engine output for '+scale);
+  }
+  globalThis.host_module_set_param('ch3:midi_fx1:follower_scale','Major');await wait(200);
   await send({type:'move_comp_source',group:1,source:2});
   let groups=JSON.parse((await service.save({})).payload.ui.move.state).jointPlay;
   assert.equal(groups[0].comp,1);assert.equal(groups[1].comp,2,'edit is scoped to its displayed bank');
@@ -118,6 +146,8 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   assert.equal(service.stats().move.mode,2,'current Motif Play controller is reachable');
   await cc(50);await midi([176,14,1]);await cc(3);
   assert.equal(service.stats().move.mode,3,'production Joint Play is reachable from the full app');
+  await wait(100);
+  assert(new Set(updates.at(-1).move.padLabels.pads.map(pad=>pad.track)).size>1,'Joint rows expose their actual actor allocation');
   // New session discards clips/Undo, restores production settings, and retains
   // machine preferences and user parts. The old envelope remains reopenable.
   globalThis.host_write_file('/data/UserData/movy/prefs.json','{"defaultQuant":100}');
@@ -133,6 +163,7 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   assert.equal(service.stats().move.mode,1);
   await cc(50);await midi([176,14,5]);await cc(3);
   assert.equal(service.stats().move.mode,6);
+  await wait(100);assert.equal(updates.at(-1).move.padLabels.rows[0].owner,'T4 Melody');
   await note(16);await cc(86);await until(()=>/rec=1/.test(service.read('status')));
   await note(17);await midi([144,70,100]);await wait(300);await midi([128,70,0]);
   await note(18);await midi([144,72,100]);await wait(300);await midi([128,72,0]);
@@ -170,6 +201,11 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   assert(new Set(loadedReplay.filter(packet=>(packet[1]&15)===2).map(packet=>packet[2])).size>=3);
   const pitches=events=>[...new Set(events.map(packet=>`${packet[1]&15}:${packet[2]}`))].sort();
   assert.deepEqual(pitches(loadedReplay),pitches(replayed),'reloaded intent renders the same Comp and melody pitches');
+  await midi([176,49,127]);await cc(50);await midi([176,49,0]);await note(20);
+  assert.equal(service.stats().move.track,4);
+  const beforeCustomMelody=service.stats().move.mode;
+  await cc(50);await midi([176,14,(6-beforeCustomMelody+128)%128]);await cc(3);await wait(100);
+  assert.equal(updates.at(-1).move.padLabels.rows[0].owner,'T5 Melody','Chord Play owns the chosen playing track regardless of its bank position');
   // Every selector destination survives Stop and reopen. Settings and Clips
   // retain their underlying performance owner, rather than forcing Normal.
   await midi([176,49,127]);await cc(50);await midi([176,49,0]);await note(31);

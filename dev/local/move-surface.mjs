@@ -1,10 +1,11 @@
 /** The existing HB/Movy grid surface, connected to production framebuffer/LEDs. */
 import {PAD_PALETTE} from 'movy/keyboard/pad-palette.ts';
+import {mountMoveDisplay} from './move-display.mjs';
 
 export const controls=[];
 const add=(group,name,type,index,extra={})=>controls.push({group,name,type,index,...extra});
 for(let index=0;index<8;index++)add('knobs','Knob '+(index+1),'encoder',71+index,{touch:index});
-add('navigation','Jog','encoder',14,{touch:9,click:3});
+add('jog','Jog','encoder',14,{touch:9,click:3});
 add('navigation','Volume','encoder',79,{touch:8});
 for(const [name,index] of [['Back',51],['Note / Session',50],['Left',62],['Right',63],['Down',54],['Up',55]])add('navigation',name,'cc',index,{white:true});
 for(let row=0;row<4;row++)add('tracks','Track '+(row+1),'cc',43-row);
@@ -15,23 +16,38 @@ for(let index=0;index<16;index++)add('steps','Step '+(index+1),'note',16+index);
 add('transport','Play / Stop','cc',85);add('transport','Record','cc',86);
 
 export function mountMoveSurface(){
- const canvas=document.querySelector('#hero'),context=canvas.getContext('2d'),pixels=context.createImageData(128,64);
- const buttons=controls.map(control=>({control,button:document.querySelector(`.control[data-kind="${control.type}"][data-index="${control.index}"]`)}));
+ const display=mountMoveDisplay();
+ const buttons=controls.map(control=>{
+  const button=document.querySelector(`.control[data-kind="${control.type}"][data-index="${control.index}"]`);
+  return {control,button,label:button.querySelector('.control-label'),note:button.querySelector('.pad-note')};
+ });
+ const rowHeadings=[...document.querySelectorAll('.pad-row-label')];
+ const text=(node,value)=>{if(node.textContent!==value)node.textContent=value;};
  let frame=null,lastFrame=null,tempo=120,animation=null;
  function paint(now){
   animation=null;if(!frame||document.hidden)return;
   if(frame!==lastFrame){
-   for(let index=0;index<8192;index++){
-    const offset=index*4;pixels.data[offset]=pixels.data[offset+1]=pixels.data[offset+2]=frame.screen[index];pixels.data[offset+3]=255;
-   }
-   context.putImageData(pixels,0,0);lastFrame=frame;
+   display.update(frame);
+  for(const heading of rowHeadings){
+   const row=Number(heading.dataset.row),label=frame.padLabels?.rows[row];
+   text(heading,label?`${label.owner} · ${label.kind}${label.operation?' · '+label.operation:''}`:`Pads ${row*8+1}–${row*8+8}`);
   }
-  const surface=frame.surface;let animating=false;
-  for(const {control,button}of buttons){
+  for(const {control,button,label:primary,note}of buttons){
+   if(control.group==='pads'){
+    const label=frame.padLabels?.pads[control.index-68];
+    text(primary,label?.primary??String(control.index-67));text(note,label?.secondary??'');
+    const title=label?`${control.name} · ${label.description}`:control.name;
+    if(button.title!==title){button.title=title;button.setAttribute('aria-description',label?.description??'');}
+   }
    if(control.group==='tracks'){
     const name='Track '+(Math.floor(frame.track/4)*4+44-control.index);
     if(button.getAttribute('aria-label')!==name){button.setAttribute('aria-label',name);button.title=name;button.querySelector('.control-label').textContent=name;}
    }
+  }
+   lastFrame=frame;
+  }
+  const surface=frame.surface;let animating=false;
+  for(const {control,button}of buttons){
    const kind=control.type==='note'?0:1,index=control.index,offset=536+(kind*128+index)*4;
    const value=surface[(kind?280:24)+index],effect=surface[(kind?408:152)+index];
    let color=surface[offset+3]?surface.slice(offset,offset+3):effect===255||!value?[0,0,0]:control.white?[value*2,value*2,value*2]:(PAD_PALETTE[value]??[0,0,0]);
