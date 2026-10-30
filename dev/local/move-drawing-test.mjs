@@ -67,6 +67,13 @@ test('production graphics retain exact device pixels while emitting scalable geo
   }
   assert(sawGrey,'dither coverage should become greyscale');
   const drawing=createMoveDrawing(new Uint8Array(8192));
+  drawing.target(0,[0,11,32,23]);drawing.target(1,[32,11,32,23]);
+  drawing.fillRect(0,27,32,7,1);
+  assert.equal(drawing.snapshot().screenTargets.length,2,'touch-label highlights keep cell controls');
+  drawing.fillRect(0,14,40,35,0);
+  assert.deepEqual(drawing.snapshot().screenTargets,[],'a card hides intersecting parameter controls');
+  drawing.target(0,[0,11,32,23]);drawing.clear();
+  assert.deepEqual(drawing.snapshot().screenTargets,[],'cleared menu frames retain no targets');
   const end=drawing.beginVector('circle',10,10,5);drawing.fillRect(5,5,1,1,1);end();
   drawing.fillRect(0,0,128,8,0);const endText=drawing.beginText(0,0,'Overlay',1,20,5);endText();
   assert.deepEqual(drawing.snapshot().display.map(command=>command[0]),[2,0,1],'overlay draw order');

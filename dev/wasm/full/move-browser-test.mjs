@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {chromium} from '../../local/node_modules/playwright/index.mjs';
 import {serve} from '../serve.mjs';
+import {checkEncoderActions} from './move-encoder-check.mjs';
 const server=serve(0,process.env.WASM_PACKAGED?new URL('../build/site/',import.meta.url):null);
 await new Promise(resolve=>server.once('listening',resolve));
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required']});
@@ -24,14 +25,14 @@ try{
  assert(await page.locator('#screen-sharp').isVisible());
  assert(!(await page.locator('#hero').isVisible()));
  const jogBox=await button('Jog').boundingBox(),screenBox=await page.locator('#screen').boundingBox();
- const minusBox=await button('Decrease jog').boundingBox();
+ const minusBox=await button('Jog turn left').boundingBox();
  assert(jogBox.y>=screenBox.y+screenBox.height&&minusBox.y>=jogBox.y+jogBox.height,'Jog and its turns sit below the screen');
  await button('Note / Session').tap();
  await page.waitForFunction(()=>document.querySelector('#screen-sharp').textContent.includes('Normal Play'));
  const beforeJog=await page.locator('#screen-sharp').innerHTML();
- await button('Increase jog').click();
+ await button('Jog turn right').click();
  await page.waitForFunction(before=>document.querySelector('#screen-sharp').innerHTML!==before,beforeJog);
- await button('Decrease jog').click();await button('Jog').tap();
+ await button('Jog turn left').click();await button('Jog').tap();
  assert.equal(await page.locator('#encoder').inputValue(),'71','Jog does not disturb the knob selector');
  await button('Track 4').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 4'));
@@ -39,6 +40,34 @@ try{
  assert.equal(await button('Knob 1').locator('.knob-name').textContent(),'Follower Content');
  assert.equal(await button('Knob 2').locator('.knob-value').textContent(),'None');
  assert(await page.locator('#screen-sharp rect[rx]').count()>0,'switches use smooth geometry');
+ const screenTravel=page.locator('.screen-parameter[data-slot="1"]');
+ await screenTravel.waitFor({state:'visible'});
+ assert.match(await screenTravel.getAttribute('aria-label'),/Follower Travel/);
+ // The enlarged screen edits the real parameter through the same encoder path.
+ await button('Enlarge display').click();
+ const cell=await screenTravel.boundingBox();
+ await page.mouse.move(cell.x+cell.width/2,cell.y+cell.height/2);await page.mouse.down();
+ await page.mouse.move(cell.x+cell.width/2,cell.y+cell.height/2-16,{steps:4});await page.mouse.up();
+ await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')!=='None');
+ for(let detent=0;detent<4;detent++){
+  await screenTravel.waitFor({state:'visible'});await screenTravel.press('ArrowDown');
+ }
+ await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')==='None');
+ await button('Close large display').click();
+ // A concurrent alias cannot release another surface's encoder hold.
+ await page.evaluate(()=>{
+  const physical=document.querySelector('[aria-label="Knob 2"]'),screen=document.querySelector('.screen-parameter[data-slot="1"]');
+  physical.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true}));
+  screen.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+  screen.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',bubbles:true}));
+ });
+ await page.waitForFunction(async()=>(await __wasmStats()).move.held===1);
+ assert.equal(await button('Knob 2').getAttribute('data-held'),'true');
+ await page.keyboard.press('Escape');
+ await page.waitForFunction(async()=>(await __wasmStats()).move.held===0);
+ await screenTravel.waitFor({state:'visible'});
+ await screenTravel.press('ArrowDown');
+ await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')==='None');
  assert.match(await page.locator('#encoder option[value="72"]').textContent(),/Follower Travel/);
  await page.locator('#encoder').selectOption('72');
  for(let detent=0;detent<4;detent++)await button('Increase selected encoder').click();
@@ -49,6 +78,7 @@ try{
  await page.waitForFunction(()=>document.querySelector('[aria-label="Knob 2"] .knob-value').textContent==='None');
  await button('Note / Session').tap();
  await page.waitForFunction(()=>[...document.querySelectorAll('.knob-name')].every(element=>element.textContent===''));
+ assert.equal(await page.locator('.screen-parameter:visible').count(),0,'menu hides underlying parameter targets');
  await button('Back').tap();
  await page.waitForFunction(()=>document.querySelector('[aria-label="Knob 2"] .knob-name').textContent==='Follower Travel');
  await page.waitForFunction(()=>document.querySelector('#pads [data-index="76"] .control-label').textContent==='→1');
@@ -74,6 +104,7 @@ try{
  await page.locator('#display-sharp').uncheck();
  assert(await page.locator('#hero').isVisible());
  assert(!(await page.locator('#screen-sharp').isVisible()));
+ assert(await page.locator('.screen-parameter:visible').count()>0,'direct cells also follow the original bitmap geometry');
  assert(await page.locator('#hero').evaluate(el=>el.getContext('2d').getImageData(0,0,128,64).data.some((value,index)=>index%4!==3&&value>0)),'original bitmap remains rendered');
  await button('Pad 2').tap();await button('Step 1').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('1 note'));
@@ -136,7 +167,7 @@ try{
  await page.waitForFunction(()=>document.querySelector('#session-status').textContent.startsWith('New session ·'));
  await page.getByText('Session files',{exact:true}).click();
  await button('Note / Session').tap();
- for(let turn=0;turn<5;turn++)await button('Increase jog').click();
+ for(let turn=0;turn<5;turn++)await button('Jog turn right').click();
  await button('Jog').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 4 · Chord Play'));
  await button('Step 1').tap();await button('Record').tap();
@@ -164,7 +195,7 @@ try{
  let currentMode=6;
  for(const mode of [7,0,1,2,3,4,5,6,1]){
   await button('Note / Session').tap();
-  for(let turn=0;turn<Math.abs(mode-currentMode);turn++)await button(mode>currentMode?'Increase jog':'Decrease jog').click();
+  for(let turn=0;turn<Math.abs(mode-currentMode);turn++)await button(mode>currentMode?'Jog turn right':'Jog turn left').click();
   await button('Jog').tap();currentMode=mode;
   await page.waitForFunction(name=>document.querySelector('#feedback').textContent.includes(name),modes[mode]);
   await page.waitForFunction(()=>document.querySelectorAll('#screen-sharp text').length>0);
@@ -194,6 +225,7 @@ try{
   assert(await button('Pad 1').isVisible());assert(await button('Record').isVisible());
   assert(await button('Knob 2').evaluate(element=>element.scrollWidth<=element.clientWidth),'full knob labels fit '+viewport.width);
  }
+ await checkEncoderActions(browser,page.url());
  await page.context().setOffline(true);await button('Track 13').tap();await button('Step 2').tap();
  assert.equal(await page.locator('#error').textContent(),'');assert.deepEqual(errors,[]);
  console.log('PASS adaptable HB/Movy touch surface, clip edit/Undo/Redo, PCM, independent audio clock, preserved session archives, Chord Play Record/Stop/Save/Reload/Play without mode reselection, track 16, tablet/phone layouts and offline gestures');

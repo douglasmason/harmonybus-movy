@@ -30,8 +30,17 @@ parameter logic or fetch extra engine state. Bitmap-only assets retain their
 original appearance. Turn high resolution off for the exact 128×64 bitmap; the
 choice is saved with the browser session. This does not change device rendering.
 The build compares adapted and unmodified production renderers pixel-for-pixel.
+Displayed parameter cells are also controls: drag vertically to turn their
+physical knob, tap to touch it, or focus the cell and use arrow keys. This works
+in the enlarged view and with either display style. Cell bounds come from the
+production renderer; read-only cells and controls covered by menus/cards are
+not active targets. The screen and physical knob row share the same gesture
+owner, MIDI routing, cancellation and parameter automation behavior.
 Jog is directly below the display: tap it to click, drag to turn, or use its own
-minus/plus buttons below it. The separate encoder selector contains only knobs
+two action rows below it. Every knob and Volume has left / Touch / right,
+then Shift+left / Shift+Touch / Shift+right. Jog adds a separate Click in both
+rows: Touch never clicks, and Click sends its own press/release. Shift remains
+held while any shifted gesture, the Shift button, or Hold Shift still owns it. The separate encoder selector contains only knobs
 and Volume, so using Jog does not change the selected knob.
 The eight browser knobs also show the current parameters' full names and values
 before device-width shortening. The encoder selector uses those same names, and
