@@ -12,7 +12,8 @@ export function fitValueText(value,width,height,measure,maxSize=6){
 }
 
 /** Replay production geometry at screen resolution, or its exact bitmap. */
-export function mountMoveDisplay(){
+export function mountMoveDisplay(inputs){
+ mountDisplayView(inputs);
  const canvas=document.querySelector('#hero'),context=canvas.getContext('2d'),pixels=context.createImageData(128,64);
  const sharp=document.querySelector('#screen-sharp'),toggle=document.querySelector('#display-sharp');
  const namespace='http://www.w3.org/2000/svg';
@@ -64,4 +65,41 @@ export function mountMoveDisplay(){
  }
  toggle.addEventListener('change',paint);
  return {update(next){frame=next;paint();}};
+}
+
+/** Reuse the live controls in a modal editing view; do not remount the engine. */
+function mountDisplayView(inputs){
+ const row=document.querySelector('.display-row'),expand=document.querySelector('#display-expand');
+ const home=document.createComment('Movy display position');row.before(home);
+ const dialog=document.createElement('dialog');dialog.id='display-dialog';
+ dialog.setAttribute('aria-label','Enlarged Movy display');
+ const header=document.createElement('div');header.className='display-dialog-header';
+ const title=document.createElement('strong');title.textContent='Movy display';
+ const close=document.createElement('button');close.type='button';close.textContent='Close large display';
+ header.append(title,close);dialog.append(header);document.body.append(dialog);
+ function restore(){
+  if(inputs.isHeld())inputs.release();
+  home.after(row);expand.hidden=false;expand.setAttribute('aria-expanded','false');
+  document.body.classList.remove('display-expanded');expand.focus({preventScroll:true});
+ }
+ expand.onclick=()=>{
+  // Reparenting a captured control could interrupt its original release.
+  if(inputs.isHeld()||dialog.open)return;
+  dialog.append(row);expand.hidden=true;expand.setAttribute('aria-expanded','true');
+  document.body.classList.add('display-expanded');dialog.showModal();close.focus();
+ };
+ close.onclick=()=>dialog.close();
+ dialog.addEventListener('close',restore);
+ dialog.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&!inputs.isHeld())event.stopPropagation();
+  if(event.key==='Tab'){
+   const focusable=[...dialog.querySelectorAll('button,select,input,[tabindex]')]
+    .filter(element=>!element.disabled&&element.tabIndex>=0&&element.getClientRects().length);
+   const first=focusable[0],last=focusable.at(-1);
+   if(event.shiftKey&&event.target===first){event.preventDefault();last.focus();}
+   else if(!event.shiftKey&&event.target===last){event.preventDefault();first.focus();}
+  }
+ });
+ // The shared input handler cancels held gestures on Escape. Native dialog
+ // cancellation closes this view; the modal keeps background controls inert.
 }

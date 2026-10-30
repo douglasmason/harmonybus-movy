@@ -94,10 +94,8 @@ try{
  document.querySelector('#build').textContent=`Movy ${audio.build?.engineSource?.integrationVersion??'unknown'} · HarmonyBus ${metadata.version} · engine ${audio.build?.engineSource?.commit?.slice(0,12)??'unknown'} · UI ${audio.build?.hostSource?.commit?.slice(0,12)??'local'} · 44,100 Hz`;
  audio.onDiagnostic(audio.diagnostic());
  document.addEventListener('visibilitychange',()=>{if(document.hidden)disableAudio();});
- const zoom=document.querySelector('#display-size'),expand=document.querySelector('#display-expand'),sharp=document.querySelector('#display-sharp');
+ const zoom=document.querySelector('#display-size'),sharp=document.querySelector('#display-sharp');
  zoom.onchange=()=>document.documentElement.style.setProperty('--display-width',zoom.value+'px');
- expand.onclick=()=>{const enlarged=document.body.classList.toggle('display-expanded');expand.textContent=enlarged?'Close large display':'Enlarge display';expand.setAttribute('aria-expanded',String(enlarged));};
- document.addEventListener('keydown',event=>{if(event.key==='Escape'){document.body.classList.remove('display-expanded');expand.textContent='Enlarge display';expand.setAttribute('aria-expanded','false');}});
  await mountSessions({sessions,storageKey:'move',captureUI:()=>({monitor:audio.master,displayWidth:Number(zoom.value),displaySharp:sharp.checked}),
   restoreUI:ui=>{audio.master=Number.isFinite(ui?.monitor)?Math.max(0,Math.min(1,ui.monitor)):.35;document.querySelector('#monitor-level').value=audio.master;zoom.value=String([384,512,640].includes(ui?.displayWidth)?ui.displayWidth:512);zoom.onchange();sharp.checked=ui?.displaySharp!==false;sharp.dispatchEvent(new Event('change'));},
   disableAudio,isStopped:()=>stopped&&!inputs.isHeld(),release:inputs.release});

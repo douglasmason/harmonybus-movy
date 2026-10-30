@@ -24,6 +24,8 @@ try{
  assert.equal(await page.locator('#play-mode').inputValue(),'1');
  await page.locator('#shift').check();
  await page.waitForFunction(()=>document.querySelector('#play-mode').disabled);
+ await button('Enlarge display').click();
+ assert(!(await page.locator('#display-dialog').evaluate(element=>element.open)),'held modifiers keep the controls in place');
  await page.locator('#shift').uncheck();
  await page.waitForFunction(()=>!document.querySelector('#play-mode').disabled);
  assert(await page.locator('#display-sharp').isChecked());
@@ -51,6 +53,13 @@ try{
  assert.match(await screenTravel.getAttribute('aria-label'),/Follower Travel/);
  // The enlarged screen edits the real parameter through the same encoder path.
  await button('Enlarge display').click();
+ const dialog=page.getByRole('dialog',{name:'Enlarged Movy display',exact:true});
+ assert(await dialog.isVisible());
+ assert.equal(await dialog.locator('#navigation').count(),1,'existing navigation moves with the screen');
+ await page.keyboard.press('Shift+Tab');
+ assert(await page.evaluate(()=>document.querySelector('#display-dialog').contains(document.activeElement)),'focus stays inside the editor');
+ await page.keyboard.press('Tab');
+ assert(await button('Close large display').evaluate(element=>element===document.activeElement),'focus wraps back to Close');
  const cell=await screenTravel.boundingBox();
  await page.mouse.move(cell.x+cell.width/2,cell.y+cell.height/2);await page.mouse.down();
  await page.mouse.move(cell.x+cell.width/2,cell.y+cell.height/2-16,{steps:4});await page.mouse.up();
@@ -59,7 +68,19 @@ try{
   await screenTravel.waitFor({state:'visible'});await screenTravel.press('ArrowDown');
  }
  await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')==='None');
+ await page.locator('#encoder').selectOption('72');
+ for(let detent=0;detent<4;detent++)await button('Knob 2 turn right').click();
+ await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')!=='None');
+ for(let detent=0;detent<4;detent++)await button('Knob 2 turn left').click();
+ await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')==='None');
+ await button('Shift + Knob 2 touch').focus();await page.keyboard.down('Space');
+ await page.waitForFunction(async()=>(await __wasmStats()).move.held>0);
+ // Closing with a keyboard hold cancels it; its eventual key-up stays harmless.
  await button('Close large display').click();
+ await page.keyboard.up('Space');
+ await page.waitForFunction(async()=>(await __wasmStats()).move.held===0);
+ await page.waitForFunction(()=>document.activeElement===document.querySelector('#display-expand'));
+ assert.equal(await page.locator('main .display-row #encoder').count(),1,'the same controls return inline');
  // A concurrent alias cannot release another surface's encoder hold.
  await page.evaluate(()=>{
   const physical=document.querySelector('[aria-label="Knob 2"]'),screen=document.querySelector('.screen-parameter[data-slot="1"]');
@@ -107,7 +128,7 @@ try{
  await button('Track 1').tap();
  await page.locator('#display-size').selectOption('640');
  await button('Enlarge display').click();
- assert(await page.locator('#screen').evaluate(el=>el.getBoundingClientRect().width>900));
+ assert(await page.locator('#screen').evaluate(el=>el.getBoundingClientRect().width>640));
  await button('Close large display').click();
  await page.locator('#display-sharp').uncheck();
  assert(await page.locator('#hero').isVisible());
@@ -131,6 +152,10 @@ try{
  await page.locator('#audio').click();await page.waitForFunction(()=>document.querySelector('#audio').textContent==='Disable audio');
  await button('Play / Stop').tap();
  await page.waitForFunction(()=>{try{return JSON.parse(document.querySelector('#audio-report').textContent).peak>.0001;}catch{return false;}});
+ await button('Enlarge display').click();await page.keyboard.press('Escape');
+ await page.waitForFunction(()=>!document.querySelector('#display-dialog').open);
+ assert.match(await page.locator('#feedback').textContent(),/Playing/,'closing an idle editor leaves playback running');
+ assert.equal(await page.locator('#audio').textContent(),'Disable audio');
  // UI drawing can stall without stopping the direct Worker-to-worklet clock.
  const before=await page.evaluate(()=>__wasmStats());
  await page.evaluate(()=>{const until=performance.now()+400;while(performance.now()<until){}});
@@ -256,8 +281,9 @@ try{
  await button('Enlarge display').click();assert(await page.locator('#play-mode').isVisible());
  await page.locator('#play-mode').selectOption('5');
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Field Play'));
- await button('Close large display').click();await button('Back').click();
+ await button('Back').click();
  await page.waitForFunction(()=>document.querySelector('#play-mode').value==='1');
+ await button('Close large display').click();
  // Production mode menu and Shift+Session shortcut reach Clips and all tracks.
  await page.locator('#shift').check();await button('Note / Session').tap();await page.locator('#shift').uncheck();await button('Step 16').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 16'));
@@ -278,6 +304,20 @@ try{
   assert(await page.locator('#encoder-reading').isVisible(),'selected reading remains visible');
   assert(await page.locator('#encoder-reading').evaluate(element=>element.scrollWidth<=element.clientWidth),'selected reading fits '+viewport.width);
   assert(await page.locator('.view-pickers').evaluate(element=>element.scrollWidth<=element.clientWidth),'view selectors fit '+viewport.width);
+ }
+ for(const viewport of [{width:390,height:844},{width:844,height:390},{width:768,height:1024},{width:1180,height:650}]){
+  await page.setViewportSize(viewport);await button('Enlarge display').click();
+  const geometry=await page.locator('#screen').boundingBox();
+  assert(geometry.width>=Math.min(360,viewport.width-48)&&Math.abs(geometry.width/geometry.height-2)<.02,'readable 2:1 display at '+JSON.stringify(viewport));
+  assert(await dialog.evaluate(element=>element.scrollWidth<=element.clientWidth),'expanded editor has no horizontal overflow');
+  assert(await page.locator('#encoder-actions').isVisible());
+  assert(await page.locator('#encoder').evaluate(element=>element.scrollWidth<=element.clientWidth),'encoder selector fits');
+  await page.locator('#display-sharp').uncheck();assert(await page.locator('#hero').isVisible());
+  await page.locator('#display-sharp').check();
+  await dialog.evaluate(element=>{element.scrollTop=element.scrollHeight;});
+  const closeBox=await button('Close large display').boundingBox();
+  assert(closeBox.y>=0&&closeBox.y+closeBox.height<=viewport.height,'Close stays reachable after scrolling');
+  await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('#display-dialog').open);
  }
  await checkEncoderActions(browser,page.url());
  await page.context().setOffline(true);await button('Track 13').tap();await button('Step 2').tap();
