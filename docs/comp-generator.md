@@ -1,4 +1,4 @@
-# Actor generator browser and automation — hbclean.285
+# Actor generator browser and automation — hbclean.286
 
 Chord Play's **Libraries** category now contains a shared Comp/Bass generator.
 Choose an actor first; each actor uses its configured track and keeps its own
@@ -9,7 +9,7 @@ the selected recording slot. The same controls work on Move and in the browser.
 | --- | --- |
 | 1 | Actor: Comp or Bass |
 | 2 | Genre filter: All or one of this actor's authored tags |
-| 3 | Family: Pulse, Sync or Phrase |
+| 3 | Family: Pulse, Sync, Phrase or User (under All) |
 | 4 | Style within the family and filter |
 | 8 | Existing Range / tap Harmony Off |
 
@@ -87,6 +87,12 @@ selected actor's existing clip clock is paused during unrecorded exploration, th
 resumes when exploration ends.
 
 ## Revisit a recorded generator clip
+
+Recorded recipes can also be saved without Bake in the existing actor User slots.
+Their library review and Generator → User selection start temporary exploration.
+Record copies the complete saved loop at its original length, then overdubs moved
+controls. See [saved generator recipes](generator-user-library.md) for the workflow
+and supported edits.
 
 Selecting a recorded generator clip recalls its family, style, seed and current
 control values. During playback, untouched controls follow their recorded curves.

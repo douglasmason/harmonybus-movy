@@ -5,9 +5,11 @@ import { currentSetUuid } from './set-session.js';
 import { seqState } from './state.js';
 import { seqToast } from './render.js';
 import { undoableEdit } from '../undo/edit.js';
-import { userParts, saveUserPart, type PartKind } from './part-storage.js';
+import { userParts, saveUserPart, isGeneratorPart, type PartKind } from './part-storage.js';
 import fields from './part-settings.json';
 import catalog from './part-catalog.json';
+import generatorStyles from './generator-styles.json';
+import {generatorAuditionUser} from './comp-generator.js';
 import { fontPrint } from '../font/index.js';
 
 const namesFor=(kind:PartKind):string[]=>[...catalog[kind].map(entry=>entry.name),...Array.from({length:8},(_,index)=>'User '+(index+1))];
@@ -52,12 +54,15 @@ function apply():void {
         const payload=get('part_export_'+context.track);
         if(payload.startsWith('error:')){seqToast(payload.slice(6));return;}
         if(!/^[0-9a-f]{2,36000}$/.test(payload)){seqToast('Preset export unavailable');return;}
+        const generator=payload.startsWith('70617274320a')?generatorStyles[Number(get('generator_info_'+context.track).split('|')[2]?.split(' ')[0])]?.actor:undefined;
+        if(generator&&generator.toLowerCase()!==kind){seqToast('Recipe belongs to the other actor');return;}
         const synth=portFor(context.track).getParam('synth_module')??'';
-        seqToast(saveUserPart(pending.save,{payload,synth},kind)?'Saved '+kind+' User '+(pending.save+1):'Preset save failed');return;
+        seqToast(saveUserPart(pending.save,{payload,synth,...(generator?{generator:generator as 'Comp'|'Bass'}:{})},kind)?'Saved '+kind+' User '+(pending.save+1):'Preset save failed');return;
     }
     const entry=choice>=stockCount?userParts(kind)[choice-stockCount]:null;
     if(pending.sourceRoute!==get('source_route_'+context.track)){seqToast('Sources changed - preview again');return;}
     if(entry&&entry.synth!==(portFor(context.track).getParam('synth_module')??'')){seqToast('User preset needs its saved instrument');return;}
+    if(isGeneratorPart(entry)){generatorAuditionUser(context.track,kind,choice-stockCount);return;}
     const command=`pload ${context.track} ${slot} ${signature} ${entry?'user':kind==='bass'?'bass':'stock'} ${entry?entry.payload:choice} ${pending.baseline} ${pending.keepWeaving?'keep':'own'}`;
     undoableEdit('LOAD STYLE',`T${context.track+1} CLIP ${slot+1}`,()=>{
         seqCmd(command);seqCmdFlush();
@@ -78,7 +83,8 @@ export function cancelPartReview():void{review=null;}
 export function drawPartReview():boolean {
     if(!review)return false;
     const kind=review.context.kind??'comp';
-    clear_screen();fontPrint(1,1,(review.save===null?'LOAD ':'SAVE ')+kind.toUpperCase()+' STYLE',1);
+    const generated=review.save===null&&review.choice>=partStockCount(kind)&&isGeneratorPart(userParts(kind)[review.choice-partStockCount(kind)]);
+    clear_screen();fontPrint(1,1,(review.save===null?(generated?'EXPLORE ':'LOAD '):'SAVE ')+kind.toUpperCase()+' STYLE',1);
     fontPrint(1,13,review.save===null?partNamesFor(kind)[review.choice]:'Current selected clip',1);
     const pattern=review.save===null?catalog[kind][review.choice]:null;
     if(pattern){
@@ -93,6 +99,6 @@ export function drawPartReview():boolean {
         fontPrint(1,52,'1: Load  2: Cancel',1);return true;
     }
     fontPrint(1,25,`Track ${review.context.track+1} / Clip ${review.slot+1}`,1);
-    fontPrint(1,37,review.save!==null?'User '+(review.save+1)+(userParts(kind)[review.save]?' - replace':' - empty'):review.keepWeaving?'3: Keep weaving':'3: Own content',1);
-    fontPrint(1,51,'1: Apply  2: Cancel',1);return true;
+    fontPrint(1,37,review.save!==null?'User '+(review.save+1)+(userParts(kind)[review.save]?' - replace':' - empty'):generated?'Temporary / Rec saves':review.keepWeaving?'3: Keep weaving':'3: Own content',1);
+    fontPrint(1,51,generated?'1: Explore  2: Cancel':'1: Apply  2: Cancel',1);return true;
 }

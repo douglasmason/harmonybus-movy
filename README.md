@@ -1,3 +1,7 @@
+## Saved Comp and Bass generator recipes (hbclean.286)
+
+Save recorded generator recipes into the existing actor User slots without Bake. Browse Actor → All → User, explore temporarily, then use the existing Record button to copy the saved loop and overdub its controls. Pair with HarmonyBus 0.2.310. See [saved generator recipes](docs/generator-user-library.md) for controls and supported edits.
+
 ## Comp and Bass phrase library (hbclean.285)
 
 Movy hbclean.285 adds paired Comp/Bass phrases: two-bar Pop, Funk and Bossa, plus four-bar Spacious Soul. Browse Actor → Genre → Phrase, explore together, then use the existing Record button for the recipe and automation. Pair with HarmonyBus 0.2.310; no HB update beyond that version is needed. See [actor phrase library](docs/actor-phrases.md).
