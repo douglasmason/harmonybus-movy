@@ -17,10 +17,6 @@ try{
  assert.equal(await page.locator('#knobs .control').count(),8);
  assert.equal(await page.locator('#pads .control').count(),32);
  assert.equal(await page.locator('#steps .control').count(),16);
- // Conductor Chord accompaniment needs a chosen harmony in a fresh session.
- await button('Pad 1').focus();await page.keyboard.down('Space');
- await page.waitForFunction(()=>document.querySelector('#played-output').textContent.includes('Ch 2:'));
- await page.keyboard.up('Space');
  await button('Track 4').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 4'));
  await page.waitForFunction(()=>document.querySelector('#pads [data-index="76"] .control-label').textContent==='→1');
@@ -29,7 +25,8 @@ try{
  await button('Pad 9').tap();
  await page.waitForFunction(()=>document.querySelector('#played-output').textContent.includes('Ch 4:'));
  assert.match(await page.locator('#played-intent').textContent(),/target C3/);
- assert.match(await page.locator('#played-output').textContent(),/Ch 3:/);
+ assert.equal(Number(await page.evaluate(()=>__wasmRead('ch3:midi_fx1:render_last_note'))),43);
+ assert.match(await page.locator('#played-output').textContent(),/Ch 4: G2/,'readout agrees with the engine even before a Comp chord is available');
  assert.match(await page.locator('#comp-route').textContent(),/Track 4 melody · Track 3 comp/);
  assert.equal(await page.locator('#comp-source').inputValue(),'0');
  await page.locator('#comp-source').selectOption('1');
