@@ -26,6 +26,14 @@ the choice is saved with the browser session. This does not change device render
 Jog is directly below the display: tap it to click, drag to turn, or use its own
 minus/plus buttons below it. The separate encoder selector contains only knobs
 and Volume, so using Jog does not change the selected knob.
+The eight browser knobs also show the current parameters' full names and values
+before device-width shortening. The encoder selector uses those same names, and
+its readout follows edits. Both native Movy and Schwung cells publish their
+already-resolved presentation data; no extra DSP reads or parallel parameter
+model are introduced. Read-only cells are identified, trigger cells say Action,
+and menus clear labels from the underlying page. Enum feedback retains the
+current controls' labels while their values change. Physical knob
+numbers, MIDI gestures and parameter ownership remain unchanged.
 Pads, steps, modifiers, relative encoders, track selection, clip editing and Undo
 all go through Movy's real MIDI router. No second sequencer or clip model exists.
 The original Joint performance/lighting view remains at `/joint?engine=wasm`.

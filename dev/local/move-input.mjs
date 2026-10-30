@@ -1,6 +1,7 @@
 /** Touch and keyboard gestures for the adaptable HB/Movy control grid. */
 export function mountMoveInput({controls,send}){
  const selector=document.querySelector('#encoder');
+ const status=document.querySelector('#control-status');
  const active=new Map(),buttons=new Map();
  const midi=data=>send({type:'move_midi',data});
  const touch=(control,on)=>midi([on?144:128,control.touch,on?127:0]);
@@ -8,6 +9,7 @@ export function mountMoveInput({controls,send}){
  function begin(control,button){
   if(active.has(control))return;
   active.set(control,button);button.dataset.held='true';
+  status.dataset.encoder=control.type==='encoder'?String(control.index):'';status.textContent=button.title;
   if(control.type==='encoder'){if(!control.click)selector.value=String(control.index);touch(control,true);}
   else edge(control,true);
  }
@@ -38,6 +40,9 @@ export function mountMoveInput({controls,send}){
   button.dataset.kind=control.type;button.dataset.index=control.index;buttons.set(control,button);
   button.dataset.group=control.group;
   const label=document.createElement('span');label.className='control-label';label.textContent=control.name.replace(/^(Pad|Step) /,'');button.append(label);
+  if(control.group==='knobs')for(const kind of ['name','value']){
+   const reading=document.createElement('span');reading.className='knob-'+kind;button.append(reading);
+  }
   if(control.group==='pads'){
    const secondary=document.createElement('span');secondary.className='pad-note';button.append(secondary);
    padRows.get(Math.floor((control.index-68)/8)).append(button);
@@ -47,7 +52,6 @@ export function mountMoveInput({controls,send}){
   button.onpointerdown=event=>{
    if(pointer!==null)return;event.preventDefault();pointer=event.pointerId;
    button.setPointerCapture(pointer);lastY=event.clientY;moved=false;begin(control,button);
-   document.querySelector('#control-status').textContent=button.title;
   };
   button.onpointermove=event=>{
    if(pointer!==event.pointerId||control.type!=='encoder'||!active.has(control))return;
@@ -78,7 +82,12 @@ export function mountMoveInput({controls,send}){
  for(const [id,delta]of [['increase',1],['decrease',-1],['jog-increase',1],['jog-decrease',-1]])document.querySelector('#'+id).onclick=()=>{
   const index=id.startsWith('jog-')?14:Number(selector.value);
   const control=controls.find(control=>control.type==='encoder'&&control.index===index);
+  status.dataset.encoder=String(index);status.textContent=buttons.get(control).title;
   touch(control,true);turn(control,delta);touch(control,false);
+ };
+ selector.onchange=()=>{
+  const control=controls.find(control=>control.type==='encoder'&&control.index===Number(selector.value));
+  status.dataset.encoder=String(control.index);status.textContent=buttons.get(control).title;
  };
  document.querySelector('#shift').onchange=event=>midi([176,49,event.target.checked?127:0]);
  window.addEventListener('blur',release);document.addEventListener('visibilitychange',()=>{if(document.hidden)release();});

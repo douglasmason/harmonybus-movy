@@ -35,6 +35,21 @@ try{
  assert.equal(await page.locator('#encoder').inputValue(),'71','Jog does not disturb the knob selector');
  await button('Track 4').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 4'));
+ await page.waitForFunction(()=>document.querySelector('[aria-label="Knob 2"] .knob-name').textContent==='Follower Travel');
+ assert.equal(await button('Knob 1').locator('.knob-name').textContent(),'Follower Content');
+ assert.equal(await button('Knob 2').locator('.knob-value').textContent(),'None');
+ assert.match(await page.locator('#encoder option[value="72"]').textContent(),/Follower Travel/);
+ await page.locator('#encoder').selectOption('72');
+ for(let detent=0;detent<4;detent++)await button('Increase selected encoder').click();
+ await page.waitForFunction(()=>document.querySelector('[aria-label="Knob 2"] .knob-value').textContent!=='None'&&document.querySelector('[aria-label="Knob 2"] .knob-value').textContent!=='');
+ assert.equal(await button('Knob 2').locator('.knob-value').textContent(),await page.evaluate(()=>__wasmRead('ch3:midi_fx1:travel_map')));
+ assert.match(await page.locator('#control-status').textContent(),/Follower Travel/);
+ for(let detent=0;detent<4;detent++)await button('Decrease selected encoder').click();
+ await page.waitForFunction(()=>document.querySelector('[aria-label="Knob 2"] .knob-value').textContent==='None');
+ await button('Note / Session').tap();
+ await page.waitForFunction(()=>[...document.querySelectorAll('.knob-name')].every(element=>element.textContent===''));
+ await button('Back').tap();
+ await page.waitForFunction(()=>document.querySelector('[aria-label="Knob 2"] .knob-name').textContent==='Follower Travel');
  await page.waitForFunction(()=>document.querySelector('#pads [data-index="76"] .control-label').textContent==='→1');
  assert.equal(await button('Pad 1').locator('.pad-note').textContent(),'C3');
  assert.match(await page.locator('.pad-row-label[data-row="1"]').textContent(),/T4 Melody · Approach/);
@@ -163,6 +178,7 @@ try{
   await page.setViewportSize(viewport);
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'control grid fits '+viewport.width);
   assert(await button('Pad 1').isVisible());assert(await button('Record').isVisible());
+  assert(await button('Knob 2').evaluate(element=>element.scrollWidth<=element.clientWidth),'full knob labels fit '+viewport.width);
  }
  await page.context().setOffline(true);await button('Track 13').tap();await button('Step 2').tap();
  assert.equal(await page.locator('#error').textContent(),'');assert.deepEqual(errors,[]);

@@ -40,6 +40,7 @@ function validFile(path,value){
 export function createMoveRuntime({request:engineRequest,metadata}){
  const screen=new Uint8Array(8192),surface=new Uint8Array(2232),view=new DataView(surface.buffer);
  let display=[],displayRevision=0,drawingText=false;
+ let knobLabels=Array(8).fill(null);
  surface.fill(255,152,280);surface.fill(255,408,536);
  const held=new Map(),files=new Map();
  let ticks=0,maxTickMs=0,totalTickMs=0,closed=false;
@@ -86,6 +87,7 @@ export function createMoveRuntime({request:engineRequest,metadata}){
  const moduleRoot='/data/UserData/schwung/modules/';
  const synthMetadata={id:'nusaw',name:'NuSaw',component_type:'sound_generator',capabilities:{chain_params:JSON.parse(get('ch0:synth:chain_params')||'[]'),ui_hierarchy:JSON.parse(get('ch0:synth:ui_hierarchy')||'{}')}};
  const listDir=path=>path===moduleRoot+'midi_fx'?['harmonybus']:path===moduleRoot+'sound_generators'?['nusaw']:[];
+ const clearScreen=()=>{screen.fill(0);display=[];displayRevision++;};
  Object.assign(globalThis,{
   host_browser_engine_ready:()=>!closed,
   host_module_get_param:get,host_module_set_param:set,host_module_set_param_blocking:set,
@@ -102,7 +104,10 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   move_midi_internal_send:midiOutput,move_midi_cable_send:(cable,bytes)=>cable===0?midiOutput(bytes):false,
   move_midi_external_send:()=>false,move_midi_inject_to_move:()=>false,
   setLED:(index,value)=>led(0,index,value),setButtonLED:(index,value)=>led(1,index,value),
-  clear_screen:()=>{screen.fill(0);display=[];displayRevision++;},
+  clear_screen:()=>{clearScreen();knobLabels=Array(8).fill(null);},
+  host_browser_clear_overlay:clearScreen,
+  host_browser_knob:(slot,label)=>{if(Number.isInteger(slot)&&slot>=0&&slot<8)knobLabels[slot]={
+   name:String(label.name??''),value:String(label.value??''),readOnly:!!label.readOnly,action:!!label.action};},
   host_browser_begin_text:(left,top,text,value,width,height)=>{
    display.push([1,left,top,width,height,value,text]);drawingText=true;displayRevision++;
    return ()=>{drawingText=false;};
@@ -231,6 +236,6 @@ export function createMoveRuntime({request:engineRequest,metadata}){
    if(outputs.length)lastOutput={serial:++outputSerial,outputs};
   },tick:runTick,input,release,capture,restore,validate,fresh,setCompSource,isHeld:()=>held.size>0,
   diagnostic:()=>({ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0,held:held.size,track:appState.activeTrack.index,view:appState.currentView,mode:sessionPlayMode()}),
-  snapshot:()=>({screen:Array.from(screen),display,displayRevision,surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),padLabels:padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0),lastPlayed,lastOutput,playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
+  snapshot:()=>({screen:Array.from(screen),display,displayRevision,knobLabels,surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),padLabels:padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0),lastPlayed,lastOutput,playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
   dispose:()=>{release(false);closed=true;}};
 }

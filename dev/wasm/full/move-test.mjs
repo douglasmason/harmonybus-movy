@@ -34,6 +34,17 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   }
   assert.equal(service.read('ch2:midi_fx1:chord_mode'),'Conductor Chord');
   assert.equal(service.read('ch2:midi_fx1:chord_inversion'),'Played Top Note');
+  // Visible knob labels are the renderer's full strings, and follow real turns.
+  await cc(40);await until(()=>updates.at(-1).move.knobLabels[1]?.name==='Follower Travel');
+  assert.equal(updates.at(-1).move.knobLabels[1].value,'None');
+  assert.equal(updates.at(-1).move.knobLabels[0].name,'Follower Content');
+  // The production enum controller advances one option per four detents.
+  await midi([144,1,127]);await midi([176,72,4]);await midi([128,1,0]);
+  await until(()=>updates.at(-1).move.knobLabels[1]?.value===service.read('ch3:midi_fx1:travel_map')&&updates.at(-1).move.knobLabels[1]?.value!=='None');
+  await midi([144,1,127]);await midi([176,72,124]);await midi([128,1,0]);
+  await until(()=>updates.at(-1).move.knobLabels[1]?.value==='None');
+  await cc(50);await until(()=>updates.at(-1).move.knobLabels.every(label=>label===null));
+  await cc(51);await until(()=>updates.at(-1).move.knobLabels[1]?.name==='Follower Travel');
   // Existing browser sessions retain their original fixture settings. Exercise
   // the previous pad regression on that saved configuration, never as defaults.
   legacy.payload.ui.move={...fresh.payload.ui.move,state:JSON.stringify({...freshUI,roleLayout:0})};
