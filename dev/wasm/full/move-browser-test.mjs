@@ -79,7 +79,9 @@ try{
  for(let detent=0;detent<4;detent++)await button('Knob 2 turn right').click();
  await page.waitForFunction(()=>document.querySelector('[aria-label="Knob 2"] .knob-value').textContent!=='None'&&document.querySelector('[aria-label="Knob 2"] .knob-value').textContent!=='');
  assert.equal(await button('Knob 2').locator('.knob-value').textContent(),await page.evaluate(()=>__wasmRead('ch3:midi_fx1:travel_map')));
- assert.match(await page.locator('#control-status').textContent(),/Follower Travel/);
+ // The last action sets its gesture label immediately; the next engine frame
+ // restores the parameter description, even if the value was already nonzero.
+ await page.waitForFunction(()=>document.querySelector('#control-status').textContent.includes('Follower Travel'));
  for(let detent=0;detent<4;detent++)await button('Knob 2 turn left').click();
  await page.waitForFunction(()=>document.querySelector('[aria-label="Knob 2"] .knob-value').textContent==='None');
  await button('Note / Session').tap();
