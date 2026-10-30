@@ -30,7 +30,7 @@ export async function checkEncoderActions(browser,url){
     for(const action of actions){
      const label=(shift?'Shift + ':'')+name+' '+(['left','right'].includes(action)?'turn '+action:action);
      await clear();await button(label).press('Enter');
-     const expected=action==='click'?[[176,3,127],[176,3,0]]:[[144,touch,127],...(['left','right'].includes(action)?[[176,index,action==='left'?127:1]]:[]),[128,touch,0]];
+     const expected=action==='click'?[[176,3,127],[176,3,0]]:[[144,touch,127],...(['left','right'].includes(action)?[[176,index,action==='left'?127:1]]:[]),[144,touch,0]];
      assert.deepEqual(await packets(),shift?[[176,49,127],...expected,[176,49,0]]:expected,label);
     }
    }
@@ -48,9 +48,13 @@ export async function checkEncoderActions(browser,url){
   await event('Shift + Knob 1 touch','keydown');await event('Shift + Volume touch','keydown');
   await event('Knob 1 touch','keydown');await event('Knob 1 touch','keyup');
   await event('Shift + Knob 1 touch','keyup');
-  assert.deepEqual(await packets(),[[176,49,127],[144,0,127],[144,8,127],[128,0,0]]);
+  assert.deepEqual(await packets(),[[176,49,127],[144,0,127],[144,8,127],[144,0,0]]);
   await event('Shift + Volume touch','keyup');
-  assert.deepEqual((await packets()).slice(-2),[[128,8,0],[176,49,0]]);
+  assert.deepEqual((await packets()).slice(-2),[[144,8,0],[176,49,0]]);
+  // The large Jog's tap cannot release an already-held explicit Click.
+  await clear();await event('Jog click','keydown');await button('Jog').press('Enter');
+  assert.deepEqual(await packets(),[[176,3,127],[144,9,127],[144,9,0]]);
+  await event('Jog click','keyup');assert.deepEqual((await packets()).at(-1),[176,3,0]);
   // Escape drops a shifted Jog click without synthesizing a release action.
   await clear();await event('Shift + Jog click','keydown');await page.keyboard.press('Escape');await event('Shift + Jog click','keyup');
   assert.deepEqual(await page.evaluate(()=>window.inputPackets),[{type:'move_midi',data:[176,49,127]},{type:'move_midi',data:[176,3,127]},{type:'dev_release'}]);

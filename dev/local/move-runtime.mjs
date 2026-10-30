@@ -153,7 +153,9 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   const padPress=kind===144&&value>0&&index>=68&&index<=99;
   if(padPress)padLabels.invalidate();
   const label=padPress?padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0)?.pads[index-68]:null;
-  onMidiMessageInternal(data);runTick();
+  // Move reports capacitive release as NoteOn velocity zero. Normalize external
+  // NoteOff too; generic production knob/Volume/Jog handlers expect that form.
+  onMidiMessageInternal(kind===128&&index<10?[144,index,0]:data);runTick();
   if(index>=68&&index<=99&&kind!==176&&kind!==160)request('midi',data.join(','));
   seqCmdFlush();
   if(padPress)lastPlayed=label?{serial:++pressSerial,pad:index-68,label:{...label}}:null;

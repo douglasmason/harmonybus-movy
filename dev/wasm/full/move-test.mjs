@@ -45,6 +45,8 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   // The production enum controller advances one option per four detents.
   await midi([144,1,127]);await midi([176,72,4]);await midi([128,1,0]);
   await until(()=>updates.at(-1).move.knobLabels[1]?.value===service.read('ch3:midi_fx1:travel_map')&&updates.at(-1).move.knobLabels[1]?.value!=='None');
+  await until(()=>updates.at(-1).move.screenTargets.some(target=>target.slot===1));
+  assert.equal(service.stats().move.held,0,'NoteOff touch release restores normal-mode cells');
   await midi([144,1,127]);await midi([176,72,124]);await midi([128,1,0]);
   await until(()=>updates.at(-1).move.knobLabels[1]?.value==='None');
   await midi([144,1,127]);await midi([176,72,4]);await send({type:'dev_release'});

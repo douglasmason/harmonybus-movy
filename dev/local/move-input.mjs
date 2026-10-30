@@ -5,7 +5,7 @@ export function mountMoveInput({controls,send}){
  const active=new Map(),buttons=new Map(),aliases=new Set(),shiftOwners=new Set(),shiftButtons=new Set();
  let enabled=false;
  const midi=data=>send({type:'move_midi',data});
- const touch=(control,on)=>midi([on?144:128,control.touch,on?127:0]);
+ const touch=(control,on)=>midi([144,control.touch,on?127:0]);
  function setShift(owner,on){
   const wasHeld=shiftOwners.size>0;
   if(on)shiftOwners.add(owner);else shiftOwners.delete(owner);
@@ -31,7 +31,7 @@ export function mountMoveInput({controls,send}){
  function turn(control,delta){
   const value=Math.max(-63,Math.min(63,delta));if(value)midi([176,control.index,value<0?128+value:value]);
  }
- function clickJog(){midi([176,3,127]);midi([176,3,0]);}
+ function clickJog(){if([...active.keys()].some(control=>control.type==='cc'&&control.index===3))return;midi([176,3,127]);midi([176,3,0]);}
  function release(){
   for(const button of active.values())button.dataset.held='false';active.clear();shiftOwners.clear();
   document.querySelector('#shift').checked=false;send({type:'dev_release'});
