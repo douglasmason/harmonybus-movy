@@ -21,6 +21,7 @@ import {decodeBulk,encodeBulk} from 'movy/track/bulk.ts';
 import {resetBrowserUserParts} from 'movy/seq/part-storage.ts';
 import {resetBrowserUsage} from 'movy/app/interface-usage.ts';
 import {createPadLabels} from './move-labels.mjs';
+import {panelSpec} from 'movy/renderer/panel-catalog.ts';
 
 // These are RAM-backed user files, never device paths or module overrides. Use
 // the same boundary for writes and imports so every saved session can reopen.
@@ -43,6 +44,8 @@ export function createMoveRuntime({request:engineRequest,metadata}){
  const drawing=createMoveDrawing(screen);
  const touchedControllers=new Set();
  let knobLabels=Array(8).fill(null);
+ let panelOwner=null,panelContext='',panelToken=0;
+ const controllerIds=new WeakMap();let nextControllerId=0;
  surface.fill(255,152,280);surface.fill(255,408,536);
  const held=new Map(),files=new Map();
  let ticks=0,maxTickMs=0,totalTickMs=0,closed=false;
@@ -106,7 +109,9 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   move_midi_internal_send:midiOutput,move_midi_cable_send:(cable,bytes)=>cable===0?midiOutput(bytes):false,
   move_midi_external_send:()=>false,move_midi_inject_to_move:()=>false,
   setLED:(index,value)=>led(0,index,value),setButtonLED:(index,value)=>led(1,index,value),
-  clear_screen:()=>{clearScreen();knobLabels=Array(8).fill(null);},
+  clear_screen:()=>{clearScreen();knobLabels=Array(8).fill(null);panelOwner=null;},
+  host_browser_panel_bar:drawing.panelBar,
+  host_browser_panels:(controller,navigation)=>{panelOwner={controller,navigation};},
   host_browser_clear_overlay:clearScreen,
   host_browser_track_touch:controller=>touchedControllers.add(controller),
   host_browser_knob:(slot,label)=>{if(Number.isInteger(slot)&&slot>=0&&slot<8){
@@ -130,6 +135,28 @@ export function createMoveRuntime({request:engineRequest,metadata}){
  function runTick(){
   if(closed)return;const start=performance.now();tick();ticks++;
   const duration=performance.now()-start;maxTickMs=Math.max(maxTickMs,duration);totalTickMs+=duration;
+ }
+ function panels(){
+  const bar=drawing.snapshot().panelBar;
+  if(!panelOwner||!bar){if(panelContext){panelContext='';panelToken++;}return null;}
+  const {controller,navigation}=panelOwner;
+  const indices=navigation?.indices??controller.pages.map((page,index)=>index);
+  // Only expose a ruler owned by this controller, never a slot strip or menu.
+  if(bar.count!==indices.length||indices[bar.index]!==controller.pageIndex||controller.state.pickerOpen||controller.state.menuEntered){
+   if(panelContext){panelContext='';panelToken++;}return null;
+  }
+  if(!controllerIds.has(controller))controllerIds.set(controller,++nextControllerId);
+  const entries=controller.pages.map((page,index)=>({index,label:controller.pageLabel(page),
+   group:navigation?panelSpec(navigation.mode,page).group:'Settings'}));
+  const context=JSON.stringify([controllerIds.get(controller),appState.activeTrack.index,appState.currentView,sessionPlayMode(),navigation?.category,entries]);
+  if(context!==panelContext){panelContext=context;panelToken++;}
+  return {token:panelToken,index:controller.pageIndex,entries,
+   segments:bar.segments.map((bounds,position)=>({index:indices[position],label:entries[indices[position]].label,bounds}))};
+ }
+ function selectPanel(token,index){
+  const current=panels();
+  if(held.size||!current||token!==current.token||!Number.isInteger(index)||!current.entries.some(entry=>entry.index===index))return false;
+  panelOwner.controller.goToPage(index);appState.dirty=true;runTick();seqCmdFlush();return true;
  }
  function input(data){
   if(!Array.isArray(data)||data.length!==3||![128,144,160,176].includes(data[0])||data.slice(1).some(value=>!Number.isInteger(value)||value<0||value>127))throw new Error('Invalid Move input');
@@ -221,6 +248,7 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   }
  }
  function restore(saved){
+  panelOwner=null;panelContext='';panelToken++;
   lastPlayed=lastOutput=null;padLabels.invalidate();
   files.clear();for(const [path,value]of Object.entries(saved?.files??{}))files.set(path,value);
   resetBrowserUserParts();resetBrowserUsage();
@@ -239,8 +267,8 @@ export function createMoveRuntime({request:engineRequest,metadata}){
  return {observeOutput(packets){
    const outputs=padLabels.outputs(packets);
    if(outputs.length)lastOutput={serial:++outputSerial,outputs};
-  },tick:runTick,input,release,capture,restore,validate,fresh,setCompSource,isHeld:()=>held.size>0,
+  },tick:runTick,input,release,capture,restore,validate,fresh,setCompSource,selectPanel,isHeld:()=>held.size>0,
   diagnostic:()=>({ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0,held:held.size,track:appState.activeTrack.index,view:appState.currentView,mode:sessionPlayMode()}),
-  snapshot:()=>({screen:Array.from(screen),...drawing.snapshot(),knobLabels,surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),padLabels:padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0),lastPlayed,lastOutput,playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
+  snapshot:()=>({screen:Array.from(screen),...drawing.snapshot(),knobLabels,panels:panels(),surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),padLabels:padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0),lastPlayed,lastOutput,playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
   dispose:()=>{release(false);closed=true;}};
 }

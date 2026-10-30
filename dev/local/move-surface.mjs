@@ -2,6 +2,7 @@
 import {PAD_PALETTE} from 'movy/keyboard/pad-palette.ts';
 import {mountMoveDisplay} from './move-display.mjs';
 import {mountScreenControls} from './move-screen-controls.mjs';
+import {mountPanelControls} from './move-panel-controls.mjs';
 
 export const controls=[];
 const add=(group,name,type,index,extra={})=>controls.push({group,name,type,index,...extra});
@@ -19,6 +20,7 @@ add('transport','Play / Stop','cc',85);add('transport','Record','cc',86);
 export function mountMoveSurface(inputs){
  const display=mountMoveDisplay();
  const screenControls=mountScreenControls(inputs,controls.filter(control=>control.group==='knobs'));
+ const panelControls=mountPanelControls(inputs);
  const status=document.querySelector('#control-status');
  const buttons=controls.map(control=>{
   const button=document.querySelector(`.control[data-kind="${control.type}"][data-index="${control.index}"]`);
@@ -34,6 +36,7 @@ export function mountMoveSurface(inputs){
   if(frame!==lastFrame){
    display.update(frame);
    screenControls.update(frame);
+   panelControls.update(frame);
   for(const heading of rowHeadings){
    const row=Number(heading.dataset.row),label=frame.padLabels?.rows[row];
    text(heading,label?`${label.owner} · ${label.kind}${label.operation?' · '+label.operation:''}`:`Pads ${row*8+1}–${row*8+8}`);
@@ -59,7 +62,7 @@ export function mountMoveSurface(inputs){
     if(button.getAttribute('aria-label')!==name){button.setAttribute('aria-label',name);button.title=name;button.querySelector('.control-label').textContent=name;}
    }
   }
-   lastFrame=frame;
+   inputs.refreshSelected();lastFrame=frame;
   }
   const surface=frame.surface;let animating=false;
   for(const {control,button}of buttons){

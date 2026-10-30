@@ -7,6 +7,7 @@ import {pathToFileURL} from 'node:url';
 import {createRequire} from 'node:module';
 import {createVectorAdapter} from './move-vector-build.mjs';
 import {createMoveDrawing} from './move-drawing.mjs';
+import {observePanelBar} from './move-panel-build.mjs';
 
 test('production graphics retain exact device pixels while emitting scalable geometry',async()=>{
  const source=process.env.MOVY_SOURCE;assert(source,'MOVY_SOURCE must identify the prepared production UI');
@@ -15,14 +16,14 @@ test('production graphics retain exact device pixels while emitting scalable geo
  const shared=resolve(source,'src/vendor/schwung/shared/param_pages');
  const input=[['page',shared+'/render_page_movy.mjs'],['viz',shared+'/viz_draw.mjs'],['meta',shared+'/param_meta.mjs'],['peaks',shared+'/wav_peaks.mjs'],
   ['primitives',resolve(source,'src/renderer/primitives.ts')],['pan',resolve(source,'src/renderer/pan-dial.ts')],['wave',resolve(source,'src/renderer/lfo-wave.ts')],
-  ['filter',resolve(source,'src/renderer/filter-curve.ts')],['eq',resolve(source,'src/renderer/eq-curve.ts')],['sample',resolve(source,'src/renderer/wav-form.ts')]]
+  ['filter',resolve(source,'src/renderer/filter-curve.ts')],['eq',resolve(source,'src/renderer/eq-curve.ts')],['sample',resolve(source,'src/renderer/wav-form.ts')],['header',resolve(source,'src/renderer/header.ts')]]
   .map(([name,path])=>`export * as ${name} from ${JSON.stringify(path)};`).join('\n');
  try{
   const modules=[];
   for(const adapted of [false,true]){
    const outfile=resolve(directory,adapted?'vector.mjs':'native.mjs');
    await esbuild.build({stdin:{contents:input,resolveDir:source},outfile,bundle:true,platform:'node',format:'esm',plugins:adapted?[{name:'vectors',setup(build){
-    build.onLoad({filter:/\/(?:renderer\/.*\.ts|param_pages\/.*\.mjs)$/},async args=>({contents:vectors.transform(await readFile(args.path,'utf8'),args.path),loader:args.path.endsWith('.ts')?'ts':'js'}));
+    build.onLoad({filter:/\/(?:renderer\/.*\.ts|param_pages\/.*\.mjs)$/},async args=>({contents:args.path.endsWith('/header.ts')?observePanelBar(await readFile(args.path,'utf8')):vectors.transform(await readFile(args.path,'utf8'),args.path),loader:args.path.endsWith('.ts')?'ts':'js'}));
    }}]:[]});
    modules.push(await import(pathToFileURL(outfile).href));
   }
@@ -66,7 +67,25 @@ test('production graphics retain exact device pixels while emitting scalable geo
    sawGrey ||= commands[1].some(command=>command[0]===2&&command[1].some(shape=>shape.attributes.opacity>0&&shape.attributes.opacity<1));
   }
   assert(sawGrey,'dither coverage should become greyscale');
+  for(const args of [[1,4],[2,5,true],[2,5,false,[0,0,1,1,1],true],[0,1],[83,100],[129,140]]){
+   const images=[];let ruler;
+   for(const ui of modules){
+    const pixels=new Uint8Array(8192),drawing=createMoveDrawing(pixels);
+    Object.assign(globalThis,{fill_rect:drawing.fillRect,host_browser_panel_bar:value=>{ruler=value;drawing.panelBar(value);}});
+    ui.header.drawBankBar(...args);images.push(pixels);
+   }
+   assert.deepEqual(images[1],images[0],'page ruler keeps exact device pixels');
+   assert.equal(ruler.count,args[1]);assert.equal(ruler.index,args[0]);
+   if(ruler.count>1&&ruler.count<=128){
+    assert.equal(ruler.segments.length,ruler.count);
+    for(const [x,y,width]of ruler.segments)assert(images[1][y*128+x]&&width>=1);
+    const last=ruler.segments.at(-1);assert.equal(last[0]+last[2],128);
+   }else assert.deepEqual(ruler.segments,[]);
+  }
   const drawing=createMoveDrawing(new Uint8Array(8192));
+  drawing.panelBar({index:0,count:2,segments:[[0,7,63,2],[64,7,64,2]]});
+  drawing.fillRect(0,8,128,48,0);assert(drawing.snapshot().panelBar,'page body does not hide its ruler');
+  drawing.fillRect(0,0,128,20,0);assert.equal(drawing.snapshot().panelBar,null,'menus hide the ruler');
   drawing.target(0,[0,11,32,23]);drawing.target(1,[32,11,32,23]);
   drawing.fillRect(0,27,32,7,1);
   assert.equal(drawing.snapshot().screenTargets.length,2,'touch-label highlights keep cell controls');
@@ -86,5 +105,5 @@ test('production graphics retain exact device pixels while emitting scalable geo
   assert.equal(drawing.snapshot().display.length,1,'opaque full-screen repaint discards old shapes');
   assert.throws(()=>drawing.beginVector('curve',0,2,()=>{throw new Error('sample');}),/sample/);
   assert.equal(drawing.round(1.2),1,'a failed sampler must restore device rounding');
- }finally{delete globalThis.fill_rect;delete globalThis.host_browser_begin_vector;delete globalThis.host_browser_round;await rm(directory,{recursive:true,force:true});}
+ }finally{delete globalThis.fill_rect;delete globalThis.host_browser_begin_vector;delete globalThis.host_browser_round;delete globalThis.host_browser_panel_bar;await rm(directory,{recursive:true,force:true});}
 });

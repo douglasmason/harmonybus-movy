@@ -107,3 +107,24 @@ comparisons establish compiler/adapter parity rather than full native-host
 parity. Existing native/API and production UI regressions remain separate gates.
 
 No physical device, release metadata, or native-host persistence WIP is modified.
+
+### Browser Move controls
+
+The `/move/` page shares the browser engine and production Movy/Schwung renderers
+and controllers with our earlier `/joint/?engine=wasm` interface. Its adaptable
+Move-style HTML layout is a separate surface; the Joint Play & lights link keeps
+the earlier GUI available.
+
+Choose a knob or Volume, then use the two action rows immediately below the
+selector for normal or Shift turn/touch. The selected knob retains its full live
+parameter name and value. The eight individual knob cards are visible above
+850 px; smaller windows use the selector and direct screen controls. Jog keeps
+its separate turn/touch/click rows beneath the display.
+
+Settings panel lists the current production controller’s pages, grouped by the
+existing panel catalog. Clicking a top display segment jumps within its current
+group; the dropdown also jumps between groups. Both call the same controller’s
+page navigation. Menus and overviews disable it; Grid’s Jog opens its settings
+first. Single-page groups remain selectable even though they draw no ruler.
+Stale selections and navigation during held controls are ignored. The original
+128×64 bitmap and high-resolution vector display share the same hit positions.

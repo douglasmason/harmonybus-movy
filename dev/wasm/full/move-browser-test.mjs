@@ -70,11 +70,11 @@ try{
  await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')==='None');
  assert.match(await page.locator('#encoder option[value="72"]').textContent(),/Follower Travel/);
  await page.locator('#encoder').selectOption('72');
- for(let detent=0;detent<4;detent++)await button('Increase selected encoder').click();
+ for(let detent=0;detent<4;detent++)await button('Knob 2 turn right').click();
  await page.waitForFunction(()=>document.querySelector('[aria-label="Knob 2"] .knob-value').textContent!=='None'&&document.querySelector('[aria-label="Knob 2"] .knob-value').textContent!=='');
  assert.equal(await button('Knob 2').locator('.knob-value').textContent(),await page.evaluate(()=>__wasmRead('ch3:midi_fx1:travel_map')));
  assert.match(await page.locator('#control-status').textContent(),/Follower Travel/);
- for(let detent=0;detent<4;detent++)await button('Decrease selected encoder').click();
+ for(let detent=0;detent<4;detent++)await button('Knob 2 turn left').click();
  await page.waitForFunction(()=>document.querySelector('[aria-label="Knob 2"] .knob-value').textContent==='None');
  await button('Note / Session').tap();
  await page.waitForFunction(()=>[...document.querySelectorAll('.knob-name')].every(element=>element.textContent===''));
@@ -199,6 +199,31 @@ try{
   await button('Jog').tap();currentMode=mode;
   await page.waitForFunction(name=>document.querySelector('#feedback').textContent.includes(name),modes[mode]);
   await page.waitForFunction(()=>document.querySelectorAll('#screen-sharp text').length>0);
+  if(mode===0||mode===4){
+   await page.waitForFunction(()=>document.querySelector('#settings-panel').disabled);
+   if(mode===4){
+    await button('Jog turn right').click();await page.waitForFunction(()=>!document.querySelector('#settings-panel').disabled);
+    await page.locator('#settings-panel').selectOption({label:'Row Assignments'});
+   }
+  }
+  if(mode!==0){
+   await page.waitForFunction(()=>!document.querySelector('#settings-panel').disabled&&document.querySelectorAll('.screen-panel').length>1);
+   const selection=await page.locator('#settings-panel').inputValue();
+   const segment=page.locator('.screen-panel[aria-current="false"]').first();
+   const name=(await segment.getAttribute('aria-label')).replace('Settings panel · ','');
+   await segment.click();
+   await page.waitForFunction(label=>document.querySelector('#settings-panel').selectedOptions[0]?.textContent===label,name);
+   assert.equal(await page.locator('.screen-panel[aria-current="page"]').getAttribute('aria-label'),'Settings panel · '+name);
+   const other=await page.locator('#settings-panel option').evaluateAll(elements=>{
+    const selected=elements.find(element=>element.selected);return elements.find(element=>element.parentElement!==selected.parentElement)?.value;
+   });
+   if(other){
+    await page.locator('#settings-panel').selectOption(other);
+    await page.waitForFunction(value=>document.querySelector('#settings-panel').dataset.panelIndex===value,other);
+   }
+   await page.locator('#settings-panel').selectOption(selection);
+   await page.waitForFunction(value=>document.querySelector('#settings-panel').dataset.panelIndex===value,selection);
+  }
   const shapes=await page.locator('#screen-sharp').innerHTML();
   assert(!/NaN|Infinity/.test(shapes),modes[mode]+' has finite geometry');
   assert(await page.locator('#screen-sharp rect, #screen-sharp path, #screen-sharp circle, #screen-sharp ellipse').count()>0,modes[mode]+' has graphics');
