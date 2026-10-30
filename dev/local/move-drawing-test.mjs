@@ -13,7 +13,7 @@ test('production graphics retain exact device pixels while emitting scalable geo
  const esbuild=createRequire(resolve(source,'package.json'))('esbuild'),vectors=createVectorAdapter(source);
  const directory=await mkdtemp(resolve(tmpdir(),'movy-drawing-'));
  const shared=resolve(source,'src/vendor/schwung/shared/param_pages');
- const input=[['page',shared+'/render_page_movy.mjs'],['viz',shared+'/viz_draw.mjs'],['meta',shared+'/param_meta.mjs'],
+ const input=[['page',shared+'/render_page_movy.mjs'],['viz',shared+'/viz_draw.mjs'],['meta',shared+'/param_meta.mjs'],['peaks',shared+'/wav_peaks.mjs'],
   ['primitives',resolve(source,'src/renderer/primitives.ts')],['pan',resolve(source,'src/renderer/pan-dial.ts')],['wave',resolve(source,'src/renderer/lfo-wave.ts')],
   ['filter',resolve(source,'src/renderer/filter-curve.ts')],['eq',resolve(source,'src/renderer/eq-curve.ts')],['sample',resolve(source,'src/renderer/wav-form.ts')]]
   .map(([name,path])=>`export * as ${name} from ${JSON.stringify(path)};`).join('\n');
@@ -33,6 +33,12 @@ test('production graphics retain exact device pixels while emitting scalable geo
    ['envelope',(ui,ctx,meta)=>ui.viz.drawEnvelope(ctx,{x:0,y:10,w:128,h:16},{attack:'a',decay:'d',sustain:'s',release:'r'},{a:.2,d:.4,s:.6,r:.8},meta)],
    ['filter',(ui,ctx,meta)=>ui.viz.drawFilter(ctx,{x:0,y:10,w:64,h:16},{cutoff:'a',resonance:'r'},{a:.61,r:.43},meta)],
    ['wave',(ui,ctx,meta)=>ui.viz.drawWaveform(ctx,{x:0,y:10,w:32,h:16},'shape',{shape:'Sine'},meta)],
+   ['empty shared sample',(ui,ctx,meta)=>ui.viz.drawSample(ctx,{x:0,y:10,w:64,h:16},{value:'file'},{},meta)],
+   ['loaded shared sample',(ui,ctx,meta)=>{
+    ui.peaks.wavPeaksTick('fixture');
+    Object.assign(ui.peaks.wavPeaks('fixture'),{error:'',peak:.8,points:Array.from({length:128},(_,index)=>.8*Math.abs(Math.sin(index*.31)))});
+    ui.viz.drawSample(ctx,{x:0,y:10,w:64,h:16},{value:'file',position:'a',loopStart:'d',loopEnd:'r'},{file:'fixture',a:.43,d:.1,r:.9},meta);
+   }],
    ['fader',(ui,ctx,meta)=>ui.viz.drawFader(ctx,{x:0,y:10,w:32,h:16},'a',{a:.417},meta,{a:.3})],
    ['native lines',ui=>{ui.primitives.drawLine(2,3,25,19);ui.primitives.hatchRect(30,3,15,12,1);}],
    ['pan left',ui=>ui.pan.drawPanDial(0,10,.173)],

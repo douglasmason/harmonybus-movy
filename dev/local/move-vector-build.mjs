@@ -41,6 +41,7 @@ export function createVectorAdapter(source){
    hook('drawStepCurve','curve','x0,xEnd-1,yAt,color'),
    hook('fillCurveMass','mass','x0,xEnd-1,yAt,baseY,topY,botY,mirrorAt'),
    hook('drawWaveCell','curve','x,x+w-1,yAt', 'let py = yAt(x);'),
+   hook('drawSample','waveform','x0,topY,w,botY-topY+1,pts??[],scale','fillCurveMass(ctx, x0, x0 + w, crestAt','const colOf ='),
    hook('drawSwitch','switch','x,y,w,h,sx,sy,SLUG_W,SLUG_H,on', 'if (on) {'),
    hook('drawFader','fader','cx,top,bot,normVal,true','const y = Math.round(bot - exact);','if (baseValues) {')],
   '/renderer/lfo-wave.ts':[
