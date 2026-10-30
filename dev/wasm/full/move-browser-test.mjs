@@ -24,6 +24,8 @@ try{
  assert.equal(await page.locator('#play-mode').inputValue(),'1');
  await page.locator('#shift').check();
  await page.waitForFunction(()=>document.querySelector('#play-mode').disabled);
+ await button('Enlarge display').click();
+ assert(!(await page.locator('#display-dialog').evaluate(element=>element.open)),'held modifiers keep the controls in place');
  await page.locator('#shift').uncheck();
  await page.waitForFunction(()=>!document.querySelector('#play-mode').disabled);
  assert(await page.locator('#display-sharp').isChecked());

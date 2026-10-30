@@ -92,7 +92,14 @@ function mountDisplayView(inputs){
  dialog.addEventListener('close',restore);
  dialog.addEventListener('keydown',event=>{
   if(event.key==='Escape'&&!inputs.isHeld())event.stopPropagation();
+  if(event.key==='Tab'){
+   const focusable=[...dialog.querySelectorAll('button,select,input,[tabindex]')]
+    .filter(element=>!element.disabled&&element.tabIndex>=0&&element.getClientRects().length);
+   const first=focusable[0],last=focusable.at(-1);
+   if(event.shiftKey&&event.target===first){event.preventDefault();last.focus();}
+   else if(!event.shiftKey&&event.target===last){event.preventDefault();first.focus();}
+  }
  });
  // The shared input handler cancels held gestures on Escape. Native dialog
- // cancellation also closes this view and traps keyboard focus while open.
+ // cancellation closes this view; the modal keeps background controls inert.
 }
