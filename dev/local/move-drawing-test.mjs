@@ -64,6 +64,13 @@ test('production graphics retain exact device pixels while emitting scalable geo
   const end=drawing.beginVector('circle',10,10,5);drawing.fillRect(5,5,1,1,1);end();
   drawing.fillRect(0,0,128,8,0);const endText=drawing.beginText(0,0,'Overlay',1,20,5);endText();
   assert.deepEqual(drawing.snapshot().display.map(command=>command[0]),[2,0,1],'overlay draw order');
+  for(let tick=0;tick<1000;tick++){
+   drawing.fillRect(0,58,128,6,0);
+   drawing.beginText(1,58,'Harmony footer',1,60,5)();
+  }
+  assert.equal(drawing.snapshot().display.length,5,'partial footer redraws stay bounded');
+  drawing.fillRect(0,0,128,64,0);
+  assert.equal(drawing.snapshot().display.length,1,'opaque full-screen repaint discards old shapes');
   assert.throws(()=>drawing.beginVector('curve',0,2,()=>{throw new Error('sample');}),/sample/);
   assert.equal(drawing.round(1.2),1,'a failed sampler must restore device rounding');
  }finally{delete globalThis.fill_rect;delete globalThis.host_browser_begin_vector;delete globalThis.host_browser_round;await rm(directory,{recursive:true,force:true});}

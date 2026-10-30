@@ -18,7 +18,13 @@ export function createMoveDrawing(screen){
   },
   beginText(left,top,text,color,width,height){return begin([1,left,top,width,height,color,text]);},
   fillRect(left,top,width,height,color){
-   if(!depth){display.push([0,left,top,width,height,color]);revision++;}
+   if(!depth){
+    // Some modes repaint only a footer each tick. Discard covered text/rects
+    // instead of retaining an ever-growing history behind the opaque repaint.
+    if(left<=0&&top<=0&&left+width>=128&&top+height>=64)display=[];
+    else display=display.filter(([kind,x,y,w,h])=>kind===2||x<left||y<top||x+w>left+width||y+h>top+height);
+    display.push([0,left,top,width,height,color]);revision++;
+   }
    const startX=Math.min(128,Math.max(0,Math.trunc(left))),endX=Math.max(0,Math.min(128,Math.ceil(left+width)));
    if(endX<=startX)return;
    for(let row=Math.max(0,Math.trunc(top));row<Math.min(64,Math.ceil(top+height));row++)screen.fill(color?255:0,row*128+startX,row*128+endX);

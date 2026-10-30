@@ -171,6 +171,7 @@ try{
   const shapes=await page.locator('#screen-sharp').innerHTML();
   assert(!/NaN|Infinity/.test(shapes),modes[mode]+' has finite geometry');
   assert(await page.locator('#screen-sharp rect, #screen-sharp path, #screen-sharp circle, #screen-sharp ellipse').count()>0,modes[mode]+' has graphics');
+  assert(await page.locator('#screen-sharp text').count()<80,modes[mode]+' does not accumulate hidden footer text');
   const state=await page.evaluate(()=>__wasmRead('state'));
   await page.locator('#display-sharp').uncheck();assert(await page.locator('#hero').isVisible());
   await page.locator('#display-sharp').check();assert(await page.locator('#screen-sharp').isVisible());
