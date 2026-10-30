@@ -18,7 +18,9 @@ try{
  assert.equal(await page.locator('#pads .control').count(),32);
  assert.equal(await page.locator('#steps .control').count(),16);
  // Conductor Chord accompaniment needs a chosen harmony in a fresh session.
- await button('Pad 1').tap();
+ await button('Pad 1').focus();await page.keyboard.down('Space');
+ await page.waitForFunction(()=>document.querySelector('#played-output').textContent.includes('Ch 2:'));
+ await page.keyboard.up('Space');
  await button('Track 4').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 4'));
  await page.waitForFunction(()=>document.querySelector('#pads [data-index="76"] .control-label').textContent==='→1');
