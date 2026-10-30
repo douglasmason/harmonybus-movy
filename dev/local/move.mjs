@@ -56,7 +56,8 @@ try{
   surface.update(frame,Number(status.bpm)/100);
   stopped=status.play==='0';
   const info=(message.params?.['motif_clip_info_'+frame.track]??'').split(','),notes=Number(info[4]??0);
-  feedback.textContent=`Track ${frame.track+1} · ${status.cin==='1'?'Count-in':status.rec==='1'?'Recording':stopped?'Stopped':'Playing'} · ${notes} ${notes===1?'note':'notes'}`;
+  const mode=['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings'][frame.mode]??'Normal Play';
+  feedback.textContent=`Track ${frame.track+1} · ${mode} · ${status.cin==='1'?'Count-in':status.rec==='1'?'Recording':stopped?'Stopped':'Playing'} · ${notes} ${notes===1?'note':'notes'}`;
   if(lastTrack!==frame.track){lastTrack=frame.track;send({type:'dev_watch',keys:['motif_clip_info_'+frame.track]});}
   if(frame.ready)inputs.enable();
  };

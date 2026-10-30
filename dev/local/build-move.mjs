@@ -6,6 +6,17 @@ export async function buildMove({root,source,schwung,esbuild}){
  await esbuild.build({entryPoints:[resolve(root,'move-runtime.mjs')],bundle:true,format:'esm',platform:'browser',
   outfile:resolve(root,'build/move-runtime.mjs'),alias:{movy:resolve(source,'src')},define:{__MOVY_DEBUG__:'false'},
   plugins:[{name:'browser-move-host',setup(build){
+   // Expose the existing selector for browser session restore. The optional
+   // query skips Clips/Settings overlays so their performance owner survives.
+   build.onLoad({filter:/\/seq\/router-buttons\.ts$/},async args=>{
+    let contents=await readFile(args.path,'utf8');
+    for(const [before,after] of [
+     ['function selectInputMode(next: number, remember=true): void {','export function selectInputMode(next: number, remember=true): void {'],
+     ['export function sessionPlayMode(): number {','export function sessionPlayMode(includeOverlays = true): number {'],
+     ['return seqState.sessionMode ? 0 : settingsOpen() ? 7 :','return includeOverlays && seqState.sessionMode ? 0 : includeOverlays && settingsOpen() ? 7 :']
+    ]){if(contents.split(before).length!==2)throw new Error('Movy mode selector seam changed: '+before);contents=contents.replace(before,after);}
+    return {contents,loader:'ts'};
+   });
    // Device tool reloads clear these module caches. Browser session restores
    // reuse the worker, so expose the equivalent reset beside the real readers.
    build.onLoad({filter:/\/(seq\/part-storage|app\/interface-usage)\.ts$/},async args=>{
