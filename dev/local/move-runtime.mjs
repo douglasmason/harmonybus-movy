@@ -13,7 +13,7 @@ import {readPrefDefaultQuant} from 'movy/seq/prefs.ts';
 import {refreshModelsForSet} from 'movy/app/model-refresh.ts';
 import {resetHeldInput} from 'movy/app/input-reset.ts';
 import {releaseAllLive} from 'movy/keyboard/release.ts';
-import {sessionPlayMode,selectInputMode} from 'movy/seq/router-buttons.ts';
+import {sessionPlayMode,selectInputMode,inputModeNames} from 'movy/seq/router-buttons.ts';
 import {selectTrack} from 'movy/track/focus.ts';
 import {jointSnapshot,jointPanelSet} from 'movy/seq/joint-play.ts';
 import {chordEnabled} from 'movy/seq/chord-play.ts';
@@ -158,6 +158,12 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   if(held.size||!current||token!==current.token||!Number.isInteger(index)||!current.entries.some(entry=>entry.index===index))return false;
   panelOwner.controller.goToPage(index);appState.dirty=true;runTick();seqCmdFlush();return true;
  }
+ function selectMode(previous,mode){
+  // The device selector owns mode restrictions, Back history and live-note
+  // teardown. A delayed browser choice cannot override a newer device choice.
+  if(held.size||previous!==sessionPlayMode()||!Number.isInteger(mode)||mode<0||mode>=inputModeNames.length)return false;
+  selectInputMode(mode);appState.dirty=true;runTick();seqCmdFlush();return sessionPlayMode()===mode;
+ }
  function input(data){
   if(!Array.isArray(data)||data.length!==3||![128,144,160,176].includes(data[0])||data.slice(1).some(value=>!Number.isInteger(value)||value<0||value>127))throw new Error('Invalid Move input');
   const [status,index,value]=data,kind=status&240;
@@ -267,8 +273,8 @@ export function createMoveRuntime({request:engineRequest,metadata}){
  return {observeOutput(packets){
    const outputs=padLabels.outputs(packets);
    if(outputs.length)lastOutput={serial:++outputSerial,outputs};
-  },tick:runTick,input,release,capture,restore,validate,fresh,setCompSource,selectPanel,isHeld:()=>held.size>0,
+  },tick:runTick,input,release,capture,restore,validate,fresh,setCompSource,selectPanel,selectMode,isHeld:()=>held.size>0,
   diagnostic:()=>({ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0,held:held.size,track:appState.activeTrack.index,view:appState.currentView,mode:sessionPlayMode()}),
-  snapshot:()=>({screen:Array.from(screen),...drawing.snapshot(),knobLabels,panels:panels(),surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),padLabels:padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0),lastPlayed,lastOutput,playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
+  snapshot:()=>({screen:Array.from(screen),...drawing.snapshot(),knobLabels,panels:panels(),surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),modes:inputModeNames,view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),padLabels:padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0),lastPlayed,lastOutput,playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
   dispose:()=>{release(false);closed=true;}};
 }

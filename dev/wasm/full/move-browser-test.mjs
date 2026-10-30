@@ -20,6 +20,12 @@ try{
  assert.equal(await page.locator('#steps .control').count(),16);
  assert.equal(await page.locator('#encoder option[value="14"]').count(),0,'Jog has dedicated controls');
  assert.equal(await page.locator('#enter').count(),0,'no duplicate Jog click');
+ assert.deepEqual(await page.locator('#play-mode option').allTextContents(),['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings']);
+ assert.equal(await page.locator('#play-mode').inputValue(),'1');
+ await page.locator('#shift').check();
+ await page.waitForFunction(()=>document.querySelector('#play-mode').disabled);
+ await page.locator('#shift').uncheck();
+ await page.waitForFunction(()=>!document.querySelector('#play-mode').disabled);
  assert(await page.locator('#display-sharp').isChecked());
  await page.waitForFunction(()=>document.querySelectorAll('#screen-sharp text').length>0);
  assert(await page.locator('#screen-sharp').isVisible());
@@ -192,12 +198,11 @@ try{
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Chord Play · Stopped'));
  // Every production mode uses the same scalable display and bitmap toggle.
  const modes=['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings'];
- let currentMode=6;
+ assert.equal(await page.locator('#play-mode').inputValue(),'6','restored Chord Play updates the dropdown');
  for(const mode of [7,0,1,2,3,4,5,6,1]){
-  await button('Note / Session').tap();
-  for(let turn=0;turn<Math.abs(mode-currentMode);turn++)await button(mode>currentMode?'Jog turn right':'Jog turn left').click();
-  await button('Jog').tap();currentMode=mode;
+  await page.locator('#play-mode').selectOption(String(mode));
   await page.waitForFunction(name=>document.querySelector('#feedback').textContent.includes(name),modes[mode]);
+  assert.equal(await page.locator('#play-mode').inputValue(),String(mode),'dropdown follows confirmed engine selection');
   await page.waitForFunction(()=>document.querySelectorAll('#screen-sharp text').length>0);
   if(mode===0||mode===4){
    await page.waitForFunction(()=>document.querySelector('#settings-panel').disabled);
@@ -233,6 +238,12 @@ try{
   await page.locator('#display-sharp').check();assert(await page.locator('#screen-sharp').isVisible());
   assert.equal(await page.evaluate(()=>__wasmRead('state')),state,modes[mode]+' display toggle preserves musical state');
  }
+ // Mode choices remain accessible with the enlarged display and retain device Back.
+ await button('Enlarge display').click();assert(await page.locator('#play-mode').isVisible());
+ await page.locator('#play-mode').selectOption('5');
+ await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Field Play'));
+ await button('Close large display').click();await button('Back').click();
+ await page.waitForFunction(()=>document.querySelector('#play-mode').value==='1');
  // Production mode menu and Shift+Session shortcut reach Clips and all tracks.
  await page.locator('#shift').check();await button('Note / Session').tap();await page.locator('#shift').uncheck();await button('Step 16').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 16'));
@@ -252,6 +263,7 @@ try{
   if(viewport.width>850)assert(await button('Knob 2').evaluate(element=>element.scrollWidth<=element.clientWidth),'full knob labels fit '+viewport.width);
   assert(await page.locator('#encoder-reading').isVisible(),'selected reading remains visible');
   assert(await page.locator('#encoder-reading').evaluate(element=>element.scrollWidth<=element.clientWidth),'selected reading fits '+viewport.width);
+  assert(await page.locator('.view-pickers').evaluate(element=>element.scrollWidth<=element.clientWidth),'view selectors fit '+viewport.width);
  }
  await checkEncoderActions(browser,page.url());
  await page.context().setOffline(true);await button('Track 13').tap();await button('Step 2').tap();

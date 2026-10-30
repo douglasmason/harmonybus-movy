@@ -76,12 +76,13 @@ ${before}`).replace(/\n}\s*$/, '\n    } finally { endText?.(); }\n}\n');
 }\n`;
     return {contents,loader:'js'};
    });
-   // Expose the existing selector for browser session restore. The optional
+   // Expose device choices for browser navigation and session restore. The optional
    // query skips Clips/Settings overlays so their performance owner survives.
    build.onLoad({filter:/\/seq\/router-buttons\.ts$/},async args=>{
     let contents=await readFile(args.path,'utf8');
     for(const [before,after] of [
      ['function selectInputMode(next: number, remember=true): void {','export function selectInputMode(next: number, remember=true): void {'],
+     ['const inputModeNames=','export const inputModeNames='],
      ['export function sessionPlayMode(): number {','export function sessionPlayMode(includeOverlays = true): number {'],
      ['return seqState.sessionMode ? 0 : settingsOpen() ? 7 :','return includeOverlays && seqState.sessionMode ? 0 : includeOverlays && settingsOpen() ? 7 :']
     ]){if(contents.split(before).length!==2)throw new Error('Movy mode selector seam changed: '+before);contents=contents.replace(before,after);}

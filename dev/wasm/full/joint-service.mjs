@@ -102,6 +102,9 @@ export async function createJointService(raw,emit,build=null,createSurface=null)
     }else if(message.type==='move_panel'){
      if(!surface)throw new Error('Move surface is unavailable');
      surface.selectPanel(message.token,message.index);
+    }else if(message.type==='move_mode'){
+     if(!surface)throw new Error('Move surface is unavailable');
+     surface.selectMode(message.previous,message.mode);
     }else if(message.type==='move_comp_source'){
      if(!surface)throw new Error('Move surface is unavailable');
      surface.setCompSource(message.group,message.source);
