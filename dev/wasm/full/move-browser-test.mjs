@@ -164,13 +164,19 @@ try{
  await button('Enlarge display').click();
  await page.locator('#audio').click();await page.waitForFunction(()=>document.querySelector('#audio').textContent==='Disable audio');
  await button('Play / Stop').tap();
+ await page.waitForFunction(async()=>/\bplay=1\b/.test(await __wasmRead('status'))&&document.querySelector('#feedback').textContent.includes('Playing'));
  await page.waitForFunction(()=>{try{return JSON.parse(document.querySelector('#audio-report').textContent).peak>.0001;}catch{return false;}});
  await button('Play / Stop').tap();
- await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Stopped'));
+ await page.waitForFunction(async()=>/\bplay=0\b/.test(await __wasmRead('status'))&&document.querySelector('#feedback').textContent.includes('Stopped'));
  await button('Play / Stop').tap();
- await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Playing'));
+ await page.waitForFunction(async()=>/\bplay=1\b/.test(await __wasmRead('status'))&&document.querySelector('#feedback').textContent.includes('Playing'));
+ // Audio startup disables the focused button; touch controls do not steal
+ // focus back. An idle Escape must close even when focus has fallen to body.
+ await page.evaluate(()=>document.activeElement.blur());
+ assert(await page.evaluate(()=>document.activeElement===document.body));
  await page.keyboard.press('Escape');
- await page.waitForFunction(()=>!document.querySelector('#display-dialog').open);
+ await page.waitForFunction(()=>!document.querySelector('#display-dialog').open&&document.activeElement===document.querySelector('#display-expand'));
+ assert.match(await page.evaluate(()=>__wasmRead('status')),/\bplay=1\b/);
  assert.match(await page.locator('#feedback').textContent(),/Playing/,'closing an idle editor leaves playback running');
  assert.equal(await page.locator('#audio').textContent(),'Disable audio');
  // UI drawing can stall without stopping the direct Worker-to-worklet clock.

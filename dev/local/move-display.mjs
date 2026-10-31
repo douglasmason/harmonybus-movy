@@ -92,8 +92,13 @@ function mountDisplayView(inputs){
  };
  close.onclick=()=>dialog.close();
  dialog.addEventListener('close',restore);
+ // Disabling Enable audio during startup can move focus to body. Handle an
+ // idle Escape before the global release handler even in that focus state;
+ // leave its native default action intact so the modal still closes.
+ document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&dialog.open&&!inputs.isHeld())event.stopPropagation();
+ },true);
  dialog.addEventListener('keydown',event=>{
-  if(event.key==='Escape'&&!inputs.isHeld())event.stopPropagation();
   if(event.key==='Tab'){
    const focusable=[...dialog.querySelectorAll('button,select,input,[tabindex]')]
     .filter(element=>!element.disabled&&element.tabIndex>=0&&element.getClientRects().length);
