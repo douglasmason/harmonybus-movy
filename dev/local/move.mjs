@@ -18,6 +18,9 @@ try{
  let currentMode=null,modeNames='';
  const engineSelector=document.querySelector('#engine'),address=document.querySelector('#move-address');
  const connect=document.querySelector('#move-connect'),disconnect=document.querySelector('#move-disconnect');
+ const transportEnabled=document.querySelector('#move-transport-enabled'),pairingKey=document.querySelector('#move-pairing-key'),transportStatus=document.querySelector('#move-transport-status');
+ const transportButtons=[...document.querySelectorAll('[data-move-transport]')];
+ const controlState=(ready,message)=>{for(const button of transportButtons)button.disabled=!ready;transportStatus.textContent=message;};
  const isBrowser=()=>connection.engine==='browser'&&!connection.busy&&connection.ready;
  connection=createMoveConnection({browser,inputs:{disable(){workspace?.suspend();inputs.disable();}},pageURL:location.href,onFrame:frame=>surface.update(frame),
   onState:({engine,state,message})=>{
@@ -27,8 +30,9 @@ try{
    document.querySelector('#engine-status').textContent=message;
    document.querySelector('#engine-status').dataset.state=state;
    document.querySelector('#move-connection').hidden=local;
-   document.querySelector('#engine-mode-label').textContent=local?'Browser studio':'Move mirror';
-   address.disabled=connect.disabled=switching||state==='connecting'||state==='connected';
+   document.querySelector('#engine-mode-label').textContent=local?'Browser studio':'Move device';
+   if(!['connecting','connected'].includes(state))controlState(false,local?'':'Read-only · enable paired transport before connecting');
+   transportEnabled.disabled=pairingKey.disabled=address.disabled=connect.disabled=switching||state==='connecting'||state==='connected';
    disconnect.disabled=local||switching||!['connecting','connected'].includes(state);
    for(const id of ['audio','audio-test','stop','monitor-level'])document.querySelector('#'+id).disabled=!local||switching;
    for(const selector of ['.accompaniment','.played-readout','#sessions','#audio-settings'])document.querySelector(selector).hidden=!local;
@@ -36,7 +40,7 @@ try{
    if(!local){
     playMode.disabled=true;playMode.replaceChildren(new Option('Read on Move display',''));
     currentMode=null;modeNames='';lastTrack=-1;
-    feedback.textContent=state==='connected'?'Read-only · use physical controls · audio plays on Move':message;
+    feedback.textContent=state==='connected'?'Use physical controls for pads, knobs and recording · audio plays on Move':message;
     audioStatus.textContent=connection.ready?'Browser engine suspended · browser session retained · no session transfer':'Waiting for browser suspension acknowledgment';
    }else if(!switching){audioStatus.textContent='Browser audio off · tap Enable audio to listen';}
   }});
@@ -45,7 +49,9 @@ try{
   if(sessionUI?.isBusy()){engineSelector.value=connection.engine;return;}
   errorBox.textContent='';await connection.select(engineSelector.value);
  };
- connect.onclick=()=>connection.connect(address.value);
+ transportEnabled.onchange=()=>{pairingKey.hidden=!transportEnabled.checked;if(!transportEnabled.checked)pairingKey.value='';};
+ connect.onclick=()=>{const key=transportEnabled.checked?pairingKey.value.trim():undefined;pairingKey.value='';if(transportEnabled.checked&&!/^[a-f0-9]{64}$/.test(key)){controlState(false,'Enter the 64-character pairing key printed by the companion.');return;}connection.connect(address.value,{pairingKey:key,onControlState:controlState});};
+ for(const button of transportButtons)button.onclick=()=>{if(!connection.transport(button.dataset.moveTransport))transportStatus.textContent='Request not sent · transport unavailable or busy';};
  disconnect.onclick=()=>connection.disconnect();
  window.addEventListener('pagehide',()=>connection.disconnect());
  document.addEventListener('visibilitychange',()=>{if(document.hidden&&connection.engine==='move')connection.disconnect();});

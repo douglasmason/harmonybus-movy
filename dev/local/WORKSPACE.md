@@ -90,3 +90,12 @@ No session or parameter transfer between browser and Move is implemented.
 
 Hardware and iPad Safari are separate acceptance checks. See
 [MOVE-CONNECTION.md](MOVE-CONNECTION.md) for exact device and security limits.
+
+
+Paired physical transport uses the same connection owner and canonical Movy
+`cmd` encoding as the browser service (`move-transport.mjs`). Its optional
+companion refuses current Movy metadata because stock tool subscription consumes
+the autosave dirty flag. A future device-owned persistence capability gates
+Play/Stop; only then does it validate active tool identity, and reports sent requests without inferring playback state.
+The raw mirror and rich canonical editors retain their honest capability
+boundary; see [MOVE-CONNECTION.md](MOVE-CONNECTION.md) for protocol and testing.

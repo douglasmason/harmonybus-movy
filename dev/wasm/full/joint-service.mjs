@@ -1,4 +1,5 @@
 /** Local protocol transport. Every musical command enters production Movy DSP. */
+import {transportCommand} from '../../local/move-transport.mjs';
 import {createFullEngine} from './engine.mjs';
 import {prepareMetadata,trackKey,jointAction,routingKeys,readableKey,validateEngineCommand} from '../../local/protocol-policy.mjs';
 import {capturePayload,sealSession,validateSession,restoreCandidate} from './session.mjs';
@@ -128,7 +129,7 @@ export async function createJointService(raw,emit,build=null,createSurface=null)
      if(data[0]===144&&data[2])physical.add(data[1]);else if(data[0]===128||data[0]===144)physical.delete(data[1]);
     }else if(message.type==='dev_transport'){
      const {action,mask,overwrite}=message;let command;
-     if(action==='play'||action==='stop')command=action;
+     if(action==='play'||action==='stop')command=transportCommand(action);
      else if(action==='record'&&Number.isInteger(mask)&&mask>0&&mask<=65535&&Number.isInteger(overwrite)&&overwrite>=0&&overwrite<=65535&&(overwrite&mask)===overwrite)command=`jrec ${mask} ${overwrite}`;
      else throw new Error('Invalid transport');
      // Play must close a take before restarting: production play() alone retains recording.

@@ -19,15 +19,16 @@ export function createMoveConnection({browser,inputs,onState,onFrame,pageURL,ope
    notify(next==='browser'?'browser':'disconnected',next==='browser'?'Browser · session retained · audio off':'Disconnected from Move');
   }catch(error){notify('error',error.message);}finally{busy=false;}
  }
- function connect(address){
+ function connect(address,options={}){
   if(busy||engine!=='move')return;
   if(!ready){notify('error','Browser suspension was not acknowledged. Return to Browser and retry, or reload.');return;}
   disconnect();const attempt=++generation;
   let url;try{url=deviceStreamURL(address,pageURL);}catch(error){notify('error',error.message);return;}
-  device=openDevice({url,onFrame:frame=>{if(attempt===generation&&engine==='move')onFrame(frame);},
+  device=openDevice({url,pairingKey:options.pairingKey,onControlState:(...args)=>{if(attempt===generation&&engine==='move')options.onControlState?.(...args);},onFrame:frame=>{if(attempt===generation&&engine==='move')onFrame(frame);},
    onState:(state,message,capabilities)=>{if(attempt!==generation||engine!=='move')return;if(['error','disconnected'].includes(state))blank();notify(state,message,capabilities);}});
  }
  return {select,connect,disconnect,watch,get engine(){return engine;},get busy(){return busy;},get ready(){return ready;},
+  transport(action){return engine==='move'&&!busy&&ready?device?.transport?.(action)??false:false;},
   send(message){if(engine==='browser'&&!busy&&ready)browser.socket.send(JSON.stringify(message));},
   acceptBrowserFrame:()=>engine==='browser'&&!busy&&ready};
 }
