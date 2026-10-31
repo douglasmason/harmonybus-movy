@@ -691,6 +691,8 @@ def main() -> int:
     patch_discovery_context(root)
     from patch_operation_labels import patch_operation_labels
     patch_operation_labels(root)
+    from patch_queue_feedback import patch_queue_feedback
+    patch_queue_feedback(root)
     print("HarmonyBus clean integration applied")
     return 0
 
