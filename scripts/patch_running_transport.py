@@ -64,20 +64,53 @@ def patch_running_transport(root: Path) -> None:
     path.write_text(source)
     path = root / 'engine/crates/movy-dsp/src/host.rs'
     path.write_text(path.read_text() + '''
-/// Snapshot native transport; never infer phase from tool-launch time.
-pub fn transport_snapshot() -> Option<(bool, f64, f64)> {
-    let api = host()?;
+/// Normalize optional host capabilities, not host version strings. Both
+/// Schwung 1.7.3 and 1.8.2 use this ABI; the browser may omit callbacks.
+fn transport_snapshot_from(api: Option<&host_api_v1_t>) -> Option<(bool, f64, f64)> {
+    let api = api?;
     let status = api.get_clock_status?;
     let beat = api.get_beat_position?;
     let bpm = api.get_bpm?;
-    Some(unsafe { (status() == 2, beat(), bpm() as f64) })
+    let status = unsafe { status() };
+    // UNAVAILABLE is not STOPPED. Consuming it would prevent attachment when
+    // the host finishes starting or becomes available after a Set switch.
+    if status != 1 && status != 2 { return None; }
+    let beat = unsafe { beat() };
+    let bpm = unsafe { bpm() } as f64;
+    let minimum_bpm = f64::from(seq_core::clock::BPM_X100_MIN) / 100.0;
+    let maximum_bpm = f64::from(seq_core::clock::BPM_X100_MAX) / 100.0;
+    if !beat.is_finite() || beat < 0.0 || !bpm.is_finite() || !(minimum_bpm..=maximum_bpm).contains(&bpm) {
+        return None;
+    }
+    Some((status == 2, beat, bpm))
+}
+
+/// Snapshot native transport; never infer phase from tool-launch time.
+pub fn transport_snapshot() -> Option<(bool, f64, f64)> {
+    transport_snapshot_from(host())
+}
+
+/// Attach once per Set load. A completed attachment owes no more host reads;
+/// the existing MIDI clock owns subsequent transport and lookahead timing.
+pub fn attach_transport(engine: &mut seq_core::engine::Engine,
+                        output: &mut Vec<seq_core::engine::OutEvent>) {
+    attach_transport_from(engine, output, host());
+}
+
+fn attach_transport_from(engine: &mut seq_core::engine::Engine,
+                         output: &mut Vec<seq_core::engine::OutEvent>,
+                         api: Option<&host_api_v1_t>) {
+    if !engine.link_enabled || engine.host_transport_attached { return; }
+    if let Some((running, beat, bpm)) = transport_snapshot_from(api) {
+        engine.attach_host_transport(running, beat, bpm, output);
+    }
 }
 ''')
+    host_tests: Path = Path(__file__).resolve().parents[1] / 'integration/schwung-host/host_transport_tests.rs'
+    path.write_text(path.read_text() + '\n' + host_tests.read_text())
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
     source = path.read_text()
-    source = replace_once(source, '        self.engine\n            .advance_block', '''        if let Some((running, beat, bpm)) = host::transport_snapshot() {
-            self.engine.attach_host_transport(running, beat, bpm, &mut self.out);
-        }
+    source = replace_once(source, '        self.engine\n            .advance_block', '''        host::attach_transport(&mut self.engine, &mut self.out);
         self.engine
             .advance_block''')
     path.write_text(source)
