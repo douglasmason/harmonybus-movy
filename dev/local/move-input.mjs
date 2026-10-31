@@ -129,6 +129,9 @@ export function mountMoveInput({controls,send}){
   if(control.group==='knobs')for(const kind of ['name','value']){
    const reading=document.createElement('span');reading.className='knob-'+kind;button.append(reading);
   }
+  if(control.group==='steps')for(const kind of ['name','detail']){
+   const reading=document.createElement('span');reading.className='step-'+kind;button.append(reading);
+  }
   if(control.group==='pads'){
    const secondary=document.createElement('span');secondary.className='pad-note';button.append(secondary);
    padRows.get(Math.floor((control.index-68)/8)).append(button);

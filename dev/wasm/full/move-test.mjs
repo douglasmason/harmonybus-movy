@@ -90,6 +90,58 @@ test('panel shortcuts use production groups and reject stale or held navigation'
  }finally{service.socket.close();}
 });
 
+test('Chord Play step labels follow native banks, edits and input ownership',async()=>{
+ const raw=JSON.parse(await readFile(new URL('../build/full/modules/midi_fx/harmonybus/module.json',import.meta.url)));
+ let frame;const errors=[];
+ const service=await createJointService(raw,value=>{if(value.move)frame=value.move;if(value.type==='error')errors.push(value);},null,createMoveRuntime);
+ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+ const send=async message=>{service.socket.send(JSON.stringify(message));await wait(60);};
+ const midi=data=>send({type:'move_midi',data});
+ const cc=async index=>{await midi([176,index,127]);await midi([176,index,0]);};
+ const until=async predicate=>{const deadline=Date.now()+6000;while(!predicate()){if(Date.now()>deadline)throw new Error('Step labels timeout: '+JSON.stringify({labels:frame?.stepLabels,panels:frame?.panels}));await wait(20);}};
+ const panel=async label=>{await until(()=>frame?.panels);const entry=frame.panels.entries.find(entry=>entry.label===label);assert(entry,label);await send({type:'move_panel',token:frame.panels.token,index:entry.index});await until(()=>frame.panels?.index===entry.index);};
+ const bank=()=>service.read('ch0:midi_fx1:hb_chord_bank_snapshot').split('|');
+ try{
+  await send({type:'subscribe_tool'});await until(()=>frame?.ready);
+  assert.equal(frame.stepLabels,null);
+  await send({type:'move_mode',previous:1,mode:6});await until(()=>frame.stepLabels?.[0].name==='C');
+  assert.deepEqual(frame.stepLabels.slice(0,7).map(label=>[label.name,label.roman]),[['C','I'],['Dm','ii'],['Em','iii'],['F','IV'],['G','V'],['Am','vi'],['Bdim','viio']]);
+  for(const [title,first,second] of [['Home Chords',0,7],['Parallel Chords',7,14],['Blues Dominants',14,0]]){
+   await panel(title);
+   assert.deepEqual(frame.stepLabels.map(label=>label.slot),[...Array.from({length:7},(_,index)=>first+index),-1,...Array.from({length:7},(_,index)=>second+index),-1]);
+   for(const label of frame.stepLabels)assert.equal(label.name,label.slot<0?'Off':bank()[label.slot+3].split(',')[8]);
+   // A labeled button selects the same resolved native harmony, including wraparound.
+   const expected=bank()[second+3].split(',').slice(0,6).join(',');
+   await midi([144,24,100]);await midi([128,24,0]);
+   await until(()=>bank()[2]===expected);
+   await midi([144,31,100]);await midi([128,31,0]);await until(()=>bank()[2].startsWith('-1,'));
+  }
+  await panel('Home Chords');
+  for(const index of [49,88]){
+   await midi([176,index,127]);assert.equal(frame.stepLabels,null,'modifier owns the steps: '+index);
+   await midi([176,index,0]);await until(()=>frame.stepLabels!==null);
+  }
+  await cc(58);assert.equal(frame.stepLabels,null,'Loop latches its bar selector');
+  await cc(58);await until(()=>frame.stepLabels!==null);
+  await cc(50);assert.equal(frame.stepLabels,null,'mode chooser hides chord meanings');
+  await cc(51);await until(()=>frame.stepLabels!==null);
+  for(const title of ['Conductor Clips','Conductor Motifs','Next Chord Preview','Voicing Preview','Discovery Actions','Conductor Ops 1-8']){
+   await panel(title);assert.equal(frame.stepLabels,null,title+' owns the steps');
+  }
+  await panel('Home Chords');await midi([144,16,100]);await midi([128,16,0]);
+  await panel('Chord Editor');
+  await midi([144,2,127]);await midi([176,73,4]);await midi([128,2,0]);
+  await until(()=>frame.stepLabels?.[0].name==='Dm');
+  assert.equal(frame.stepLabels[0].roman,'ii','native intent and target produce the Roman numeral');
+  assert.equal(frame.stepLabels[0].name,bank()[3].split(',')[8]);
+  for(const mode of [7,0,1]){
+   await send({type:'move_mode',previous:frame.mode,mode});await until(()=>frame.mode===mode);
+   assert.equal(frame.stepLabels,null,'other mode keeps its own step meanings');
+  }
+  assert.deepEqual(errors,[]);
+ }finally{service.socket.close();}
+});
+
 test('complete Movy UI edits real clips, undoes, records, replays and restores without a device',async()=>{
  const raw=JSON.parse(await readFile(new URL('../build/full/modules/midi_fx/harmonybus/module.json',import.meta.url)));
  const fixture=await createJointService(raw,()=>{});

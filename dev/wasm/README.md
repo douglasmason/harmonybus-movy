@@ -179,3 +179,13 @@ page navigation. Menus and overviews disable it; Grid’s Jog opens its settings
 first. Single-page groups remain selectable even though they draw no ruler.
 Stale selections and navigation during held controls are ignored. The original
 128×64 bitmap and high-resolution vector display share the same hit positions.
+
+Chord Play step buttons show resolved chord names, Roman numerals and bank names,
+with Harmony Off on steps 8 and 16. These labels observe the production slot
+mapping and cached native chord metadata; they do not calculate chords or send
+extra engine requests. Changing bank pages updates both rows, including Blues
+wrapping to Home. Physical step numbers, gestures and LED colors remain intact.
+Discovery, content launch, operation pages, menus and modified step contexts
+retain numbered buttons until their own semantics are supported. Chord names
+use eight columns on larger screens and four on phones, including the enlarged
+editor.
