@@ -32,3 +32,66 @@ jobs:
           for suite in test_sampler_get_bpm test_midi_monitor_cable0_only test_standalone_single_launch test_tool_launch_standalone test_master_fx_user_presets test_send_fx_user_presets test_remote_ui_chain_positions test_visible_if_replan_no_host_reads; do
             bash "tests/host/$suite.sh"
           done
+          make -C tests/host ../../build/tests/host/test_move_model ../../build/tests/host/test_move_model_sync
+          build/tests/host/test_move_model
+          build/tests/host/test_move_model_sync
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: schwung-182/schwung-manager/go.mod
+          cache-dependency-path: schwung-182/schwung-manager/go.sum
+      - name: Manager loading, refusal and stale-read regressions
+        working-directory: schwung-182/schwung-manager
+        run: go test . -run 'Test(DiscoverSlotModules|ModuleLoadRefusal|Slot.*|MasterFx.*|ChainCaps.*|IsChainComponent.*|TimedOutSection.*|KnownEmpty.*|SynthTimeout.*|WebUILinks.*)'
+  production-chain:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        host:
+          - a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124
+          - 35f401c3876557606ee44fbc9f3e363a6e39fb84
+    env:
+      SCHWUNG_ROOT: ${{ github.workspace }}/schwung
+      SCHWUNG: ${{ github.workspace }}/schwung
+      HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/checkout@v4
+        with:
+          repository: charlesvestal/schwung
+          ref: ${{ matrix.host }}
+          path: schwung
+      - uses: actions/checkout@v4
+        with:
+          repository: DimaDake/schwung-movy
+          ref: 5c01a4fe7745b730ee98111194fc64328ea2659b
+          path: movy
+      - name: Prepare the same integration against either host
+        run: |
+          git clone https://github.com/douglasmason/harmonybus.git harmonybus
+          git -C harmonybus checkout "$(cat integration/harmonybus.ref)"
+          python3 scripts/apply_clean_harmonybus.py movy
+          npm ci --prefix movy
+          npm run typecheck --prefix movy
+          npm run build:browser --prefix movy
+      - name: Shared controls and exact host ABI
+        working-directory: movy
+        run: |
+          node browser-test/abi-parity.mjs
+          node browser-test/hb-schwung-host.mjs
+          node browser-test/hb-chord-range.mjs
+          node browser-test/hb-feedback-polling.mjs
+          node browser-test/hb-launchpad.mjs
+          node browser-test/hb-fm1.mjs
+      - name: Native clock, abstract automation and real production chain
+        run: |
+          cargo test --manifest-path movy/engine/Cargo.toml -p seq-core -p movy-dsp
+          bash scripts/test_full_chain_audio.sh movy harmonybus schwung
+      - name: Device evaluation with and without host UI libraries
+        run: |
+          npm run build:device --prefix movy
+          make -C schwung/libs/quickjs/quickjs-2025-04-26 -j2 qjs
+          python3 scripts/test_device_startup.py movy schwung

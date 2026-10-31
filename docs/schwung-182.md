@@ -61,6 +61,22 @@ are not claims of an audible fix.
 
 ## Verification
 
+The existing native `host.rs` is the compatibility boundary for transport.
+Its adapter now checks optional callbacks and their actual return values.
+Unavailable clock status (0) is not confused with stopped (1); invalid beat/BPM
+readings keep attachment pending. BPM validation uses the sequencer's existing
+20–300 limits, so attachment cannot disagree with its clamped internal clock.
+After valid attachment, or while Link is off, this path makes zero host callback
+calls. Set load rearms it; existing MIDI-clock timing and lookahead own subsequent
+playback. The regression counts three calls total over 1,001 attachment attempts
+instead of three per audio block. This is a work-count reduction, not a measured
+audio latency improvement. Diagnostics may still explicitly request a snapshot.
+
+HarmonyBus independently centralizes all its optional tempo reads; see its
+[host contract](https://github.com/douglasmason/harmonybus/blob/main/docs/schwung-182.md).
+Both boundaries reuse their native ABI rather than sharing incompatible language
+bindings or introducing a new clock abstraction.
+
 - Complete Movy browser logic suite plus Chord Play/range, mixed-case rendering,
   ownership, polling, Launchpad, FM-1 and Grid regressions.
 - `hb-schwung-host.mjs`: the production bundled controller, empty knobs, numeric
@@ -69,6 +85,14 @@ are not claims of an audible fix.
 - Rust/C ABI parity against both exact upstream host headers.
 - Device bundle evaluation in actual QuickJS with host shared pages available
   and unavailable; the packaged controller supplies both cases.
+- Native transport mocks cover absent pointers, unavailable/invalid status,
+  invalid numeric data, stopped/running snapshots, skipped reads, user Stop and
+  reattachment at the new Set's absolute phase and tempo.
+- `schwung-host.yml` compiles and tests Movy with **each exact host revision**:
+  native sequencer/DSP/automation tests, production chain audio, ABI, shared
+  controls, external surfaces, and device startup. Its separate upstream job
+  tests song-reader retry/sync, loader refusal/completion/cancellation, presets,
+  standalone tools and the native BPM implementation.
 
 No change to the single-conductor policy, browser protocol, Move firmware,
 private trial audience, or released installer pointer is required by this update.
