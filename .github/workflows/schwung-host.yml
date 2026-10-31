@@ -54,6 +54,7 @@ jobs:
       SCHWUNG_ROOT: ${{ github.workspace }}/schwung
       SCHWUNG: ${{ github.workspace }}/schwung
       HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
+      HB_MODULE: ${{ github.workspace }}/harmonybus/modules/harmonybus/module.json
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
