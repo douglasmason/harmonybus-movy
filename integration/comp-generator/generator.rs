@@ -68,6 +68,8 @@ pub struct Explore {
     pub destination:Option<usize>,
     /// A recorded source keeps its normal clock; None is a new free audition.
     pub source:Option<usize>,pub touched:u8,
+    /// Release temporary overrides at their existing step/bar boundaries.
+    pub restore_pending:u8,
 }
 
 /// User generator styles retain only the supported abstract source and its three

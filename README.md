@@ -1,3 +1,7 @@
+## Restore saved generator controls (hbclean.288)
+
+Touch knob 6 on the Comp or Bass Generator page to resume a User recipe or recorded clip's saved automation without stopping or restarting its phrase. Complexity and Intensity restore at the next step; Style at the next bar. The other actor keeps playing, and saved content remains unchanged. See [Generator Restore](docs/generator-restore.md). Pair with HarmonyBus 0.2.310.
+
 ## Named actor recipes (hbclean.287)
 
 Comp and Bass User slots now show recipe names, genre tags, phrase lengths and changing generator controls. Rename/tag through the existing library review, then browse saved generators by actor and genre. Metadata-only edits leave musical content unchanged. See [named actor recipes](docs/actor-library-names.md). Pair with HarmonyBus 0.2.310.

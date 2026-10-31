@@ -17,7 +17,7 @@ const liveModes=['Exploring','Recording','Preview','Overdub'];
 const recordedModes=['Recorded','Preview','Overdub'];
 const cached=new Map<number,{at:number;value:string[]}>();
 export const generatorBrowseKeys=['cg_actor','cg_genre','cg_family','cg_style'];
-export const generatorKeys=['cg_complexity','cg_intensity','cg_seed','cg_explore','cg_bake'];
+export const generatorKeys=['cg_complexity','cg_intensity','cg_seed','cg_explore','cg_bake','cg_restore'];
 export function generatorActor():Actor{return selectedActor;}
 export function generatorTarget(comp:number,bass:number):number {tracks={Comp:comp,Bass:bass};selectedTrack=tracks[selectedActor];return selectedTrack;}
 function draft(track=selectedTrack):Draft {
@@ -57,7 +57,7 @@ export function generatorParameters():any[]{return [
  {key:'cg_style',name:'Pattern Style',short_name:'Style',type:'enum',options:styleChoices(),short_options:styleChoices().map(name=>shortStyles[name]??name),options_as_string:true,default:styleChoices()[0]},
  ...['complexity','intensity'].map(field=>({key:'cg_'+field,name:field==='complexity'?'Complexity %':'Intensity %',short_name:field==='complexity'?'Complex':'Intens',type:'int',min:0,max:100,step:1,default:field==='complexity'?25:50})),
  {key:'cg_seed',name:'Variation Seed',short_name:'Seed',type:'int',min:1,max:65535,step:1,default:1},
- ...['explore','bake'].map(field=>({key:'cg_'+field,name:field==='explore'?'Explore / Stop':'Bake Recorded Clip',short_name:field==='explore'?'Explore':'Bake',type:'string',readOnly:true}))
+ ...['explore','bake','restore'].map(field=>({key:'cg_'+field,name:field==='explore'?'Explore / Stop':field==='bake'?'Bake Recorded Clip':'Restore Saved Controls',short_name:field==='explore'?'Explore':field==='bake'?'Bake':'Revert',type:'string',readOnly:true}))
 ];}
 function info(track:number,fresh=false):string[]{
  if(generation!==engineGeneration()){cached.clear();recordingTrack=null;generation=engineGeneration();}
@@ -122,7 +122,7 @@ export function generatorRead(key:string,track:number):string|null {
  if(field==='complexity'||field==='intensity')return String(Math.round(config[field==='complexity'?1:2]*100/127));
  if(field==='seed')return String(config[3]);
  if(field==='explore')return active(track)?'Stop':'Start';
- if(field==='bake')return 'Tap';return null;
+ if(field==='bake'||field==='restore')return 'Tap';return null;
 }
 export function generatorWrite(key:string,value:string,track:number):boolean|null {
  if(!key.startsWith('cg_'))return null;
@@ -167,9 +167,14 @@ export function generatorWrite(key:string,value:string,track:number):boolean|nul
 }
 export function generatorTouch(key:string,track:number,down:boolean):boolean {
  if(key.startsWith('cp_blank_'))return true;
- if(!['cg_explore','cg_bake'].includes(key))return false;if(!down)return true;
+ if(!['cg_explore','cg_bake','cg_restore'].includes(key))return false;if(!down)return true;
  const state=readState(track,true);
  if(!compatible(state)){seqToast('Clip belongs to another actor');return true;}
+ if(key==='cg_restore'){
+  if(!engineReady())return true;
+  seqCmd('grestore '+track+' '+Number(state[1]));seqCmdFlush();cached.clear();
+  const restored=readState(track,true);pageDirty=true;seqToast(restored[3]??'Restore unavailable');return true;
+ }
  if(key==='cg_explore') {if(active(track))generatorStop(track);else {if(draft(track).user!==null)generatorAuditionUser(track,actorKind(),draft(track).user!,draft(track).genre);else if(state[0]==='Recorded')preview(track,Number(state[1]));else if(send(track))seqToast('Explore: Play starts / Rec saves');}return true;}
  const slot=Number(state[1]);
  if(state[0]!=='Recorded'||seqState.recording||seqState.countingIn){seqToast('Stop exploration; record a take first');return true;}

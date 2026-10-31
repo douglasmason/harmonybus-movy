@@ -447,6 +447,81 @@
             assert_eq!(engine.undo_snapshot(),before);
         }
     }
+    #[test] fn generator_restore_follows_saved_curves_without_restarting_either_source() {
+        for bass in [false,true] {for library in [false,true] {
+            let (mut reference,payload)=saved_user_recipe(bass);
+            let mut engine=fixture();
+            let actor=if bass{"bass"}else{"comp"};let style=if bass{15}else{11};
+            if library {command(&mut engine,&format!("guser 2 {actor} {payload};guser 2 edit 0 12;guser 2 edit 1 127;guser 2 edit 2 {style}"));}
+            else {assert!(crate::persist::load(&mut engine,&reference.undo_snapshot()));command(&mut engine,&format!("gpreview 2 0 0 12;gpreview 2 0 1 127;gpreview 2 0 2 {style}"));}
+            let saved=engine.undo_snapshot();engine.dirty=false;engine.play();reference.play();
+            ticks(&mut engine,400);ticks(&mut reference,400);
+            let position=engine.tracks[2].pos_tick;let master=engine.master_tick;let gates=engine.gates.len();
+            assert!(command(&mut engine,"grestore 2 0").is_empty());
+            assert_eq!(engine.tracks[2].pos_tick,position);assert_eq!(engine.master_tick,master);assert_eq!(engine.gates.len(),gates);
+            assert_eq!(engine.generator_explore[2].unwrap().touched,7);
+            ticks(&mut engine,8);assert_eq!(engine.generator_explore[2].unwrap().touched,7);
+            ticks(&mut engine,1);let state=engine.generator_explore[2].unwrap();
+            assert_eq!(state.touched,4);assert_eq!(state.restore_pending,4);assert_eq!(state.current.complexity,90);assert_eq!(state.current.intensity,100);assert_eq!(state.current.style,style);
+            ticks(&mut engine,359);assert_eq!(engine.generator_explore[2].unwrap().current.style,style);
+            ticks(&mut engine,1);let state=engine.generator_explore[2].unwrap();
+            assert_eq!(state.touched,0);assert_eq!(state.restore_pending,0);assert_eq!(state.current.style,if bass{13}else{9});
+            ticks(&mut engine,767);ticks(&mut reference,1136);
+            assert_eq!(ticks(&mut engine,3072),ticks(&mut reference,3072),"restored onsets and releases must follow the original changing curves and phase");
+            assert_eq!(engine.undo_snapshot(),saved);assert!(!engine.dirty);
+        }}
+    }
+    #[test] fn generator_restore_latest_edit_wins_only_for_its_control() {
+        for library in [false,true] {
+            let (source,payload)=saved_user_recipe(false);let mut engine=fixture();
+            if library {command(&mut engine,&format!("guser 2 comp {payload}"));}
+            else {assert!(crate::persist::load(&mut engine,&source.undo_snapshot()));command(&mut engine,"gpreview 2 0");}
+            let prefix=if library{"guser 2 edit"}else{"gpreview 2 0"};
+            command(&mut engine,&format!("{prefix} 0 12;{prefix} 1 127;{prefix} 2 11;play"));ticks(&mut engine,400);
+            command(&mut engine,&format!("grestore 2 0;{prefix} 1 55"));ticks(&mut engine,369);
+            let state=engine.generator_explore[2].unwrap();assert_eq!(state.touched,2);assert_eq!(state.restore_pending,0);
+            assert_eq!(state.current.complexity,90);assert_eq!(state.current.intensity,55);assert_eq!(state.current.style,9);
+        }
+    }
+    #[test] fn generator_restore_while_stopped_is_immediate_and_new_record_keeps_saved_recipe() {
+        for library in [false,true] {
+            let (source,payload)=saved_user_recipe(false);let mut engine=fixture();
+            if library {command(&mut engine,&format!("guser 2 comp {payload};guser 2 edit 1 127"));}
+            else {assert!(crate::persist::load(&mut engine,&source.undo_snapshot()));command(&mut engine,"gpreview 2 0 1 127");}
+            let before=engine.undo_snapshot();command(&mut engine,"grestore 2 0");
+            assert_eq!(engine.generator_explore[2].unwrap().touched,0);assert_eq!(engine.generator_explore[2].unwrap().current.intensity,32);
+            assert_eq!(engine.undo_snapshot(),before);command(&mut engine,"rec 2");ticks(&mut engine,crate::TICKS_PER_BAR+400);command(&mut engine,"rec 2;stop");
+            let clip=&engine.tracks[2].clips[0];let original=&source.tracks[2].clips[0];assert_eq!(clip.generator,original.generator);assert_eq!(clip.locks,original.locks);
+        }
+    }
+    #[test] fn generator_restore_pending_before_record_cannot_capture_discarded_overrides() {
+        for library in [false,true] {
+            let (source,payload)=saved_user_recipe(false);let mut engine=fixture();
+            if library {command(&mut engine,&format!("guser 2 comp {payload};guser 2 edit 0 12;guser 2 edit 1 127;guser 2 edit 2 11"));}
+            else {assert!(crate::persist::load(&mut engine,&source.undo_snapshot()));command(&mut engine,"gpreview 2 0 0 12;gpreview 2 0 1 127;gpreview 2 0 2 11");}
+            engine.play();ticks(&mut engine,400);command(&mut engine,"grestore 2 0;rec 2");ticks(&mut engine,1600);command(&mut engine,"rec 2;stop");
+            let clip=&engine.tracks[2].clips[0];assert_eq!(clip.generator,source.tracks[2].clips[0].generator);assert_eq!(clip.locks,source.tracks[2].clips[0].locks);
+        }
+    }
+    #[test] fn generator_restore_refuses_recording_count_in_stale_slots_and_stock_sources() {
+        assert!(crate::command::is_control_verb("grestore"));assert!(!crate::command::is_undoable_edit("grestore"));
+        let (_,payload)=saved_user_recipe(false);let mut engine=fixture();
+        command(&mut engine,"gexplore 2 0 0 64 1;grestore 2 0");assert!(engine.generator_result.contains("saved recipe"));assert_eq!(engine.generator_explore[2].unwrap().touched,7);
+        command(&mut engine,&format!("guser 2 comp {payload};guser 2 edit 1 127;grestore 2 1"));assert!(engine.generator_result.contains("Clip changed"));assert_eq!(engine.generator_explore[2].unwrap().touched,2);
+        for invalid in ["grestore 16 0","grestore 2 99","grestore 2","grestore no 0"] {command(&mut engine,invalid);assert_eq!(engine.generator_explore[2].unwrap().touched,2);}
+        command(&mut engine,"rec 2;grestore 2 0");assert!(engine.generator_result.contains("Finish this actor take"));assert_eq!(engine.generator_explore[2].unwrap().restore_pending,0);
+        ticks(&mut engine,500);command(&mut engine,"grestore 2 0");assert!(engine.generator_result.contains("Finish this actor take"));assert!(engine.recording);
+        command(&mut engine,"rec 2;stop");assert_eq!(engine.tracks[2].clips[0].generator.unwrap().at(&engine.tracks[2].clips[0],&engine.tracks[2].lane_label,0).intensity,127);
+    }
+    #[test] fn generator_restore_other_actor_during_recording_and_trimmed_loop_boundary() {
+        let (mut engine,payload)=saved_user_recipe(false);
+        command(&mut engine,&format!("guser 1 comp {payload};guser 1 edit 1 127;gpreview 2 0;play;rec 2"));ticks(&mut engine,400);
+        command(&mut engine,"grestore 1 0");assert!(engine.generator_result.starts_with("Restore saved"));ticks(&mut engine,24);
+        assert_eq!(engine.generator_record_track(),Some(2));assert_eq!(engine.generator_explore[1].unwrap().touched,0);assert!(engine.recording);
+        command(&mut engine,"rec 2;stop");engine.tracks[2].clips[0].set_loop(16,16);engine.tracks[2].clips[0].set_clip_length(5);
+        command(&mut engine,"gpreview 2 0 2 11;play");ticks(&mut engine,10);command(&mut engine,"grestore 2 0");
+        ticks(&mut engine,111);assert_eq!(engine.generator_explore[2].unwrap().touched,0,"a trimmed loop restores style at its own start without waiting for an unreachable bar");
+    }
     fn saved_user_recipe(bass:bool)->(Engine,String) {
         let mut engine=fixture();let style=if bass{12}else{8};
         command(&mut engine,&format!("gexplore 2 {style} 0 32 37"));engine.play();engine.toggle_record(2);
