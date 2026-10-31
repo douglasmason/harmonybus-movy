@@ -1,4 +1,4 @@
-# Actor generator browser and automation — hbclean.286
+# Actor generator browser and automation — hbclean.287
 
 Chord Play's **Libraries** category now contains a shared Comp/Bass generator.
 Choose an actor first; each actor uses its configured track and keeps its own
@@ -9,7 +9,7 @@ the selected recording slot. The same controls work on Move and in the browser.
 | --- | --- |
 | 1 | Actor: Comp or Bass |
 | 2 | Genre filter: All or one of this actor's authored tags |
-| 3 | Family: Pulse, Sync, Phrase or User (under All) |
+| 3 | Family: Pulse, Sync, Phrase or User (matching the genre filter) |
 | 4 | Style within the family and filter |
 | 8 | Existing Range / tap Harmony Off |
 
@@ -93,6 +93,11 @@ Their library review and Generator → User selection start temporary exploratio
 Record copies the complete saved loop at its original length, then overdubs moved
 controls. See [saved generator recipes](generator-user-library.md) for the workflow
 and supported edits.
+
+User entries now have names, genre tags, phrase length and a summary of changing
+controls. Their names are shared with the ordinary actor library, where the
+existing review supports renaming and metadata-only saves. See
+[named actor recipes](actor-library-names.md).
 
 Selecting a recorded generator clip recalls its family, style, seed and current
 control values. During playback, untouched controls follow their recorded curves.

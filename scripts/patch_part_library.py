@@ -141,6 +141,7 @@ impl Settings {{
                         if rest.strip_prefix("midi_fx1:").map_or(true,|key|self.engine.recipe_edit_param(slot,key,val)) {self.chains.set_param(slot, rest, val);}''')
     source = replace_once(source, '            "motif_load_result" =>', '''            "part_result" => Some(self.engine.part_result.clone()),
             key if key.starts_with("part_export_")=>key[12..].parse::<usize>().ok().map(|track|self.engine.part_export(track)),
+            key if key.starts_with("part_summary_")=>key[13..].parse::<usize>().ok().map(|track|self.engine.part_summary(track)),
             key if key.starts_with("part_info_")=>key[10..].parse::<usize>().ok().map(|track|self.engine.recipe_info(track)),
             "motif_load_result" =>''')
     source = replace_once(source, '                if seq_core::persist::load(&mut self.engine, val) {', '                self.engine.recipe_seen.fill(None);self.engine.recipe_fallbacks.fill(None);\n                if seq_core::persist::load(&mut self.engine, val) {\n                    self.engine.recipe_tick(&mut self.out);')

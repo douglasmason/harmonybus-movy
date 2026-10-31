@@ -1,3 +1,7 @@
+## Named actor recipes (hbclean.287)
+
+Comp and Bass User slots now show recipe names, genre tags, phrase lengths and changing generator controls. Rename/tag through the existing library review, then browse saved generators by actor and genre. Metadata-only edits leave musical content unchanged. See [named actor recipes](docs/actor-library-names.md). Pair with HarmonyBus 0.2.310.
+
 ## Saved Comp and Bass generator recipes (hbclean.286)
 
 Save recorded generator recipes into the existing actor User slots without Bake. Browse Actor → All → User, explore temporarily, then use the existing Record button to copy the saved loop and overdub its controls. Pair with HarmonyBus 0.2.310. See [saved generator recipes](docs/generator-user-library.md) for controls and supported edits.

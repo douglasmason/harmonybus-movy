@@ -65,6 +65,24 @@ pub fn remap_part_lanes(clip:&mut Clip,source:&PartLanes,target:&crate::track::T
     Ok(lanes)
 }
 impl Engine {
+    /// Read-only display summary, computed only when opening the Save review.
+    pub fn part_summary(&self,track:usize)->String {
+        let Some(target)=self.tracks.get(track) else{return "error:Invalid track".into();};
+        let clip=target.active();
+        let Some(recipe)=&clip.recipe else{return "error:No part recipe".into();};
+        let mut styles=Vec::new();let mut varying=0u8;
+        if let Some(config)=clip.generator {
+            let first=config.at(clip,&target.lane_label,clip.loop_start_steps);
+            for step in clip.loop_start_steps..clip.loop_start_steps+clip.length_steps {
+                let value=config.at(clip,&target.lane_label,step);
+                if !styles.contains(&value.style){styles.push(value.style);}
+                if value.complexity!=first.complexity {varying|=1;}
+                if value.intensity!=first.intensity {varying|=2;}
+                if value.style!=first.style {varying|=4;}
+            }
+        }
+        format!("ps1|{}|{}|{}|{}",clip.length_steps,styles.iter().map(u8::to_string).collect::<Vec<_>>().join(","),varying,recipe.name)
+    }
     pub fn part_load(&mut self,message:&str,out:&mut Vec<OutEvent>) {
         self.part_result=match self.part_load_checked(message,out){Ok(())=>"Loaded - Undo available".into(),Err(error)=>format!("error:{error}")};
     }

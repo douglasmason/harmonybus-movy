@@ -171,6 +171,15 @@ static void test_comp_generator(void){
         snprintf(command,sizeof(command),"rec %d;stop",actor_track);set("cmd",command);render(16);
         snprintf(parameter,sizeof(parameter),"part_export_%d",actor_track);
         assert(api->get_param(instance,parameter,entry,sizeof(entry))>0&&!strncmp(entry,"70617274320a",12));
+        char summary[256],style_list[64],summary_name[48],expected_styles[32];int summary_steps=0,summary_automation=0;
+        assert(api->get_param(instance,"state",before,sizeof(before))>0);
+        snprintf(parameter,sizeof(parameter),"part_summary_%d",actor_track);
+        assert(api->get_param(instance,parameter,summary,sizeof(summary))>0);
+        assert(sscanf(summary,"ps1|%d|%63[^|]|%d|%47s",&summary_steps,style_list,&summary_automation,summary_name)==4);
+        snprintf(expected_styles,sizeof(expected_styles),"%d,%d",style,style+1);
+        assert(summary_steps>0&&summary_steps%16==0&&summary_automation==7&&!strcmp(style_list,expected_styles));
+        assert(!strcmp(summary_name,actor_track==1?"Bass-Generator":"Comp-Generator"));
+        assert(api->get_param(instance,"state",after,sizeof(after))>0&&!strcmp(before,after));
         set("state","movy1\nbpm 12000\nlink 0\ntk 1 0 0\ntk 2 0 0\n");render(8);
         assert(api->get_param(instance,"state",before,sizeof(before))>0);
         snprintf(command,sizeof(command),"guser %d %s %s;play",actor_track,kind,entry);

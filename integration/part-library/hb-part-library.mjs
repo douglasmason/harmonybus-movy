@@ -29,7 +29,9 @@ globalThis.host_module_get_param=oldGet;
 console.log('Comp library: main controls, exclusive routing, selectors and deliberate loading pass');
 
 // Bass reuses the page controller but owns its track, choices and global slots.
-const {userParts,saveUserPart}=await import('../dist/esm/seq/part-storage.js');
+const {transformSync}=await import('esbuild');const {readFileSync}=await import('node:fs');
+// A fresh storage module models restart; dynamic entrypoint imports share bundled state.
+const {userParts,saveUserPart}=await import('data:text/javascript;base64,'+Buffer.from(transformSync(readFileSync('src/seq/part-storage.ts','utf8'),{loader:'ts',format:'esm'}).code).toString('base64'));
 const oldRead=globalThis.host_read_file,oldWrite=globalThis.host_write_file;
 let stored=JSON.stringify({version:1,entries:[{payload:'abcd',synth:'probe'}]});
 globalThis.host_read_file=()=>stored;globalThis.host_write_file=(_path,text)=>{stored=text;};
@@ -40,6 +42,10 @@ assert.equal(JSON.parse(stored).bass[0].payload,'1234');
 globalThis.host_write_file=()=>{};
 assert.equal(saveUserPart(1,{payload:'5678',synth:'probe'},'bass'),false);
 assert.equal(userParts('bass')[1],null,'a failed write does not change accepted slots');
+// Downstream controller suites share the running UI's independently loaded cache.
+globalThis.host_write_file=(_path,text)=>{stored=text;};
+const liveStorage=await import('../dist/esm/seq/part-storage.js');
+assert(liveStorage.saveUserPart(0,userParts('comp')[0],'comp'));assert(liveStorage.saveUserPart(0,userParts('bass')[0],'bass'));
 globalThis.host_read_file=oldRead;globalThis.host_write_file=oldWrite;
 const compChoiceBefore=partRead('cp_style',2);
 assert(partWrite('bp_style','Octaves',1));assert.equal(partRead('bp_style',1),'Octaves');

@@ -456,6 +456,24 @@
         engine.tracks[2].clips[0].recipe.as_mut().unwrap().gate=75;
         let payload=engine.part_export(2);assert!(payload.starts_with("70617274320a"),"{payload}");(engine,payload)
     }
+    #[test] fn part_summary_reports_evaluated_curves_and_source_styles_without_mutation() {
+        for bass in [false,true] {
+            let (engine,_)=saved_user_recipe(bass);let before=engine.undo_snapshot();
+            assert_eq!(engine.part_summary(2),if bass{"ps1|64|12,13,15|7|Bass-Generator"}else{"ps1|64|8,9,11|7|Comp-Generator"});
+            assert_eq!(engine.undo_snapshot(),before);
+        }
+    }
+    #[test] fn part_summary_distinguishes_fixed_locks_from_changes_and_handles_note_styles() {
+        let mut engine=fixture();command(&mut engine,"gexplore 2 8 64 80 1");engine.play();engine.toggle_record(2);ticks(&mut engine,768);command(&mut engine,"rec 2;stop");
+        assert_eq!(engine.part_summary(2),"ps1|32|8|0|Comp-Generator");
+        let lane=engine.tracks[2].lane_label.iter().position(|name|name==LABELS[1]).unwrap();engine.tracks[2].clips[0].set_lock(lane as u8,16,80);
+        assert_eq!(engine.part_summary(2),"ps1|32|8|0|Comp-Generator");
+        engine.tracks[2].clips[0].set_lock(lane as u8,16,110);
+        assert_eq!(engine.part_summary(2),"ps1|32|8|2|Comp-Generator");
+        engine.tracks[2].clips[0]=crate::part_catalog::comp(1).unwrap();
+        assert_eq!(engine.part_summary(2),format!("ps1|16||0|{}",crate::part_catalog::NAMES[1]));
+        assert!(engine.part_summary(99).starts_with("error:"));assert!(engine.part_summary(1).starts_with("error:"));
+    }
     #[test] fn generator_user_recipe_export_import_and_temporary_playback_keep_abstract_curves() {
         for bass in [false,true] {
             let (mut reference,payload)=saved_user_recipe(bass);
