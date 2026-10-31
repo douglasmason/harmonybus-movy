@@ -74,7 +74,8 @@ body.display-expanded{overflow:hidden}
 .engine-controls label{display:flex;align-items:center;gap:8px}
 #move-connection{padding:10px 0;max-width:100%;font-size:14px}
 #move-connection p{margin:8px 0;color:#b7c9bd}
-#move-address{min-width:200px;max-width:100%;padding:8px;border:1px solid #56725e;border-radius:6px;background:#26352b;color:inherit;font:inherit}
+#move-connection .toolbar label{max-width:100%;flex-wrap:wrap}
+#move-address,#move-pairing-key{min-width:0;max-width:100%;padding:8px;border:1px solid #56725e;border-radius:6px;background:#26352b;color:inherit;font:inherit}
 #engine-status[data-state="connected"]{color:#a8f0bf}
 #engine-status[data-state="error"]{color:#ffb2a5}
 .control[data-device-held="true"]{outline:3px solid #fff;outline-offset:-3px}

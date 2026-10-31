@@ -85,7 +85,9 @@ try{
  await page.locator('#move-connect').click();await page.waitForFunction(()=>document.querySelector('#engine-status').dataset.state==='connected');assert.equal(connections,2);
  await page.locator('#move-disconnect').click();await page.waitForFunction(()=>document.querySelector('#engine-status').dataset.state==='disconnected');
  // Actual companion + source-derived stock WS frames driving a separate production DSP fixture.
- await page.locator('#move-transport-enabled').check();await page.locator('#move-pairing-key').fill(pairingKey);await page.locator('#move-connect').click();
+ await page.locator('#move-transport-enabled').check();
+ for(const width of [390,768,1440]){await page.setViewportSize({width,height:850});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Move connection controls fit the viewport');}
+ await page.setViewportSize({width:1024,height:768});await page.locator('#move-pairing-key').fill(pairingKey);await page.locator('#move-connect').click();
  await page.waitForFunction(()=>!document.querySelector('[data-move-transport=play]').disabled);
  assert.equal(await page.locator('#move-pairing-key').inputValue(),'');assert.equal(commands.length,1,'connect only subscribes');
  physicalFixture.request('set','cmd','jrec 1 1');physicalFixture.request('step',1200);

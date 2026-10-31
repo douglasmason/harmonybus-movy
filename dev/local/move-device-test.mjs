@@ -46,14 +46,15 @@ test('bad protocol, failed open, lost connection and stalled heartbeat fail clos
  }
 });
 test('one owner releases before pause, retains browser, ignores stale device frames',async()=>{
- const trace=[],states=[],frames=[],devices=[];let resume;
+ const trace=[],states=[],frames=[],devices=[],controlStates=[];let resume;
  const browser={socket:{send:data=>trace.push(JSON.parse(data))},setActive:async value=>{trace.push(['active',value]);await new Promise(resolve=>{resume=resolve;});}};
  let owner;owner=createMoveConnection({browser,inputs:{disable:()=>owner.send({type:'dev_release'})},pageURL:'http://mac.local',onState:state=>states.push(state),onFrame:frame=>frames.push(frame),openDevice:options=>{const device={...options,close:()=>trace.push('close')};devices.push(device);return device;}});
  owner.watch('surface',['status']);owner.watch('field',['status','ch0:midi_fx1:field_outputs_view2']);
  const switching=owner.select('move');assert.deepEqual(trace.slice(-2),[{type:'dev_release'},['active',false]]);
  owner.connect('move.local');assert.equal(devices.length,0,'no connection before browser pause acknowledgment');resume();await switching;
- assert.equal(states.at(-1).state,'disconnected');owner.connect('move.local');assert.equal(devices.length,1);
- devices[0].onFrame({device:true,marker:1});owner.disconnect();const count=frames.length;devices[0].onFrame({marker:2});assert.equal(frames.length,count);
+ assert.equal(states.at(-1).state,'disconnected');owner.connect('move.local',{onControlState:(...args)=>controlStates.push(args)});assert.equal(devices.length,1);
+ devices[0].onControlState(true,'ready');assert.equal(controlStates.length,1);
+ devices[0].onFrame({device:true,marker:1});owner.disconnect();const count=frames.length;devices[0].onFrame({marker:2});assert.equal(frames.length,count);devices[0].onControlState(true,'stale');assert.equal(controlStates.length,1);assert.equal(owner.transport('play'),false);
  owner.send({type:'move_midi',data:[144,68,100]});assert(!trace.some(value=>value?.type==='move_midi'));
  const back=owner.select('browser');resume();await back;assert.equal(owner.engine,'browser');assert.equal(states.at(-1).state,'browser');
  assert(trace.some(value=>value?.type==='dev_watch'&&value.keys.length===2),'watch union is restored');
