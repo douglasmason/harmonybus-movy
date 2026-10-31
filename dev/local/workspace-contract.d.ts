@@ -44,6 +44,7 @@ export type WorkspaceCommand =
 export interface ConnectionOwner {
  readonly engine: Engine;
  readonly busy: boolean;
+ readonly ready: boolean;
  send(command: WorkspaceCommand): void;
  watch(owner: string, keys: string[]): void;
  select(engine: Engine): Promise<void>;

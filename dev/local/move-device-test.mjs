@@ -58,6 +58,13 @@ test('one owner releases before pause, retains browser, ignores stale device fra
  const back=owner.select('browser');resume();await back;assert.equal(owner.engine,'browser');assert.equal(states.at(-1).state,'browser');
  assert(trace.some(value=>value?.type==='dev_watch'&&value.keys.length===2),'watch union is restored');
 });
+test('failed ownership acknowledgment cannot connect or dispatch to either engine',async()=>{
+ let connections=0,writes=0;const states=[];
+ const browser={socket:{send:()=>writes++},setActive:async()=>{throw new Error('Worker unavailable');}};
+ const owner=createMoveConnection({browser,inputs:{disable(){}},pageURL:'http://mac.local',onState:value=>states.push(value),onFrame(){},openDevice(){connections++;}});
+ await owner.select('move');owner.connect('move.local');assert.equal(connections,0);assert.equal(states.at(-1).state,'error');
+ await owner.select('browser');owner.send({type:'move_midi'});assert.equal(writes,0);assert.equal(owner.acceptBrowserFrame(),false);assert.equal(owner.ready,false);
+});
 test('local companion proxies only the fixed read-only stream, preserving disconnects',async()=>{
  const received=[];let upstreamClosed=false;
  const upstream=createServer((request,response)=>{received.push({method:request.method,path:request.url,cookie:request.headers.cookie});response.writeHead(200,{'Content-Type':'text/event-stream'});response.write('data: '+JSON.stringify(fixture.screen)+'\n\n');response.on('close',()=>{upstreamClosed=true;});});

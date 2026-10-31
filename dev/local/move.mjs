@@ -18,12 +18,12 @@ try{
  let currentMode=null,modeNames='';
  const engineSelector=document.querySelector('#engine'),address=document.querySelector('#move-address');
  const connect=document.querySelector('#move-connect'),disconnect=document.querySelector('#move-disconnect');
- const isBrowser=()=>connection.engine==='browser'&&!connection.busy;
+ const isBrowser=()=>connection.engine==='browser'&&!connection.busy&&connection.ready;
  connection=createMoveConnection({browser,inputs:{disable(){workspace?.suspend();inputs.disable();}},pageURL:location.href,onFrame:frame=>surface.update(frame),
   onState:({engine,state,message})=>{
-   const local=engine==='browser',switching=state==='switching';
+   const local=engine==='browser',switching=state==='switching'||(local&&state==='error');
    if(workspaceAvailable!==(local&&!switching)){workspaceAvailable=local&&!switching;workspace?.setAvailable(workspaceAvailable);}
-   engineSelector.value=engine;engineSelector.disabled=switching;
+   engineSelector.value=engine;engineSelector.disabled=state==='switching';
    document.querySelector('#engine-status').textContent=message;
    document.querySelector('#engine-status').dataset.state=state;
    document.querySelector('#move-connection').hidden=local;
@@ -37,7 +37,7 @@ try{
     playMode.disabled=true;playMode.replaceChildren(new Option('Read on Move display',''));
     currentMode=null;modeNames='';lastTrack=-1;
     feedback.textContent=state==='connected'?'Read-only · use physical controls · audio plays on Move':message;
-    audioStatus.textContent='Browser engine suspended · browser session retained · no session transfer';
+    audioStatus.textContent=connection.ready?'Browser engine suspended · browser session retained · no session transfer':'Waiting for browser suspension acknowledgment';
    }else if(!switching){audioStatus.textContent='Browser audio off · tap Enable audio to listen';}
   }});
  workspace=mountMoveWorkspace({connection,inputs});

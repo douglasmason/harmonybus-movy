@@ -11,7 +11,7 @@ export function mountMoveWorkspace({connection,inputs}){
  const pickers=[...document.querySelectorAll('[data-show-component]')],trackPicker=document.querySelector('#component-track');
  let frame=null,track=0,available=true,layout='stack',trackSelection='follow',order=[...names];
  const shown=new Set(['controls','pads']);
- const valid=()=>available&&connection.engine==='browser'&&!connection.busy;
+ const valid=()=>available&&connection.engine==='browser'&&!connection.busy&&connection.ready;
  /** @type {import('./workspace-contract.d.ts').ParameterBridge} */
  const api={component:'midi_fx1',getParam:key=>Promise.resolve(valid()?cache.get(`ch${track}:${key}`):undefined),setParam(key,value){if(valid())connection.send({type:'set_param',key:`ch${track}:${key}`,value:String(value)});}};
  for(const name of ['field','choices']){
