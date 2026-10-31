@@ -17,7 +17,7 @@ const liveModes=['Exploring','Recording','Preview','Overdub'];
 const recordedModes=['Recorded','Preview','Overdub'];
 const cached=new Map<number,{at:number;value:string[]}>();
 export const generatorBrowseKeys=['cg_actor','cg_genre','cg_family','cg_style'];
-export const generatorKeys=['cg_complexity','cg_intensity','cg_seed','cg_explore','cg_bake','cg_restore'];
+export const generatorKeys=['cg_complexity','cg_intensity','cg_seed','cg_explore','cg_bake','cg_restore','cg_source_style'];
 export function generatorActor():Actor{return selectedActor;}
 export function generatorTarget(comp:number,bass:number):number {tracks={Comp:comp,Bass:bass};selectedTrack=tracks[selectedActor];return selectedTrack;}
 function draft(track=selectedTrack):Draft {
@@ -55,6 +55,7 @@ export function generatorParameters():any[]{return [
  {key:'cg_genre',name:'Genre Filter',short_name:'Genre',type:'enum',options:['All',...genres()],options_as_string:true,default:'All'},
  {key:'cg_family',name:'Pattern Family',short_name:'Family',type:'enum',options:familyChoices(),options_as_string:true,default:familyChoices()[0]},
  {key:'cg_style',name:'Pattern Style',short_name:'Style',type:'enum',options:styleChoices(),short_options:styleChoices().map(name=>shortStyles[name]??name),options_as_string:true,default:styleChoices()[0]},
+ {key:'cg_source_style',name:'Generator Style',short_name:'Style',type:'enum',options:choices('All').map(style=>style.name),short_options:choices('All').map(style=>shortStyles[style.name]??style.name),options_as_string:true,default:choices('All')[0].name},
  ...['complexity','intensity'].map(field=>({key:'cg_'+field,name:field==='complexity'?'Complexity %':'Intensity %',short_name:field==='complexity'?'Complex':'Intens',type:'int',min:0,max:100,step:1,default:field==='complexity'?25:50})),
  {key:'cg_seed',name:'Variation Seed',short_name:'Seed',type:'int',min:1,max:65535,step:1,default:1},
  ...['explore','bake','restore'].map(field=>({key:'cg_'+field,name:field==='explore'?'Explore / Stop':field==='bake'?'Bake Recorded Clip':'Restore Saved Controls',short_name:field==='explore'?'Explore':field==='bake'?'Bake':'Revert',type:'string',readOnly:true}))
@@ -119,6 +120,7 @@ export function generatorRead(key:string,track:number):string|null {
  if(field==='genre')return current.genre;
  if(field==='family')return current.user!==null?'User':styles[config[0]].family;
  if(field==='style')return current.user!==null?userPartLabel(actorKind(),current.user):styles[config[0]].name;
+ if(field==='source_style')return styles[config[0]].name;
  if(field==='complexity'||field==='intensity')return String(Math.round(config[field==='complexity'?1:2]*100/127));
  if(field==='seed')return String(config[3]);
  if(field==='explore')return active(track)?'Stop':'Start';
@@ -148,21 +150,23 @@ export function generatorWrite(key:string,value:string,track:number):boolean|nul
  const next=[...current.config];
  if(field==='family'){const index=styles.findIndex(style=>style.actor===selectedActor&&style.family===value&&(current.genre==='All'||style.genres.includes(current.genre)));if(index<0)return false;next[0]=index;}
  else if(field==='style'){const index=styles.findIndex(style=>style.actor===selectedActor&&style.name===value&&style.family===styles[current.config[0]].family&&(current.genre==='All'||style.genres.includes(current.genre)));if(index<0)return false;next[0]=index;}
+ else if(field==='source_style'){const index=styles.findIndex(style=>style.actor===selectedActor&&style.name===value);if(index<0)return false;next[0]=index;}
  else if(field==='complexity'||field==='intensity'){const number=Number(value);if(!Number.isFinite(number))return false;next[field==='complexity'?1:2]=Math.round(Math.max(0,Math.min(100,number))*127/100);}
  else if(field==='seed'){if(recorded){seqToast('Seed fixed for recorded clips');return false;}if(recordingTarget()===track){seqToast('Seed locked during recording');return false;}const number=Number(value);if(!Number.isFinite(number))return false;next[3]=Math.max(1,Math.min(65535,Math.round(number)));}
  else return true;
+ const control=field==='complexity'?0:field==='intensity'?1:2,controlValue=next[control===2?0:control+1];
  if(current.user!==null){
   if(field==='family'||field==='style'){
    if(recordingTarget()===track){seqToast('Finish this actor take first');return false;}
    const wasActive=active(track);if(wasActive)generatorStop(track);current.user=null;current.config=next;pageDirty=true;
    return wasActive?send(track):true;
   }
-  if(active(track))return editUser(track,field==='complexity'?0:1,next[field==='complexity'?1:2]);
+  if(active(track))return editUser(track,control,controlValue);
   seqToast('Start recipe exploration to change its controls');return false;
  }
  if(styles[current.config[0]].family!==styles[next[0]].family)pageDirty=true;
  current.config=next;
- if(recorded){const index=field==='complexity'?0:field==='intensity'?1:2;return preview(track,Number(state[1]),index,next[index===2?0:index+1]);}
+ if(recorded)return preview(track,Number(state[1]),control,controlValue);
  if(active(track))return send(track);return true;
 }
 export function generatorTouch(key:string,track:number,down:boolean):boolean {

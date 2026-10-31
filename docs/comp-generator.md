@@ -1,4 +1,4 @@
-# Actor generator browser and automation — hbclean.288
+# Actor generator browser and automation — hbclean.289
 
 Chord Play's **Libraries** category now contains a shared Comp/Bass generator.
 Choose an actor first; each actor uses its configured track and keeps its own
@@ -21,6 +21,7 @@ the selected recording slot. The same controls work on Move and in the browser.
 | 4 touch | Start/stop temporary exploration |
 | 5 touch | Bake the selected recorded generator clip |
 | 6 touch | Restore the saved recipe's controls without restarting its phrase |
+| 7 | Style: perform any authored pattern for this actor inside the current recipe |
 | 8 | Existing Range / tap Harmony Off |
 
 Comp retains Quarters, Offbeats, Sparse and 3-3-2. Bass adds Root / Fifth and
@@ -38,6 +39,11 @@ no engine command and never changes the sounding style. The current style/family
 remains visible even if it falls outside the filter, until another is chosen.
 Style itself is recordable at the existing bar boundary. Complexity is a continuous
 control, not another level of folders or a set of duplicated presets.
+
+Generator knob 7 edits the actual Style inside a User recipe while the Browse
+page retains its selected User slot. All styles for the actor remain available
+here, independently of the browser genre filter. It uses the same Style control
+for stock exploration and recorded clips. See [performing Style](generator-style-performance.md).
 
 Comp and Bass can explore together on separate tracks. Switching actors recalls
 the other actor's controls while both keep playing, including during recording

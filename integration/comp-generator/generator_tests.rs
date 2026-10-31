@@ -595,6 +595,39 @@
         let saved=engine.undo_snapshot();let mut restored=fixture();assert!(crate::persist::load(&mut restored,&saved));restored.play();assert_eq!(ticks(&mut restored,1536),captured);
         command(&mut engine,"uswap 1211 1212");assert_eq!(engine.undo_snapshot(),before);
     }
+    #[test] fn generator_user_style_performance_records_only_style_and_replays_with_one_undo() {
+        for bass in [false,true] {
+            let (source,payload)=saved_user_recipe(bass);let mut engine=fixture();
+            let actor=if bass{"bass"}else{"comp"};let style=if bass{12}else{8};
+            let saved=engine.undo_snapshot();command(&mut engine,&format!("guser 2 {actor} {payload};play"));ticks(&mut engine,100);
+            command(&mut engine,&format!("guser 2 edit 2 {}",style+2));ticks(&mut engine,284);
+            assert_eq!(engine.generator_explore[2].unwrap().current.style,style,"style waits for the existing bar boundary");
+            ticks(&mut engine,1);let state=engine.generator_explore[2].unwrap();
+            assert_eq!(state.current.style,style+2);assert_eq!(state.touched,4);assert_eq!(state.current.complexity,90);assert_eq!(state.current.intensity,100);assert_eq!(state.current.seed,37);
+            let before=state.current;command(&mut engine,&format!("guser 2 edit 2 {}",if bass{8}else{12}));
+            assert!(engine.generator_result.contains("this actor"));assert_eq!(engine.generator_explore[2].unwrap().current,before);assert_eq!(engine.undo_snapshot(),saved);
+            command(&mut engine,"grestore 2 0");ticks(&mut engine,384);assert_eq!(engine.generator_explore[2].unwrap().current.style,style+1);assert_eq!(engine.generator_explore[2].unwrap().touched,0);
+            command(&mut engine,"stop");
+            command(&mut engine,&format!("guser 2 {actor} {payload};guser 2 edit 2 {};usnap 1291;rec 2",style+2));
+            ticks(&mut engine,crate::TICKS_PER_BAR-1);let mut captured=ticks(&mut engine,400);
+            // A knob message already in flight at adoption must reach the same
+            // ordinary recorded source, including the Style control.
+            command(&mut engine,&format!("guser 2 edit 2 {}",style+3));
+            captured.extend(ticks(&mut engine,1136).into_iter().map(|(tick,event)|(tick+400,event)));
+            command(&mut engine,"rec 2;ucommit 1291;stop");
+            let clip=&engine.tracks[2].clips[0];let original=&source.tracks[2].clips[0];
+            assert_eq!(clip.length_steps,64);assert_eq!(clip.generator.unwrap().seed,37);assert!(clip.notes.is_empty());
+            for step in 0..64 {
+                let current=clip.generator.unwrap().at(clip,&engine.tracks[2].lane_label,step);
+                let baseline=original.generator.unwrap().at(original,&source.tracks[2].lane_label,step);
+                assert_eq!(current.complexity,baseline.complexity);assert_eq!(current.intensity,baseline.intensity);
+                assert_eq!(current.style,style+if step<32{2}else{3});
+            }
+            let recorded=engine.undo_snapshot();let mut restored=fixture();assert!(crate::persist::load(&mut restored,&recorded));restored.play();
+            assert_eq!(ticks(&mut restored,1536),captured,"recorded style performance preserves both actors' exact onsets and releases");
+            command(&mut engine,"uswap 1291 1292");assert_eq!(engine.undo_snapshot(),saved);
+        }
+    }
     #[test] fn generator_user_recipe_refuses_wrong_actor_and_lossy_edits_before_mutation() {
         let (mut source,payload)=saved_user_recipe(false);let mut engine=fixture();let before=engine.undo_snapshot();
         command(&mut engine,&format!("guser 2 bass {payload}"));assert!(engine.generator_result.contains("another actor"));assert_eq!(engine.undo_snapshot(),before);assert!(engine.generator_explore[2].is_none());

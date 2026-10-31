@@ -1,3 +1,7 @@
+## Perform Style inside saved recipes (hbclean.289)
+
+Turn Generator knob 7 to audition and record Style changes inside Comp or Bass User recipes, preserving their other control curves, seed and loop length. Browse still chooses the library entry; knob 6 Revert resumes its saved automation. Uses the existing Record and Undo paths. See [Style performance](docs/generator-style-performance.md). Pair with HarmonyBus 0.2.310.
+
 ## Restore saved generator controls (hbclean.288)
 
 Touch knob 6 on the Comp or Bass Generator page to resume a User recipe or recorded clip's saved automation without stopping or restarting its phrase. Complexity and Intensity restore at the next step; Style at the next bar. The other actor keeps playing, and saved content remains unchanged. See [Generator Restore](docs/generator-restore.md). Pair with HarmonyBus 0.2.310.
