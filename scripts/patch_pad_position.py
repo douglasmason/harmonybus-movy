@@ -9,8 +9,29 @@ def patch_pad_position(root: Path) -> None:
     assets: Path = Path(__file__).resolve().parent.parent / "integration/pad-position"
     path: Path = root / "src/seq/pad-position.ts"
     path.write_text((assets / "pad-position.ts").read_text())
+    (root / "src/keyboard/position-highlight.ts").write_text((assets / "position-highlight.ts").read_text())
     path = root / "build/browser.mjs"
     source: str = replace_once(path.read_text(), "    entryPoints: [", "    entryPoints: [\n        resolve(root, 'src/seq/pad-position.ts'),")
+    source = replace_once(source, "resolve(root, 'src/keyboard/state.ts'),", "resolve(root, 'src/keyboard/state.ts'),\n        resolve(root, 'src/keyboard/position-highlight.ts'),")
+    path.write_text(source)
+
+    # The cue shares existing LED frames and never changes note ownership.
+    path = root / "src/seq/pads.ts"
+    source = "import { positionHighlight } from '../keyboard/position-highlight.js';\n" + path.read_text()
+    source = replace_once(source, "    const background = restingPadColor(padNote, padMin, track, false, holdNotes);", """    if (holdNotes === null && positionHighlight(padMapFor(track)[index] ?? -1, pianoApproachTarget(track,index))) return C_WHITE;
+    const background = restingPadColor(padNote, padMin, track, false, holdNotes);""")
+    path.write_text(source)
+
+    path = root / "src/surfaces/launchpad.ts"
+    source = "import { positionHighlight } from '../keyboard/position-highlight.js';\nimport { C_WHITE } from '../seq/colors.js';\n" + path.read_text()
+    source = replace_once(source, "            const approach = cell.target >= 0;", """            const approach = cell.target >= 0;
+            if (positionHighlight(cell.pitch,cell.target)) return model === 1 ? 63 : C_WHITE;""")
+    path.write_text(source)
+
+    path = root / "src/seq/joint-play.ts"
+    source = replace_once(path.read_text(), "import { trackColor } from './colors.js';", "import { trackColor, C_WHITE } from './colors.js';\nimport { positionHighlight } from '../keyboard/position-highlight.js';")
+    source = replace_once(source, "    const changes=next.flatMap", """    cells.forEach((cell,index)=>{if(positionHighlight(cell.pitch,cell.target))next[index]=C_WHITE;});
+    const changes=next.flatMap""")
     path.write_text(source)
 
     path = root / "src/keyboard/layouts.ts"
@@ -126,6 +147,7 @@ export function invalidateHarmonyPadGeometry(): void {
     # Tests exercise the real input and lighting paths, not a second implementation.
     path = root / "browser-test/hb-pad-position.mjs"
     path.write_text((assets / "hb-pad-position.mjs").read_text())
+    (root / "browser-test/hb-position-highlight.mjs").write_text((assets / "hb-position-highlight.mjs").read_text())
 
     # Show the resolved destination separately from editable input coordinates.
     # Reading the existing footer snapshot adds no native polling or key mapping.

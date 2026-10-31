@@ -36,7 +36,7 @@ def append_lowercase(path: Path, table_name: str, glyphs: list[list[int]]) -> No
 
 
 def tamzen_lowercase(schwung_root: Path) -> list[list[int]]:
-    """Retain Tamzen's lowercase, with compact descenders inside its 7-row band."""
+    """Normalize lowercase extents to the existing seven-row value band."""
     source: str = (schwung_root / 'fonts/tamzen/Tamzen6x12r.bdf').read_text()
     glyphs: dict[str, list[int]] = {}
     block: str
@@ -54,7 +54,13 @@ def tamzen_lowercase(schwung_root: Path) -> list[list[int]]:
     glyphs.update(g=[0, 0, 14, 17, 30, 16, 14], j=[4, 0, 4, 4, 4, 5, 2],
                   p=[0, 0, 15, 17, 15, 1, 1], q=[0, 0, 30, 17, 30, 16, 16],
                   y=[0, 0, 17, 17, 30, 16, 14])
-    return [[6, 0, 5, 7, *glyphs[letter]] for letter in string.ascii_lowercase]
+    normalized: list[list[int]] = []
+    for letter in string.ascii_lowercase:
+        rows = glyphs[letter]
+        occupied: list[int] = [index for index, row in enumerate(rows) if row]
+        rows = rows[occupied[0]:occupied[-1] + 1]
+        normalized.append([6, 0, 5, 7, *(rows[index * len(rows) // 7] for index in range(7))])
+    return normalized
 
 
 def patch_settings_case(root: Path) -> None:
@@ -81,13 +87,13 @@ def patch_settings_case(root: Path) -> None:
     pages: Path = vendor / 'param_pages'
     lower: dict[str, list[int]] = json.loads((assets / 'lowercase.json').read_text())
     compact: dict[str, list[int]] = dict(lower)
-    compact.update(a=[3, 0, 6, 5, 5, 6], b=[3, 1, 1, 3, 5, 3],
-                   d=[3, 4, 4, 6, 5, 6], e=[3, 0, 2, 5, 3, 6],
-                   g=[3, 0, 6, 5, 6, 4], h=[3, 1, 1, 3, 5, 5],
-                   m=[3, 0, 0, 7, 7, 5], n=[3, 0, 0, 3, 5, 5],
-                   o=[3, 0, 0, 2, 5, 2], p=[3, 0, 3, 5, 3, 1],
-                   q=[3, 0, 6, 5, 6, 4], u=[3, 0, 0, 5, 5, 6],
-                   w=[3, 0, 0, 5, 7, 7])
+    compact.update(a=[3, 2, 4, 6, 5, 6], b=[3, 1, 1, 3, 5, 3],
+                   d=[3, 4, 4, 6, 5, 6], e=[3, 2, 5, 7, 1, 6],
+                   g=[3, 6, 5, 6, 4, 3], h=[3, 1, 1, 3, 5, 5],
+                   m=[3, 7, 7, 5, 5, 5], n=[3, 3, 5, 5, 5, 5],
+                   o=[3, 2, 5, 5, 5, 2], p=[3, 3, 5, 3, 1, 1],
+                   q=[3, 6, 5, 6, 4, 4], u=[3, 5, 5, 5, 5, 6],
+                   w=[3, 5, 5, 7, 7, 7])
     append_lowercase(pages / 'font4x5.mjs', 'G',
                      [[data[0] + 1, 0, data[0], 5, *data[1:]] for data in lower.values()])
     append_lowercase(pages / 'font5x3.mjs', 'G5',
@@ -145,6 +151,16 @@ function preAbbreviate(label, budget) {''')
         if count != 1:
             raise RuntimeError(f'Missing Movy glyph {letter}')
     path.write_text(source)
+    # Notation opts in to the old small glyphs; every ordinary renderer keeps
+    # the normalized atlas. Advances match, so font choice cannot reflow text.
+    roman: dict[str, list[int]] = json.loads((assets / 'roman-lowercase.json').read_text())
+    roman_glyphs: list[list[int]] = [
+        [data[0] + 2, 0, data[0] + 2, 5, *(row << 1 for row in data[1:])]
+        for data in roman.values()]
+    (root / 'src/font/notation.ts').write_text(
+        "import {G} from './glyphs.js';\nimport type {Glyph} from './blit.js';\n"
+        + 'const lowercase: Glyph[] = ' + json.dumps(roman_glyphs) + ';\n'
+        + 'export const notationGlyph = (code:number):Glyph|null => code>=97&&code<=122 ? lowercase[code-97] : G[code-32]??null;\n')
     path = root / 'src/font/glyphs5x3.ts'
     path.write_text(path.read_text() + '\nG5.push(...' + json.dumps(
         [[4, 0, data[0], 5, *data[1:]] for data in compact.values()]) + ');\n')

@@ -689,6 +689,8 @@ def main() -> int:
     patch_library_names(root)
     from patch_chord_discovery import patch_discovery_context
     patch_discovery_context(root)
+    from patch_operation_labels import patch_operation_labels
+    patch_operation_labels(root)
     print("HarmonyBus clean integration applied")
     return 0
 

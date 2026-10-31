@@ -1,11 +1,10 @@
-import {G} from '../font/glyphs.js';
-import {drawGlyphRun, glyphRunWidth, type Glyph} from '../font/blit.js';
+import {notationGlyph} from '../font/notation.js';
+import {drawGlyphRun, glyphRunWidth} from '../font/blit.js';
 import {registerWidget,isWidgetAvailable} from '../renderer/schwung-widgets.js';
 import {chordDegrees,intentLabel,type ChordStatus} from './chord-colors.js';
 
-// Chord notation uses the same mixed-case atlas as every other Movy panel.
-const glyph=(code:number):Glyph|null=>G[code-32]??null;
-export const chordTextWidth=(text:string):number=>glyphRunWidth(text,glyph,5,-1);
+// Both chord spelling and Roman quality benefit from contrasting letter heights.
+export const chordTextWidth=(text:string):number=>glyphRunWidth(text,notationGlyph,5,-1);
 
 /** Display notation only: quality and spelling come from the native chord name. */
 export function chordRoman(intent:number,target:number,status:ChordStatus|undefined):string {
@@ -22,7 +21,7 @@ export function chordRoman(intent:number,target:number,status:ChordStatus|undefi
 export function chordLabelMetadata(index:number,intent:number,target:number,status:ChordStatus|undefined):Record<string,unknown> {
     const chordName=status?.name??'--';
     return {name:(index+1)+' '+chordName,label:(index+1)+' '+chordName,
-        short_name:String(index+1),chordName,chordRoman:chordRoman(intent,target,status),chordIntent:intent,chordTarget:target};
+        short_name:String(index+1),movy_full_cell:true,chordName,chordRoman:chordRoman(intent,target,status),chordIntent:intent,chordTarget:target};
 }
 
 function fitChordText(text:string,width:number):string {
@@ -39,14 +38,15 @@ export function registerChordLabels():void {
     if(isWidgetAvailable(kind))return;
     registerWidget(kind,{draw(ctx:any,{group,metaIndex}:any):void {
         const key=group.keys[0],meta=metaIndex.getOrGuess(key);
-        const width=ctx.width,height=ctx.height;
+        const width=ctx.width,height=ctx.height,active=!!group.movyTouched;
+        ctx.fillRect(1,0,width-2,height,active?1:0);
         const names=[String(meta.chordName??'--'),String(meta.chordRoman??'')].filter(Boolean);
         const firstY=Math.floor((height-(names.length*6-1))/2);
         ctx.fillRect(1,0,width-2,1,1);ctx.fillRect(1,height-1,width-2,1,1);
         ctx.fillRect(1,0,1,height,1);ctx.fillRect(width-2,0,1,height,1);
         names.forEach((name,index)=>{
             const text=fitChordText(name,width-6);
-            drawGlyphRun(Math.floor((width-chordTextWidth(text))/2),firstY+index*6,text,1,glyph,5,-1,
+            drawGlyphRun(Math.floor((width-chordTextWidth(text))/2),firstY+index*6,text,active?0:1,notationGlyph,5,-1,
                 (x,y,w,h,color)=>ctx.fillRect(x,y,w,h,color));
         });
     }});

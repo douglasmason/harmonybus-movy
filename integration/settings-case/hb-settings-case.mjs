@@ -35,8 +35,10 @@ for(const [name,print,height] of [
 ])for(const letter of alphabet){
     const lower=capture(()=>print(letter)),upper=capture(()=>print(letter.toUpperCase()));
     assert(lower.some(Boolean),name+' draws '+letter);
-    assert.notDeepEqual(lower,upper,name+' distinguishes '+letter);
+    if('im'.includes(letter))assert.notDeepEqual(lower,upper,name+' distinguishes '+letter);
     assert(!lower.slice(height*128).some(Boolean),name+' keeps its height for '+letter);
+    assert(lower.slice(0,128).some(Boolean),name+' gives '+letter+' the common top line');
+    assert(lower.slice((height-1)*128,height*128).some(Boolean),name+' gives '+letter+' the common baseline');
 }
 for(const font of [font4.missingGlyphs4x5,font3.missingGlyphs5x3,tamzen.missingGlyphs])
     assert.equal(font(alphabet+'ABCDEFGHIJKLMNOPQRSTUVWXYZ').size,0);
@@ -73,6 +75,12 @@ if(process.env.CASE_PIXELS)writeFileSync(process.env.CASE_PIXELS,JSON.stringify(
 visit('cp_reset');
 const setup=capture(()=>chord.renderChord());
 if(process.env.CASE_SETUP_PIXELS)writeFileSync(process.env.CASE_SETUP_PIXELS,JSON.stringify([...setup]));
+const {createSchwungPage}=await import('../dist/esm/renderer/schwung-page.js');
+const {portFor}=await import('../dist/esm/track/registry.js');
+const normal=createSchwungPage(portFor(3),'midi_fx1',{harmonyMode:0});
+assert(normal.ready,'Normal Play uses the same packaged renderer');
+const normalPixels=capture(()=>normal.render('Normal Play'));
+if(process.env.CASE_NORMAL_PIXELS)writeFileSync(process.env.CASE_NORMAL_PIXELS,JSON.stringify([...normalPixels]));
 // A raw-device import would silently make these tests pass against a different
 // library than the installed bundle. All six entry points must be local.
 const door=readFileSync(new URL('../src/renderer/schwung-lib.ts',import.meta.url),'utf8');

@@ -43,6 +43,15 @@ through position changes and release correctly; the next press uses the new map.
 Recorded notes retain their source degrees and follow later parent-key changes.
 The parent readout reuses the normal and Joint preview caches without extra polls.
 
+After an actual position change, the input tonic briefly lights white for 1.2
+seconds (bright amber on the original Mini). Approach pads resolving to that
+tonic join the cue, making the whole tonic column visible in Approach layouts.
+Fourth-based layouts mark only actual tonic pitches. Normal/Chord Play, Joint
+Play and Launchpad X/Mini share this cue in their existing LED frames. A further
+move renews it; blocked endpoints do not. Track, Set/engine generation, key or
+layout changes cancel it. It adds no native polling, MIDI notes or settings
+redraw timer, and normal pad colors return automatically.
+
 Install HarmonyBus **0.2.307** from `douglasmason/harmonybus` and Movy
 **0.34.1-hbclean.275** from `douglasmason/harmonybus-movy` through Schwung's
 repository installer, then restart. Resolved-operation feedback, Chord Discovery, adaptive operations,
