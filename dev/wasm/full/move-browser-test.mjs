@@ -7,6 +7,7 @@ const server=serve(0,process.env.WASM_PACKAGED?new URL('../build/site/',import.m
 await new Promise(resolve=>server.once('listening',resolve));
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required']});
 let page;
+const encoderTrace=[];
 try{
  page=await browser.newPage({viewport:{width:1024,height:768},hasTouch:true});const errors=[];
  page.on('pageerror',error=>errors.push(error.message));
@@ -106,13 +107,15 @@ try{
  await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')==='None');
  assert.match(await page.locator('#encoder option[value="72"]').textContent(),/Follower Travel/);
  await page.locator('#encoder').selectOption('72');
- for(let detent=0;detent<4;detent++)await button('Knob 2 turn right').click();
+ const traceEncoder=async action=>encoderTrace.push({action,...await page.evaluate(async()=>({value:await __wasmRead('ch3:midi_fx1:travel_map'),display:document.querySelector('[aria-label="Knob 2"] .knob-value').textContent,shift:document.querySelector('#shift').checked,selected:document.querySelector('#encoder').value,held:[...document.querySelectorAll('[data-held=true]')].map(element=>element.getAttribute('aria-label'))}))});
+ await traceEncoder('before');
+ for(let detent=0;detent<4;detent++){await button('Knob 2 turn right').click();await traceEncoder('right '+detent);}
  await page.waitForFunction(()=>document.querySelector('[aria-label="Knob 2"] .knob-value').textContent!=='None'&&document.querySelector('[aria-label="Knob 2"] .knob-value').textContent!=='');
  assert.equal(await button('Knob 2').locator('.knob-value').textContent(),await page.evaluate(()=>__wasmRead('ch3:midi_fx1:travel_map')));
  // The last action sets its gesture label immediately; the next engine frame
  // restores the parameter description, even if the value was already nonzero.
  await page.waitForFunction(()=>document.querySelector('#control-status').textContent.includes('Follower Travel'));
- for(let detent=0;detent<4;detent++)await button('Knob 2 turn left').click();
+ for(let detent=0;detent<4;detent++){await button('Knob 2 turn left').click();await traceEncoder('left '+detent);}
  await page.waitForFunction(()=>document.querySelector('[aria-label="Knob 2"] .knob-value').textContent==='None');
  await button('Note / Session').tap();
  await page.waitForFunction(()=>[...document.querySelectorAll('.knob-name')].every(element=>element.textContent===''));
@@ -346,6 +349,7 @@ try{
  assert.equal(await page.locator('#error').textContent(),'');assert.deepEqual(errors,[]);
  console.log('PASS adaptable HB/Movy touch surface, clip edit/Undo/Redo, PCM, independent audio clock, preserved session archives, Chord Play Record/Stop/Save/Reload/Play without mode reselection, track 16, tablet/phone layouts and offline gestures');
 }catch(error){
+ console.error('Encoder trace:',encoderTrace);
  if(page)console.error('Move browser failure:',await page.evaluate(async()=>({feedback:document.querySelector('#feedback')?.textContent,error:document.querySelector('#error')?.textContent,held:[...document.querySelectorAll('[data-held=true]')].map(el=>el.getAttribute('aria-label')),state:await globalThis.__wasmRead?.('state'),stats:await globalThis.__wasmStats?.()})).catch(String));
  throw error;
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
