@@ -24,10 +24,21 @@ the page does not infer 1.7.3 from a valid frame. Audio continues on Move.
 
 ## Supported network paths
 
-A public HTTPS page cannot connect to Move's plain HTTP/WS services as mixed
-content. This applies to iPad Safari too; same-LAN routing and CORS do not remove
-that restriction. The app rejects such a URL before starting a request. It
-does not disable browser security or work around certificate validation.
+This workspace requires HTTPS endpoints when opened from the hosted HTTPS
+trial. Plain HTTP/WS is subject to mixed-content blocking; same-LAN routing and
+CORS alone do not establish browser permission. The app rejects insecure URLs
+before making a request, rather than relying on version-specific exceptions.
+
+Browser support is evolving: the [Local Network Access draft](https://wicg.github.io/local-network-access/)
+allows permission-mediated mixed-content exceptions, and [WebKit landed related
+changes in September 2026](https://bugs.webkit.org/show_bug.cgi?id=297739).
+Its [implementation tracker](https://bugs.webkit.org/show_bug.cgi?id=250607)
+remains open. These are not evidence that the user's iPad Safari supports the
+complete path. This increment does not probe experimental flags or claim a
+successful physical Safari test. It never disables security or TLS validation.
+Apple's [local-network privacy note](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)
+exempts Safari traffic from the app-level permission; that does not waive web
+mixed-content, CORS or future site-level network permission checks.
 
 The simplest local path is the included read-only companion on a computer on
 the same trusted LAN. It serves the **same packaged workspace** and proxies one

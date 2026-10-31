@@ -5,7 +5,7 @@ export function deviceStreamURL(address,pageURL){
  if(!value)throw new Error('Enter the Move or companion address.');
  const url=new URL(value.includes('://')?value:'http://'+value);
  if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.search||url.hash||url.pathname!=='/')throw new Error('Use an HTTP or HTTPS address with an optional port, without a path or credentials.');
- if(page.protocol==='https:'&&url.protocol!=='https:')throw new Error('This HTTPS page cannot connect to an HTTP Move. Open the local companion interface, or use a trusted HTTPS endpoint.');
+ if(page.protocol==='https:'&&url.protocol!=='https:')throw new Error('This workspace requires an HTTPS endpoint when hosted over HTTPS. Open the local companion interface, or use a trusted HTTPS endpoint.');
  return new URL('/stream-auto?v=2',url).href;
 }
 function bytes(value,length){
