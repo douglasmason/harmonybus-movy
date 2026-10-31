@@ -71,6 +71,8 @@ export function mountMoveDisplay(inputs){
 function mountDisplayView(inputs){
  const row=document.querySelector('.display-row'),expand=document.querySelector('#display-expand');
  const home=document.createComment('Movy display position');row.before(home);
+ const playback=document.querySelector('.playback-controls');
+ const playbackHome=document.createComment('Movy playback position');playback.before(playbackHome);
  const dialog=document.createElement('dialog');dialog.id='display-dialog';
  dialog.setAttribute('aria-label','Enlarged Movy display');
  const header=document.createElement('div');header.className='display-dialog-header';
@@ -79,19 +81,24 @@ function mountDisplayView(inputs){
  header.append(title,close);dialog.append(header);document.body.append(dialog);
  function restore(){
   if(inputs.isHeld())inputs.release();
-  home.after(row);expand.hidden=false;expand.setAttribute('aria-expanded','false');
+  home.after(row);playbackHome.after(playback);expand.hidden=false;expand.setAttribute('aria-expanded','false');
   document.body.classList.remove('display-expanded');expand.focus({preventScroll:true});
  }
  expand.onclick=()=>{
   // Reparenting a captured control could interrupt its original release.
   if(inputs.isHeld()||dialog.open)return;
-  dialog.append(row);expand.hidden=true;expand.setAttribute('aria-expanded','true');
+  header.append(playback);dialog.append(row);expand.hidden=true;expand.setAttribute('aria-expanded','true');
   document.body.classList.add('display-expanded');dialog.showModal();close.focus();
  };
  close.onclick=()=>dialog.close();
  dialog.addEventListener('close',restore);
+ // Disabling Enable audio during startup can move focus to body. Handle an
+ // idle Escape before the global release handler even in that focus state;
+ // leave its native default action intact so the modal still closes.
+ document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&dialog.open&&!inputs.isHeld())event.stopPropagation();
+ },true);
  dialog.addEventListener('keydown',event=>{
-  if(event.key==='Escape'&&!inputs.isHeld())event.stopPropagation();
   if(event.key==='Tab'){
    const focusable=[...dialog.querySelectorAll('button,select,input,[tabindex]')]
     .filter(element=>!element.disabled&&element.tabIndex>=0&&element.getClientRects().length);
