@@ -21,9 +21,12 @@ cc -O1 -shared -fPIC "$CHAIN_SOURCE/chain_host.c" "$CHAIN_SOURCE/chain_json.c" \
   "$CHAIN_SOURCE/chain_scene.c" "$CHAIN_SOURCE/chain_chance.c" \
   "$CHAIN_SOURCE/chain_lanes.c" "$FIXTURE_ROOT/lane_store.o" "$FIXTURE_ROOT/lane_serial.o" "$FIXTURE_ROOT/lane_edit.o" \
   "$SCHWUNG_SOURCE/src/host/unified_log.c" -I"$SCHWUNG_SOURCE/src" -lm -ldl -lpthread -o "$FIXTURE_ROOT/chain/dsp.so"
-cc -O1 -shared -fPIC -include sys/mman.h -include unistd.h \
+# Match the local host's isolation so concurrent test runs cannot change this
+# process's shared key/scale/voicing defaults while its queue is playing.
+cc -O1 -fPIC -c "$INTEGRATION_ROOT/dev/local/isolate.c" -o "$FIXTURE_ROOT/isolate.o"
+cc -O1 -shared -fPIC -include sys/mman.h -include unistd.h -Dshm_open=hb_dev_shm_open \
   "$HB_SOURCE/modules/harmonybus/dsp/harmonybus.c" "$HB_SOURCE/src/harmony_core.c" \
-  -lm -o "$FIXTURE_ROOT/midi_fx/harmonybus/dsp.so"
+  "$FIXTURE_ROOT/isolate.o" -lm -o "$FIXTURE_ROOT/midi_fx/harmonybus/dsp.so"
 cp "$HB_SOURCE/modules/harmonybus/module.json" "$FIXTURE_ROOT/midi_fx/harmonybus/module.json"
 cc -O1 -shared -fPIC -I"$SCHWUNG_SOURCE/src" "$INTEGRATION_ROOT/tests/audio_probe.c" -o "$FIXTURE_ROOT/sound_generators/probe/dsp.so"
 cat > "$FIXTURE_ROOT/sound_generators/probe/module.json" <<'JSON'

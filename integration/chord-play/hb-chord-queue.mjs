@@ -54,9 +54,22 @@ conductorControls.setParam('midi_fx1:hb_chord_queue_status','cq1|1|-1|C|G7|1|1|3
 const queuePage=chord.chordPage();queuePage.goToPage(0);
 assert.match(chord.chordContextTrail(),/Hold 1\/3 \[C\] G7/);
 conductorControls.setParam('midi_fx1:hb_chord_queue_status','cq1|2|4|C|C|1|0|2|1|0|2|C|C');
-clock+=101;chord.tickChord();assert.equal(chord.chordContextTrail(),'Loop [C] C');
+clock+=101;chord.tickChord();assert.equal(chord.chordContextTrail(),'Loop 1/2 [C] C');
 appState.dirty=false;conductorControls.setParam('midi_fx1:hb_chord_queue_status','cq1|2|4|C|C|1|0|2|1|1|2|C|C');
-clock+=101;chord.tickChord();assert.equal(chord.chordContextTrail(),'Loop C [C]');assert(appState.dirty,'identical chord advances still repaint the cursor');
+clock+=101;chord.tickChord();assert.equal(chord.chordContextTrail(),'Loop 2/2 C [C]');assert(appState.dirty,'identical chord advances still repaint the cursor');
+// The first chord is previewed while stopped; it remains one of four loop entries.
+conductorControls.setParam('midi_fx1:hb_chord_queue_status','cq1|3|-1|C|G|1|0|4|1|0|4|C|G|F|D');
+clock+=101;chord.tickChord();assert.equal(port.getParam('midi_fx1:cp_queue_count'),'Loop 1/4');
+assert.equal(chord.chordContextTrail(),'Loop 1/4 [C] G F D');
+const {seqToastText,seqToastTick}=await import('../dist/esm/seq/render.js');
+for(let tick=0;tick<1000;tick++)seqToastTick();
+chord.selectChordSlot(0);assert.equal(seqToastText(),'','enqueue does not publish a stale count toast');
+// Generic performance feedback must not overwrite the queue even if enabled.
+const {setFlag}=await import('../dist/esm/seq/flags.js');
+const {drawHbPerformanceMode}=await import('../dist/esm/renderer/hb-performance.js');
+const oldFill=globalThis.fill_rect,fills=[];setFlag('hbsteprow',1);
+globalThis.fill_rect=(...args)=>fills.push(args);drawHbPerformanceMode();
+globalThis.fill_rect=oldFill;assert.equal(fills.length,0,'Chord Play owns its footer');
 chord.harmonyOff();
 
 // The shared motif loader gets an explicit conductor owner, while melody pads
