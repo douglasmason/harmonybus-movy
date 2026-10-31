@@ -4,23 +4,37 @@ import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {once} from 'node:events';
 import {chromium} from '../../local/node_modules/playwright/index.mjs';
-import {serve} from '../serve.mjs';
-const site=serve(0,process.env.WASM_PACKAGED?new URL('../build/site/',import.meta.url):null);
-await once(site,'listening');
+import {createDeviceServer} from '../../local/move-device-server.mjs';
+import {WebSocketServer} from '../../local/node_modules/ws/wrapper.mjs';
+import {createFullEngine} from './engine.mjs';
+const physicalFixture=await createFullEngine(),commands=[],pairingKey='b'.repeat(64);
+physicalFixture.request('set','joint_map',Array(32).fill('0,60,-1,0').join(';'));
 const fixture=JSON.parse(await readFile(new URL('../../local/fixtures/move-mirror-v1.json',import.meta.url)));
 const clients=new Set();let connections=0;
 const move=createServer((request,response)=>{
+ if(request.url==='/api/remote-ui/module-assets/movy/module.json'){response.setHeader('Content-Type','application/json');response.end(JSON.stringify({id:'movy',version:'0.34.0'}));return;}
  assert.equal(request.url,'/stream-auto?v=2');assert.equal(request.method,'GET');connections++;
  response.writeHead(200,{'Content-Type':'text/event-stream','Access-Control-Allow-Origin':'*'});clients.add(response);
  response.write('data: '+JSON.stringify(fixture.screen)+'\n\nevent: surface\ndata: '+JSON.stringify(fixture.surface)+'\n\n');
  const timer=setInterval(()=>response.write('event: hb\ndata: '+JSON.stringify(fixture.heartbeat)+'\n\n'),500);
  response.on('close',()=>{clearInterval(timer);clients.delete(response);});
 }).listen(0,'127.0.0.1');await once(move,'listening');
+const moveWS=new WebSocketServer({server:move});
+moveWS.on('connection',(socket,request)=>{
+ assert.equal(request.url,'/ws/remote-ui');
+ socket.on('message',data=>{
+  const message=JSON.parse(data.toString());commands.push(message);
+  if(message.type==='subscribe_tool')socket.send(JSON.stringify({type:'tool_info',id:'movy'}));
+  else{assert.equal(message.type,'set_param');assert.equal(message.key,'overtake_dsp:cmd');physicalFixture.request('set','cmd',message.value);}
+ });
+});
+const reservation=createServer().listen(0,'127.0.0.1');await once(reservation,'listening');const port=reservation.address().port;await new Promise(resolve=>reservation.close(resolve));
+const origin=`http://127.0.0.1:${port}`,site=createDeviceServer({siteRoot:new URL('../build/site/',import.meta.url),moveAddress:`http://127.0.0.1:${move.address().port}`,origin,pairingKey});
+site.listen(port,'127.0.0.1');await once(site,'listening');
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
 let page;
 try{
  page=await browser.newPage({viewport:{width:1024,height:768}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
- const origin=`http://127.0.0.1:${site.address().port}`;
  await page.goto(origin+'/joint/?view=field');await page.waitForURL('**/move/?view=field');
  await page.waitForFunction(()=>!document.querySelector('#engine').disabled);
  await page.locator('[data-workspace=field] #status').filter({hasText:'Connected'}).waitFor();
@@ -61,7 +75,7 @@ try{
  assert(!(await page.locator('[data-workspace=field] .component-content').isVisible()));
  assert(await page.getByRole('button',{name:'Pad 1',exact:true}).isDisabled());
  const stopped=await page.evaluate(()=>__wasmStats());await page.waitForTimeout(300);assert.equal((await page.evaluate(()=>__wasmStats())).blocksProcessed,stopped.blocksProcessed);
- await page.locator('#move-address').fill(`http://127.0.0.1:${move.address().port}`);await page.locator('#move-connect').click();
+ await page.locator('#move-address').fill(origin);await page.locator('#move-connect').click();
  await page.waitForFunction(()=>document.querySelector('#engine-status').textContent.includes('screen & LEDs'));
  await page.waitForFunction(()=>document.querySelector('[aria-label="Pad 1"]').dataset.deviceHeld==='true');
  assert.equal(connections,1);assert.equal(await page.locator('#display-sharp').isDisabled(),true);
@@ -70,6 +84,22 @@ try{
  await page.waitForTimeout(400);assert.equal(connections,1,'loss never silently reconnects');
  await page.locator('#move-connect').click();await page.waitForFunction(()=>document.querySelector('#engine-status').dataset.state==='connected');assert.equal(connections,2);
  await page.locator('#move-disconnect').click();await page.waitForFunction(()=>document.querySelector('#engine-status').dataset.state==='disconnected');
+ // Actual companion + source-derived stock WS frames driving a separate production DSP fixture.
+ await page.locator('#move-transport-enabled').check();await page.locator('#move-pairing-key').fill(pairingKey);await page.locator('#move-connect').click();
+ await page.waitForFunction(()=>!document.querySelector('[data-move-transport=play]').disabled);
+ assert.equal(await page.locator('#move-pairing-key').inputValue(),'');assert.equal(commands.length,1,'connect only subscribes');
+ physicalFixture.request('set','cmd','jrec 1 1');physicalFixture.request('step',1200);
+ physicalFixture.request('midi','144,68,100');physicalFixture.request('step',64);physicalFixture.request('midi','128,68,0');
+ await page.locator('[data-move-transport=stop]').click();await page.waitForFunction(()=>document.querySelector('#move-transport-status').textContent.includes('Stop request sent'));
+ assert.match(physicalFixture.request('get','status').value,/rec=0/);assert.match(physicalFixture.request('get','status').value,/play=0/);
+ await page.locator('[data-move-transport=play]').click();await page.waitForFunction(()=>document.querySelector('#move-transport-status').textContent.includes('Play request sent'));
+ assert.match(physicalFixture.request('get','status').value,/play=1/);
+ assert(physicalFixture.request('step',1500).events.some(packet=>(packet[1]&240)===144&&packet[2]===60&&packet[3]>0),'remote Play replays the production recording');
+ assert(await page.getByRole('button',{name:'Pad 1',exact:true}).isDisabled());
+ for(const socket of moveWS.clients)socket.terminate();await page.waitForFunction(()=>document.querySelector('[data-move-transport=play]').disabled);
+ const sent=commands.length;await page.waitForTimeout(300);assert.equal(commands.length,sent,'transport loss never reconnects or replays');
+ await page.locator('#move-disconnect').click();assert.match(physicalFixture.request('get','status').value,/play=1/,'disconnect does not stop the device');
+ physicalFixture.request('set','cmd','stop');
  await page.locator('#engine').selectOption('browser');await page.waitForFunction(()=>!document.querySelector('[aria-label="Pad 1"]').disabled);
  assert.equal(await page.evaluate(()=>__wasmRead('state')),savedState,'device mirror never overwrites the browser session');
  assert.equal(await page.locator('#audio').getAttribute('aria-pressed'),'false');
@@ -78,6 +108,6 @@ try{
  for(const name of ['field','choices','song','lights'])assert(await page.locator(`[data-workspace=${name}]`).isVisible());
  assert.equal(await page.locator('[data-workspace]').evaluateAll(nodes=>nodes.map(node=>node.dataset.workspace).indexOf('field')),1);
  for(const width of [390,768,1440]){await page.setViewportSize({width,height:850});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));}
- assert.deepEqual(errors,[]);console.log('Unified workspace: shared edits, composition, Song, persistence, live mirror, loss, reconnect and engine ownership pass');
+ assert.deepEqual(errors,[]);console.log('Unified workspace: shared edits, composition, Song, persistence, live mirror, authenticated transport, real DSP record/replay, loss, reconnect and engine ownership pass');
 }catch(error){if(page)console.error(await page.locator('#error').textContent(),await page.locator('#engine-status').textContent());throw error;}
-finally{await browser.close();for(const client of clients)client.destroy();site.closeAllConnections();move.closeAllConnections();await Promise.all([new Promise(resolve=>site.close(resolve)),new Promise(resolve=>move.close(resolve))]);}
+finally{await browser.close();for(const socket of moveWS.clients)socket.terminate();moveWS.close();physicalFixture.dispose();for(const client of clients)client.destroy();site.closeAllConnections();move.closeAllConnections();await Promise.all([new Promise(resolve=>site.close(resolve)),new Promise(resolve=>move.close(resolve))]);}

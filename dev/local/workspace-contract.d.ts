@@ -2,6 +2,7 @@
 export type Engine = 'browser' | 'move';
 export type ConnectionState = 'browser' | 'switching' | 'disconnected' | 'connecting' | 'connected' | 'error';
 export interface Capabilities {
+ transport?: boolean;
  input: boolean;
  semantic: boolean;
  audio: boolean;
@@ -48,7 +49,9 @@ export interface ConnectionOwner {
  send(command: WorkspaceCommand): void;
  watch(owner: string, keys: string[]): void;
  select(engine: Engine): Promise<void>;
- connect(address: string): void;
+ connect(address: string, options?: {pairingKey?: string; onControlState?: (ready: boolean, message: string) => void}): void;
+ /** Explicit commands, never inferred from LED state. No execution acknowledgment. */
+ transport(action: 'play' | 'stop'): boolean;
  disconnect(): void;
  acceptBrowserFrame(): boolean;
 }

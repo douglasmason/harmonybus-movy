@@ -1,5 +1,6 @@
-/** Read the existing Schwung 1.7.3 mirror. No device writes or emulator state. */
-export const deviceCapabilities=Object.freeze({input:false,semantic:false,audio:false,hostVersion:null});
+/** Existing Schwung mirror plus an explicitly paired companion transport. */
+import {openDeviceControl} from './move-device-control.mjs';
+export const deviceCapabilities=Object.freeze({input:false,semantic:false,audio:false,transport:false,hostVersion:null});
 export function deviceStreamURL(address,pageURL){
  const page=new URL(pageURL),value=String(address).trim();
  if(!value)throw new Error('Enter the Move or companion address.');
@@ -31,11 +32,11 @@ export function blankDeviceFrame(){
  return {device:true,ready:false,track:null,screen:new Uint8Array(8192),surface:new Uint8Array(2232),displayRevision:0,display:null,panels:null,knobLabels:null,padLabels:null,stepLabels:null};
 }
 /** One explicit connection. EventSource retries are closed; reconnect is a user action. */
-export function openDeviceConnection({url,onFrame,onState,EventSourceClass=globalThis.EventSource,timeout=7000}){
- let stream,closed=false,connected=false,timer,frame=blankDeviceFrame();
+export function openDeviceConnection({url,onFrame,onState,EventSourceClass=globalThis.EventSource,timeout=7000,pairingKey,onControlState=()=>{},openControl=openDeviceControl}){
+ let stream,control,closed=false,connected=false,timer,frame=blankDeviceFrame();
  const capabilities={...deviceCapabilities,leds:false};
  function finish(state,message){
-  if(closed)return;closed=true;clearTimeout(timer);stream?.close();onState(state,message,{...capabilities});
+  if(closed)return;closed=true;clearTimeout(timer);stream?.close();control?.close();capabilities.transport=false;onControlState(false,'Transport disconnected');onState(state,message,{...capabilities});
  }
  const watchdog=()=>{clearTimeout(timer);timer=setTimeout(()=>finish(connected?'disconnected':'error',connected?'Move stream stopped. Reconnect when ready.':'No valid Move display received. Check the address and Schwung mirror service.'),timeout);};
  function receive(kind,event){
@@ -44,10 +45,13 @@ export function openDeviceConnection({url,onFrame,onState,EventSourceClass=globa
    const message=JSON.parse(event.data);
    if(kind==='screen'){
     frame={...frame,screen:decodeDeviceScreen(message),displayRevision:frame.displayRevision+1};
-    if(!connected){connected=true;onState('connected','Connected to Move · read-only screen',{...capabilities});}
+    if(!connected){
+     connected=true;onState('connected','Connected to Move · live screen',{...capabilities});
+     if(pairingKey)control=openControl({url,key:pairingKey,onState:(available,message)=>{if(closed)return;capabilities.transport=available;onControlState(available,message);}});
+    }
    }else if(kind==='surface'){
     frame={...frame,surface:decodeDeviceSurface(message)};capabilities.leds=true;
-    if(connected)onState('connected','Connected to Move · read-only screen & LEDs',{...capabilities});
+    if(connected)onState('connected','Connected to Move · live screen & LEDs',{...capabilities});
    }else{
     if(!Number.isInteger(message.frame)||message.frame<0)throw new Error('Invalid Move heartbeat.');
     if(!connected)return; // A heartbeat alone never establishes a valid screen.
@@ -63,5 +67,5 @@ export function openDeviceConnection({url,onFrame,onState,EventSourceClass=globa
   stream.addEventListener('hb',event=>receive('heartbeat',event));
   stream.onerror=()=>finish(connected?'disconnected':'error',connected?'Connection to Move lost. Reconnect when ready.':'Cannot reach the Move stream. Check the address, trusted certificate, network access and CORS.');
  }catch(error){finish('error',error.message);}
- return {capabilities,close:()=>finish('disconnected','Disconnected from Move')};
+ return {capabilities,transport:action=>!closed&&connected&&capabilities.transport?control?.send(action)??false:false,close:()=>finish('disconnected','Disconnected from Move')};
 }
