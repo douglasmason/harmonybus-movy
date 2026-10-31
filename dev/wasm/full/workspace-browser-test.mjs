@@ -41,12 +41,14 @@ try{
  await page.locator('#workspace-layout').selectOption('columns');
  await page.locator('#component-track').selectOption('3');
  await page.locator('[data-workspace=field]').getByText('Sample Spread',{exact:true}).click();
- await page.locator('[data-workspace=field] #field_randomness').fill('42');await page.locator('[data-workspace=field] #field_randomness').press('Tab');
+ await page.locator('[data-workspace=field] #field_randomness').fill('42');await page.locator('[data-workspace=field] #field_randomness').press('Enter');await page.locator('[data-workspace=field] #field_randomness').press('Tab');
  await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:field_randomness')==='42');
  assert.equal(await page.evaluate(()=>__wasmRead('ch0:midi_fx1:field_randomness')),'42','Field placement is engine-global, as declared by HarmonyBus');
  await page.locator('#song-build').click();await page.waitForFunction(()=>document.querySelector('#song-build').getAttribute('aria-pressed')==='true');
  await page.getByRole('button',{name:'Scene 1',exact:true}).click();await page.getByRole('button',{name:'Scene 2',exact:true}).click();
- await page.locator('#song-build').click();await page.waitForFunction(()=>document.querySelector('#song-summary').textContent.includes('2 scene selections'));
+ await page.getByRole('button',{name:'Loop',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('#song-build').getAttribute('aria-pressed')==='false');
+ await page.waitForFunction(()=>document.querySelector('#song-summary').textContent.includes('2 scene selections'));
  await page.locator('#song-edit').click();await page.waitForFunction(()=>document.querySelector('#play-mode').value==='3');
  await page.locator('#sessions summary').click();await page.locator('#session-save').click();
  await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('Saved')&&!document.querySelector('#session-save').disabled);

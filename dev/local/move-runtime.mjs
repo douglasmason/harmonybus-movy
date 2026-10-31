@@ -191,6 +191,9 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   const label=padPress?padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0)?.pads[index-68]:null;
   // Move reports capacitive release as NoteOn velocity zero. Normalize external
   // NoteOff too; generic production knob/Volume/Jog handlers expect that form.
+  // A physical Loop gesture takes over the production Song hold. Do not keep
+  // the workspace toggle armed after that gesture resets its append sequence.
+  if(kind===176&&index===58&&song.building)song.hold(false);
   onMidiMessageInternal(kind===128&&index<10?[144,index,0]:data);runTick();
   if(index>=68&&index<=99&&kind!==176&&kind!==160)request('midi',data.join(','));
   seqCmdFlush();

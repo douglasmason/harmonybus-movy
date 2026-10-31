@@ -9,7 +9,8 @@ import string
 import subprocess
 from pathlib import Path
 
-SCHWUNG_REF: str = 'a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124'
+SCHWUNG_BASE_REF: str = 'a6f7ec9e5cf4d0df172a1dbc00b29d0b5eb67124'
+SCHWUNG_REF: str = '35f401c3876557606ee44fbc9f3e363a6e39fb84'
 
 
 def replace_once(source: str, before: str, after: str) -> str:
@@ -62,14 +63,21 @@ def patch_settings_case(root: Path) -> None:
     schwung_root: Path = Path(os.environ.get('SCHWUNG_ROOT', str(root.parent / 'schwung'))).resolve()
     revision: str = subprocess.check_output(
         ['git', '-C', str(schwung_root), 'rev-parse', 'HEAD'], text=True).strip()
-    if revision != SCHWUNG_REF:
-        raise RuntimeError(f'Shared UI requires Schwung {SCHWUNG_REF}, got {revision}')
+    if revision not in (SCHWUNG_BASE_REF, SCHWUNG_REF):
+        raise RuntimeError(f'Shared UI requires Schwung 1.7.3 or 1.8.2 sources, got {revision}')
     if subprocess.check_output(['git', '-C', str(schwung_root), 'diff', 'HEAD', '--',
                                 'src/shared', 'fonts/tamzen'], text=True):
         raise RuntimeError('Shared UI inputs have uncommitted changes')
     vendor: Path = root / 'src/vendor/schwung/shared'
     shutil.copytree(schwung_root / 'src/shared', vendor, dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns('*.json', '*.c', '*.h'))
+    if revision == SCHWUNG_BASE_REF:
+        # Exact upstream delta, applied before our typography changes. This
+        # keeps old-host builds offline and produces the same 1.8.2 controller
+        # with either source checkout; no runtime version branch or new renderer.
+        delta: Path = assets.parent / 'schwung-host/shared-ui-1.8.2.patch'
+        subprocess.run(['git', '-C', str(root), 'apply', '-p2',
+                        '--directory=src/vendor/schwung', str(delta)], check=True)
     pages: Path = vendor / 'param_pages'
     lower: dict[str, list[int]] = json.loads((assets / 'lowercase.json').read_text())
     compact: dict[str, list[int]] = dict(lower)
@@ -170,5 +178,7 @@ function preAbbreviate(label, budget) {''')
     path = root / 'src/app/globals.ts'
     path.write_text(path.read_text() + "\n// Device-bundle health probe, also useful to installation diagnostics.\nexport {schwungLibAvailable,schwungLibError} from '../renderer/schwung-lib.js';\n")
     shutil.copy2(assets / 'hb-settings-case.mjs', root / 'browser-test/hb-settings-case.mjs')
+    shutil.copy2(assets.parent / 'schwung-host/hb-schwung-host.mjs',
+                 root / 'browser-test/hb-schwung-host.mjs')
     subprocess.run(['git', '-C', str(root), 'apply', str(assets / 'upstream-tests.patch')], check=True)
     print('Packaged shared settings UI with mixed-case fonts: ' + SCHWUNG_REF)
