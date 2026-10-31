@@ -59,5 +59,15 @@ try{
     const pixels=[];globalThis.fill_rect=(...args)=>pixels.push(args);
     drawHarmonyFooter('P1 T4 C Maj ii7  >  V7');const minorPixels=JSON.stringify(pixels);pixels.length=0;
     drawHarmonyFooter('P1 T4 C Maj II7  >  V7');assert.notEqual(JSON.stringify(pixels),minorPixels,'Minor Roman numerals are visibly lowercase');
+    await build({entryPoints:[new URL('../src/font/index.ts',import.meta.url).pathname],bundle:true,format:'esm',outfile:join(temporary,'normal-font.mjs')});
+    const {fontPrint}=await import(pathToFileURL(join(temporary,'normal-font.mjs')));
+    pixels.length=0;fontPrint(1,58,'Min Live Overdub',1);const ordinary=JSON.stringify(pixels);
+    pixels.length=0;drawHarmonyFooter('Min Live Overdub');assert.equal(JSON.stringify(pixels),ordinary,'ordinary words never use the small Roman font');
+    pixels.length=0;fontPrint(1,58,'v',1);assert.equal(new Set(pixels.map(rect=>rect[1])).size,5);
+    pixels.length=0;drawHarmonyFooter('v');assert.equal(new Set(pixels.map(rect=>rect[1])).size,3,'Roman lowercase retains exaggerated height');
+    for(const name of ['Dm','Em','Am','Bdim','Bbmaj7','[Dm]','>Dm','C#m7b5','Dm/F']){
+        pixels.length=0;fontPrint(1,58,name,1);const normal=JSON.stringify(pixels);
+        pixels.length=0;drawHarmonyFooter(name);assert.notEqual(JSON.stringify(pixels),normal,name+' keeps contrasting chord spelling');
+    }
     console.log('Footer: Roman quality, chromatic degrees, key-relative roots, scale and unknown next pass');
 }finally{rmSync(temporary,{recursive:true,force:true});}

@@ -236,13 +236,23 @@ try {
  now+=250;bankFrame=frame([-1,0,0,0,0,0]);chord.tickChord();
  const chordMeta=page.ctl.state.metaIndex.get('cp_slot_1');
  assert.equal(chordMeta.chordName,'Dm');assert.equal(chordMeta.chordRoman,'ii');
- assert.equal(chordMeta.short_name,'2','slot number stays separate from its musical text');
+ assert(chordMeta.movy_full_cell,'chord action owns its label band');
  page.ctl.state.touched=-1;page.ctl.state.peek=null;chord.renderChord();
  const region=(startY,endY)=>Array.from({length:endY-startY},(_,row)=>Array.from(labelPixels.slice((startY+row)*128+32,(startY+row)*128+64))).flat();
- const minor=region(11,16),lowerRoman=region(17,22);
+ const whole=region(9,29);chordMeta.short_name='999';chord.renderChord();
+ assert.deepEqual(region(9,29),whole,'redundant slot label is not drawn');
+ assert(labelPixels[28*128+33],'chord frame expands into the old number band');
+ page.ctl.state.touched=1;page.ctl.state.touchOrder=[1];chord.renderChord();
+ assert(region(9,29).filter(Boolean).length>whole.filter(Boolean).length,'touch inverts the full chord action');
+ page.ctl.state.touched=-1;page.ctl.state.touchOrder=[];chord.renderChord();
+ const minor=region(13,18),lowerRoman=region(19,24);
  chordMeta.chordName='DM';chordMeta.chordRoman='II';chord.renderChord();
- assert.notDeepEqual(region(11,16),minor,'Dm uses a distinct lowercase m in the shared grid');
- assert.notDeepEqual(region(17,22),lowerRoman,'ii uses distinct lowercase glyphs in the shared grid');
+ assert.notDeepEqual(region(13,18),minor,'Dm uses a distinct lowercase m in the shared grid');
+ assert.notDeepEqual(region(19,24),lowerRoman,'ii uses distinct lowercase glyphs in the shared grid');
+ chordMeta.chordName='m';chordMeta.chordRoman='v';chord.renderChord();
+ const occupiedRows=(start,end)=>Array.from({length:end-start},(_,row)=>labelPixels.slice((start+row)*128+40,(start+row)*128+56).some(Boolean)).filter(Boolean).length;
+ assert.equal(occupiedRows(13,18),3,'chord spelling retains the contrasting minor suffix');
+ assert.equal(occupiedRows(19,24),3,'Roman quality retains small lowercase');
  chordMeta.chordName='Dm';chordMeta.chordRoman='ii';
  const beforeRender=writes.length;chord.renderChord();assert.equal(writes.length,beforeRender,'drawing chord notation never writes parameters');
 }finally{globalThis.clear_screen=oldClear;globalThis.fill_rect=oldFill;}

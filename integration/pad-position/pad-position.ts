@@ -1,6 +1,7 @@
 /** Horizontal placement belongs to the keyboard, independently of its key. */
 import { appState, trackIsDrum } from '../app/state.js';
 import { keyboardState, COLUMN_OFFSET_MIN, COLUMN_OFFSET_MAX } from '../keyboard/state.js';
+import { beginPositionHighlight } from '../keyboard/position-highlight.js';
 import { invalidateHarmonyPadGeometry } from '../keyboard/harmony-pads.js';
 import { padsPlayNotes } from './router-pads.js';
 import { anyStepHeld } from './step-edit.js';
@@ -33,6 +34,7 @@ export function setPadPosition(offset: number): boolean {
     const next = Math.max(COLUMN_OFFSET_MIN, Math.min(COLUMN_OFFSET_MAX, Math.round(offset)));
     if (next === keyboardState.columnOffset) return false;
     keyboardState.columnOffset = next;
+    beginPositionHighlight();
     invalidateHarmonyPadGeometry();
     markUiStateDirty();
     appState.dirty = true;
