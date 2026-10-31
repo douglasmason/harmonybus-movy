@@ -107,6 +107,9 @@ try{
  await page.waitForFunction(async()=>(await __wasmStats()).move.held>0);
  await page.keyboard.press('Escape');await page.keyboard.up('Space');
  await page.waitForFunction(async()=>!document.querySelector('#display-dialog').open&&(await __wasmStats()).move.held===0);
+ // Native close queues restoration separately; the next synthetic encoder
+ // event must target the restored surface, not its briefly inert dialog copy.
+ await page.waitForFunction(()=>document.activeElement===document.querySelector('#display-expand')&&document.querySelector('body > main #pads'));
  assert.equal(await page.evaluate(()=>__wasmRead('state')),beforePadCancel,'cancelled pad hold does not edit the clip');
  // A concurrent alias cannot release another surface's encoder hold.
  await page.evaluate(()=>{
