@@ -99,7 +99,7 @@ test('Chord Play step labels follow native banks, edits and input ownership',asy
  const midi=data=>send({type:'move_midi',data});
  const cc=async index=>{await midi([176,index,127]);await midi([176,index,0]);};
  const until=async predicate=>{const deadline=Date.now()+6000;while(!predicate()){if(Date.now()>deadline)throw new Error('Step labels timeout: '+JSON.stringify({labels:frame?.stepLabels,panels:frame?.panels}));await wait(20);}};
- const panel=async label=>{const entry=frame.panels.entries.find(entry=>entry.label===label);assert(entry,label);await send({type:'move_panel',token:frame.panels.token,index:entry.index});await until(()=>frame.panels?.index===entry.index);};
+ const panel=async label=>{await until(()=>frame?.panels);const entry=frame.panels.entries.find(entry=>entry.label===label);assert(entry,label);await send({type:'move_panel',token:frame.panels.token,index:entry.index});await until(()=>frame.panels?.index===entry.index);};
  const bank=()=>service.read('ch0:midi_fx1:hb_chord_bank_snapshot').split('|');
  try{
   await send({type:'subscribe_tool'});await until(()=>frame?.ready);
