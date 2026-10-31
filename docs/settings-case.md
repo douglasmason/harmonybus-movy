@@ -6,13 +6,14 @@ This covers labels, enum boxes, readouts, lists, headers and touch overlays.
 Uppercase acronyms and explicitly uppercase labels remain uppercase.
 
 There are three treatments: existing capitals, normalized lowercase for ordinary
-interface text, and the original small lowercase specifically for Roman numerals.
+interface text, and the original small lowercase for Roman numerals and chord spellings.
 Ordinary lowercase shares the full five-row extent in compact fonts and seven-row
 extent in the value strip, including `c`, `n`, `o` and `u`. Advances and widget
 heights stay unchanged. Musical case (`Dm`, `ii`, `II`) remains distinct.
-Roman lines explicitly opt into the smaller atlas; ordinary labels, values,
-chord names and queue text cannot select it. The musical context footer selects
-it only for complete Roman tokens, leaving words such as `Min` and `Live` normal.
+Chord widgets explicitly use the smaller atlas for both musical lines. Ordinary
+labels and values keep normalized text. Musical footers select the smaller atlas
+only for complete Roman or spelled-chord tokens, including queued `[Dm]`, leaving
+words such as `Min`, `Live` and `Overdub` normal.
 
 The issue came from two layers: Schwung's Movy layout capitalized strings
 before drawing, while Movy's own font mapped lowercase letters to capital
@@ -29,14 +30,21 @@ input and navigation implementation; it introduces no additional settings
 renderer. The copy is generated from the verified upstream commit at build
 time, with its MIT and Tamzen notices retained in the bundle.
 
-Chord bank widgets reuse the normal font for spelled names and the shared
-Roman atlas for the second line. The spelled names, quality-aware Roman
+Chord bank widgets reuse the shared notation atlas for both spelled names and
+Roman numerals. The spelled names, quality-aware Roman
 numerals, solid page segments and queued-mode preservation from 264 remain.
 
 Validation covers all 26 letters in five fonts, mixed-case labels and values,
-normalized lowercase bounds and explicit Roman-only opt-in, complete Normal Play,
+normalized lowercase bounds and explicit musical-notation opt-in, complete Normal Play,
 Chord Play and Setup rendering, the existing UI and musical
 regressions, and QuickJS startup with the optional host UI library present
 and unavailable. The release pipeline also builds and verifies the ARM
 package. Physical display and audio performance still need device testing;
 this release changes typography and UI packaging, not the DSP engine.
+
+Operation-only touch cells use the existing settings renderer and these same
+normalized fonts to wrap the operation name across the full cell. Their numeric
+widget and redundant number label are omitted; touch inversion remains. The
+metadata flag is limited to HarmonyBus gesture controls; stock instruments and
+real amount/enum controls keep their value display. Layouts are cached (128
+entries maximum) and text drawing performs no host I/O.

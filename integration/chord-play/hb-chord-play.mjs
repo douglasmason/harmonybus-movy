@@ -243,10 +243,10 @@ try {
  chordMeta.chordName='DM';chordMeta.chordRoman='II';chord.renderChord();
  assert.notDeepEqual(region(11,16),minor,'Dm uses a distinct lowercase m in the shared grid');
  assert.notDeepEqual(region(17,22),lowerRoman,'ii uses distinct lowercase glyphs in the shared grid');
- chordMeta.chordName='v';chordMeta.chordRoman='v';chord.renderChord();
+ chordMeta.chordName='m';chordMeta.chordRoman='v';chord.renderChord();
  const occupiedRows=(start,end)=>Array.from({length:end-start},(_,row)=>labelPixels.slice((start+row)*128+40,(start+row)*128+56).some(Boolean)).filter(Boolean).length;
- assert.equal(occupiedRows(11,16),5,'chord-name text uses normalized lowercase');
- assert.equal(occupiedRows(17,22),3,'only the Roman line uses small lowercase');
+ assert.equal(occupiedRows(11,16),3,'chord spelling retains the contrasting minor suffix');
+ assert.equal(occupiedRows(17,22),3,'Roman quality retains small lowercase');
  chordMeta.chordName='Dm';chordMeta.chordRoman='ii';
  const beforeRender=writes.length;chord.renderChord();assert.equal(writes.length,beforeRender,'drawing chord notation never writes parameters');
 }finally{globalThis.clear_screen=oldClear;globalThis.fill_rect=oldFill;}

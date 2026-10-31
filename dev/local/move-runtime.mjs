@@ -15,6 +15,8 @@ import {resetHeldInput} from 'movy/app/input-reset.ts';
 import {releaseAllLive} from 'movy/keyboard/release.ts';
 import {sessionPlayMode,selectInputMode,inputModeNames,inputModeSelectorOpen} from 'movy/seq/router-buttons.ts';
 import {selectTrack} from 'movy/track/focus.ts';
+import {jointPage} from 'movy/seq/joint-panels.ts';
+import {createSongActions} from './song-actions.mjs';
 import {jointSnapshot,jointPanelSet} from 'movy/seq/joint-play.ts';
 import {chordEnabled,browserChordStepLabels} from 'movy/seq/chord-play.ts';
 import {decodeBulk,encodeBulk} from 'movy/track/bulk.ts';
@@ -40,6 +42,7 @@ function validFile(path,value){
 }
 
 export function createMoveRuntime({request:engineRequest,metadata}){
+ const song=createSongActions(jointPage);
  const screen=new Uint8Array(8192),surface=new Uint8Array(2232),view=new DataView(surface.buffer);
  const drawing=createMoveDrawing(screen);
  const touchedControllers=new Set();
@@ -188,6 +191,9 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   const label=padPress?padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0)?.pads[index-68]:null;
   // Move reports capacitive release as NoteOn velocity zero. Normalize external
   // NoteOff too; generic production knob/Volume/Jog handlers expect that form.
+  // A physical Loop gesture takes over the production Song hold. Do not keep
+  // the workspace toggle armed after that gesture resets its append sequence.
+  if(kind===176&&index===58&&song.building)song.hold(false);
   onMidiMessageInternal(kind===128&&index<10?[144,index,0]:data);runTick();
   if(index>=68&&index<=99&&kind!==176&&kind!==160)request('midi',data.join(','));
   seqCmdFlush();
@@ -206,6 +212,7 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   // Cancellation is not a tap: a synthetic step/button release could toggle a
   // note or launch recording. Drop gesture latches and release musical gates.
   const previous=preserveContext?context():null;
+  if(typeof song!=='undefined')song.hold(false);
   releaseAllLive();resetHeldInput(true);
   // Generic Schwung cells own touch state outside Movy's model reset. Cancel
   // through the controller, without synthesizing an action-triggering release.
@@ -228,6 +235,14 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   // Use the production setting and its normal routing/held-note teardown.
   // An explicit group keeps a delayed edit tied to the bank shown when sent.
   jointPanelSet(group*4,'joint_comp',String(source));runTick();seqCmdFlush();
+ }
+ function songAction(action,value){
+  if(held.size)throw new Error('Release held controls before Song actions');
+  if(action==='hold'&&typeof value==='boolean')song.hold(value);
+  else if(action==='scene')song.scene(value);
+  else if(action==='edit'){selectInputMode(3);song.edit();}
+  else throw new Error('Invalid Song action');
+  runTick();seqCmdFlush();
  }
  const initialState=serializeUiState();
  const initialContext=context();
@@ -254,6 +269,7 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   }
  }
  function restore(saved){
+  song.reset();
   panelOwner=null;panelContext='';panelToken++;
   lastPlayed=lastOutput=null;padLabels.invalidate();
   files.clear();for(const [path,value]of Object.entries(saved?.files??{}))files.set(path,value);
@@ -273,8 +289,8 @@ export function createMoveRuntime({request:engineRequest,metadata}){
  return {observeOutput(packets){
    const outputs=padLabels.outputs(packets);
    if(outputs.length)lastOutput={serial:++outputSerial,outputs};
-  },tick:runTick,input,release,capture,restore,validate,fresh,setCompSource,selectPanel,selectMode,isHeld:()=>held.size>0,
+  },tick:runTick,input,release,capture,restore,validate,fresh,setCompSource,selectPanel,selectMode,songAction,isHeld:()=>held.size>0,
   diagnostic:()=>({ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0,held:held.size,track:appState.activeTrack.index,view:appState.currentView,mode:sessionPlayMode()}),
-  snapshot:()=>({screen:Array.from(screen),...drawing.snapshot(),knobLabels,panels:panels(),stepLabels:inputModeSelectorOpen()?null:browserChordStepLabels(),surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),modes:inputModeNames,view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),padLabels:padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0),lastPlayed,lastOutput,playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
+  snapshot:()=>({song:{building:song.building,count:song.count},screen:Array.from(screen),...drawing.snapshot(),knobLabels,panels:panels(),stepLabels:inputModeSelectorOpen()?null:browserChordStepLabels(),surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),modes:inputModeNames,view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),padLabels:padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0),lastPlayed,lastOutput,playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
   dispose:()=>{release(false);closed=true;}};
 }

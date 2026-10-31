@@ -6,10 +6,10 @@ export async function openBrowserConnection({surface='joint'}={}){
  if(moveLink){moveLink.href='/move/';moveLink.textContent='Full Move surface & clip editing';}
  const worker=new Worker(new URL('./joint-worker.mjs',import.meta.url),{type:'module'});
  const audio=new PcmMonitor(worker);
- let serial=0,closed=false;
+ let serial=0,closed=false,active=true;
  const pending=new Map();
  const socket={readyState:0,onmessage:null,onclose:null,onerror:null,onopen:null,
-  send:data=>{if(socket.readyState===1)worker.postMessage({type:'send',data});},close};
+  send:data=>{if(active&&socket.readyState===1)worker.postMessage({type:'send',data});},close};
  function close(){
   if(closed)return;closed=true;socket.readyState=3;
   audio.disable();worker.terminate();document.removeEventListener('visibilitychange',visibility);
@@ -17,7 +17,7 @@ export async function openBrowserConnection({surface='joint'}={}){
   for(const {reject} of pending.values())reject(new Error('Browser engine closed'));pending.clear();
   socket.onclose?.();
  }
- function visibility(){worker.postMessage({type:'visibility',hidden:document.hidden});}
+ function visibility(){worker.postMessage({type:'visibility',hidden:document.hidden||!active});}
  function inspect(type,key,value){
   if(closed)return Promise.reject(new Error('Browser engine closed'));
   return new Promise((resolve,reject)=>{const id=++serial;pending.set(id,{resolve,reject});worker.postMessage({type,key,value,id});});
@@ -43,5 +43,9 @@ export async function openBrowserConnection({surface='joint'}={}){
  globalThis.__wasmRead=key=>inspect('read',key);
  globalThis.__wasmStats=()=>inspect('stats');
  const sessions={save:ui=>inspect('session-save',null,ui),open:session=>inspect('session-open',null,session),newSession:ui=>inspect('session-new',null,ui)};
- return {metadata,socket,audio,sessions,label:'Browser Joint Play connected · WebAssembly Worker'};
+ async function setActive(value){
+  active=!!value;if(!active)audio.disable();
+  await inspect('active',null,active&&!document.hidden);
+ }
+ return {metadata,socket,audio,sessions,setActive,label:'Browser Joint Play connected · WebAssembly Worker'};
 }

@@ -157,10 +157,10 @@ function preAbbreviate(label, budget) {''')
     roman_glyphs: list[list[int]] = [
         [data[0] + 2, 0, data[0] + 2, 5, *(row << 1 for row in data[1:])]
         for data in roman.values()]
-    (root / 'src/font/roman.ts').write_text(
+    (root / 'src/font/notation.ts').write_text(
         "import {G} from './glyphs.js';\nimport type {Glyph} from './blit.js';\n"
         + 'const lowercase: Glyph[] = ' + json.dumps(roman_glyphs) + ';\n'
-        + 'export const romanGlyph = (code:number):Glyph|null => code>=97&&code<=122 ? lowercase[code-97] : G[code-32]??null;\n')
+        + 'export const notationGlyph = (code:number):Glyph|null => code>=97&&code<=122 ? lowercase[code-97] : G[code-32]??null;\n')
     path = root / 'src/font/glyphs5x3.ts'
     path.write_text(path.read_text() + '\nG5.push(...' + json.dumps(
         [[4, 0, data[0], 5, *data[1:]] for data in compact.values()]) + ');\n')

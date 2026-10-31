@@ -7,7 +7,7 @@ import {pathToFileURL} from 'node:url';
 const temporary=mkdtempSync(join(tmpdir(),'hb-footer-'));
 try{
     await build({entryPoints:[new URL('../src/renderer/hb-footer.ts',import.meta.url).pathname],bundle:true,format:'esm',outfile:join(temporary,'footer.mjs')});
-    const {romanHarmony,harmonyFooterText,drawHarmonyFooter,drawRomanHarmonyFooter,queueFooterText,chordLabel,harmonyLabel,relativeFeedbackText}=await import(pathToFileURL(join(temporary,'footer.mjs')));
+    const {romanHarmony,harmonyFooterText,drawHarmonyFooter,queueFooterText,chordLabel,harmonyLabel,relativeFeedbackText}=await import(pathToFileURL(join(temporary,'footer.mjs')));
     const mask=(root,intervals)=>intervals.reduce((bits,interval)=>bits|1<<((root+interval)%12),0);
     assert.equal(romanHarmony(0,2,mask(2,[0,3,7,10])),'ii7');
     assert.equal(romanHarmony(0,7,mask(7,[0,4,7,10])),'V7');
@@ -57,11 +57,17 @@ try{
     cache.observe(0,{...leading,serial:8},2500);cache.observe(0,{...leading,serial:9},2600);
     assert.equal(cache.expire(4401),true,'timeout clears even when native snapshot reads fail');
     const pixels=[];globalThis.fill_rect=(...args)=>pixels.push(args);
-    drawRomanHarmonyFooter('P1 T4 C Maj ii7  >  V7');const minorPixels=JSON.stringify(pixels);pixels.length=0;
-    drawRomanHarmonyFooter('P1 T4 C Maj II7  >  V7');assert.notEqual(JSON.stringify(pixels),minorPixels,'Minor Roman numerals are visibly lowercase');
-    pixels.length=0;drawHarmonyFooter('Min Live Overdub');const ordinary=JSON.stringify(pixels);
-    pixels.length=0;drawRomanHarmonyFooter('Min Live Overdub');assert.equal(JSON.stringify(pixels),ordinary,'ordinary words never use the small Roman font');
-    pixels.length=0;drawHarmonyFooter('v');assert.equal(new Set(pixels.map(rect=>rect[1])).size,5);
-    pixels.length=0;drawRomanHarmonyFooter('v');assert.equal(new Set(pixels.map(rect=>rect[1])).size,3,'Roman lowercase retains exaggerated height');
+    drawHarmonyFooter('P1 T4 C Maj ii7  >  V7');const minorPixels=JSON.stringify(pixels);pixels.length=0;
+    drawHarmonyFooter('P1 T4 C Maj II7  >  V7');assert.notEqual(JSON.stringify(pixels),minorPixels,'Minor Roman numerals are visibly lowercase');
+    await build({entryPoints:[new URL('../src/font/index.ts',import.meta.url).pathname],bundle:true,format:'esm',outfile:join(temporary,'normal-font.mjs')});
+    const {fontPrint}=await import(pathToFileURL(join(temporary,'normal-font.mjs')));
+    pixels.length=0;fontPrint(1,58,'Min Live Overdub',1);const ordinary=JSON.stringify(pixels);
+    pixels.length=0;drawHarmonyFooter('Min Live Overdub');assert.equal(JSON.stringify(pixels),ordinary,'ordinary words never use the small Roman font');
+    pixels.length=0;fontPrint(1,58,'v',1);assert.equal(new Set(pixels.map(rect=>rect[1])).size,5);
+    pixels.length=0;drawHarmonyFooter('v');assert.equal(new Set(pixels.map(rect=>rect[1])).size,3,'Roman lowercase retains exaggerated height');
+    for(const name of ['Dm','Em','Am','Bdim','Bbmaj7','[Dm]','>Dm','C#m7b5','Dm/F']){
+        pixels.length=0;fontPrint(1,58,name,1);const normal=JSON.stringify(pixels);
+        pixels.length=0;drawHarmonyFooter(name);assert.notEqual(JSON.stringify(pixels),normal,name+' keeps contrasting chord spelling');
+    }
     console.log('Footer: Roman quality, chromatic degrees, key-relative roots, scale and unknown next pass');
 }finally{rmSync(temporary,{recursive:true,force:true});}

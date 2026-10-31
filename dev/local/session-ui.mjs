@@ -26,13 +26,13 @@ async function archivedSessions(key){
   tx.oncomplete=()=>resolve(entries);tx.onabort=tx.onerror=()=>reject(tx.error);
  });}finally{db.close();}
 }
-export async function mountSessions({sessions,captureUI,restoreUI,disableAudio,isStopped,release,storageKey='current'}){
+export async function mountSessions({sessions,captureUI,restoreUI,disableAudio,isStopped,release,storageKey='current',legacyStorageKeys=[],isActive=()=>true}){
  const stored=value=>storeSession(value,storageKey);
  const panel=document.querySelector('#sessions');panel.hidden=false;
  const status=document.querySelector('#session-status'),buttons=[...panel.querySelectorAll('button')];
  let busy=false,armed=false,lastSavedPayload=null;
  function message(text){status.textContent=text;}
- async function run(action){if(busy)return;busy=true;const previous=status.textContent;buttons.forEach(button=>button.disabled=true);message('Working…');try{await action();if(status.textContent==='Working…')message(previous);}catch(error){message(`${error.message}. Current session retained.`);}finally{busy=false;buttons.forEach(button=>button.disabled=false);}}
+ async function run(action){if(busy||!isActive())return;busy=true;const previous=status.textContent;buttons.forEach(button=>button.disabled=true);message('Working…');try{await action();if(status.textContent==='Working…')message(previous);}catch(error){message(`${error.message}. Current session retained.`);}finally{busy=false;buttons.forEach(button=>button.disabled=false);}}
  async function snapshot(){return sessions.save(captureUI());}
  async function save(automatic=false){
   const session=await snapshot(),payload=JSON.stringify(session.payload);
@@ -51,6 +51,7 @@ export async function mountSessions({sessions,captureUI,restoreUI,disableAudio,i
  async function refreshPrevious(){
   if(!previousSessions)return;
   previousSessions.replaceChildren(new Option('Choose a previous session',''));
+  for(const key of legacyStorageKeys){const legacy=await storeSession(undefined,key);if(legacy)previousSessions.add(new Option('Earlier Joint Play · '+new Date(legacy.savedAt).toLocaleString(),key));for(const entry of await archivedSessions(key))previousSessions.add(new Option('Earlier Joint Play · '+new Date(entry.savedAt).toLocaleString(),entry.key));}
   for(const entry of await archivedSessions(storageKey))previousSessions.add(new Option(new Date(entry.savedAt).toLocaleString(),entry.key));
  }
  async function preserve(){disableAudio();release();await archiveSession(await snapshot(),storageKey);await refreshPrevious();}
@@ -92,5 +93,5 @@ export async function mountSessions({sessions,captureUI,restoreUI,disableAudio,i
  const timer=setInterval(()=>{if(armed&&!busy&&isStopped()&&!document.hidden)void run(()=>save(true));},5000);
  document.querySelector('#stop').addEventListener('click',()=>{if(armed&&!busy)void run(()=>save(true));});
  window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
- return {save,open};
+ return {save,open,isBusy:()=>busy};
 }
