@@ -7,7 +7,8 @@ quality remains clear. Ordinary labels, values and footer words use the normal
 font; queued chord names preserve the musical contrast. All drawing still uses the existing shared settings renderer.
 
 Touch-only operation controls use their entire settings cell for the operation
-name, without a numeric widget or redundant numbered label. Long names wrap
+name, without a numeric widget or redundant numbered label. Chord tiles also
+expand into the former slot-number band, retaining their two musical lines. Long names wrap
 within the same cell; touching still highlights the operation. Controls with
 meaningful enum choices or editable amounts retain their value display. Text
 layout is cached and adds no host reads or writes.

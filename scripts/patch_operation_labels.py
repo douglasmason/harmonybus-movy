@@ -31,7 +31,13 @@ export function markOperationLabels(parameters:any[]):void {
     path.write_text(source)
     path = pages / 'render_page_movy.mjs'
     source = "import {drawActionLabel} from './action_label.mjs';\n" + path.read_text()
+    source = replace_once(source, '        drawVizGroup(ctx, {', '''        const fullCell = group.keys.length===1 && metaIndex.getOrGuess(group.keys[0]).movy_full_cell;
+        if(fullCell)group.movyTouched=held.indexOf(group.slotStart)>=0;
+        drawVizGroup(ctx, {''')
+    source = replace_once(source, 'w: group.slotSpan * g.cellW, h: lblY - rowY,',
+                          'w: group.slotSpan * g.cellW, h: lblY - rowY + (fullCell ? FONT4_HEIGHT : 0),')
     source = replace_once(source, '        const isTouched = held.indexOf(slot) >= 0;', '''        const isTouched = held.indexOf(slot) >= 0;
+        if(meta.movy_full_cell && covered[col])continue;
         if(meta.movy_action_label){
             drawActionLabel(ctx,cellX,rowY,g.cellW,lblY-rowY+FONT4_HEIGHT,meta.label||meta.name,isTouched);
             continue;
