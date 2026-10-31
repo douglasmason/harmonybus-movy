@@ -1,4 +1,4 @@
-name: Generator Style performance verification and release
+name: Schwung integration and feedback verification and release
 on:
   push:
     branches: [main]
@@ -217,7 +217,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.289
+  SOURCE_VERSION: 0.34.1-hbclean.290
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -248,7 +248,7 @@ jobs:
           npm run typecheck
           npm run build:browser
           node browser-test/logic.mjs
-          for suite in hb-schwung-host hb-parameter-ownership hb-feedback-polling hb-ui-responsiveness hb-comp-generator hb-generator-overdub hb-actor-generator hb-generator-duet hb-generator-phrases hb-generator-library hb-library-names hb-generator-restore hb-chord-discovery hb-pad-position hb-pad-position-view hb-ui-overhead hb-ui-tick-overhead hb-settings-case hb-chord-settings hb-panel-catalog hb-interface-usage hb-footer-test hb-performance-controls hb-drum-gesture hb-conductor-content hb-joint-chords hb-chord-queue hb-chord-range hb-navigation-lights hb-single-conductor hb-clips-fill hb-part-library hb-clips-view hb-panel-navigation hb-chord-play hb-chord-pad-feedback hb-pad-colors hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
+          for suite in hb-schwung-host hb-parameter-ownership hb-feedback-polling hb-ui-responsiveness hb-comp-generator hb-generator-overdub hb-actor-generator hb-generator-duet hb-generator-phrases hb-generator-library hb-library-names hb-generator-restore hb-chord-discovery hb-position-highlight hb-pad-position-view hb-ui-overhead hb-ui-tick-overhead hb-settings-case hb-chord-settings hb-panel-catalog hb-interface-usage hb-footer-test hb-performance-controls hb-drum-gesture hb-conductor-content hb-joint-chords hb-chord-queue hb-chord-range hb-navigation-lights hb-single-conductor hb-clips-fill hb-part-library hb-clips-view hb-panel-navigation hb-chord-play hb-chord-pad-feedback hb-pad-colors hb-song-sections hb-joint-play hb-joint-panels hb-variation hb-field hb-grid hb-fm1 hb-launchpad hb-motifs hb-motif-loader hb-clip-tools hb-input-info hb-data-survival hb-track-navigation hb-step-modes hb-pad-settings hb-touch hb-startup-host hb-analysis hb-audio-profile hb-pad-trails; do
             node "browser-test/$suite.mjs"
           done
           # Legacy app-loop fails unchanged on the pre-routing hbclean.209 baseline.
@@ -305,7 +305,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: generator-style-289
+          name: schwung-feedback-290
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -326,10 +326,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.288':
-              raise SystemExit('Expected Movy 288 before generator Style release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.289':
+              raise SystemExit('Expected Movy 289 before Schwung feedback release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Generator Style" --notes-file docs/generator-style-performance.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Schwung controls and readable feedback" --notes-file docs/schwung-182-feedback.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -342,7 +342,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.288':
+          if metadata['version'] != '0.34.1-hbclean.289':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
@@ -350,5 +350,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add release.json
-          git commit -m "Publish verified Generator Style $SOURCE_VERSION [skip ci]"
+          git commit -m "Publish verified Schwung feedback $SOURCE_VERSION [skip ci]"
           git push origin HEAD:main

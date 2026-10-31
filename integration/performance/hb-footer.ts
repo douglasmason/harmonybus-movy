@@ -3,6 +3,7 @@ import type { RelativeFeedback } from '../keyboard/relative-feedback.js';
 /** Compact musical context from the existing pad snapshot. ASCII fits Move's font. */
 import { fontPrint, fontWidth } from '../font/index.js';
 import { G } from '../font/glyphs.js';
+import { romanGlyph } from '../font/roman.js';
 import { drawGlyphRun } from '../font/blit.js';
 import { FOLLOWER_SCALE_NAMES } from '../scale-catalog.js';
 const roots=['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
@@ -89,12 +90,19 @@ export function harmonyFooterText(mode:number,track:number,data?:readonly number
     return fitFooter(suffix);
 }
 
-/** The stock font uppercases letters; small i/v preserve Roman chord quality. */
+/** Ordinary labels, chord names and queue/status text use normalized lowercase. */
 export function drawHarmonyFooter(text:string):void{
-    drawGlyphRun(1,58,fitFooter(text),1,code=>{
-        const base=code>=32&&code<=126?G[code-32]:null;
-        if(code===105)return [base![0],0,1,5,1,0,1,1,1];
-        if(code===118)return [base![0],2,3,3,5,5,2];
-        return base;
-    },5,-1);
+    fontPrint(1,58,fitFooter(text),1);
+}
+
+/** Only the musical context footer opts in, and only complete Roman tokens.
+ * Words such as Min, Live and Overdub retain normal lowercase. */
+export function drawRomanHarmonyFooter(text:string):void{
+    let x=1;
+    for(const token of fitFooter(text).split(/(\s+)/)){
+        if(!token)continue;
+        const roman=/^(?:sub)?[b#]?[ivIV]+(?:maj|min|sus|dim|aug|[0-9ho+#-])*(?:\/[b#]?[ivIV]+)?$/.test(token);
+        drawGlyphRun(x,58,token,1,roman?romanGlyph:code=>G[code-32]??null,5,-1);
+        x+=fontWidth(token)-1;
+    }
 }

@@ -1,9 +1,10 @@
 import {G} from '../font/glyphs.js';
+import {romanGlyph} from '../font/roman.js';
 import {drawGlyphRun, glyphRunWidth, type Glyph} from '../font/blit.js';
 import {registerWidget,isWidgetAvailable} from '../renderer/schwung-widgets.js';
 import {chordDegrees,intentLabel,type ChordStatus} from './chord-colors.js';
 
-// Chord notation uses the same mixed-case atlas as every other Movy panel.
+// Chord names use normalized text; only the Roman line opts into small letters.
 const glyph=(code:number):Glyph|null=>G[code-32]??null;
 export const chordTextWidth=(text:string):number=>glyphRunWidth(text,glyph,5,-1);
 
@@ -46,7 +47,7 @@ export function registerChordLabels():void {
         ctx.fillRect(1,0,1,height,1);ctx.fillRect(width-2,0,1,height,1);
         names.forEach((name,index)=>{
             const text=fitChordText(name,width-6);
-            drawGlyphRun(Math.floor((width-chordTextWidth(text))/2),firstY+index*6,text,1,glyph,5,-1,
+            drawGlyphRun(Math.floor((width-chordTextWidth(text))/2),firstY+index*6,text,1,index===1?romanGlyph:glyph,5,-1,
                 (x,y,w,h,color)=>ctx.fillRect(x,y,w,h,color));
         });
     }});
