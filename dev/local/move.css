@@ -46,14 +46,21 @@ body.display-expanded{overflow:hidden}
 .display-dialog-header .playback-controls{grid-column:1/-1;min-width:0}
 .display-dialog-header .toolbar{margin:0 0 4px}
 .display-dialog-header #error{max-height:4em;overflow:auto;margin:6px 0 0}
-#display-dialog .display-row{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;width:100%;grid-template-columns:minmax(0,1fr) clamp(240px,28vw,320px);align-items:start;gap:20px;max-width:1660px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+.display-dialog-title{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.display-dialog-title button,.display-performance-heading button{min-height:36px;padding:6px 8px;font-size:12px}
+.display-performance-heading{display:none}
+#display-dialog main{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scroll-padding-block:12px;width:100%;max-width:1660px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+#display-dialog .display-row{width:100%;grid-template-columns:minmax(0,1fr) clamp(240px,28vw,320px);align-items:start;gap:20px;margin:0 0 20px}
+#display-dialog .display-performance-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+#display-dialog #knobs{display:none}
 #display-dialog .display-panel{width:100%;margin:0}
 #display-dialog #screen{max-width:1280px}
 #display-dialog .display-options label:has(#display-size){display:none}
 #display-dialog .navigation-panel{position:sticky;top:0}
 #display-dialog [hidden]{display:none}
 @media(max-width:700px),(max-width:900px) and (orientation:portrait){
- #display-dialog .display-row{grid-template-columns:minmax(0,1fr);gap:16px;padding:12px}
+ #display-dialog main{padding:12px}
+ #display-dialog .display-row{grid-template-columns:minmax(0,1fr);gap:16px}
  #display-dialog .navigation-panel{position:static}
  .display-dialog-header{padding:max(8px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) 8px max(12px,env(safe-area-inset-left))}
 }

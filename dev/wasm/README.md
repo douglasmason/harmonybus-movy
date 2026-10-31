@@ -158,6 +158,13 @@ status, audio status and errors. The screen and settings scroll independently,
 so transport remains reachable on phones and short landscape windows. These
 are the original controls and handlers, restored to their inline location when
 the editor closes; no separate transport or recording state is introduced.
+The same playing workspace now stays inside the enlarged editor too: all pads,
+track buttons, steps, editing controls, accompaniment settings and note feedback.
+Pads & steps jumps to the playing controls; Back to display returns to settings.
+One content area scrolls beneath the fixed transport. The eight physical knob
+cards stay hidden here because the selected encoder and direct screen controls
+already provide access. Closing restores the original workspace inline, and a
+held pad or step is cancelled through the existing release path.
 
 Settings panel lists the current production controller’s pages, grouped by the
 existing panel catalog. Clicking a top display segment jumps within its current
