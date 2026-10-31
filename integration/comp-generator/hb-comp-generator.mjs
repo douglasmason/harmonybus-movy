@@ -25,7 +25,7 @@ chord.restoreChord(null);chord.setChordEnabled(true);seqState.recording=false;se
 let page=chord.chordPage();let index=page.ctl.pages.findIndex(entry=>entry.level==='cp_comp_generator');assert(index>=0);page.goToPage(index);
 assert.equal(panelSpec('Chord Play',page.ctl.page).group,'Libraries');
 assert.equal(panelSpec('Chord Play',page.ctl.page).owner,'Comp');
-assert.deepEqual(Array.from({length:5},(_,knob)=>page.keyAt(knob)),generator.generatorKeys);assert.equal(page.keyAt(7),'cp_off');
+assert.deepEqual(Array.from({length:generator.generatorKeys.length},(_,knob)=>page.keyAt(knob)),generator.generatorKeys);assert.equal(page.keyAt(7),'cp_off');
 const port=chord.chordPanelPort(3);port.getParam('midi_fx1:chain_params');
 commands=[];port.setParam('midi_fx1:cg_family','Sync');port.setParam('midi_fx1:cg_style','3-3-2');port.setParam('midi_fx1:cg_complexity','80');
 assert.equal(generator.generatorRead('cg_style',2),'3-3-2');

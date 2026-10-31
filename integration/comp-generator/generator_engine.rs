@@ -24,7 +24,7 @@ impl Engine {
             let value=fields[4].parse::<u8>().ok().filter(|value|*value<=127).ok_or("Invalid generator value")?;
             let state=self.generator_explore[track].as_mut().ok_or("Start recipe exploration first")?;
             if field==2&&!state.current.accepts_style(value){return Err("Choose a style for this actor");}
-            state.touched|=1<<field;
+            state.touched|=1<<field;state.restore_pending&=!(1<<field);
             match field {0=>state.desired.complexity=value,1=>state.desired.intensity=value,_=>state.desired.style=value}
             return Ok(());
         }
@@ -38,7 +38,7 @@ impl Engine {
         self.generator_restore[track]=self.recipe_seen[track].or(self.recipe_bases[track]);
         let current=config.at(&part.clip,&part.lanes.labels,0);
         self.generator_library[track]=Some(part);
-        self.generator_explore[track]=Some(crate::generator::Explore{track,desired:current,current,take:None,destination:None,source:None,touched:0});
+        self.generator_explore[track]=Some(crate::generator::Explore{track,desired:current,current,take:None,destination:None,source:None,touched:0,restore_pending:0});
         out.push(OutEvent::RecipeCapture{track:track as u8});Ok(())
     }
     /// Record adopts the complete saved recipe at its first recording tick,
@@ -105,7 +105,7 @@ impl Engine {
         self.generator_cancel_track(track,out);
         self.flush_track_gates(track,out);
         self.generator_restore[track]=self.recipe_seen[track].or(self.recipe_bases[track]);
-        self.generator_explore[track]=Some(crate::generator::Explore {track,desired:config,current:config,take:None,destination:None,source:None,touched:7});
+        self.generator_explore[track]=Some(crate::generator::Explore {track,desired:config,current:config,take:None,destination:None,source:None,touched:7,restore_pending:0});
         self.generator_result="Explore - Rec saves to an empty clip".into();
         out.push(OutEvent::RecipeCapture{track:track as u8});true
     }
@@ -140,13 +140,46 @@ impl Engine {
             let step=if self.playing {(target.pos_tick/TICKS_PER_STEP) as u16}else{clip.loop_start_steps};
             let current=config.at(clip,&target.lane_label,step);
             self.generator_restore[track]=clip.recipe.as_ref().map(|recipe|recipe.settings).or(self.recipe_bases[track]);
-            self.generator_explore[track]=Some(crate::generator::Explore {track,desired:current,current,take:None,destination:if self.part_recording_busy()&&self.records_track(track){Some(slot)}else{None},source:Some(slot),touched:0});
+            self.generator_explore[track]=Some(crate::generator::Explore {track,desired:current,current,take:None,destination:if self.part_recording_busy()&&self.records_track(track){Some(slot)}else{None},source:Some(slot),touched:0,restore_pending:0});
         }
         if let Some((field,value))=edit {
-            let state=self.generator_explore[track].as_mut().unwrap();state.touched|=1<<field;
+            let state=self.generator_explore[track].as_mut().unwrap();state.touched|=1<<field;state.restore_pending&=!(1<<field);
             match field {0=>state.desired.complexity=value,1=>state.desired.intensity=value,2=>state.desired.style=value,_=>{}}
         }
         self.generator_result="Preview - Record captures changes".into();true
+    }
+    /// Resume saved curves in place. This never edits a clip, restarts its clock,
+    /// flushes a held gate, or changes the other actor's recording ownership.
+    pub fn generator_follow_set(&mut self,message:&str)->bool {
+        self.generator_result=match self.generator_follow_checked(message) {
+            Ok(())=>"Restore saved controls: step / bar".into(),Err(error)=>error.into(),
+        };
+        self.generator_result.starts_with("Restore saved")
+    }
+    fn generator_follow_checked(&mut self,message:&str)->Result<(),&'static str> {
+        let fields:Vec<_>=message.split_whitespace().collect();
+        if fields.len()!=3{return Err("Invalid Restore request");}
+        let track=fields[1].parse::<usize>().ok().filter(|track|*track<NUM_TRACKS).ok_or("Invalid actor track")?;
+        let slot=fields[2].parse::<usize>().ok().filter(|slot|*slot<CLIPS_PER_TRACK).ok_or("Invalid actor clip")?;
+        let target=&self.tracks[track];
+        if target.active_clip!=slot{return Err("Clip changed - retry");}
+        if self.part_recording_busy()&&self.records_track(track){return Err("Finish this actor take first");}
+        let library=self.generator_library[track].as_ref();
+        let Some(state)=self.generator_explore[track].as_ref() else {
+            return if target.active().generator.is_some(){Ok(())}else{Err("Explore a saved recipe first")};
+        };
+        if state.source.is_none()&&library.is_none(){return Err("Restore needs a saved recipe");}
+        if state.source.is_some_and(|source|source!=slot||target.active().generator.is_none()||self.playing&&target.playing_slot!=Some(source)) {
+            return Err("Clip changed - retry");
+        }
+        let stopped_base=if !self.playing {
+            let (clip,labels)=library.map_or((target.active(),&target.lane_label),|part|(&part.clip,&part.lanes.labels));
+            clip.generator.map(|config|config.at(clip,labels,clip.loop_start_steps))
+        }else{None};
+        let state=self.generator_explore[track].as_mut().unwrap();
+        if let Some(base)=stopped_base {state.touched=0;state.restore_pending=0;state.current=base;state.desired=base;}
+        else {state.restore_pending|=state.touched;}
+        Ok(())
     }
     /// Recording is owned by the ordinary recorder, never by the browsed actor.
     pub fn generator_record_track(&self)->Option<usize> {
@@ -300,6 +333,10 @@ impl Engine {
         let loop_start=clip.loop_start_ticks();
         if let Some(state)=self.generator_explore[track].as_mut() {
             let mut accepted=state.current;
+            let boundaries=if pos%TICKS_PER_STEP==0 {3}else{0}
+                | if pos%crate::TICKS_PER_BAR==0||(state.source.is_some()&&pos==loop_start) {4}else{0};
+            let released=state.restore_pending&boundaries;
+            state.touched&=!released;state.restore_pending&=!released;
             if pos%TICKS_PER_STEP==0 {accepted.complexity=state.desired.complexity;accepted.intensity=state.desired.intensity;}
             if pos%crate::TICKS_PER_BAR==0||(state.source.is_some()&&pos==loop_start) {accepted.style=state.desired.style;accepted.seed=state.desired.seed;}
             state.current=if state.source.is_some()||template.is_some(){Self::generator_override(base.unwrap(),accepted,state.touched)}else{accepted};

@@ -1,4 +1,4 @@
-# Actor generator browser and automation — hbclean.287
+# Actor generator browser and automation — hbclean.288
 
 Chord Play's **Libraries** category now contains a shared Comp/Bass generator.
 Choose an actor first; each actor uses its configured track and keeps its own
@@ -20,6 +20,7 @@ the selected recording slot. The same controls work on Move and in the browser.
 | 3 | Seed: repeatable variation of optional-attack thresholds |
 | 4 touch | Start/stop temporary exploration |
 | 5 touch | Bake the selected recorded generator clip |
+| 6 touch | Restore the saved recipe's controls without restarting its phrase |
 | 8 | Existing Range / tap Harmony Off |
 
 Comp retains Quarters, Offbeats, Sparse and 3-3-2. Bass adds Root / Fifth and
@@ -110,6 +111,11 @@ Use the **existing physical Record button** to punch in. It also works directly
 from the Generator page without first moving a knob. From stopped it uses the
 normal count-in. A recorded recipe counts as existing content even when it has
 no ordinary notes, so overdubbing never auto-extends or restarts its loop.
+
+To discard temporary edits in place, **touch knob 6 — Revert**. Complexity and
+Intensity resume saved automation at the next step; Style resumes at the next
+bar or trimmed-loop start. It also works when exploring a User recipe. Finish
+that actor's recording/count-in first. See [Restore controls](generator-restore.md).
 
 Only controls moved during the preview or recording are latched and written.
 Complexity and Intensity enter on step boundaries; Style enters on bar boundaries

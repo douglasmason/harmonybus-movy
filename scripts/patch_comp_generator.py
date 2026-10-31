@@ -109,9 +109,10 @@ def patch_comp_generator(root: Path) -> None:
             Some("pr1")=>{''')
     path.write_text(source)
     path = core / 'command.rs'
-    source = replace_once(path.read_text(),'            if verb=="filllibrary"', '            if verb=="guser" {engine.generator_user_set(op,out);continue;}\n            if verb=="gexplore" {engine.generator_explore_set(op,out);continue;}\n            if verb=="gpreview" {engine.generator_preview_set(op,out);continue;}\n            if verb=="filllibrary"')
+    source = replace_once(path.read_text(),'            if verb=="filllibrary"', '            if verb=="guser" {engine.generator_user_set(op,out);continue;}\n            if verb=="gexplore" {engine.generator_explore_set(op,out);continue;}\n            if verb=="gpreview" {engine.generator_preview_set(op,out);continue;}\n            if verb=="grestore" {engine.generator_follow_set(op);continue;}\n            if verb=="filllibrary"')
     source = source.replace('| "clipfill"', '| "gbake" | "clipfill"')
     source = replace_once(source,'        "clipfill" =>', '        "gbake" => engine.generator_bake(op,out),\n        "clipfill" =>')
+    source = replace_once(source, '"play" | "stop"', '"grestore" | "gexplore" | "gpreview" | "guser" | "play" | "stop"')
     path.write_text(source)
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
     source = replace_once(path.read_text(),'    fn drain_out(&mut self) {','    fn drain_out(&mut self) {\n        self.joint_links.generator_mask=self.engine.generator_mask();')
@@ -130,7 +131,9 @@ def patch_comp_generator(root: Path) -> None:
     source = replace_once(source,'let output=if self.chord.is_some_and', 'let output=if self.generator_mask&(1<<track)!=0 {Some(pitch)} else if self.chord.is_some_and')
     path.write_text(source)
     path = root / 'src/undo/verbs.ts'
-    path.write_text(path.read_text().replace("'clipfill',", "'gbake', 'clipfill',"))
+    source = path.read_text().replace("'clipfill',", "'gbake', 'clipfill',")
+    source = replace_once(source, "'play', 'stop'", "'grestore', 'gexplore', 'gpreview', 'guser', 'play', 'stop'")
+    path.write_text(source)
     path = root / 'src/seq/lane-mapping.ts'
     source = replace_once(path.read_text(),'    const sep = targetParam.indexOf', "    if(targetParam.startsWith('generator:'))return true;\n    const sep = targetParam.indexOf")
     path.write_text(source)
@@ -186,6 +189,7 @@ def patch_comp_generator(root: Path) -> None:
     (root / 'browser-test/hb-generator-duet.mjs').write_text((assets / 'hb-generator-duet.mjs').read_text())
     (root / 'browser-test/hb-generator-phrases.mjs').write_text((assets / 'hb-generator-phrases.mjs').read_text())
     (root / 'browser-test/hb-generator-library.mjs').write_text((assets / 'hb-generator-library.mjs').read_text())
+    (root / 'browser-test/hb-generator-restore.mjs').write_text((assets / 'hb-generator-restore.mjs').read_text())
     if (assets / 'hb-generator-overdub.mjs').exists():
         (root / 'browser-test/hb-generator-overdub.mjs').write_text((assets / 'hb-generator-overdub.mjs').read_text())
 
@@ -205,4 +209,4 @@ def patch_comp_generator(root: Path) -> None:
 
     for relative in ('engine/crates/movy-dsp/src/lib.rs','src/seq/constants.ts'):
         path = root / relative
-        path.write_text(path.read_text().replace('0.86.0-fill-library1','0.92.0-library-names1'))
+        path.write_text(path.read_text().replace('0.86.0-fill-library1','0.93.0-generator-restore1'))

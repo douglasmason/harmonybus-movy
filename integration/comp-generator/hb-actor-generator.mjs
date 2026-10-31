@@ -49,7 +49,7 @@ assert.equal(commands.length,0,'genre is navigation only');
 port.setParam('midi_fx1:cg_family','Sync');port.setParam('midi_fx1:cg_complexity','85');
 assert.equal(generator.generatorRead('cg_style',1),'Sparse');
 assert.deepEqual(generator.generatorParameters().find(meta=>meta.key==='cg_style').options,['Sparse']);
-page=visit('cp_comp_generator');assert.match(page.ctl.page.name,/Bass T2 Generator/);capture('bass-generator-controls',[5,6]);
+page=visit('cp_comp_generator');assert.match(page.ctl.page.name,/Bass T2 Generator/);capture('bass-generator-controls',[6]);
 chord.chordMidi([144,3,127]);chord.chordMidi([128,3,0]);seqCmdFlush();
 assert(commands.some(command=>command.startsWith('gexplore 1 6 ')));
 assert(!commands.some(command=>/^(pload|clipfill|launch|aset|alabel)\b/.test(command)));

@@ -160,7 +160,7 @@ static void test_comp_generator(void){
     /* Save/reuse the actual abstract recipe through production HB for each actor. */
     for(int actor_track=1;actor_track<=2;actor_track++){
         const int style=actor_track==1?12:8;const char *kind=actor_track==1?"bass":"comp";
-        char command[40200],parameter[64],recipe_marker[48];static char entry[40000];
+        char command[40200],parameter[64],recipe_marker[48],info_key[48];static char entry[40000];
         set("cmd","stop");set("chord_select","off");render(16);
         set("state","movy1\nbpm 12000\nlink 0\ntk 1 0 0\ntk 2 0 0\n");
         set("ch1:midi_fx1:travel_map","Relative");set("ch1:midi_fx1:render_channel","2");
@@ -184,7 +184,13 @@ static void test_comp_generator(void){
         assert(api->get_param(instance,"state",before,sizeof(before))>0);
         snprintf(command,sizeof(command),"guser %d %s %s;play",actor_track,kind,entry);
         sent_on=sent_off=0;memset(routed_channel_on,0,sizeof(routed_channel_on));duet_capture=1;memset(duet_balance,0,sizeof(duet_balance));
-        set("cmd",command);render(3400);set("cmd","stop");render(16);duet_capture=0;
+        set("cmd",command);render(800);
+        snprintf(command,sizeof(command),"guser %d edit 0 12;guser %d edit 1 127",actor_track,actor_track);set("cmd",command);render(800);
+        snprintf(command,sizeof(command),"grestore %d 0",actor_track);set("cmd",command);render(8);
+        snprintf(info_key,sizeof(info_key),"generator_info_%d",actor_track);
+        assert(api->get_param(instance,info_key,info,sizeof(info))>0&&strstr(info,"Restore saved controls"));
+        assert(!strncmp(info,"Exploring",9));
+        render(1800);set("cmd","stop");render(16);duet_capture=0;
         assert(routed_channel_on[actor_track]>6&&sent_on==sent_off);
         for(int channel=0;channel<16;channel++)for(int pitch=0;pitch<128;pitch++)assert(duet_balance[channel][pitch]==0);
         assert(api->get_param(instance,"state",after,sizeof(after))>0&&!strcmp(before,after));
@@ -193,7 +199,12 @@ static void test_comp_generator(void){
         snprintf(command,sizeof(command),"rec %d;ucommit 970;stop",actor_track);set("cmd",command);render(16);
         snprintf(recipe_marker,sizeof(recipe_marker),"cg1 %d 0 ",actor_track);
         assert(api->get_param(instance,"state",saved,sizeof(saved))>0&&strstr(saved,recipe_marker)&&strstr(saved,"generator:intensity"));
-        set("state",saved);render(8);sent_on=sent_off=0;set("cmd","play");render(1800);set("cmd","stop");render(16);assert(sent_on>4&&sent_on==sent_off);
+        set("state",saved);render(8);sent_on=sent_off=0;
+        snprintf(command,sizeof(command),"gpreview %d 0 1 12;play",actor_track);set("cmd",command);render(800);
+        snprintf(command,sizeof(command),"grestore %d 0",actor_track);set("cmd",command);render(8);
+        assert(api->get_param(instance,info_key,info,sizeof(info))>0&&!strncmp(info,"Preview",7)&&strstr(info,"Restore saved controls"));
+        render(1000);set("cmd","stop");render(16);assert(sent_on>4&&sent_on==sent_off);
+        assert(api->get_param(instance,"state",after,sizeof(after))>0&&!strcmp(saved,after));
         set("cmd","uswap 970 971");render(8);assert(api->get_param(instance,"state",after,sizeof(after))>0&&!strcmp(before,after));
     }
     puts("Generator user recipes: both actors export abstract curves, audition without writes, Record/overdub/reload and Undo through production HB pass");
