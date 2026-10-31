@@ -69,25 +69,35 @@ export function mountMoveDisplay(inputs){
 
 /** Reuse the live controls in a modal editing view; do not remount the engine. */
 function mountDisplayView(inputs){
- const row=document.querySelector('.display-row'),expand=document.querySelector('#display-expand');
- const home=document.createComment('Movy display position');row.before(home);
+ const workspace=document.querySelector('main'),row=document.querySelector('.display-row'),expand=document.querySelector('#display-expand');
+ const home=document.createComment('Movy workspace position');workspace.before(home);
  const playback=document.querySelector('.playback-controls');
  const playbackHome=document.createComment('Movy playback position');playback.before(playbackHome);
  const dialog=document.createElement('dialog');dialog.id='display-dialog';
  dialog.setAttribute('aria-label','Enlarged Movy display');
  const header=document.createElement('div');header.className='display-dialog-header';
  const title=document.createElement('strong');title.textContent='Movy display';
+ const titleGroup=document.createElement('div');titleGroup.className='display-dialog-title';
+ const padsJump=document.createElement('button');padsJump.type='button';padsJump.textContent='Pads & steps';
+ const surface=document.querySelector('#surface');
+ surface.tabIndex=-1;
+ const performanceHeading=document.createElement('div');performanceHeading.className='display-performance-heading';
+ const performanceTitle=document.createElement('strong');performanceTitle.textContent='Playing pads & steps';
+ const displayJump=document.createElement('button');displayJump.type='button';displayJump.textContent='Back to display';
+ performanceHeading.append(performanceTitle,displayJump);surface.prepend(performanceHeading);
+ padsJump.onclick=()=>{if(inputs.isHeld())return;surface.scrollIntoView({block:'start'});surface.focus({preventScroll:true});};
+ displayJump.onclick=()=>{if(inputs.isHeld())return;row.scrollIntoView({block:'start'});document.querySelector('#play-mode').focus({preventScroll:true});};
  const close=document.createElement('button');close.type='button';close.textContent='Close large display';
- header.append(title,close);dialog.append(header);document.body.append(dialog);
+ titleGroup.append(title,padsJump);header.append(titleGroup,close);dialog.append(header);document.body.append(dialog);
  function restore(){
   if(inputs.isHeld())inputs.release();
-  home.after(row);playbackHome.after(playback);expand.hidden=false;expand.setAttribute('aria-expanded','false');
+  home.after(workspace);playbackHome.after(playback);expand.hidden=false;expand.setAttribute('aria-expanded','false');
   document.body.classList.remove('display-expanded');expand.focus({preventScroll:true});
  }
  expand.onclick=()=>{
   // Reparenting a captured control could interrupt its original release.
   if(inputs.isHeld()||dialog.open)return;
-  header.append(playback);dialog.append(row);expand.hidden=true;expand.setAttribute('aria-expanded','true');
+  header.append(playback);dialog.append(workspace);expand.hidden=true;expand.setAttribute('aria-expanded','true');
   document.body.classList.add('display-expanded');dialog.showModal();close.focus();
  };
  close.onclick=()=>dialog.close();

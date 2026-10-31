@@ -59,16 +59,24 @@ try{
  assert.equal(await dialog.locator('#navigation').count(),1,'existing navigation moves with the screen');
  assert.equal(await dialog.locator('#transport .control').count(),2,'the original transport is available in the editor');
  assert.equal(await page.locator('#transport').count(),1,'transport is moved rather than duplicated');
+ assert.equal(await dialog.locator('#pads .control').count(),32,'all existing pads stay in the editor');
+ assert.equal(await page.locator('#pads .control').count(),32,'pads are moved rather than duplicated');
+ assert.equal(await dialog.locator('#steps .control').count(),16);
+ assert.equal(await dialog.locator('#functions .control').count(),8);
+ assert.equal(await dialog.locator('.accompaniment').count(),1);
+ assert.equal(await dialog.locator('.played-readout').count(),1);
  assert(await dialog.locator('#feedback').isVisible(),'live transport feedback remains visible');
+ await button('Pads & steps').focus();
  await page.keyboard.press('Shift+Tab');
- assert(await page.evaluate(()=>document.querySelector('#display-dialog').contains(document.activeElement)),'focus stays inside the editor');
+ assert(await button('Step 16').evaluate(element=>element===document.activeElement),'focus wraps to the last playing control');
  await page.keyboard.press('Tab');
- assert(await button('Close large display').evaluate(element=>element===document.activeElement),'focus wraps back to Close');
+ assert(await button('Pads & steps').evaluate(element=>element===document.activeElement),'focus wraps back to the first editor control');
  await page.locator('#shift').check();
  await page.waitForFunction(async()=>(await __wasmStats()).move.held>0);
  await page.locator('#stop').click();
  await page.waitForFunction(async()=>(await __wasmStats()).move.held===0);
  assert(!(await page.locator('#shift').isChecked()),'editor Stop & release clears held Shift');
+ await screenTravel.scrollIntoViewIfNeeded();
  const cell=await screenTravel.boundingBox();
  await page.mouse.move(cell.x+cell.width/2,cell.y+cell.height/2);await page.mouse.down();
  await page.mouse.move(cell.x+cell.width/2,cell.y+cell.height/2-16,{steps:4});await page.mouse.up();
@@ -91,6 +99,18 @@ try{
  await page.waitForFunction(()=>document.activeElement===document.querySelector('#display-expand'));
  assert.equal(await page.locator('main .display-row #encoder').count(),1,'the same controls return inline');
  assert.equal(await page.locator('body > .playback-controls #transport').count(),1,'transport returns to its original location');
+ assert.equal(await page.locator('body > main #pads .control').count(),32,'pads return inline with their handlers');
+ // Closing a held playing pad releases it without creating a step edit.
+ const beforePadCancel=await page.evaluate(()=>__wasmRead('state'));
+ await button('Enlarge display').click();await button('Pads & steps').click();
+ await button('Pad 2').focus();await page.keyboard.down('Space');
+ await page.waitForFunction(async()=>(await __wasmStats()).move.held>0);
+ await page.keyboard.press('Escape');await page.keyboard.up('Space');
+ await page.waitForFunction(async()=>!document.querySelector('#display-dialog').open&&(await __wasmStats()).move.held===0);
+ // Native close queues restoration separately; the next synthetic encoder
+ // event must target the restored surface, not its briefly inert dialog copy.
+ await page.waitForFunction(()=>document.activeElement===document.querySelector('#display-expand')&&document.querySelector('body > main #pads'));
+ assert.equal(await page.evaluate(()=>__wasmRead('state')),beforePadCancel,'cancelled pad hold does not edit the clip');
  // A concurrent alias cannot release another surface's encoder hold.
  await page.evaluate(()=>{
   const physical=document.querySelector('[aria-label="Knob 2"]'),screen=document.querySelector('.screen-parameter[data-slot="1"]');
@@ -126,7 +146,7 @@ try{
  assert.equal(await button('Pad 1').locator('.pad-note').textContent(),'C3');
  assert.match(await page.locator('.pad-row-label[data-row="1"]').textContent(),/T4 Melody · Approach/);
  await button('Pad 9').tap();
- await page.waitForFunction(()=>document.querySelector('#played-output').textContent.includes('Ch 4:'));
+ await page.waitForFunction(()=>document.querySelector('#played-output').textContent.includes('Ch 4: G2'));
  assert.match(await page.locator('#played-intent').textContent(),/target C3/);
  assert.equal(Number(await page.evaluate(()=>__wasmRead('ch3:midi_fx1:render_last_note'))),43);
  assert.match(await page.locator('#played-output').textContent(),/Ch 4: G2/,'readout agrees with the engine even before a Comp chord is available');
@@ -163,6 +183,13 @@ try{
  clip=await page.evaluate(()=>__wasmRead('state'));
  await button('Enlarge display').click();
  await page.locator('#audio').click();await page.waitForFunction(()=>document.querySelector('#audio').textContent==='Disable audio');
+ await button('Pads & steps').click();
+ await button('Pad 2').focus();await page.keyboard.down('Space');
+ await page.waitForFunction(()=>document.querySelector('#played-intent').textContent.includes('T4'));
+ await page.waitForFunction(()=>{try{return JSON.parse(document.querySelector('#audio-report').textContent).peak>.0001;}catch{return false;}});
+ await page.keyboard.up('Space');
+ await button('Back to display').click();
+ assert(await page.evaluate(()=>document.activeElement===document.querySelector('#play-mode')),'display shortcut returns keyboard focus to settings');
  await button('Play / Stop').tap();
  await page.waitForFunction(async()=>/\bplay=1\b/.test(await __wasmRead('status'))&&document.querySelector('#feedback').textContent.includes('Playing'));
  await page.waitForFunction(()=>{try{return JSON.parse(document.querySelector('#audio-report').textContent).peak>.0001;}catch{return false;}});
@@ -229,12 +256,13 @@ try{
  await button('Step 1').tap();await button('Enlarge display').click();await button('Record').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Count-in'));
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Recording'));
- await button('Close large display').click();
+ await button('Pads & steps').click();
  for(const [step,pad] of [['Step 2','Pad 3'],['Step 3','Pad 5']]){
   await button(step).tap();await button(pad).focus();await page.keyboard.down('Space');
   await page.waitForTimeout(250);await page.keyboard.up('Space');
  }
- await button('Enlarge display').click();await page.locator('#stop').click();
+ assert(await dialog.isVisible(),'recording and playing stays in the enlarged editor');
+ await page.locator('#stop').click();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Chord Play · Stopped'));
  await button('Close large display').click();
  const chordClip=await page.evaluate(()=>__wasmRead('state'));
@@ -340,14 +368,25 @@ try{
   assert(await page.locator('#encoder').evaluate(element=>element.scrollWidth<=element.clientWidth),'encoder selector fits');
   await page.locator('#display-sharp').uncheck();assert(await page.locator('#hero').isVisible());
   await page.locator('#display-sharp').check();
-  await dialog.locator('.display-row').evaluate(element=>{element.scrollTop=element.scrollHeight;});
+  await button('Pads & steps').click();
+  assert(await page.evaluate(()=>document.activeElement===document.querySelector('#surface')),'pad shortcut moves focus without playing a note');
+  assert.equal(await dialog.locator('#pads .control').count(),32);
+  const padBox=await button('Pad 25').boundingBox(),headerBox=await dialog.locator('.display-dialog-header').boundingBox();
+  assert(padBox.y>=headerBox.y+headerBox.height&&padBox.y+padBox.height<=viewport.height,'first pad row is reachable below transport at '+JSON.stringify(viewport));
+  await button('Step 16').focus();
+  const stepBox=await button('Step 16').boundingBox();
+  assert(stepBox.y>=headerBox.y+headerBox.height&&stepBox.y+stepBox.height<=viewport.height,'last step scrolls into view at '+JSON.stringify(viewport));
+  await dialog.locator('main').evaluate(element=>{element.scrollTop=element.scrollHeight;});
   const closeBox=await button('Close large display').boundingBox();
   assert(closeBox.y>=0&&closeBox.y+closeBox.height<=viewport.height,'Close stays reachable after scrolling');
   for(const selector of ['#transport','#audio','#stop','#shift','#feedback','#audio-status']){
    const bounds=await page.locator(selector).boundingBox();
    assert(bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=viewport.width&&bounds.y+bounds.height<=viewport.height,'fixed '+selector+' remains visible at '+JSON.stringify(viewport));
   }
-  assert(await dialog.locator('.display-row').evaluate(element=>element.scrollWidth<=element.clientWidth),'scrolling content fits its width');
+  assert(await dialog.locator('main').evaluate(element=>element.scrollWidth<=element.clientWidth),'scrolling workspace fits its width');
+  await button('Back to display').click();
+  const returnedScreen=await page.locator('#screen').boundingBox();
+  assert(returnedScreen.y>=headerBox.y+headerBox.height&&returnedScreen.y<viewport.height,'display shortcut returns above the pads');
   await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('#display-dialog').open);
  }
  await checkEncoderActions(browser,page.url());
