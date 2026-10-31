@@ -118,7 +118,12 @@ function mountDisplayView(inputs){
  dialog.addEventListener('keydown',event=>{
   if(event.key==='Tab'){
    const focusable=[...dialog.querySelectorAll('button,select,input,summary,[tabindex]')]
-    .filter(element=>!element.disabled&&element.tabIndex>=0&&element.getClientRects().length);
+    .filter(element=>{
+     // Closed details can retain layout boxes for their hidden descendants.
+     const closed=element.closest('details:not([open])');
+     return !element.disabled&&element.tabIndex>=0&&element.getClientRects().length&&
+      (!closed||element===closed.querySelector('summary'));
+    });
    const first=focusable[0],last=focusable.at(-1);
    if(event.shiftKey&&event.target===first){event.preventDefault();last.focus();}
    else if(!event.shiftKey&&event.target===last){event.preventDefault();first.focus();}
