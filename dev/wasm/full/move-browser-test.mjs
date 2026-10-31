@@ -66,10 +66,11 @@ try{
  assert.equal(await dialog.locator('.accompaniment').count(),1);
  assert.equal(await dialog.locator('.played-readout').count(),1);
  assert(await dialog.locator('#feedback').isVisible(),'live transport feedback remains visible');
+ await button('Pads & steps').focus();
  await page.keyboard.press('Shift+Tab');
- assert(await page.evaluate(()=>document.querySelector('#display-dialog').contains(document.activeElement)),'focus stays inside the editor');
+ assert(await button('Step 16').evaluate(element=>element===document.activeElement),'focus wraps to the last playing control');
  await page.keyboard.press('Tab');
- assert(await button('Close large display').evaluate(element=>element===document.activeElement),'focus wraps back to Close');
+ assert(await button('Pads & steps').evaluate(element=>element===document.activeElement),'focus wraps back to the first editor control');
  await page.locator('#shift').check();
  await page.waitForFunction(async()=>(await __wasmStats()).move.held>0);
  await page.locator('#stop').click();
