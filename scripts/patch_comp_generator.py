@@ -205,4 +205,4 @@ def patch_comp_generator(root: Path) -> None:
 
     for relative in ('engine/crates/movy-dsp/src/lib.rs','src/seq/constants.ts'):
         path = root / relative
-        path.write_text(path.read_text().replace('0.86.0-fill-library1','0.91.0-generator-library1'))
+        path.write_text(path.read_text().replace('0.86.0-fill-library1','0.92.0-library-names1'))
