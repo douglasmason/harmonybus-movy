@@ -146,7 +146,7 @@ try{
  assert.equal(await button('Pad 1').locator('.pad-note').textContent(),'C3');
  assert.match(await page.locator('.pad-row-label[data-row="1"]').textContent(),/T4 Melody · Approach/);
  await button('Pad 9').tap();
- await page.waitForFunction(()=>document.querySelector('#played-output').textContent.includes('Ch 4:'));
+ await page.waitForFunction(()=>document.querySelector('#played-output').textContent.includes('Ch 4: G2'));
  assert.match(await page.locator('#played-intent').textContent(),/target C3/);
  assert.equal(Number(await page.evaluate(()=>__wasmRead('ch3:midi_fx1:render_last_note'))),43);
  assert.match(await page.locator('#played-output').textContent(),/Ch 4: G2/,'readout agrees with the engine even before a Comp chord is available');
