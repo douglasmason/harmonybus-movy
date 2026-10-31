@@ -106,7 +106,7 @@ export async function startServer({port=7701,host='127.0.0.1',realtime=true}={})
     Object.assign(result.value,(await processor.request('read_many',(watches.get(socket)??[]).join(','))).value);
     return {type:'param_update',slot:0,params:result.value,beat:result.beat,events:recent,observation:observe(result),requestId:message.id};
   }
-  const files={'/joint':['joint.html','text/html'],'/joint.js':['build/joint.js','text/javascript'],'/field':['build/field.html','text/html'],'/field-web.js':['build/field-web.js','text/javascript'],'/movy':['build/movy.html','text/html'],'/movy.js':['build/movy.js','text/javascript'],'/':['index.html','text/html'],'/panel.js':['build/panel.js','text/javascript'],'/static/schwung-remote-api.js':['build/schwung-remote-api.js','text/javascript']};
+  const files={'/local/lighting.css':['lighting.css','text/css'],'/joint':['joint.html','text/html'],'/joint.js':['build/joint.js','text/javascript'],'/field':['build/field.html','text/html'],'/field-web.js':['build/field-web.js','text/javascript'],'/choice-web.js':['build/choice-web.js','text/javascript'],'/movy':['build/movy.html','text/html'],'/movy.js':['build/movy.js','text/javascript'],'/':['index.html','text/html'],'/panel.js':['build/panel.js','text/javascript'],'/static/schwung-remote-api.js':['build/schwung-remote-api.js','text/javascript']};
   const server=http.createServer(async(request,response)=>{
     const pathname=new URL(request.url,'http://local').pathname;
     if(pathname==='/api/dev/module'){response.writeHead(200,{'Content-Type':'application/json'});response.end(JSON.stringify(metadata));return}

@@ -15,3 +15,6 @@ const {buildJoint}=await import('./build-joint.mjs');
 await buildJoint({root,source,schwung:process.env.SCHWUNG_SOURCE,esbuild});
 const {buildMove}=await import('./build-move.mjs');
 await buildMove({root,source,schwung:process.env.SCHWUNG_SOURCE,esbuild});
+
+const {buildWorkspace}=await import('./build-workspace.mjs');
+await buildWorkspace({root,harmonybus:process.env.HARMONYBUS_SOURCE??resolve(root,'sources/harmonybus'),esbuild});

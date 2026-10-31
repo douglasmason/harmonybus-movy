@@ -4,6 +4,7 @@ import {mountLighting} from './lighting-ui.mjs';
 import {AudioMonitor} from './audio-monitor.mjs';
 import {engineReadKey,readableKey} from './protocol-policy.mjs';
 import {mountSong} from './song-ui.mjs';
+import {createSongActions} from './song-actions.mjs';
 import {performanceFeedback,selectedClip} from './performance-ui.mjs';
 let releaseControls=()=>{};
 function showView(name){
@@ -163,7 +164,7 @@ document.querySelector('#next').onclick=()=>jointPage().changePage(1);
 document.querySelector('#back').onclick=()=>jointPage().back();
 document.querySelector('#enter').onclick=()=>jointPage().click(appState.shiftHeld);
 const panel=document.querySelector('#panel');panel.onchange=()=>jointPage().goToPage(Number(panel.value));
-const song=mountSong({page:jointPage,read:globalThis.host_module_get_param});
+const song=mountSong({actions:createSongActions(jointPage),read:globalThis.host_module_get_param});
 document.querySelector('#song-edit').addEventListener('click',()=>showView('controls'));
 let signature='',watchSignature='';
 const timer=setInterval(()=>{

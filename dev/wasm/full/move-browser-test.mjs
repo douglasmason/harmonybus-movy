@@ -421,7 +421,7 @@ try{
   assert(await page.evaluate(()=>document.activeElement===document.querySelector('#surface')),'pad shortcut moves focus without playing a note');
   assert.equal(await dialog.locator('#pads .control').count(),32);
   const padBox=await button('Pad 25').boundingBox(),headerBox=await dialog.locator('.display-dialog-header').boundingBox();
-  assert(padBox.y>=headerBox.y+headerBox.height&&padBox.y+padBox.height<=viewport.height,'first pad row is reachable below transport at '+JSON.stringify(viewport));
+  assert(padBox.y>=headerBox.y+headerBox.height&&padBox.y+padBox.height<=viewport.height,'first pad row is reachable below transport at '+JSON.stringify({viewport,padBox,headerBox}));
   await button('Step 16').focus();
   const stepBox=await button('Step 16').boundingBox();
   assert(stepBox.y>=headerBox.y+headerBox.height&&stepBox.y+stepBox.height<=viewport.height,'last step scrolls into view at '+JSON.stringify(viewport));

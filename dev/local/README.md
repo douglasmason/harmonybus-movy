@@ -1,5 +1,10 @@
 # HB native development host
 
+For the unified published workspace, shared component inventory and state
+ownership, see [WORKSPACE.md](WORKSPACE.md). These native pages are diagnostic
+fixtures; the published `/joint` URL now opens the same `/move/` workspace.
+Physical connections are documented in [MOVE-CONNECTION.md](MOVE-CONNECTION.md).
+
 Runs production Movy (Rust), Schwung chain (C), and HarmonyBus (C) in a native
 Linux process. The browser talks to a compatible **subset** of Schwung's Remote
 UI WebSocket protocol, using the unmodified `schwung-remote-api.js`. It does not

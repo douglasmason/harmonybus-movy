@@ -11,6 +11,10 @@ Open `/move/` for the full production Movy UI on our adaptable HB/Movy control g
 surface: pads, clips, steps, Undo, knobs and all sixteen tracks, running beside
 the actual engine in the browser. See the full host guide for controls and limits.
 
+The workspace also composes canonical Field, motif probability, Song and Lighting
+components. `/joint/` redirects to it. See [shared architecture](../local/WORKSPACE.md)
+and [Move connection](../local/MOVE-CONNECTION.md).
+
 ## Original feasibility slice
 
 Actual production HB C and patched Movy `seq-core` Rust execute as WebAssembly.

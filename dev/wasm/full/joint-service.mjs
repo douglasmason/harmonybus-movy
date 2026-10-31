@@ -96,7 +96,10 @@ export async function createJointService(raw,emit,build=null,createSurface=null)
    if(socket.readyState!==1)return;
    try{
     const message=JSON.parse(encoded);
-    if(message.type==='move_midi'){
+    if(message.type==='move_song'){
+     if(!surface)throw new Error('Move surface is unavailable');
+     surface.songAction(message.action,message.value);
+    }else if(message.type==='move_midi'){
      if(!surface)throw new Error('Move surface is unavailable');
      surface.input(message.data);
     }else if(message.type==='move_panel'){
