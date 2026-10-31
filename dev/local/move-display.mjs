@@ -13,7 +13,7 @@ export function fitValueText(value,width,height,measure,maxSize=6){
 
 /** Replay production geometry at screen resolution, or its exact bitmap. */
 export function mountMoveDisplay(inputs){
- mountDisplayView(inputs);
+ const updateView=mountDisplayView(inputs);
  const canvas=document.querySelector('#hero'),context=canvas.getContext('2d'),pixels=context.createImageData(128,64);
  const sharp=document.querySelector('#screen-sharp'),toggle=document.querySelector('#display-sharp');
  const namespace='http://www.w3.org/2000/svg';
@@ -64,7 +64,7 @@ export function mountMoveDisplay(inputs){
   revision=frame.displayRevision;sharpMode=highResolution;
  }
  toggle.addEventListener('change',paint);
- return {update(next){frame=next;paint();}};
+ return {update(next){updateView();frame=next;paint();}};
 }
 
 /** Reuse the live controls in a modal editing view; do not remount the engine. */
@@ -79,6 +79,13 @@ function mountDisplayView(inputs){
  const title=document.createElement('strong');title.textContent='Movy display';
  const titleGroup=document.createElement('div');titleGroup.className='display-dialog-title';
  const padsJump=document.createElement('button');padsJump.type='button';padsJump.textContent='Pads & steps';
+ const sessions=document.querySelector('#sessions');
+ const filesJump=document.createElement('button');filesJump.type='button';filesJump.textContent='Files & audio';filesJump.disabled=true;
+ filesJump.onclick=()=>{
+  if(inputs.isHeld()||sessions.hidden)return;
+  sessions.open=true;sessions.scrollIntoView({block:'start'});
+  sessions.querySelector('summary').focus({preventScroll:true});
+ };
  const surface=document.querySelector('#surface');
  surface.tabIndex=-1;
  const performanceHeading=document.createElement('div');performanceHeading.className='display-performance-heading';
@@ -88,7 +95,7 @@ function mountDisplayView(inputs){
  padsJump.onclick=()=>{if(inputs.isHeld())return;surface.scrollIntoView({block:'start'});surface.focus({preventScroll:true});};
  displayJump.onclick=()=>{if(inputs.isHeld())return;row.scrollIntoView({block:'start'});document.querySelector('#play-mode').focus({preventScroll:true});};
  const close=document.createElement('button');close.type='button';close.textContent='Close large display';
- titleGroup.append(title,padsJump);header.append(titleGroup,close);dialog.append(header);document.body.append(dialog);
+ titleGroup.append(title,padsJump,filesJump);header.append(titleGroup,close);dialog.append(header);document.body.append(dialog);
  function restore(){
   if(inputs.isHeld())inputs.release();
   home.after(workspace);playbackHome.after(playback);expand.hidden=false;expand.setAttribute('aria-expanded','false');
@@ -110,8 +117,13 @@ function mountDisplayView(inputs){
  },true);
  dialog.addEventListener('keydown',event=>{
   if(event.key==='Tab'){
-   const focusable=[...dialog.querySelectorAll('button,select,input,[tabindex]')]
-    .filter(element=>!element.disabled&&element.tabIndex>=0&&element.getClientRects().length);
+   const focusable=[...dialog.querySelectorAll('button,select,input,summary,[tabindex]')]
+    .filter(element=>{
+     // Closed details can retain layout boxes for their hidden descendants.
+     const closed=element.closest('details:not([open])');
+     return !element.disabled&&element.tabIndex>=0&&element.getClientRects().length&&
+      (!closed||element===closed.querySelector('summary'));
+    });
    const first=focusable[0],last=focusable.at(-1);
    if(event.shiftKey&&event.target===first){event.preventDefault();last.focus();}
    else if(!event.shiftKey&&event.target===last){event.preventDefault();first.focus();}
@@ -119,4 +131,5 @@ function mountDisplayView(inputs){
  });
  // The shared input handler cancels held gestures on Escape. Native dialog
  // cancellation closes this view; the modal keeps background controls inert.
+ return ()=>{filesJump.disabled=sessions.hidden;};
 }

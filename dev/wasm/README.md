@@ -165,6 +165,12 @@ One content area scrolls beneath the fixed transport. The eight physical knob
 cards stay hidden here because the selected encoder and direct screen controls
 already provide access. Closing restores the original workspace inline, and a
 held pad or step is cancelled through the existing release path.
+Session files and Audio & build also stay in this workspace. Files & audio in
+the fixed header opens the existing session panel, so saving, reopening,
+creating sessions and exporting/importing backups work without closing the
+editor. Monitor level and audio diagnostics are below it. The original storage,
+audio handlers and stopped-save rules apply; disclosure controls participate
+in the dialog's keyboard focus order.
 
 Settings panel lists the current production controller’s pages, grouped by the
 existing panel catalog. Clicking a top display segment jumps within its current
