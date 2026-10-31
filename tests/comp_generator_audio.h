@@ -185,7 +185,7 @@ static void test_comp_generator(void){
         snprintf(command,sizeof(command),"guser %d %s %s;play",actor_track,kind,entry);
         sent_on=sent_off=0;memset(routed_channel_on,0,sizeof(routed_channel_on));duet_capture=1;memset(duet_balance,0,sizeof(duet_balance));
         set("cmd",command);render(800);
-        snprintf(command,sizeof(command),"guser %d edit 0 12;guser %d edit 1 127",actor_track,actor_track);set("cmd",command);render(800);
+        snprintf(command,sizeof(command),"guser %d edit 0 12;guser %d edit 1 127;guser %d edit 2 %d",actor_track,actor_track,actor_track,style+2);set("cmd",command);render(800);
         snprintf(command,sizeof(command),"grestore %d 0",actor_track);set("cmd",command);render(8);
         snprintf(info_key,sizeof(info_key),"generator_info_%d",actor_track);
         assert(api->get_param(instance,info_key,info,sizeof(info))>0&&strstr(info,"Restore saved controls"));
@@ -195,7 +195,9 @@ static void test_comp_generator(void){
         for(int channel=0;channel<16;channel++)for(int pitch=0;pitch<128;pitch++)assert(duet_balance[channel][pitch]==0);
         assert(api->get_param(instance,"state",after,sizeof(after))>0&&!strcmp(before,after));
         snprintf(command,sizeof(command),"guser %d %s %s;usnap 970;rec %d",actor_track,kind,entry,actor_track);set("cmd",command);render(1800);
-        snprintf(command,sizeof(command),"gpreview %d 0 1 115",actor_track);set("cmd",command);render(800);
+        snprintf(command,sizeof(command),"gpreview %d 0 2 %d",actor_track,style+3);set("cmd",command);render(800);
+        assert(api->get_param(instance,info_key,info,sizeof(info))>0&&!strncmp(info,"Overdub",7));
+        const char *style_info=strchr(info,'|');assert(style_info);style_info=strchr(style_info+1,'|');assert(style_info&&atoi(style_info+1)==style+3);
         snprintf(command,sizeof(command),"rec %d;ucommit 970;stop",actor_track);set("cmd",command);render(16);
         snprintf(recipe_marker,sizeof(recipe_marker),"cg1 %d 0 ",actor_track);
         assert(api->get_param(instance,"state",saved,sizeof(saved))>0&&strstr(saved,recipe_marker)&&strstr(saved,"generator:intensity"));

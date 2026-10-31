@@ -20,7 +20,8 @@ globalThis.host_module_set_param_blocking=(key,value)=>{
    if(fields[2]==='edit'){const parts=states.get(track).split('|'),config=parts[2].split(' ');config[Number(fields[3])===2?0:Number(fields[3])+1]=fields[4];parts[2]=config.join(' ');states.set(track,parts.join('|'));}
    else states.set(track,'Exploring|0|'+(fields[2]==='bass'?12:8)+' 32 64 37 1536|Explore saved recipe - Rec saves to an empty clip|'+owner+'|1');
   }
-  if(fields[0]==='gexplore'&&fields[1]==='off'){owner=-1;for(const [track,state] of states)states.set(track,state.replace(/^Exploring/,'Off').replace(/\|1$/,'|0'));}
+  if(fields[0]==='gpreview'&&fields.length===5){const parts=states.get(track).split('|'),config=parts[2].split(' ');config[Number(fields[3])===2?0:Number(fields[3])+1]=fields[4];parts[2]=config.join(' ');parts[0]=owner===track?'Overdub':'Preview';parts[3]='Preview - Record captures changes';states.set(track,parts.join('|'));}
+  if(fields[0]==='gexplore'&&fields[1]==='off'){owner=-1;for(const [track,state] of states)states.set(track,state.replace(/^Exploring/,'Off').replace(/^Preview/,'Recorded').replace(/\|1$/,'|0'));}
   if(fields[0]==='rec'){
    if(owner<0){owner=track;states.set(track,states.get(track).replace(/^Exploring/,'Overdub').replace(/\|-1\|1$/,'|'+owner+'|0'));}
    else {states.set(owner,states.get(owner).replace(/^Overdub/,'Recorded').replace(/\|[0-9]+\|0$/,'|-1|0'));owner=-1;}
@@ -44,19 +45,44 @@ for(const [kind,actor,track,style] of [['comp','Comp',2,8],['bass','Bass',1,12]]
  generator.generatorWrite('cg_actor',actor,generator.generatorTarget(2,1));generator.generatorTarget(2,1);
  generator.generatorWrite('cg_genre','All',track);generator.generatorWrite('cg_family','User',track);generator.generatorWrite('cg_style','User 8',track);
  assert.equal(generator.generatorRead('cg_family',track),'User');assert.equal(generator.generatorRead('cg_style',track),'User 8');assert.equal(commands.length,0);
+ assert.equal(generator.generatorWrite('cg_source_style','Funk Pocket 2b',track),false,'a stopped User selection must explicitly start Explore before changing its controls');assert.equal(commands.length,0);
  // Existing library Load becomes an explicit temporary Explore review for a recipe.
  library.preparePart(context,library.partStockCount(kind)+7);applyReview();refresh();
  assert.equal(generator.generatorActor(),actor);assert.equal(generator.generatorTarget(2,1),track);
  assert(commands.some(command=>command==='guser '+track+' '+kind+' '+exportPayload));
  assert(!commands.some(command=>/^(pload|clipfill|aset|alabel|usnap)\b/.test(command)));
+ // The library entry and its sounding Style are distinct controls. A genre filter
+ // only narrows the browser; all authored styles for this actor remain playable.
+ const savedEntry=JSON.stringify(storage.userParts(kind)[7]);commands=[];
+ assert(generator.generatorWrite('cg_genre','Pop',track));
+ const styleMeta=generator.generatorParameters().find(meta=>meta.key==='cg_source_style');
+ assert.equal(styleMeta.options.length,8);assert(styleMeta.options.includes('Funk Pocket 2b'));assert(!styleMeta.options.some(name=>name.startsWith('User ')));
+ assert(!styleMeta.options.includes(actor==='Comp'?'Root / Fifth':'Quarters'));
+ assert.equal(generator.generatorWrite('cg_source_style',actor==='Comp'?'Root / Fifth':'Quarters',track),false);assert.equal(commands.length,0);
+ assert.equal(generator.generatorRead('cg_source_style',track),'Pop Answer 2b');
+ const controls=visit('cp_comp_generator');assert.equal(controls.keyAt(6),'cg_source_style');
+ chord.chordMidi([176,77,4]);for(let tick=0;tick<8;tick++)refresh();
+ assert(commands.includes('guser '+track+' edit 2 '+(style+1)),'physical knob 7 edits the recipe Style: '+JSON.stringify(commands));
+ assert.equal(generator.generatorRead('cg_source_style',track),'Funk Pocket 2b');
+ assert.equal(generator.generatorRead('cg_style',track),'User 8');assert.equal(generator.generatorRead('cg_family',track),'User');assert.equal(generator.generatorRead('cg_genre',track),'Pop');
+ assert.equal(JSON.stringify(storage.userParts(kind)[7]),savedEntry);
+ assert(!commands.some(command=>/^(gexplore|pload|clipfill|usnap|rec)\b/.test(command)),'Style edits do not replace or restart the source');
  assert.equal(generator.generatorWrite('cg_seed','2',track),false);
  assert(generator.generatorWrite('cg_complexity','90',track));assert(generator.generatorWrite('cg_intensity','70',track));seqCmdFlush();
  assert(commands.some(command=>command.startsWith('guser '+track+' edit 0 ')));
  visit('cp_comp_generator');chord.chordMidi([176,86,127]);chord.chordMidi([176,86,0]);seqCmdFlush();refresh();
  assert.equal(owner,track);seqState.recording=true;recPassTick();
  assert.notEqual(generator.generatorRead('cg_family',track),'User','adopted recipe returns to ordinary recorded controls');
+ chord.chordMidi([176,77,4]);for(let tick=0;tick<8;tick++)refresh();
+ assert(commands.includes('gpreview '+track+' 0 2 '+(style+2)),'after Record adopts the recipe, knob 7 uses ordinary style overdub');
+ assert.equal(generator.generatorRead('cg_source_style',track),'Bossa 2b');assert.equal(JSON.stringify(storage.userParts(kind)[7]),savedEntry);
  chord.chordMidi([176,86,127]);chord.chordMidi([176,86,0]);seqCmdFlush();seqState.recording=false;recPassTick();seqCmdFlush();
  assert.equal(commands.filter(command=>command.startsWith('usnap ')).length,1);assert.equal(commands.filter(command=>command.startsWith('ucommit ')).length,1);
+ commands=[];assert(generator.generatorWrite('cg_source_style','Sparse',track));
+ assert(commands.includes('gpreview '+track+' 0 2 '+(actor==='Comp'?2:6)));
+ assert.equal(generator.generatorRead('cg_family',track),'Sync');assert.equal(generator.generatorRead('cg_style',track),'Sparse');
+ assert.equal(generator.generatorRead('cg_genre',track),'Pop','cross-family performance keeps the browser filter');
+ assert(!commands.some(command=>/^(rec|usnap|ucommit|gexplore)\b/.test(command)));
 }
 const reloaded=await import('../dist/esm/seq/part-storage.js?recipe-reload');assert.equal(reloaded.userParts('comp')[7].generator,'Comp');assert.equal(reloaded.userParts('bass')[7].generator,'Bass');
 // Recipe identity comes from its payload even if optional display metadata is absent.
