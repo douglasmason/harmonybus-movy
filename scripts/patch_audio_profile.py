@@ -25,7 +25,7 @@ def patch_audio_profile(root: Path) -> None:
     source = replace_once(source, 's.push_str(&self.chains.cost_status());', 's.push_str(&self.chains.cost_status());\n                s.push_str(&self.profile.status());\n                s.push_str(&self.tone_check.status());')
     source = replace_once(source, 'host::log(&format!("cpu:{}", self.chains.cost_status()));', 'host::log(&format!("cpu:{}{}{}", self.chains.cost_status(), self.profile.status(), self.tone_check.status()));')
     source = replace_once(source, '        self.blocks += 1;', '        let mut profile_stamp = self.profile.begin();\n        let mut profile_spans = [0u64; 7];\n        self.blocks += 1;')
-    source = replace_once(source, '        if let Some((running, beat, bpm)) = host::transport_snapshot() {', '        self.profile.mark(&mut profile_stamp, &mut profile_spans, 0);\n        if let Some((running, beat, bpm)) = host::transport_snapshot() {')
+    source = replace_once(source, '        host::attach_transport(&mut self.engine, &mut self.out);', '        self.profile.mark(&mut profile_stamp, &mut profile_spans, 0);\n        host::attach_transport(&mut self.engine, &mut self.out);')
     source = replace_once(source, '        // Musical metadata changes', '        self.profile.mark(&mut profile_stamp, &mut profile_spans, 1);\n        // Musical metadata changes')
     source = replace_once(source, '        self.engine.shared_transport(&mut self.out);', '        self.profile.mark(&mut profile_stamp, &mut profile_spans, 2);\n        self.engine.shared_transport(&mut self.out);')
     source = replace_once(source, '        // Every conductor sees', '        self.profile.mark(&mut profile_stamp, &mut profile_spans, 3);\n        // Every conductor sees')
