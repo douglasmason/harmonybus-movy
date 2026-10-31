@@ -99,77 +99,96 @@ a complete semantic Movy screen/pad/control protocol. This increment does not
 load a module, discover devices, claim the upgrade is installed or guess missing
 state. The mirror reports only capabilities actually observed in valid frames.
 
-## Paired Play/Stop (Schwung 1.8.2)
+## Paired transport readiness (Schwung 1.8.2)
 
-The same workspace can now send two real Movy commands through a deliberately
-limited companion adapter. Nothing is installed on Move. Start the companion
-from this repository with its existing Node dependencies (`npm --prefix
-dev/local ci`) and add `--enable-transport` to the command above. Bind one
-explicit private LAN IPv4 address, or 127.0.0.1 for same-computer testing.
+**Current Movy builds remain read-only.** Source inspection found that Manager's
+`subscribe_tool` seeds and polls `get_param("state")`. Movy's implementation
+clears its autosave dirty flag on that read. Merely subscribing can consume a
+pending save even without sending a control command. Do not connect current
+Movy to that subscription to obtain identity or infer safe support from a host
+upgrade. This companion rejects the unsafe path before opening the upstream
+WebSocket; its live screen mirror remains available.
 
-The companion prints a random, per-launch pairing key. In Engine → Move, enter
-the **companion** address, enable **paired Play/Stop**, paste that key, and tap
-Connect. The key is cleared immediately, never saved in local storage, and must
-be entered again to reconnect. Use this only on a trusted LAN: plain HTTP/WS
-provides no confidentiality for either the key or commands. For encrypted access
-use a trusted HTTPS companion, including when connecting from the hosted trial.
-No public tunnel, port forwarding or authentication bypass is provided.
+The shared transport adapter is implemented and tested behind a device-owned
+capability gate. A future Movy integration must prove non-consuming state reads
+and advertise this exact module.json capability before it can be enabled:
 
-The companion reads the installed `movy/module.json` via Manager's module asset
-route, accepts the inspected 0.34.0 / 0.34.1-hbclean release family, and subscribes
-to the existing `/ws/remote-ui` API. `tool_info.id` must identify active Movy.
-The only writes are stock `set_param` messages with slot 0, key
-`overtake_dsp:cmd`, and value `play` or `stop`. That slot selects the overtake
-routing mailbox; it does **not** map the four Schwung slots onto Movy's tracks.
-The pairing WebSocket protocol belongs to this companion, not the device.
+```json
+{"browser_transport_v1":{"state_read_preserves_dirty":true}}
+```
+
+This is an integration contract, **not a user override**. Do not hand-edit the
+installed metadata to enable it. The browser work does not modify on-device
+persistence or duplicate the separate host compatibility implementation. The
+current 0.34.0 / 0.34.1-hbclean metadata lacks this flag and is correctly refused.
+
+To check readiness without installing anything on Move, start the companion
+with its existing Node dependencies (`npm --prefix dev/local ci`) and add
+`--enable-transport` to the command above. Bind one explicit private LAN IPv4
+address, or 127.0.0.1 for same-computer testing. It prints a random per-launch
+pairing key. In Engine → Move enter the companion address, select **Check paired
+Play/Stop**, paste the key and Connect. The key is cleared immediately and never
+saved in local storage; enter it again to reconnect. Current builds show the
+persistence-safe subscription requirement and leave Play/Stop disabled.
+
+Plain HTTP/WS provides no confidentiality for the key or commands. Use only a
+trusted LAN, or a trusted HTTPS companion for encrypted access. Hosted HTTPS
+continues to require HTTPS. No public tunnel, port forwarding, TLS bypass or
+loosening of the trial's audience is provided.
+
+### Transport contract after a persistence-safe device adapter exists
+
+The companion reads installed `movy/module.json` through Manager's module asset
+route, checks the supported release family and capability, then uses stock
+`/ws/remote-ui`. `tool_info.id` must identify active Movy. The only writes are
+`set_param`, slot 0, key `overtake_dsp:cmd`, and value `play` or `stop`. Slot 0
+selects the overtake routing mailbox; it does not map Schwung slots to Movy's
+16 tracks. The pairing WebSocket belongs to the companion, not the device.
+
 One control client is allowed. Exact Host/Origin, pairing, payload limits,
-heartbeat checks and a fixed upstream constrain the route. Arbitrary parameters,
-module loading, recording, files and MIDI injection are not exposed.
+heartbeats and a fixed upstream constrain the route. Arbitrary parameters,
+module loading, recording, files and MIDI injection are not exposed. Play/Stop
+use the shared command encoder and production behavior. Play is not a toggle
+and does not finish recording; Stop closes a take. Combining Stop/Play can queue
+Move Link toggles, so the adapter does not invent a restart action.
 
-Play and Stop retain production Movy/Move Link semantics. Play is not a toggle
-and does not end a take; use Stop to finish recording before replay. The adapter
-does not combine Stop/Play because that can queue Move Link transport toggles.
-Feedback says **request sent**, not executed: stock Manager has no command
-execution acknowledgment. Confirm the result on Move. A tool change, socket
-loss, mirror loss, hidden tab or Disconnect closes control and drops pending
-work; no command is queued or replayed across reconnect. Disconnect does not
-stop physical playback. These stateless actions hold no pads, modifiers or
-encoder touches, and input gestures remain disabled in Move mode.
+Feedback says **request sent**, not executed: Manager has no execution
+acknowledgment. Tool changes, socket/mirror loss, hidden tabs and Disconnect
+revoke control without queued/replayed commands. Disconnect leaves device
+playback running. These stateless actions hold no pads, modifiers or touches;
+input gestures remain disabled. Host version is unreported; installed Movy
+metadata is not a host-version probe. Writable 1.7.3 operation is not certified.
 
-This is source-verified against Schwung tag v1.8.2, not a claim of an on-device
-test or automatic host version detection. Metadata reports the installed Movy
-version; the host version remains unreported. The older mirror stays usable
-without enabling transport. Writable operation on 1.7.3 is not certified.
+### Semantic device adapter still needed
 
-### Why the full editor still needs a semantic device adapter
+Production Movy returns persisted `movy1` text for `state`, while Manager expects
+a JSON object and `rui_poll`. Manager has no arbitrary `get_param` WebSocket
+request. `get_hierarchy` covers stock chains, not the 16 Movy-owned chains.
+The native development host's rich surface/watch protocol is unavailable on
+hardware. A host upgrade alone does not supply it. Do not change persistence
+format casually or manufacture labels from a parallel emulator.
 
-Pinned production Movy returns persisted `movy1` text for `get_param("state")`.
-Manager's tool subscription expects a JSON object and its `rui_poll` contract;
-Movy does not implement that observation contract. Manager has no arbitrary
-`get_param` WebSocket request. `get_hierarchy` covers stock chain components,
-not the 16 chains owned by the Movy overtake tool. The native development host's
-rich surface and watch messages therefore cannot simply be sent to hardware.
-A host upgrade alone does not supply them. Do not change the persistence format
-or invent labels/state from a parallel emulator to conceal this gap.
+The canonical components and ParameterBridge remain shared. The host adapter
+must supply actual semantic observations, safe persistence reads and input
+release semantics. Exact source evidence: Schwung v1.8.2
+`462aa675222f4cc830cb6e04ad6520addb30ecdc`, `schwung-manager/remote_ui.go`
+(`handleSubscribeTool`, `fetchAllParams`); pinned Movy
+`5c01a4fe7745b730ee98111194fc64328ea2659b`,
+`engine/crates/movy-dsp/src/lib.rs` (`get_param("state")`) and
+`src/seq/set-save.ts` (autosave dirty ownership).
 
-The canonical components and ParameterBridge remain shared. A future on-device
-observation/input adapter must provide their actual state and release semantics;
-its implementation belongs with the host integration, not a second browser
-musical engine. Meanwhile the same workspace displays actual device pixels/LEDs
-and enables only the two verified commands.
+### Validation and physical acceptance
 
-### Validation and remaining physical checks
+Node fixtures cover exact protocol writes, keys/origins, read-only default,
+unsupported versions, absent persistence capability, wrong tools, loss, stale
+callbacks and reconnect. Browser CI runs the packaged UI through the real
+companion: current metadata must be rejected before any subscription and retain
+the compiled engine's pending-save flag. A separate **future-capability fixture**
+then verifies real production Stop/Play and recorded MIDI replay. It is a test
+harness, not evidence that current device metadata or state reads are safe.
 
-Node tests cover source-derived tool messages, exact writes, wrong keys/origins,
-read-only default, unsupported version/tool, loss, stale callbacks and reconnect.
-Browser CI runs the packaged workspace through the real companion and a stock
-protocol fixture backed by a separate compiled production Movy DSP. It records
-a take in that fixture, sends Stop/Play through the real WebSocket route, and
-verifies MIDI replay plus retained browser state. This is a test harness, never
-a substitute device state source in the product.
-
-Still required on Move/iPad: installed module metadata and active-tool detection,
-Manager command delivery, actual Link/transport response, recording completion,
-Wi-Fi/lock loss, tool swaps, and trusted TLS/CORS/network permissions. There is
-no atomic tool-identity-and-command operation in Manager; changing tools during
-a request remains an upstream race. Keep Movy open while controlling it.
+Physical Move/iPad testing remains required after the host integration satisfies
+the capability contract: identity, command delivery, Link response, recording
+completion, Wi-Fi/lock loss, tool changes and trusted TLS/CORS permissions.
+Manager has no atomic identity-and-command operation, so changing tools during
+a request remains an upstream race. Nothing was installed or changed on Move.

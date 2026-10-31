@@ -94,7 +94,8 @@ Hardware and iPad Safari are separate acceptance checks. See
 
 Paired physical transport uses the same connection owner and canonical Movy
 `cmd` encoding as the browser service (`move-transport.mjs`). Its optional
-companion accepts only Play/Stop, validates installed Movy metadata and active
-tool identity, and reports sent requests without inferring playback state.
+companion refuses current Movy metadata because stock tool subscription consumes
+the autosave dirty flag. A future device-owned persistence capability gates
+Play/Stop; only then does it validate active tool identity, and reports sent requests without inferring playback state.
 The raw mirror and rich canonical editors retain their honest capability
 boundary; see [MOVE-CONNECTION.md](MOVE-CONNECTION.md) for protocol and testing.

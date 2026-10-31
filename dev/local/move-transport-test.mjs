@@ -10,9 +10,9 @@ import {readFile} from 'node:fs/promises';
 const key='a'.repeat(64),delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const fixture=JSON.parse(await readFile(new URL('./fixtures/move-mirror-v1.json',import.meta.url)));
 const listen=async server=>{server.listen(0,'127.0.0.1');await once(server,'listening');return `http://127.0.0.1:${server.address().port}`;};
-async function setup({tool='movy',version='0.34.1-hbclean.289',enabled=true}={}){
+async function setup({tool='movy',version='0.34.1-hbclean.289',enabled=true,persistenceSafe=true}={}){
  const commands=[],requests=[];
- const upstream=createServer((request,response)=>{requests.push(request.url);response.setHeader('Content-Type','application/json');response.end(JSON.stringify({id:'movy',version}));});
+ const upstream=createServer((request,response)=>{requests.push(request.url);response.setHeader('Content-Type','application/json');response.end(JSON.stringify({id:'movy',version,...(persistenceSafe?{browser_transport_v1:{state_read_preserves_dirty:true}}:{})}));});
  const moveAddress=await listen(upstream),wss=new WebSocketServer({server:upstream});
  wss.on('connection',(socket,request)=>{
   requests.push(request.url);socket.on('message',data=>{
@@ -32,7 +32,7 @@ async function setup({tool='movy',version='0.34.1-hbclean.289',enabled=true}={})
  return {origin,commands,requests,wss,connect,async close(){for(const socket of clients)socket.terminate();for(const socket of wss.clients)socket.terminate();server.closeAllConnections();upstream.closeAllConnections();await Promise.all([new Promise(resolve=>server.close(resolve)),new Promise(resolve=>upstream.close(resolve))]);wss.close();}};
 }
 const until=async check=>{const deadline=Date.now()+3000;while(!check()){if(Date.now()>deadline)throw new Error('Fixture timeout');await delay(5);}};
-test('stock 1.8.2 tool identity and set_param frames; no commands on connect/disconnect/reconnect',async()=>{
+test('explicit future persistence capability plus stock 1.8.2 tool identity and set_param frames; no commands on connect/disconnect/reconnect',async()=>{
  const f=await setup();try{
   const {socket,messages}=f.connect();await until(()=>messages.some(message=>message.type==='ready'));
   assert.deepEqual(f.commands,[{type:'subscribe_tool'}]);
@@ -54,8 +54,8 @@ test('read-only default, pairing and exact origin checks reject before contactin
  }
 });
 test('wrong tool, unsupported installed version, arbitrary commands and upstream loss revoke transport',async()=>{
- for(const failure of ['tool','version','command','loss']){
-  const f=await setup({tool:failure==='tool'?'other':'movy',version:failure==='version'?'99.0.0':'0.34.0'});
+ for(const failure of ['tool','version','persistence','command','loss']){
+  const f=await setup({persistenceSafe:failure!=='persistence',tool:failure==='tool'?'other':'movy',version:failure==='version'?'99.0.0':'0.34.0'});
   try{
    const {socket,messages}=f.connect();
    if(['command','loss'].includes(failure)){
@@ -65,6 +65,7 @@ test('wrong tool, unsupported installed version, arbitrary commands and upstream
    }
    await until(()=>messages.some(message=>message.type==='error'));
    assert(!f.commands.some(message=>message.type==='set_param'));
+   if(failure==='persistence'){assert.deepEqual(f.commands,[]);assert.equal(f.requests.length,1,'no unsafe tool subscription, only metadata');}
   }finally{await f.close();}
  }
 });

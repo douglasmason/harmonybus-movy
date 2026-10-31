@@ -69,3 +69,10 @@ export interface DeviceFrame {
  padLabels: null;
  stepLabels: null;
 }
+
+/** On-device module.json opt-in; absent on current Movy. Host integration must
+ * prove subscribe_tool/state polling cannot consume an unsaved dirty flag
+ * before advertising this capability. This is not a user override. */
+export interface DeviceTransportModuleCapability {
+ browser_transport_v1?: {state_read_preserves_dirty: true};
+}

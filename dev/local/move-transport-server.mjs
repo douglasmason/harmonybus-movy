@@ -17,6 +17,9 @@ function moduleInfo(address){
      if(response.statusCode!==200)throw new Error('Installed Movy metadata unavailable');
      const info=JSON.parse(body);
      if(info.id!=='movy'||!/^0\.34\.(?:0|1-hbclean\.\d+)$/.test(info.version))throw new Error('Installed Movy version is not supported by this transport adapter');
+     // Stock subscribe_tool reads state before any command. Current Movy clears
+     // its autosave dirty flag on that read; version/identity alone is unsafe.
+     if(info.browser_transport_v1?.state_read_preserves_dirty!==true)throw new Error('This Movy build lacks a persistence-safe remote subscription. Screen remains read-only.');
      resolve(info);
     }catch(error){reject(error);}
    });

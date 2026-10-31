@@ -10,9 +10,9 @@ import {createFullEngine} from './engine.mjs';
 const physicalFixture=await createFullEngine(),commands=[],pairingKey='b'.repeat(64);
 physicalFixture.request('set','joint_map',Array(32).fill('0,60,-1,0').join(';'));
 const fixture=JSON.parse(await readFile(new URL('../../local/fixtures/move-mirror-v1.json',import.meta.url)));
-const clients=new Set();let connections=0;
+const clients=new Set();let connections=0,persistenceSafe=false;
 const move=createServer((request,response)=>{
- if(request.url==='/api/remote-ui/module-assets/movy/module.json'){response.setHeader('Content-Type','application/json');response.end(JSON.stringify({id:'movy',version:'0.34.0'}));return;}
+ if(request.url==='/api/remote-ui/module-assets/movy/module.json'){response.setHeader('Content-Type','application/json');response.end(JSON.stringify({id:'movy',version:'0.34.0',...(persistenceSafe?{browser_transport_v1:{state_read_preserves_dirty:true}}:{})}));return;}
  assert.equal(request.url,'/stream-auto?v=2');assert.equal(request.method,'GET');connections++;
  response.writeHead(200,{'Content-Type':'text/event-stream','Access-Control-Allow-Origin':'*'});clients.add(response);
  response.write('data: '+JSON.stringify(fixture.screen)+'\n\nevent: surface\ndata: '+JSON.stringify(fixture.surface)+'\n\n');
@@ -24,7 +24,11 @@ moveWS.on('connection',(socket,request)=>{
  assert.equal(request.url,'/ws/remote-ui');
  socket.on('message',data=>{
   const message=JSON.parse(data.toString());commands.push(message);
-  if(message.type==='subscribe_tool')socket.send(JSON.stringify({type:'tool_info',id:'movy'}));
+  if(message.type==='subscribe_tool'){
+   // Current Manager seeds state, which consumes the current DSP's save flag.
+   if(!persistenceSafe)physicalFixture.request('get','state');
+   socket.send(JSON.stringify({type:'tool_info',id:'movy'}));
+  }
   else{assert.equal(message.type,'set_param');assert.equal(message.key,'overtake_dsp:cmd');physicalFixture.request('set','cmd',message.value);}
  });
 });
@@ -85,11 +89,20 @@ try{
  await page.locator('#move-connect').click();await page.waitForFunction(()=>document.querySelector('#engine-status').dataset.state==='connected');assert.equal(connections,2);
  await page.locator('#move-disconnect').click();await page.waitForFunction(()=>document.querySelector('#engine-status').dataset.state==='disconnected');
  // Actual companion + source-derived stock WS frames driving a separate production DSP fixture.
+ physicalFixture.request('set','cmd','bpm 12000');
+ assert.match(physicalFixture.request('get','status').value,/dirty=1/);
  await page.locator('#move-transport-enabled').check();
  for(const width of [390,768,1440]){await page.setViewportSize({width,height:850});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Move connection controls fit the viewport');}
  await page.setViewportSize({width:1024,height:768});await page.locator('#move-pairing-key').fill(pairingKey);await page.locator('#move-connect').click();
+ // Current installed metadata must fail BEFORE subscribe_tool can read state.
+ await page.waitForFunction(()=>document.querySelector('#move-transport-status').textContent.includes('persistence-safe'));
+ assert.equal(commands.length,0);assert.match(physicalFixture.request('get','status').value,/dirty=1/,'rejected subscription preserves pending autosave');assert(await page.locator('[data-move-transport=play]').isDisabled());
+ await page.locator('#move-disconnect').click();
+ // Future capability fixture only; production commands below still reach the real DSP.
+ persistenceSafe=true;
+ await page.locator('#move-pairing-key').fill(pairingKey);await page.locator('#move-connect').click();
  await page.waitForFunction(()=>!document.querySelector('[data-move-transport=play]').disabled);
- assert.equal(await page.locator('#move-pairing-key').inputValue(),'');assert.equal(commands.length,1,'connect only subscribes');
+ assert.equal(await page.locator('#move-pairing-key').inputValue(),'');assert.equal(commands.length,1,'capable fixture connects with a subscription only');
  physicalFixture.request('set','cmd','jrec 1 1');physicalFixture.request('step',1200);
  physicalFixture.request('midi','144,68,100');physicalFixture.request('step',64);physicalFixture.request('midi','128,68,0');
  await page.locator('[data-move-transport=stop]').click();await page.waitForFunction(()=>document.querySelector('#move-transport-status').textContent.includes('Stop request sent'));
@@ -110,6 +123,6 @@ try{
  for(const name of ['field','choices','song','lights'])assert(await page.locator(`[data-workspace=${name}]`).isVisible());
  assert.equal(await page.locator('[data-workspace]').evaluateAll(nodes=>nodes.map(node=>node.dataset.workspace).indexOf('field')),1);
  for(const width of [390,768,1440]){await page.setViewportSize({width,height:850});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));}
- assert.deepEqual(errors,[]);console.log('Unified workspace: shared edits, composition, Song, persistence, live mirror, authenticated transport, real DSP record/replay, loss, reconnect and engine ownership pass');
+ assert.deepEqual(errors,[]);console.log('Unified workspace: shared edits, composition, Song, persistence, live mirror, persistence capability refusal, authenticated future-capability fixture transport, real DSP record/replay, loss, reconnect and engine ownership pass');
 }catch(error){if(page)console.error(await page.locator('#error').textContent(),await page.locator('#engine-status').textContent());throw error;}
 finally{await browser.close();for(const socket of moveWS.clients)socket.terminate();moveWS.close();physicalFixture.dispose();for(const client of clients)client.destroy();site.closeAllConnections();move.closeAllConnections();await Promise.all([new Promise(resolve=>site.close(resolve)),new Promise(resolve=>move.close(resolve))]);}
