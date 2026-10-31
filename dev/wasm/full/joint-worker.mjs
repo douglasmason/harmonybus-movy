@@ -31,6 +31,7 @@ self.onmessage=({data})=>{
   }
   else if(data.type==='send')service.socket.send(data.data);
   else if(data.type==='visibility')service.visibility(data.hidden);
+  else if(data.type==='active'){service.visibility(!data.value);postMessage({type:'reply',id:data.id});}
   else if(data.type==='read'||data.type==='stats')postMessage({type:'reply',id:data.id,value:data.type==='read'?service.read(data.key):service.stats()});
   else if(data.type==='ack'){inFlight=false;if(latest){const value=latest;latest=null;emit(value);}}
  }).catch(error=>{service?.socket.close();postMessage({type:'fatal',message:error.message});self.close();});

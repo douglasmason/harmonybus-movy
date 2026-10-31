@@ -26,7 +26,7 @@ export function mountMoveInput({controls,send}){
  }
  const edge=(control,on,button)=>control.type==='cc'&&control.index===49?setShift(button,on):midi([control.type==='cc'?176:on?144:128,control.index,on?(control.type==='cc'?127:100):0]);
  function begin(control,button){
-  if(active.has(control)||button.disabled||button.hidden)return false;
+  if(!enabled||active.has(control)||button.disabled||button.hidden)return false;
   active.set(control,button);button.dataset.held='true';
   if(shiftButtons.has(button))setShift(button,true);
   status.dataset.encoder=control.type==='encoder'?String(control.index):'';status.textContent=button.title;
@@ -146,11 +146,12 @@ export function mountMoveInput({controls,send}){
   refreshSelected();
  };
  refreshSelected();
- document.querySelector('#shift').onchange=event=>setShift(event.target,event.target.checked);
+ document.querySelector('#shift').onchange=event=>{if(enabled)setShift(event.target,event.target.checked);};
  window.addEventListener('blur',release);document.addEventListener('visibilitychange',()=>{if(document.hidden)release();});
  document.addEventListener('keydown',event=>{if(event.key==='Escape')release();});
  return {release,refreshSelected,isHeld:()=>active.size>0||shiftOwners.size>0,
-  selectPanel:(token,index)=>{if(!active.size&&!shiftOwners.size)send({type:'move_panel',token,index});},
+  selectPanel:(token,index)=>{if(enabled&&!active.size&&!shiftOwners.size)send({type:'move_panel',token,index});},
+  disable:()=>{release();enabled=false;for(const button of [...buttons.values(),...aliases])button.disabled=true;document.querySelector('#shift').disabled=true;refreshSelected();},
   bindAlias(control,button){aliases.add(button);button.disabled=!enabled;bind(control,button);return ()=>active.get(control)===button;},
   enable:()=>{enabled=true;for(const button of [...buttons.values(),...aliases])button.disabled=false;document.querySelector('#shift').disabled=false;refreshSelected();}};
 }

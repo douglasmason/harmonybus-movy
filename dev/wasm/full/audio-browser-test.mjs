@@ -7,7 +7,7 @@ const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disab
 try{
  const context=await browser.newContext();const page=await context.newPage(),errors=[];
  page.on('pageerror',error=>errors.push(error.message));
- await page.goto(`http://127.0.0.1:${server.address().port}/joint?engine=wasm`);
+ await page.goto(`http://127.0.0.1:${server.address().port}/diagnostic-joint?engine=wasm`);
  await page.waitForFunction(()=>globalThis.__joint?.page().ready);
  if(!await page.locator('#audio').isVisible())await page.locator('details').first().locator('summary').click();
  await page.locator('#audio').click();

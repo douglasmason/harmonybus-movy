@@ -27,7 +27,8 @@ export function mountMoveDisplay(inputs){
   return element;
  };
  function paint(){
-  const highResolution=toggle.checked;
+  const highResolution=toggle.checked&&!frame?.device;
+  toggle.disabled=!!frame?.device;
   canvas.hidden=highResolution;sharp.toggleAttribute('hidden',!highResolution);
   if(!frame||(revision===frame.displayRevision&&sharpMode===highResolution))return;
   if(highResolution){
@@ -64,7 +65,7 @@ export function mountMoveDisplay(inputs){
   revision=frame.displayRevision;sharpMode=highResolution;
  }
  toggle.addEventListener('change',paint);
- return {update(next){updateView();frame=next;paint();}};
+ return {update(next){updateView();if(frame?.device!==next.device)revision=-1;frame=next;paint();}};
 }
 
 /** Reuse the live controls in a modal editing view; do not remount the engine. */

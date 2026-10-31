@@ -7,7 +7,7 @@ const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disab
 try{
  const page=await browser.newPage({viewport:{width:1024,height:768},hasTouch:true}),errors=[];
  page.on('pageerror',error=>errors.push(error.message));
- await page.goto(`http://127.0.0.1:${server.address().port}/joint?engine=wasm`);
+ await page.goto(`http://127.0.0.1:${server.address().port}/diagnostic-joint?engine=wasm`);
  await page.waitForFunction(()=>globalThis.__joint?.page().ready);
  for(const viewport of [{width:1024,height:768},{width:1180,height:720},{width:768,height:1024},{width:390,height:844}]){
   await page.setViewportSize(viewport);

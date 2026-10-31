@@ -2,16 +2,53 @@ import {openBrowserConnection} from '/wasm/full/joint-transport.mjs';
 import {controls,mountMoveSurface} from './build/move-surface.mjs';
 import {mountMoveInput} from './move-input.mjs';
 import {mountSessions} from './session-ui.mjs';
+import {createMoveConnection} from './move-connection.mjs';
+import {mountMoveWorkspace} from './move-workspace.mjs';
 
 const errorBox=document.querySelector('#error'),feedback=document.querySelector('#feedback');
 try{
- const {socket,audio,sessions,metadata}=await openBrowserConnection({surface:'move'});
- const send=message=>socket.send(JSON.stringify(message));
+ const browser=await openBrowserConnection({surface:'move'});
+ const {socket,audio,sessions,metadata}=browser;
+ let connection,sessionUI,workspace,workspaceAvailable=true;
+ const send=message=>connection?.send(message);
  const inputs=mountMoveInput({controls,send}),surface=mountMoveSurface(inputs);
  const audioButton=document.querySelector('#audio'),audioStatus=document.querySelector('#audio-status');
  const compSource=document.querySelector('#comp-source');
  const playMode=document.querySelector('#play-mode');
  let currentMode=null,modeNames='';
+ const engineSelector=document.querySelector('#engine'),address=document.querySelector('#move-address');
+ const connect=document.querySelector('#move-connect'),disconnect=document.querySelector('#move-disconnect');
+ const isBrowser=()=>connection.engine==='browser'&&!connection.busy;
+ connection=createMoveConnection({browser,inputs:{disable(){workspace?.suspend();inputs.disable();}},pageURL:location.href,onFrame:frame=>surface.update(frame),
+  onState:({engine,state,message})=>{
+   const local=engine==='browser',switching=state==='switching';
+   if(workspaceAvailable!==(local&&!switching)){workspaceAvailable=local&&!switching;workspace?.setAvailable(workspaceAvailable);}
+   engineSelector.value=engine;engineSelector.disabled=switching;
+   document.querySelector('#engine-status').textContent=message;
+   document.querySelector('#engine-status').dataset.state=state;
+   document.querySelector('#move-connection').hidden=local;
+   document.querySelector('#engine-mode-label').textContent=local?'Browser studio':'Move mirror';
+   address.disabled=connect.disabled=switching||state==='connecting'||state==='connected';
+   disconnect.disabled=local||switching||!['connecting','connected'].includes(state);
+   for(const id of ['audio','audio-test','stop','monitor-level'])document.querySelector('#'+id).disabled=!local||switching;
+   for(const selector of ['.accompaniment','.played-readout','#sessions','#audio-settings'])document.querySelector(selector).hidden=!local;
+   document.querySelector('.screen-hint').textContent=local?'Drag a displayed parameter to adjust it; tap to touch its knob.':'Live device pixels. Rich labels and remote gestures are unavailable in this protocol.';
+   if(!local){
+    playMode.disabled=true;playMode.replaceChildren(new Option('Read on Move display',''));
+    currentMode=null;modeNames='';lastTrack=-1;
+    feedback.textContent=state==='connected'?'Read-only · use physical controls · audio plays on Move':message;
+    audioStatus.textContent='Browser engine suspended · browser session retained · no session transfer';
+   }else if(!switching){audioStatus.textContent='Browser audio off · tap Enable audio to listen';}
+  }});
+ workspace=mountMoveWorkspace({connection,inputs});
+ engineSelector.onchange=async()=>{
+  if(sessionUI?.isBusy()){engineSelector.value=connection.engine;return;}
+  errorBox.textContent='';await connection.select(engineSelector.value);
+ };
+ connect.onclick=()=>connection.connect(address.value);
+ disconnect.onclick=()=>connection.disconnect();
+ window.addEventListener('pagehide',()=>connection.disconnect());
+ document.addEventListener('visibilitychange',()=>{if(document.hidden&&connection.engine==='move')connection.disconnect();});
  playMode.onchange=()=>{
   if(currentMode===null)return;
   if(!inputs.isHeld())send({type:'move_mode',previous:currentMode,mode:Number(playMode.value)});
@@ -30,17 +67,20 @@ try{
  audio.onDisable=()=>{audioButton.textContent='Enable audio';audioButton.setAttribute('aria-pressed','false');};
  audio.onDiagnostic=value=>{document.querySelector('#audio-report').textContent=JSON.stringify(value,null,2);};
  audioButton.onclick=async()=>{
+  if(!isBrowser())return;
   if(audio.enabled){disableAudio();return;}
   audioButton.disabled=true;
   try{if(await audio.enable()){audioButton.textContent='Disable audio';audioButton.setAttribute('aria-pressed','true');}}
-  catch(error){audioStatus.textContent=error.message;}finally{audioButton.disabled=false;}
+  catch(error){audioStatus.textContent=error.message;}finally{audioButton.disabled=!isBrowser();}
  };
- document.querySelector('#audio-test').onclick=async()=>{try{await audio.testSpeaker();if(audio.enabled){audioButton.textContent='Disable audio';audioButton.setAttribute('aria-pressed','true');}}catch(error){audioStatus.textContent=error.message;}};
+ document.querySelector('#audio-test').onclick=async()=>{if(!isBrowser())return;try{await audio.testSpeaker();if(audio.enabled){audioButton.textContent='Disable audio';audioButton.setAttribute('aria-pressed','true');}}catch(error){audioStatus.textContent=error.message;}};
  document.querySelector('#monitor-level').oninput=event=>{audio.master=Number(event.target.value);if(audio.gain)audio.gain.gain.value=audio.master;};
- document.querySelector('#stop').onclick=()=>{inputs.release();errorBox.textContent='';};
+ document.querySelector('#stop').onclick=()=>{workspace.release();inputs.release();errorBox.textContent='';};
  socket.onmessage=({data})=>{
+  if(!connection.acceptBrowserFrame())return;
   const message=JSON.parse(data);
   if(message.type==='error'||message.type==='audio_error'){errorBox.textContent=message.message;return;}
+  workspace.receive(message);
   if(!message.move)return;
   const frame=message.move;
   const names=JSON.stringify(frame.modes);
@@ -84,7 +124,7 @@ try{
   const info=(message.params?.['motif_clip_info_'+frame.track]??'').split(','),notes=Number(info[4]??0);
   const mode=frame.modes[frame.mode];
   feedback.textContent=`Track ${frame.track+1} · ${mode} · ${status.cin==='1'?'Count-in':status.rec==='1'?'Recording':stopped?'Stopped':'Playing'} · ${notes} ${notes===1?'note':'notes'}`;
-  if(lastTrack!==frame.track){lastTrack=frame.track;send({type:'dev_watch',keys:['motif_clip_info_'+frame.track]});}
+  if(lastTrack!==frame.track){lastTrack=frame.track;connection.watch('surface',['motif_clip_info_'+frame.track]);}
   if(frame.ready)inputs.enable();
  };
  socket.onerror=error=>{errorBox.textContent=error.message??'Engine connection failed';};
@@ -96,7 +136,8 @@ try{
  document.addEventListener('visibilitychange',()=>{if(document.hidden)disableAudio();});
  const zoom=document.querySelector('#display-size'),sharp=document.querySelector('#display-sharp');
  zoom.onchange=()=>document.documentElement.style.setProperty('--display-width',zoom.value+'px');
- await mountSessions({sessions,storageKey:'move',captureUI:()=>({monitor:audio.master,displayWidth:Number(zoom.value),displaySharp:sharp.checked}),
-  restoreUI:ui=>{audio.master=Number.isFinite(ui?.monitor)?Math.max(0,Math.min(1,ui.monitor)):.35;document.querySelector('#monitor-level').value=audio.master;zoom.value=String([384,512,640].includes(ui?.displayWidth)?ui.displayWidth:512);zoom.onchange();sharp.checked=ui?.displaySharp!==false;sharp.dispatchEvent(new Event('change'));},
-  disableAudio,isStopped:()=>stopped&&!inputs.isHeld(),release:inputs.release});
+ sessionUI=await mountSessions({sessions,storageKey:'move',legacyStorageKeys:['current'],isActive:isBrowser,captureUI:()=>({monitor:audio.master,displayWidth:Number(zoom.value),displaySharp:sharp.checked,workspace:workspace.capture()}),
+  restoreUI:ui=>{workspace.restore(ui?.workspace);audio.master=Number.isFinite(ui?.monitor)?Math.max(0,Math.min(1,ui.monitor)):.35;document.querySelector('#monitor-level').value=audio.master;zoom.value=String([384,512,640].includes(ui?.displayWidth)?ui.displayWidth:512);zoom.onchange();sharp.checked=ui?.displaySharp!==false;sharp.dispatchEvent(new Event('change'));},
+  disableAudio,isStopped:()=>isBrowser()&&stopped&&!inputs.isHeld()&&!workspace.isHeld(),release:()=>{workspace.release();inputs.release();}});
+ engineSelector.disabled=false;
 }catch(error){errorBox.textContent='Cannot start Move: '+error.message;feedback.textContent='Engine unavailable';}

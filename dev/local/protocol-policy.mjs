@@ -26,11 +26,11 @@ export function validateEngineCommand(value){
  }
  return value;
 }
-export const writeKeys=new Set(['motion_host','field_outputs_remote','field_output_finish','field_output_clear','travel_map','master_transpose','retrigger_held','chord_mode','chord_timing','quant_timing','pad_preview_inputs','pad_display','pad_pulse_rate']);
+export const writeKeys=new Set(['motion_host','field_outputs_remote','field_output_finish','field_output_clear','motif_choice_edit','motif_choice_release','motif_choice_clear','travel_map','master_transpose','retrigger_held','chord_mode','chord_timing','quant_timing','pad_preview_inputs','pad_display','pad_pulse_rate']);
 
 export function prepareMetadata(metadata) {
   const params=metadata.capabilities.chain_params;
-  const readable=new Set([...params.filter(p=>!p.writeOnly&&p.key!=='state').map(p=>p.key),'pad_view','pad_output','field_view','field_outputs_view2','shared_context_snapshot','harmony_snapshot','harmony_source_snapshot']);
+  const readable=new Set([...params.filter(p=>!p.writeOnly&&p.key!=='state').map(p=>p.key),'pad_view','pad_output','field_view','field_outputs_view2','field_output_labels','field_placement_view','motif_choice_view','shared_context_snapshot','harmony_snapshot','harmony_source_snapshot']);
   const enabledWrites=new Set([...writeKeys,...params.filter(p=>!p.readOnly&&p.access!=='read'&&!p.writeOnly&&['enum','int','float'].includes(p.type)).map(p=>p.key)]);
   metadata.dev={readable:[...readable],writable:[...enabledWrites]};
   for(const param of params)if(!enabledWrites.has(param.key)){param.readOnly=true;param.access='read';}

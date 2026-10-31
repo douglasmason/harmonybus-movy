@@ -7,7 +7,7 @@ await new Promise(resolve=>server.once('listening',resolve));
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
 try{
  const page=await browser.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
- await page.goto(`http://127.0.0.1:${server.address().port}/joint?engine=wasm`);
+ await page.goto(`http://127.0.0.1:${server.address().port}/diagnostic-joint?engine=wasm`);
  await page.waitForFunction(()=>globalThis.__joint?.page().ready);
  await page.locator('#record').click();await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Recording');
  await page.locator('[data-view=perform]').click();await page.getByRole('button',{name:'Pad 1',exact:true}).focus();await page.keyboard.down('Space');await page.waitForTimeout(250);await page.keyboard.up('Space');await page.locator('#stop').click();
@@ -60,7 +60,7 @@ try{
  assert.deepEqual(errors,[]);
  const stale=await browser.newPage();
  await stale.route('**/build-info.json',async route=>{const response=await route.fetch();const info=await response.json();info.wasmSha256='0'.repeat(64);await route.fulfill({json:info});});
- await stale.goto(`http://127.0.0.1:${server.address().port}/joint?engine=wasm`);
+ await stale.goto(`http://127.0.0.1:${server.address().port}/diagnostic-joint?engine=wasm`);
  await stale.waitForFunction(()=>document.querySelector('#status').textContent.includes('Engine build changed during loading'));
  await stale.close();
  console.log('PASS IndexedDB recording reload, corrupt-import preservation, offline import/export with retained engine bytes, Song Sections gesture/edit/reload and production variation/source panel edits');

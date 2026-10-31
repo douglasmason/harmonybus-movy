@@ -69,7 +69,7 @@ export function mountMoveSurface(inputs){
     if(button.title!==title){button.title=title;button.setAttribute('aria-description',description);}
    }
    if(control.group==='tracks'){
-    const name='Track '+(Math.floor(frame.track/4)*4+44-control.index);
+    const name='Track '+((frame.device?0:Math.floor(frame.track/4)*4)+44-control.index);
     if(button.getAttribute('aria-label')!==name){button.setAttribute('aria-label',name);button.title=name;button.querySelector('.control-label').textContent=name;}
    }
   }
@@ -78,6 +78,7 @@ export function mountMoveSurface(inputs){
   const surface=frame.surface;let animating=false;
   for(const {control,button}of buttons){
    const kind=control.type==='note'?0:1,index=control.index,offset=536+(kind*128+index)*4;
+   button.dataset.deviceHeld=String(!!frame.device&&!!surface[(control.type==='cc'?1816:1560)+(control.type==='encoder'?control.touch:index)]);
    const value=surface[(kind?280:24)+index],effect=surface[(kind?408:152)+index];
    let color=surface[offset+3]?surface.slice(offset,offset+3):effect===255||!value?[0,0,0]:control.white?[value*2,value*2,value*2]:(PAD_PALETTE[value]??[0,0,0]);
    // Firmware animation channels: 6–10 pulse, 11–14 blink; 15 is steady.
