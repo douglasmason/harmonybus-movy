@@ -2,7 +2,7 @@
 import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
-export const files=new Map([['/','index.html'],['/engine.mjs','engine.mjs'],['/build/hb.mjs','build/hb.mjs'],['/build/hb.wasm','build/hb.wasm'],['/build/seq.wasm','build/seq.wasm']]);
+export const files=new Map([['/','index.html'],['/THIRD-PARTY-NOTICES.txt','THIRD-PARTY-NOTICES.txt'],['/engine.mjs','engine.mjs'],['/build/hb.mjs','build/hb.mjs'],['/build/hb.wasm','build/hb.wasm'],['/build/seq.wasm','build/seq.wasm']]);
 for(const [route,file] of [
  ['/joint','../local/workspace-redirect.html'],
  ['/move','../local/move.html'],

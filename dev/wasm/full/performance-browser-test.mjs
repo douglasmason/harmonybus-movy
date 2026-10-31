@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {chromium} from '../../local/node_modules/playwright/index.mjs';
 import {serve} from '../serve.mjs';
-const server=serve(0,new URL('../build/site/',import.meta.url));
+const server=serve(0); // Diagnostic harness is deliberately excluded from publication.
 await new Promise(resolve=>server.once('listening',resolve));
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
 try{

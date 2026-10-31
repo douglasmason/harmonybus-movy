@@ -31,7 +31,7 @@ try{
  // A real Field slider changes the selected HB instance. Reordering keeps its root.
  const slider=page.locator('[data-workspace=field] .slider').first();
  await page.locator('[data-workspace=field] #override').selectOption('1');
- await page.waitForFunction(async()=>await __wasmRead('ch0:midi_fx1:field_override')==='Latch');
+ await page.waitForFunction(async()=>await __wasmRead('ch0:midi_fx1:field_override')==='1');
  await slider.press('ArrowRight');
  await page.waitForFunction(async()=>(Number((await __wasmRead('ch0:midi_fx1:field_outputs_view2')).split(',')[53])&1)===1);
  await page.locator('[data-workspace=field] #release').click();
@@ -40,9 +40,10 @@ try{
  assert.equal(await page.locator('[data-workspace=field]').getAttribute('data-identity'),'retained');
  await page.locator('#workspace-layout').selectOption('columns');
  await page.locator('#component-track').selectOption('3');
+ await page.locator('[data-workspace=field]').getByText('Sample Spread',{exact:true}).click();
  await page.locator('[data-workspace=field] #field_randomness').fill('42');await page.locator('[data-workspace=field] #field_randomness').press('Tab');
  await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:field_randomness')==='42');
- assert.notEqual(await page.evaluate(()=>__wasmRead('ch0:midi_fx1:field_randomness')),'42');
+ assert.equal(await page.evaluate(()=>__wasmRead('ch0:midi_fx1:field_randomness')),'42','Field placement is engine-global, as declared by HarmonyBus');
  await page.locator('#song-build').click();await page.waitForFunction(()=>document.querySelector('#song-build').getAttribute('aria-pressed')==='true');
  await page.getByRole('button',{name:'Scene 1',exact:true}).click();await page.getByRole('button',{name:'Scene 2',exact:true}).click();
  await page.locator('#song-build').click();await page.waitForFunction(()=>document.querySelector('#song-summary').textContent.includes('2 scene selections'));

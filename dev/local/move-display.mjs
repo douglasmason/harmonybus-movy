@@ -132,5 +132,5 @@ function mountDisplayView(inputs){
  });
  // The shared input handler cancels held gestures on Escape. Native dialog
  // cancellation closes this view; the modal keeps background controls inert.
- return ()=>{filesJump.disabled=sessions.hidden;};
+ return ()=>{filesJump.disabled=sessions.hidden;padsJump.disabled=surface.hidden;displayJump.disabled=row.hidden;};
 }

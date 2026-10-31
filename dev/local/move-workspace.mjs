@@ -54,7 +54,7 @@ export function mountMoveWorkspace({connection,inputs}){
   if(picker.checked)shown.add(picker.dataset.showComponent);else {shown.delete(picker.dataset.showComponent);if(picker.dataset.showComponent==='song')song.reset();}
   apply();
  };
- document.querySelector('#workspace-layout').onchange=event=>{layout=event.target.value;workspace.dataset.layout=layout;};
+ document.querySelector('#workspace-layout').onchange=event=>{if(inputs.isHeld()||isHeld()){event.target.value=layout;return;}layout=event.target.value;workspace.dataset.layout=layout;};
  for(const [name,panel] of panels){
   const header=document.createElement('div');header.className='component-heading';
   const title=document.createElement('strong');title.textContent={controls:'Display & controls',pads:'Playing pads & steps',field:'Field outputs',choices:'Motif probabilities',song:'Scenes & Song',lights:'Lighting preview'}[name];header.append(title);

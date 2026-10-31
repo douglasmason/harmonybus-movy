@@ -37,7 +37,10 @@ commands and connection ownership. `move-connection.mjs` is the single transport
 boundary. Component watch lists form one deduplicated subscription, bounded by
 the existing protocol's 64-key limit. The shared cache contains observations,
 not musical calculations. Field and probabilities follow the selected track or
-an explicitly pinned editor track; lighting follows its quartet.
+an explicitly pinned editor track; lighting follows its quartet. Engine-global
+Field placement and overrides remain global; selecting a different track never
+invents a private copy. Per-track destination mappings remain in the existing
+operation lanes.
 
 HarmonyBus's `module.json` is the parameter registry: IDs, names, types, units,
 ranges, enum choices, defaults and hierarchy. Movy's production page definitions
