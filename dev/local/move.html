@@ -2,8 +2,10 @@
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Move · Browser Movy</title>
 <link rel="stylesheet" href="/local/move.css">
 <header><h1>HB / Movy <span>Browser studio</span></h1><a href="/joint/?engine=wasm">Joint Play &amp; lights ↗</a></header>
+<section class="playback-controls" aria-label="Playback and audio">
 <div class="toolbar"><div id="transport" class="transport" aria-label="Transport"></div><button id="audio" aria-pressed="false" disabled>Enable audio</button><button id="stop" disabled>Stop &amp; release</button><label><input type="checkbox" id="shift" disabled>Hold Shift</label><span id="feedback" class="status" role="status">Starting engine…</span></div>
 <div id="audio-status">NuSaw audio · no Move device needed</div><p id="error" role="alert"></p>
+</section>
 <main>
  <section class="accompaniment" aria-label="Comp accompaniment"><div><strong id="comp-route">Comp accompaniment</strong><p id="comp-explanation">Reading Movy routing…</p></div><label>Comp source <select id="comp-source" aria-describedby="comp-explanation" disabled><option value="0">Follow melody</option><option value="1">Clip · independent</option><option value="2">Pads · independent</option><option value="3">Clip + melody guide</option></select></label></section>
  <div class="display-row">

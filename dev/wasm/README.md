@@ -152,6 +152,12 @@ display on closing. Escape closes it without stopping playback when nothing is
 held; cancelling a held gesture uses the existing Stop & release behavior.
 Opening is ignored during held gestures, and closing cancels any remaining hold.
 The original nodes and engine stay mounted, so modes, edits and audio continue.
+Play / Stop, Record, Enable audio, Stop & release and Hold Shift move into the
+expanded editor's fixed header, together with the live track/mode/transport
+status, audio status and errors. The screen and settings scroll independently,
+so transport remains reachable on phones and short landscape windows. These
+are the original controls and handlers, restored to their inline location when
+the editor closes; no separate transport or recording state is introduced.
 
 Settings panel lists the current production controller’s pages, grouped by the
 existing panel catalog. Clicking a top display segment jumps within its current

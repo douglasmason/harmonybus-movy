@@ -39,14 +39,18 @@ button:focus-visible,select:focus-visible{outline:2px solid #b5e7ca;outline-offs
 /* The expanded editor reuses the same screen and navigation nodes in a modal.
    Content scrolls on short screens instead of shrinking the display to fit. */
 body.display-expanded{overflow:hidden}
-#display-dialog{box-sizing:border-box;position:fixed;inset:0;margin:auto;width:100%;height:100%;height:100dvh;max-width:none;max-height:100dvh;padding:0;border:0;background:#101516;color:#e9f0ed;overflow:auto;overscroll-behavior:contain}
+#display-dialog{box-sizing:border-box;position:fixed;inset:0;margin:auto;width:100%;height:100%;height:100dvh;max-width:none;max-height:100dvh;padding:0;border:0;background:#101516;color:#e9f0ed;overflow:hidden;overscroll-behavior:contain}
+#display-dialog[open]{display:flex;flex-direction:column}
 #display-dialog::backdrop{background:#101516}
-.display-dialog-header{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:max(12px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left));background:#101516;border-bottom:1px solid #34443a}
-#display-dialog .display-row{grid-template-columns:minmax(0,1fr) clamp(240px,28vw,320px);align-items:start;gap:20px;max-width:1660px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+.display-dialog-header{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 12px;padding:max(12px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left));background:#101516;border-bottom:1px solid #34443a}
+.display-dialog-header .playback-controls{grid-column:1/-1;min-width:0}
+.display-dialog-header .toolbar{margin:0 0 4px}
+.display-dialog-header #error{max-height:4em;overflow:auto;margin:6px 0 0}
+#display-dialog .display-row{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;width:100%;grid-template-columns:minmax(0,1fr) clamp(240px,28vw,320px);align-items:start;gap:20px;max-width:1660px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
 #display-dialog .display-panel{width:100%;margin:0}
 #display-dialog #screen{max-width:1280px}
 #display-dialog .display-options label:has(#display-size){display:none}
-#display-dialog .navigation-panel{position:sticky;top:calc(73px + max(12px,env(safe-area-inset-top)))}
+#display-dialog .navigation-panel{position:sticky;top:0}
 #display-dialog [hidden]{display:none}
 @media(max-width:700px),(max-width:900px) and (orientation:portrait){
  #display-dialog .display-row{grid-template-columns:minmax(0,1fr);gap:16px;padding:12px}

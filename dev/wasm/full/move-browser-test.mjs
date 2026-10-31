@@ -56,10 +56,18 @@ try{
  const dialog=page.getByRole('dialog',{name:'Enlarged Movy display',exact:true});
  assert(await dialog.isVisible());
  assert.equal(await dialog.locator('#navigation').count(),1,'existing navigation moves with the screen');
+ assert.equal(await dialog.locator('#transport .control').count(),2,'the original transport is available in the editor');
+ assert.equal(await page.locator('#transport').count(),1,'transport is moved rather than duplicated');
+ assert(await dialog.locator('#feedback').isVisible(),'live transport feedback remains visible');
  await page.keyboard.press('Shift+Tab');
  assert(await page.evaluate(()=>document.querySelector('#display-dialog').contains(document.activeElement)),'focus stays inside the editor');
  await page.keyboard.press('Tab');
  assert(await button('Close large display').evaluate(element=>element===document.activeElement),'focus wraps back to Close');
+ await page.locator('#shift').check();
+ await page.waitForFunction(async()=>(await __wasmStats()).move.held>0);
+ await page.locator('#stop').click();
+ await page.waitForFunction(async()=>(await __wasmStats()).move.held===0);
+ assert(!(await page.locator('#shift').isChecked()),'editor Stop & release clears held Shift');
  const cell=await screenTravel.boundingBox();
  await page.mouse.move(cell.x+cell.width/2,cell.y+cell.height/2);await page.mouse.down();
  await page.mouse.move(cell.x+cell.width/2,cell.y+cell.height/2-16,{steps:4});await page.mouse.up();
@@ -81,6 +89,7 @@ try{
  await page.waitForFunction(async()=>(await __wasmStats()).move.held===0);
  await page.waitForFunction(()=>document.activeElement===document.querySelector('#display-expand'));
  assert.equal(await page.locator('main .display-row #encoder').count(),1,'the same controls return inline');
+ assert.equal(await page.locator('body > .playback-controls #transport').count(),1,'transport returns to its original location');
  // A concurrent alias cannot release another surface's encoder hold.
  await page.evaluate(()=>{
   const physical=document.querySelector('[aria-label="Knob 2"]'),screen=document.querySelector('.screen-parameter[data-slot="1"]');
@@ -149,10 +158,15 @@ try{
  await button('Track 4').tap();await button('Pad 2').tap();await button('Step 1').tap();
  await page.waitForFunction(async()=>Number((await __wasmRead('motif_clip_info_3')).split(',')[4])===1);
  clip=await page.evaluate(()=>__wasmRead('state'));
+ await button('Enlarge display').click();
  await page.locator('#audio').click();await page.waitForFunction(()=>document.querySelector('#audio').textContent==='Disable audio');
  await button('Play / Stop').tap();
  await page.waitForFunction(()=>{try{return JSON.parse(document.querySelector('#audio-report').textContent).peak>.0001;}catch{return false;}});
- await button('Enlarge display').click();await page.keyboard.press('Escape');
+ await button('Play / Stop').tap();
+ await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Stopped'));
+ await button('Play / Stop').tap();
+ await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Playing'));
+ await page.keyboard.press('Escape');
  await page.waitForFunction(()=>!document.querySelector('#display-dialog').open);
  assert.match(await page.locator('#feedback').textContent(),/Playing/,'closing an idle editor leaves playback running');
  assert.equal(await page.locator('#audio').textContent(),'Disable audio');
@@ -203,14 +217,17 @@ try{
  for(let turn=0;turn<5;turn++)await button('Jog turn right').click();
  await button('Jog').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 4 · Chord Play'));
- await button('Step 1').tap();await button('Record').tap();
+ await button('Step 1').tap();await button('Enlarge display').click();await button('Record').tap();
+ await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Count-in'));
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Recording'));
+ await button('Close large display').click();
  for(const [step,pad] of [['Step 2','Pad 3'],['Step 3','Pad 5']]){
   await button(step).tap();await button(pad).focus();await page.keyboard.down('Space');
   await page.waitForTimeout(250);await page.keyboard.up('Space');
  }
- await page.locator('#stop').click();
+ await button('Enlarge display').click();await page.locator('#stop').click();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Chord Play · Stopped'));
+ await button('Close large display').click();
  const chordClip=await page.evaluate(()=>__wasmRead('state'));
  assert(chordClip.split('\n').filter(line=>line.startsWith('ra 0 0 ')).length>=2,'harmonic descriptors are recorded');
  await page.getByText('Session files',{exact:true}).click();await page.locator('#session-save').click();
@@ -314,9 +331,14 @@ try{
   assert(await page.locator('#encoder').evaluate(element=>element.scrollWidth<=element.clientWidth),'encoder selector fits');
   await page.locator('#display-sharp').uncheck();assert(await page.locator('#hero').isVisible());
   await page.locator('#display-sharp').check();
-  await dialog.evaluate(element=>{element.scrollTop=element.scrollHeight;});
+  await dialog.locator('.display-row').evaluate(element=>{element.scrollTop=element.scrollHeight;});
   const closeBox=await button('Close large display').boundingBox();
   assert(closeBox.y>=0&&closeBox.y+closeBox.height<=viewport.height,'Close stays reachable after scrolling');
+  for(const selector of ['#transport','#audio','#stop','#shift','#feedback','#audio-status']){
+   const bounds=await page.locator(selector).boundingBox();
+   assert(bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=viewport.width&&bounds.y+bounds.height<=viewport.height,'fixed '+selector+' remains visible at '+JSON.stringify(viewport));
+  }
+  assert(await dialog.locator('.display-row').evaluate(element=>element.scrollWidth<=element.clientWidth),'scrolling content fits its width');
   await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('#display-dialog').open);
  }
  await checkEncoderActions(browser,page.url());
