@@ -49,9 +49,10 @@ export function queueFooterText(next:string,status:string,snapshot=''):string {
         return fitFooter('Next '+chordLabel(next)+'  '+status);
     const token=(index:number)=>index===cursor?'['+names[index]+']':names[index];
     const jump=loop&&cursor>=0&&next!=='--'&&next!==names[(cursor+1)%count]?' >'+next:'';
-    const full=(loop?'Loop ':status+' ')+names.map((_,index)=>token(index)).join(' ')+jump;
+    const prefix=status+' ';
+    const full=prefix+names.map((_,index)=>token(index)).join(' ')+jump;
     if(fontWidth(full)<=126)return full;
-    const anchor=Math.max(0,cursor),prefix=loop?'L'+(cursor+1)+'/'+count+' ':status+' ';
+    const anchor=Math.max(0,cursor);
     let left=anchor,right=anchor;
     const index=(value:number)=>(value+count)%count;
     const line=(start:number,end:number)=>prefix+Array.from({length:end-start+1},(_,offset)=>token(index(start+offset))).join(' ')+jump;

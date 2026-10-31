@@ -95,6 +95,9 @@ on:
       - scripts/patch_grid.py
       - scripts/patch_panel_navigation.py
       - scripts/patch_chord_play.py
+      - scripts/patch_queue_feedback.py
+      - integration/performance/hb-footer.ts
+      - integration/performance/hb-footer-test.mjs
       - scripts/patch_chord_pad_feedback.py
       - scripts/patch_session_selector.py
       - scripts/apply_clean_harmonybus.py
@@ -201,6 +204,9 @@ on:
       - scripts/patch_grid.py
       - scripts/patch_panel_navigation.py
       - scripts/patch_chord_play.py
+      - scripts/patch_queue_feedback.py
+      - integration/performance/hb-footer.ts
+      - integration/performance/hb-footer-test.mjs
       - scripts/patch_chord_pad_feedback.py
       - scripts/patch_session_selector.py
       - scripts/apply_clean_harmonybus.py

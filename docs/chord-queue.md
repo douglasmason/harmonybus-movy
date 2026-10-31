@@ -29,17 +29,23 @@ Queue End has two choices:
   sixteen chords. Changing to Hold lets the pending sequence finish; changing
   back to Loop resumes the retained progression at the next boundary.
 
-The footer shows the next chord and Fill, Ready, Hold, or Loop status. Queued
-choices pulse on their knob and step LEDs, using the existing bank snapshot and
-hardware animation. Sounding harmony retains its white selection color. The
+The footer shows Fill, Ready, Hold, or Loop status and brackets the current
+chord. Loop uses an explicit position and total, such as `Loop 1/4 [C] G F D`:
+the stopped first-chord preview is included in the four. Longer progressions
+retain the same status prefix and show neighbors of the current chord. The
+queue footer owns its display band; the generic clip strip, performance footer,
+and enqueue count toasts do not overwrite it. All members of a repeating loop
+pulse on their knobs and steps, including chords already played this pass.
+Hold mode pulses only future queued choices. Sounding harmony retains its white selection color. The
 shared harmony footer supplies chord names beside ordinary Roman numerals;
 explicit secondary intent retains its target relationship. Live motif headers
 also retain this harmony footer. Preview/editor-specific instructions remain
 local to their respective views.
 
-Harmony Off clears live choices. During playback it hands authority back to the
-conductor clip and leaves Queued mode ready for another progression. While
-stopped it also switches the visible mode to Immediate and shows Queue Off.
+Harmony Off clears the live chord and the entire queue; it does not rewind or
+restart the existing progression. During playback it hands authority back to the
+conductor clip. Both playing and stopped, it leaves Queued mode selected and
+ready to fill a new progression.
 Stop, changing conductor, or loading a Set clears the transient queue. Queue
 Depth and Queue End persist in the conductor's native state; queued notes do not.
 
@@ -73,3 +79,11 @@ Validation includes native queue and lifecycle regression tests, controller
 knob routing/navigation/LED tests, shared footer tests, production QuickJS
 startup, full-chain audio/recording checks, and CI builds. Physical Move
 verification remains pending.
+
+The timing review gives an already due chord priority over recovery of a cleared
+old voice. Current-harmony reads no longer scan all retained history; delayed
+lookahead still searches the historical events. Regression coverage includes
+2,048 exact core changes, history rollover and voice loss at a due boundary,
+plus 128 bars through the production Movy/Schwung/HarmonyBus chain. These tests
+do not reproduce or establish a fix for intermittent physical-device lag and
+crackles after the first few loops.

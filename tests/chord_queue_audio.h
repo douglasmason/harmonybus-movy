@@ -4,11 +4,45 @@ static void queue_status(int count,const char *current,const char *next){
     snprintf(expected,sizeof(expected),"cq1|%d|",count);assert(!strncmp(text,expected,strlen(expected)));
     char actual_current[64],actual_next[64];
     assert(sscanf(text,"cq1|%*d|%*f|%63[^|]|%63[^|]",actual_current,actual_next)==2);
+    if(strncmp(actual_current,current,strlen(current))||strncmp(actual_next,next,strlen(next)))
+        fprintf(stderr,"queue: expected %s -> %s, got %s\n",current,next,text);
     assert(!strncmp(actual_current,current,strlen(current))&&!strncmp(actual_next,next,strlen(next)));
     /* Native spelling may include a form suffix; the timeline's root is exact. */
     char context[2048];api->get_param(instance,"ch0:midi_fx1:harmony_source_snapshot",context,sizeof(context));
     int root=!strcmp(current,"C")?0:!strcmp(current,"G")?7:!strcmp(current,"F")?5:2;
     snprintf(expected,sizeof(expected),"\"root\":%d",root);assert(strstr(context,expected));
+}
+static void test_chord_queue_sustained(void){
+    set("cmd","stop");render(8);set("chord_select","off");
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 64 0 \n");render(8);
+    set("ch0:midi_fx1:role","Conductor");set("ch0:midi_fx1:render_channel","3");
+    set("ch0:midi_fx1:chord_form","Triad");set("ch0:midi_fx1:arp_playback","Together");
+    set("ch0:midi_fx1:chord_queue_depth","4");set("ch0:midi_fx1:chord_queue_end","Loop");
+    set("ch0:midi_fx1:chord_timing","1 Bar");set("ch0:midi_fx1:anticipation","On Grid");
+    const int roots[]={0,7,5,2};const char *names[]={"C","G","F","D"};
+    char command[64],status[512];
+    for(int index=0;index<4;index++){
+        snprintf(command,sizeof(command),"0,%d,1,2,1,0,1,12",roots[index]);set("chord_queue",command);
+    }
+    render(8);queue_status(3,"C","G");sent_on=sent_off=0;set("cmd","play");
+    int blocks=0,previous_attacks=0;
+    for(int bar=0;bar<128;bar++){
+        int target=(int)((bar*2.0+0.05)*44100.0/128.0);
+        render(target-blocks);blocks=target;
+        /* Shared voices may remain sounding across two triads. There must be
+           a change, but never a stream of repeated recovery attacks. */
+        int attacks=sent_on-previous_attacks;
+        if(bar&&(attacks<1||attacks>3))fprintf(stderr,"bar %d: %d new note-ons\n",bar,attacks);
+        assert(!bar||(attacks>=1&&attacks<=3));previous_attacks=sent_on;
+        int cursor=-1,total=0;double next_at=0;
+        api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",status,sizeof(status));
+        assert(sscanf(status,"cq1|%*d|%lf|%*[^|]|%*[^|]|%*d|%*d|%*d|%*d|%d|%d",&next_at,&cursor,&total)==3);
+        if(cursor!=bar%4||next_at!=(bar+1)*4.0)fprintf(stderr,"bar %d: %s\n",bar,status);
+        assert(cursor==bar%4&&total==4&&next_at==(bar+1)*4.0);
+        queue_status(bar%4==3?4:3-bar%4,names[bar%4],names[(bar+1)%4]);
+    }
+    set("cmd","stop");render(8);
+    puts("Queued Chord Play: 128 bars at one bar per chord retain exact cues and loop size");
 }
 static void test_chord_queue(void){
     set("cmd","stop");render(8);set("chord_select","off");set("chord_route","off");
@@ -116,5 +150,8 @@ static void test_chord_queue(void){
     set("chord_queue","begin,0");set("chord_queue","0,0,1,2,1,0,1,12");render(200);assert(!sent_on);
     set("chord_queue","end");render(16);assert(sent_on>0);set("chord_select","off");render(16);assert(sent_on==sent_off);
     set("ch0:midi_fx1:chord_queue_depth","2");
+    test_chord_queue_sustained();
+    set("ch0:midi_fx1:chord_queue_depth","2");set("ch0:midi_fx1:chord_queue_end","Hold");
+    set("ch0:midi_fx1:chord_timing","1/4");
     puts("Queued Chord Play: stopped preload survives start, scheduled MIDI, empty hold, refill, balanced releases and activation recording pass");
 }
