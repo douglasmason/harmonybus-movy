@@ -3,12 +3,14 @@ import {readFile,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createVectorAdapter} from './move-vector-build.mjs';
 import {observePanelBar} from './move-panel-build.mjs';
+import {describeChordSteps} from './move-step-build.mjs';
 
 export async function buildMove({root,source,schwung,esbuild}){
  const vectors=createVectorAdapter(source);
  await esbuild.build({entryPoints:[resolve(root,'move-runtime.mjs')],bundle:true,format:'esm',platform:'browser',
   outfile:resolve(root,'build/move-runtime.mjs'),alias:{movy:resolve(source,'src')},define:{__MOVY_DEBUG__:'false'},
   plugins:[{name:'browser-move-host',setup(build){
+   build.onLoad({filter:/\/seq\/chord-play\.ts$/},async args=>({contents:describeChordSteps(await readFile(args.path,'utf8')),loader:'ts'}));
    build.onLoad({filter:/\/renderer\/header\.ts$/},async args=>({contents:observePanelBar(await readFile(args.path,'utf8')),loader:'ts'}));
    build.onLoad({filter:vectors.filter},async args=>({contents:vectors.transform(await readFile(args.path,'utf8'),args.path),loader:args.path.endsWith('.ts')?'ts':'js'}));
    // Enum feedback covers the pixels, but the same eight knobs still own

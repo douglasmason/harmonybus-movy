@@ -66,3 +66,6 @@ body.display-expanded{overflow:hidden}
  #display-dialog .navigation-panel{position:static}
  .display-dialog-header{padding:max(8px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) 8px max(12px,env(safe-area-inset-left))}
 }
+
+/* Chord banks keep the original sixteen buttons and native LED colors. */
+.step-name,.step-detail{display:none}.steps.chord-steps{grid-template-columns:repeat(8,minmax(0,1fr))}.chord-steps .control{min-height:72px;overflow-wrap:anywhere}.chord-steps .control-label{display:block;font-size:10px;line-height:15px}.chord-steps .step-name{display:block;font-size:18px;line-height:24px;font-weight:650}.chord-steps .step-detail{display:block;font-size:12px;line-height:18px}@media(max-width:600px){.steps.chord-steps{grid-template-columns:repeat(4,minmax(0,1fr))}}

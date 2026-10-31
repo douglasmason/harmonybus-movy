@@ -271,7 +271,25 @@ try{
  for(let turn=0;turn<5;turn++)await button('Jog turn right').click();
  await button('Jog').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 4 · Chord Play'));
- await button('Step 1').tap();await button('Enlarge display').click();await button('Record').tap();
+ await page.waitForFunction(()=>document.querySelector('[aria-label="Step 2"] .step-name').textContent==='Dm');
+ assert.equal(await button('Step 2').locator('.step-detail').textContent(),'ii');
+ assert.match(await button('Step 2').getAttribute('aria-description'),/Home · Dm · ii/);
+ assert.equal(await button('Step 8').locator('.step-name').textContent(),'Off');
+ assert.equal(await button('Step 16').locator('.step-name').textContent(),'Off');
+ for(const viewport of [{width:390,height:844},{width:768,height:1024},{width:1180,height:820}]){
+  await page.setViewportSize(viewport);
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'chord banks fit '+viewport.width);
+  for(const name of ['Step 2','Step 9','Step 16'])assert(await button(name).evaluate(element=>element.scrollWidth<=element.clientWidth),'full chord label fits '+viewport.width);
+ }
+ await page.setViewportSize({width:1024,height:768});
+ await page.locator('#shift').check();
+ await page.waitForFunction(()=>!document.querySelector('#steps').classList.contains('chord-steps'));
+ assert.equal(await button('Step 2').locator('.control-label').textContent(),'2');
+ await page.locator('#shift').uncheck();
+ await page.waitForFunction(()=>document.querySelector('#steps').classList.contains('chord-steps'));
+ await button('Step 1').tap();await button('Enlarge display').click();
+ assert.equal(await dialog.locator('[aria-label="Step 2"] .step-name').textContent(),'Dm','enlarged editor keeps the same labeled steps');
+ await button('Record').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Count-in'));
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Recording'));
  await button('Pads & steps').click();

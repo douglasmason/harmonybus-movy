@@ -26,6 +26,7 @@ export function mountMoveSurface(inputs){
   const button=document.querySelector(`.control[data-kind="${control.type}"][data-index="${control.index}"]`);
   return {control,button,label:button.querySelector('.control-label'),note:button.querySelector('.pad-note'),
    name:button.querySelector('.knob-name'),value:button.querySelector('.knob-value'),
+   stepName:button.querySelector('.step-name'),stepDetail:button.querySelector('.step-detail'),
    option:document.querySelector(`#encoder option[value="${control.index}"]`)};
  });
  const rowHeadings=[...document.querySelectorAll('.pad-row-label')];
@@ -37,11 +38,12 @@ export function mountMoveSurface(inputs){
    display.update(frame);
    screenControls.update(frame);
    panelControls.update(frame);
+   document.querySelector('#steps').classList.toggle('chord-steps',!!frame.stepLabels);
   for(const heading of rowHeadings){
    const row=Number(heading.dataset.row),label=frame.padLabels?.rows[row];
    text(heading,label?`${label.owner} · ${label.kind}${label.operation?' · '+label.operation:''}`:`Pads ${row*8+1}–${row*8+8}`);
   }
-  for(const {control,button,label:primary,note,name,value,option}of buttons){
+  for(const {control,button,label:primary,note,name,value,option,stepName,stepDetail}of buttons){
    if(control.group==='knobs'){
     const label=frame.knobLabels?.[control.index-71];
     text(name,label?.name??'');text(value,label?(label.action?'Action':label.value):'');
@@ -56,6 +58,15 @@ export function mountMoveSurface(inputs){
     text(primary,label?.primary??String(control.index-67));text(note,label?.secondary??'');
     const title=label?`${control.name} · ${label.description}`:control.name;
     if(button.title!==title){button.title=title;button.setAttribute('aria-description',label?.description??'');}
+   }
+   if(control.group==='steps'){
+    const label=frame.stepLabels?.[control.index-16];
+    text(primary,String(control.index-15)+(label?.bank?' · '+label.bank:''));
+    text(stepName,label?.name??'');
+    text(stepDetail,label?(label.slot<0?'Harmony':!label.enabled?'Disabled':label.roman):'');
+    const description=label?(label.slot<0?'Harmony off':`${label.bank} · ${label.name} · ${label.roman}${!label.enabled?' · Disabled':''}${label.queued?' · Queued':''}`):'';
+    const title=control.name+(description?' · '+description:'');
+    if(button.title!==title){button.title=title;button.setAttribute('aria-description',description);}
    }
    if(control.group==='tracks'){
     const name='Track '+(Math.floor(frame.track/4)*4+44-control.index);
