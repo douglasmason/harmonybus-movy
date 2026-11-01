@@ -9,7 +9,16 @@
  import { seqState } from './state.js';
  import { seqToast } from './render.js';
  import { beginStepAutomation, heldRange } from './step-edit.js';
-@@ -146,7 +146,7 @@
+@@ -61,6 +61,8 @@
+     liveTurn.clear();
+     touchedNotTurned.clear();
+     warmPending.fill(0);
++    verifyTrack = 0;
++    verifyLaneByTrack.fill(0);
+     lastDisplaySig = '';
+ }
+
+@@ -146,7 +148,7 @@
      // param cache: this new lane's abs-CC would resolve through find_param_info on
      // an empty synth_params and be dropped. Warm it so the first playback is
      // audible (the reselect-time warm can't cover a lane that doesn't exist yet).
@@ -18,28 +27,74 @@
      return lane;
  }
 
-@@ -316,7 +316,7 @@
-     /* A mix lane is not mapped inside the chain, so `knob_<N>_name` says nothing
-      * about it — probing one would read null, call the mapping cleared, and
-      * re-apply every lane on the track on every sweep. */
+@@ -297,37 +299,41 @@
+     if (lane >= 0) clearLane(track, lane);
+ }
+
+-/* Chain knob mappings are chain-side state: a module reload (user swap from
+- * the shadow UI, or a dev redeploy) silently clears them while the lane
+- * registry and the engine's lanes live on — automation then no-ops with a
+- * fully intact UI. Called on a slow cadence; verifies ONE track per call
+- * (round-robin over all TRACK_COUNT of them) by reading the first assigned lane's knob_<N>_name and
+- * re-issuing every lane's knob_<N>_set on mismatch. The name check matches
+- * the chain's "target: param" format loosely (both halves present) so a
+- * formatting tweak can't trigger a re-apply storm. */
++/* A module reload can clear chain mappings while recorded lanes remain.
++ * Keep the existing slow cadence and one-name-read budget, rotating through
++ * every chain lane on each track instead of repeatedly checking only its first.
++ * Both supported hosts report "target: param"; spacing may vary, identity may not. */
+ let verifyTrack = 0;
++const verifyLaneByTrack = new Uint8Array(TRACK_COUNT);
+ export function verifyLaneMappings(
+     readKnobName: (slot: number, lane: number) => string | null,
+     apply: (slot: number, lane: number, targetParam: string) => void,
+ ): void {
+-    const t = verifyTrack;
++    const track = verifyTrack;
+     verifyTrack = (verifyTrack + 1) % TRACK_COUNT;
+-    const lanes = registry[t];
+-    /* A mix lane is not mapped inside the chain, so `knob_<N>_name` says nothing
+-     * about it — probing one would read null, call the mapping cleared, and
+-     * re-apply every lane on the track on every sweep. */
 -    const first = lanes.findIndex((e) => e !== null && !isMixTarget(e.targetParam)&&!e.targetParam.startsWith('generator:'));
-+    const first = lanes.findIndex((e) => e !== null && isChainTarget(e.targetParam));
-     if (first < 0) return; // no lanes on this track → no IPC
-     const e = lanes[first]!;
-     const name = readKnobName(t, first);
-@@ -326,8 +326,9 @@
-     if (name && name.indexOf(target) >= 0 && name.indexOf(param) >= 0) return;
-     for (let l = 0; l < 8; l++) {
-         const le = lanes[l];
+-    if (first < 0) return; // no lanes on this track → no IPC
+-    const e = lanes[first]!;
+-    const name = readKnobName(t, first);
+-    const sep = e.targetParam.indexOf(':');
+-    const target = e.targetParam.slice(0, sep);
+-    const param  = e.targetParam.slice(sep + 1);
+-    if (name && name.indexOf(target) >= 0 && name.indexOf(param) >= 0) return;
+-    for (let l = 0; l < 8; l++) {
+-        const le = lanes[l];
 -        if (le) apply(t, l, le.targetParam);
 -    }
-+        if (le && isChainTarget(le.targetParam)) apply(t, l, le.targetParam);
++    const lanes = registry[track];
++    let selected = -1;
++    for (let offset = 0; offset < lanes.length; offset++) {
++        const lane = (verifyLaneByTrack[track] + offset) % lanes.length;
++        const entry = lanes[lane];
++        if (entry && isChainTarget(entry.targetParam)) { selected = lane; break; }
 +    }
-+    requestLaneWarm(t);
++    if (selected < 0) return; // holes and virtual lanes cost no host reads
++    verifyLaneByTrack[track] = (selected + 1) % lanes.length;
++    const entry = lanes[selected]!;
++    const name = readKnobName(track, selected);
++    const separator = entry.targetParam.indexOf(':');
++    const target = entry.targetParam.slice(0, separator);
++    const param = entry.targetParam.slice(separator + 1);
++    const reportedSeparator = name?.indexOf(':') ?? -1;
++    if (name && reportedSeparator >= 0 &&
++        name.slice(0, reportedSeparator).trim() === target &&
++        name.slice(reportedSeparator + 1).trim() === param) return;
++    for (let lane = 0; lane < lanes.length; lane++) {
++        const mapping = lanes[lane];
++        if (mapping && isChainTarget(mapping.targetParam)) apply(track, lane, mapping.targetParam);
++    }
++    requestLaneWarm(track);
  }
 
  /* A chain module (re)load leaves the host's per-component param-metadata cache
-@@ -347,8 +348,7 @@
+@@ -347,8 +353,7 @@
      const seen = new Set<string>();
      for (let l = 0; l < 8; l++) {
          const e = lanes[l];
@@ -49,7 +104,7 @@
          const comp = e.targetParam.slice(0, e.targetParam.indexOf(':'));
          if (seen.has(comp)) continue; // the refresh is per-component, not per-lane
          seen.add(comp);
-@@ -366,9 +366,10 @@
+@@ -366,9 +371,10 @@
 
  /* Schedule `track`'s lane param-cache warm after a chain (re)load. */
  export function requestLaneWarm(track: number): void {
@@ -62,7 +117,7 @@
  }
 
  /* Per-tick pump for scheduled warms. Cheap when idle (all counters 0). `verify`,
-@@ -384,7 +385,7 @@
+@@ -384,7 +390,7 @@
          warmPending[t] = c - 1;
          if (c % WARM_STRIDE === 0) warmLaneParams(t, readValue);
          if (c === 1 && verify) {                       // window just closed
@@ -71,7 +126,7 @@
              if (first >= 0) verify(t, first);
          }
      }
-@@ -437,11 +438,13 @@
+@@ -437,11 +443,13 @@
       * in the next. */
      for (let t = 0; t < TRACK_COUNT && t < tracks.length; t++) {
          const lanes = tracks[t].split('.');
@@ -85,7 +140,7 @@
              const r: LaneRange = v === 'unknown' ? { min: 0, max: 1, type: 'float' } : v;
              registry[t][l] = {
                  targetParam: tp, shortName: tp.split(':')[1] ?? tp,
-@@ -449,5 +452,8 @@
+@@ -449,5 +457,8 @@
              };
              apply(t, l, tp);
          }
