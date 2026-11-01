@@ -86,7 +86,7 @@ ${before}`).replace(/\n}\s*$/, '\n    } finally { endText?.(); }\n}\n');
      ['function selectInputMode(next: number, remember=true): void {','export function selectInputMode(next: number, remember=true): void {'],
      ['const inputModeNames=','export const inputModeNames='],
      ['export function sessionPlayMode(): number {','export function sessionPlayMode(includeOverlays = true): number {'],
-     ['return seqState.sessionMode ? 0 : settingsOpen() ? 7 :','return includeOverlays && seqState.sessionMode ? 0 : includeOverlays && settingsOpen() ? 7 :']
+     ['return seqState.sessionMode ? 0 : scaleFindingEnabled() ? 8 : settingsOpen() ? 7 :','return includeOverlays && seqState.sessionMode ? 0 : scaleFindingEnabled() ? 8 : includeOverlays && settingsOpen() ? 7 :']
     ]){if(contents.split(before).length!==2)throw new Error('Movy mode selector seam changed: '+before);contents=contents.replace(before,after);}
     return {contents,loader:'ts'};
    });

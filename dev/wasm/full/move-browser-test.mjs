@@ -21,7 +21,7 @@ try{
  assert.equal(await page.locator('#steps .control').count(),16);
  assert.equal(await page.locator('#encoder option[value="14"]').count(),0,'Jog has dedicated controls');
  assert.equal(await page.locator('#enter').count(),0,'no duplicate Jog click');
- assert.deepEqual(await page.locator('#play-mode option').allTextContents(),['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings']);
+ assert.deepEqual(await page.locator('#play-mode option').allTextContents(),['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings','Scale Finding']);
  assert.equal(await page.locator('#play-mode').inputValue(),'1');
  await page.locator('#shift').check();
  await page.waitForFunction(()=>document.querySelector('#play-mode').disabled);
