@@ -83,7 +83,7 @@ for(const mode of ['Chord','Settings','Joint','Field','Grid','Normal']){
     for(let index=0;index<100;index++){now+=10;globalThis.tick();}
     measuring=false;
     assert(valueRefreshes.length>0,mode+' keeps the model lifecycle alive');
-    assert(valueRefreshes.every(refresh=>refresh===(mode==='Normal')),mode+' polls only visible model values');
+    assert(valueRefreshes.every(refresh=>refresh===false),mode+' leaves value polling to its visible shared page');
     const genericPreviews=currentCalls.filter(key=>key==='get T3 midi_fx1:pad_view').length;
     if(mode==='Field'||mode==='Grid')assert.equal(genericPreviews,0,mode+' owns its pad preview');
     if(mode==='Chord'||mode==='Normal')assert(genericPreviews>=19,mode+' retains melodic pad previews');

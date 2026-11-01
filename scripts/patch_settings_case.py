@@ -36,9 +36,9 @@ def append_lowercase(path: Path, table_name: str, glyphs: list[list[int]]) -> No
 
 
 def tamzen_lowercase(schwung_root: Path) -> list[list[int]]:
-    """Normalize lowercase extents to the existing seven-row value band."""
+    """Use six-row lowercase bodies and seven-row ascenders in the value band."""
     source: str = (schwung_root / 'fonts/tamzen/Tamzen6x12r.bdf').read_text()
-    glyphs: dict[str, list[int]] = {}
+    map_letter_to_rows: dict[str, list[int]] = {}
     block: str
     for block in source.split('STARTCHAR ')[1:]:
         encoding: re.Match[str] | None = re.search(r'^ENCODING (\d+)$', block, re.M)
@@ -46,20 +46,23 @@ def tamzen_lowercase(schwung_root: Path) -> list[list[int]]:
             continue
         bitmap: str = block.split('BITMAP\n')[1].split('ENDCHAR')[0]
         rows: list[int] = [int(row, 16) for row in bitmap.splitlines()]
-        glyphs[chr(int(encoding[1]))] = [
+        map_letter_to_rows[chr(int(encoding[1]))] = [
             sum(1 << column for column in range(5) if row & (128 >> column))
             for row in rows[2:9]]
     # The source has a 9-row mixed-case extent. Compact only these descenders,
     # rather than losing their tails or expanding a fixed-height widget.
-    glyphs.update(g=[0, 0, 14, 17, 30, 16, 14], j=[4, 0, 4, 4, 4, 5, 2],
+    map_letter_to_rows.update(g=[0, 0, 14, 17, 30, 16, 14], j=[4, 0, 4, 4, 4, 5, 2],
                   p=[0, 0, 15, 17, 15, 1, 1], q=[0, 0, 30, 17, 30, 16, 16],
                   y=[0, 0, 17, 17, 30, 16, 14])
     normalized: list[list[int]] = []
+    letter: str
     for letter in string.ascii_lowercase:
-        rows = glyphs[letter]
+        rows = map_letter_to_rows[letter]
         occupied: list[int] = [index for index, row in enumerate(rows) if row]
         rows = rows[occupied[0]:occupied[-1] + 1]
-        normalized.append([6, 0, 5, 7, *(rows[index * len(rows) // 7] for index in range(7))])
+        height: int = 7 if letter in 'bdfhklt' else 6
+        normalized.append([6, 0, 5, 7, *([0] * (7 - height)),
+                           *(rows[index * len(rows) // height] for index in range(height))])
     return normalized
 
 
@@ -87,13 +90,13 @@ def patch_settings_case(root: Path) -> None:
     pages: Path = vendor / 'param_pages'
     lower: dict[str, list[int]] = json.loads((assets / 'lowercase.json').read_text())
     compact: dict[str, list[int]] = dict(lower)
-    compact.update(a=[3, 2, 4, 6, 5, 6], b=[3, 1, 1, 3, 5, 3],
-                   d=[3, 4, 4, 6, 5, 6], e=[3, 2, 5, 7, 1, 6],
-                   g=[3, 6, 5, 6, 4, 3], h=[3, 1, 1, 3, 5, 5],
-                   m=[3, 7, 7, 5, 5, 5], n=[3, 3, 5, 5, 5, 5],
-                   o=[3, 2, 5, 5, 5, 2], p=[3, 3, 5, 3, 1, 1],
-                   q=[3, 6, 5, 6, 4, 4], u=[3, 5, 5, 5, 5, 6],
-                   w=[3, 5, 5, 7, 7, 7])
+    compact.update(a=[3, 0, 6, 4, 7, 6], b=[3, 1, 1, 3, 5, 3],
+                   d=[3, 4, 4, 6, 5, 6], e=[3, 0, 2, 7, 1, 6],
+                   g=[3, 0, 6, 5, 6, 3], h=[3, 1, 1, 3, 5, 5],
+                   m=[3, 0, 7, 7, 5, 5], n=[3, 0, 3, 5, 5, 5],
+                   o=[3, 0, 2, 5, 5, 2], p=[3, 0, 3, 5, 3, 1],
+                   q=[3, 0, 6, 5, 6, 4], u=[3, 0, 5, 5, 5, 6],
+                   w=[3, 0, 5, 5, 7, 7])
     append_lowercase(pages / 'font4x5.mjs', 'G',
                      [[data[0] + 1, 0, data[0], 5, *data[1:]] for data in lower.values()])
     append_lowercase(pages / 'font5x3.mjs', 'G5',
