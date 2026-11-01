@@ -3,7 +3,7 @@ import {test} from 'node:test';
 import {readFile} from 'node:fs/promises';
 import {createServer,get} from 'node:http';
 import {once} from 'node:events';
-import {decodeDeviceScreen,decodeDeviceSurface,deviceStreamURL,openDeviceConnection} from './move-device.mjs';
+import {decodeDeviceScreen,decodeDeviceSurface,deviceStreamURL,openDeviceConnection,discoverPageCompanion} from './move-device.mjs';
 import {createMoveConnection} from './move-connection.mjs';
 import {createDeviceServer} from './move-device-server.mjs';
 const fixture=JSON.parse(await readFile(new URL('./fixtures/move-mirror-v1.json',import.meta.url)));
@@ -79,10 +79,23 @@ test('local companion proxies only the fixed read-only stream, preserving discon
   assert.equal((await fetch(origin+'/stream-auto?v=2',{method:'POST'})).status,405);
   assert.equal((await fetch(origin+'/stream-auto?v=2',{headers:{Origin:'https://unrelated.example'}})).status,403);
   assert.equal(await new Promise(resolve=>get(origin+'/stream-auto?v=2',{headers:{Host:'wrong.example'}},response=>{response.resume();resolve(response.statusCode);})),421);
-  assert.equal(received.length,0);
+  assert.equal(await discoverPageCompanion(origin+'/move/'),origin);
+  assert.equal((await fetch(origin+'/api/movy-companion?address=http://other')).status,400);
+  assert.equal((await fetch(origin+'/api/movy-companion',{headers:{Origin:'https://unrelated.example'}})).status,403);
+  assert.equal((await fetch(origin+'/api/movy-companion',{method:'POST'})).status,405);
+  assert.equal(received.length,0,'companion identity never contacts Move');
   const controller=new AbortController(),response=await fetch(origin+'/stream-auto?v=2',{signal:controller.signal,headers:{Cookie:'not-forwarded=1'}});
   const chunk=await response.body.getReader().read();assert(new TextDecoder().decode(chunk.value).includes('mono1_packed'));
   assert.deepEqual(received,[{method:'GET',path:'/stream-auto?v=2',cookie:undefined}]);controller.abort();
   await delay(30);assert(upstreamClosed);
  }finally{server.closeAllConnections();upstream.closeAllConnections();await Promise.all([new Promise(resolve=>server.close(resolve)),new Promise(resolve=>upstream.close(resolve))]);}
+});
+
+test('companion discovery checks only the page origin, fails quietly and never trusts a supplied endpoint',async()=>{
+ const calls=[],signal=new AbortController().signal;
+ const fetcher=async(url,options)=>{calls.push([url.href,options]);return {ok:true,headers:new Headers({'content-type':'application/json'}),json:async()=>({schema:1,service:'hb-movy-companion',endpoint:'http://other'})};};
+ assert.equal(await discoverPageCompanion('https://local.example/move/?view=field',{fetcher,signal}),'https://local.example');
+ assert.equal(calls[0][0],'https://local.example/api/movy-companion');assert.equal(calls[0][1].redirect,'error');assert.equal(calls[0][1].credentials,'omit');assert.equal(calls[0][1].signal,signal);
+ for(const response of [{ok:false},{ok:true,headers:new Headers({'content-type':'text/html'})},{ok:true,headers:new Headers({'content-type':'application/json'}),json:async()=>({schema:2,service:'hb-movy-companion'})}])assert.equal(await discoverPageCompanion('https://trial.example',{fetcher:async()=>response}),null);
+ assert.equal(await discoverPageCompanion('https://trial.example',{fetcher:async()=>{throw new Error('Unavailable');}}),null);
 });

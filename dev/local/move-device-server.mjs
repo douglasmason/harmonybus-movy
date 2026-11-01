@@ -26,6 +26,11 @@ export function createDeviceServer({siteRoot,moveAddress,origin,allowedOrigin=nu
   if(request.method!=='GET'){sendError(405,'Read-only companion');return;}
   const url=new URL(request.url,origin),route=url.pathname.replace(/\/$/,'')||'/';
   if(route.startsWith('/downloads/')){sendError(409,'This companion is already extracted. Download updates from the private browser trial.');return;}
+  if(route==='/api/movy-companion'){
+   if(url.search){sendError(400,'Companion identity takes no parameters');return;}
+   response.setHeader('Content-Type','application/json');
+   response.end(JSON.stringify({schema:1,service:'hb-movy-companion'}));return;
+  }
   if(route==='/api/movy-capabilities'){
    if(url.search){sendError(400,'Capabilities do not accept endpoint overrides');return;}
    try{

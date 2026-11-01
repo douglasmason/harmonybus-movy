@@ -1,4 +1,4 @@
-# Movy 0.34.1-hbclean.299 — automation recovery across all tracks
+# Movy 0.34.1-hbclean.300 — automation recovery across all tracks
 
 Parameter-cache recovery still rejected tracks 5–16 with an old four-track
 guard. A newly assigned lane on track 5 therefore received zero recovery reads,

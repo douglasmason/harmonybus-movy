@@ -45,6 +45,9 @@ assert.equal(mixedReads.length,12);
 assert.equal(mixedReads.filter(([,lane])=>lane===2).length,6);
 assert.equal(mixedReads.filter(([,lane])=>lane===4).length,6);
 assert.deepEqual(mixedVerify,[[lastTrack,2]]);
+assignLane(lastTrack,lastTrack,descriptor('generator','complexity'),()=>true);
+assignLane(lastTrack,lastTrack,descriptor('mix','send2'),()=>true);
+drain(()=>assert.fail('adding virtual lanes must not restart an instrument cache warm'));
 
 // A lost mapping is repaired, then its empty metadata cache is warmed too.
 const remapped=[];
@@ -85,6 +88,9 @@ try{
 
 // Reset or removal cancels pending work; invalid track requests never escape.
 reset();
+assignLane(lastTrack,lastTrack,descriptor(),()=>true);
+clearLane(lastTrack,0,false);
+drain(()=>assert.fail('removal cancels pending reads'),()=>assert.fail('no removed-lane diagnostics'));
 assignLane(lastTrack,lastTrack,descriptor(),()=>true);
 resetAutomation();
 for(const track of [-1,TRACK_COUNT,NaN,0.5])requestLaneWarm(track);

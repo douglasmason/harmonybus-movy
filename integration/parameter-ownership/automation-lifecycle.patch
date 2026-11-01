@@ -9,6 +9,15 @@
  import { seqState } from './state.js';
  import { seqToast } from './render.js';
  import { beginStepAutomation, heldRange } from './step-edit.js';
+@@ -146,7 +146,7 @@
+     // param cache: this new lane's abs-CC would resolve through find_param_info on
+     // an empty synth_params and be dropped. Warm it so the first playback is
+     // audible (the reselect-time warm can't cover a lane that doesn't exist yet).
+-    requestLaneWarm(track);
++    if (isChainTarget(tp)) requestLaneWarm(track);
+     return lane;
+ }
+
 @@ -316,7 +316,7 @@
      /* A mix lane is not mapped inside the chain, so `knob_<N>_name` says nothing
       * about it — probing one would read null, call the mapping cleared, and

@@ -80,3 +80,15 @@ export async function checkDeviceCapabilities(address,pageURL,{signal,fetcher=gl
  const reason=!info.supportedModule?'Installed module version is not supported by this transport adapter.':!info.stateReadPreservesDirty?'Persistence-safe subscription is not advertised; controls remain read-only.':!info.companionTransportEnabled?'Persistence-safe subscription advertised; this companion is read-only.':'Paired Play/Stop eligible; an explicit paired connection is still required.';
  return `Installed Movy ${info.moduleVersion}. Host version unknown. ${reason} Rich labels, pad/knob input and device audio streaming are unavailable. This check does not connect or change the device.`;
 }
+
+/** Identify only this page's server. Never scan the LAN or contact Move. */
+export async function discoverPageCompanion(pageURL,{signal,fetcher=globalThis.fetch}={}){
+ try{
+  const page=new URL(pageURL);
+  if(!['http:','https:'].includes(page.protocol))return null;
+  const response=await fetcher(new URL('/api/movy-companion',page.origin),{signal,credentials:'omit',cache:'no-store',redirect:'error'});
+  if(!response.ok||!response.headers.get('content-type')?.startsWith('application/json'))return null;
+  const info=await response.json();
+  return info?.schema===1&&info.service==='hb-movy-companion'?page.origin:null;
+ }catch{return null;}
+}

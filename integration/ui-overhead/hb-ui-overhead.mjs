@@ -98,6 +98,27 @@ try{
     panel.getParam('midi_fx1:cp_status_key');assert.equal(reads['midi_fx1:final_harmony'],1,'overview fields share one read');
     queueFrame='';conductor.setParam('midi_fx1:chord_queue_depth','3');tick(100);
     assert.equal(panel.getParam('midi_fx1:cp_queue_count'),'Fill 0/3','older/missing queue snapshot retains depth fallback');
+    for(let depth=1;depth<=16;depth++){
+        conductor.setParam('midi_fx1:chord_queue_depth',String(depth));tick(100);
+        assert.equal(panel.getParam('midi_fx1:cp_queue_count'),'Fill 0/'+depth);
+    }
+    // Cleared queues return --. Touch Phrase is a release gesture, not depth 2.
+    for(const playing of [false,true])for(const unavailable of ['--','',null]){
+        seqState.playing=playing;queueFrame=unavailable;
+        conductor.setParam('midi_fx1:chord_queue_depth','Touch Phrase');
+        chord.harmonyOff();resetCounts();tick(100);
+        assert.equal(panel.getParam('midi_fx1:cp_queue_count'),'Fill 0 Release');
+        assert.match(chord.chordContextTrail(),/Release/);
+        assert.doesNotMatch(chord.chordContextTrail(),/0\/2/);
+        assert.equal(chord.chordSnapshot().playMode,1);
+        assert.equal(reads['midi_fx1:chord_queue_depth'],1,'status and footer share the existing fallback read');
+    }
+    // A native snapshot remains authoritative; restored/restarted loops recover
+    // their cursor without another read of the fallback setting.
+    queueFrame='cq1|3|4|C|G|1|0|4|1|0|4|C|G|F|D';resetCounts();tick(100);
+    assert.equal(panel.getParam('midi_fx1:cp_queue_count'),'Loop 1/4');
+    assert.equal(reads['midi_fx1:chord_queue_depth']??0,0);
+    queueFrame='';conductor.setParam('midi_fx1:chord_queue_depth','3');tick(100);
     resetCounts();panel.getParam('midi_fx1:cp_queue_current');assert.equal(reads['midi_fx1:final_harmony'],1,'current-chord fallback reads harmony only when requested');
     resetCounts();tick(-1000);assert.equal(reads['midi_fx1:hb_chord_bank_snapshot'],1);assert.equal(reads['midi_fx1:render_channel'],1,'clock rewind refreshes bounded caches');
 }finally{Array.prototype.join=originalJoin;JSON.stringify=originalStringify;String.prototype.split=originalSplit;}
