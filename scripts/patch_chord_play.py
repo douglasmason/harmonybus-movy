@@ -119,6 +119,19 @@ def patch_native(root: Path) -> None:
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/chord-play'
     (root / 'engine/crates/movy-dsp/src/chord_selection.rs').write_text((assets / 'chord_selection.rs').read_text())
     (root / 'engine/crates/movy-dsp/src/chord_queue.rs').write_text((assets / 'queue-bridge.rs').read_text())
+    (root / 'engine/crates/movy-dsp/src/hb_queue_read.rs').write_text((assets / 'queue-read.rs').read_text())
+    (root / 'engine/crates/movy-dsp/tests').mkdir(parents=True, exist_ok=True)
+    (root / 'engine/crates/movy-dsp/tests/queue_read_allocations.rs').write_text((assets / 'queue-read-tests.rs').read_text())
+    path: Path = root / 'engine/crates/movy-dsp/src/chain_slots.rs'
+    source: str = path.read_text()
+    source = replace_once(source, '    pub fn get_param(&mut self, slot: usize, key: &str) -> Option<String> {', '''    /// Service the queue without allocating a key or owned response string.
+    pub fn hb_chord_queue_take(&mut self, slot: usize) -> crate::hb_queue_read::Event {
+        let Some(Some(instance)) = self.slots.get_mut(slot) else { return crate::hb_queue_read::Event::None; };
+        crate::hb_queue_read::read(|key, buffer| instance.hb_get_small(key, buffer))
+    }
+
+    pub fn get_param(&mut self, slot: usize, key: &str) -> Option<String> {''')
+    path.write_text(source)
     (root / 'engine/crates/seq-core/src/chord_record.rs').write_text((assets / 'chord-record.rs').read_text())
     path = root / 'engine/crates/seq-core/src/joint_record.rs'
     source = path.read_text().replace('track < NUM_TRACKS && if', 'track < NUM_TRACKS && (self.joint_overwrite_mask & (1 << track) != 0 || if')
@@ -227,7 +240,7 @@ pub fn parse(message:''')
     path.write_text(source)
 
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
-    source = path.read_text() + '\ninclude!("chord_queue.rs");\n'
+    source = path.read_text() + '\nmod hb_queue_read;\ninclude!("chord_queue.rs");\n'
     source = replace_once(source, '                if seq_core::persist::load(&mut self.engine, val) {', '                if seq_core::persist::load(&mut self.engine, val) {\n                    self.clear_chord_queue();self.release_chord_selection();')
     source = replace_once(source, '    blocks: u64,', '    blocks: u64,\n    chord_queue: Option<usize>,\n    chord_queue_tick: Option<(u64,bool)>,')
     source = replace_once(source, '            blocks: 0,', '            blocks: 0,\n            chord_queue: None,\n            chord_queue_tick: None,')
