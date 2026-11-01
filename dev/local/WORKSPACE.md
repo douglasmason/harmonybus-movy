@@ -121,3 +121,8 @@ the archive. `companion-start.mjs` provides a read-only launcher with explicit
 private-LAN binding. It never discovers/connects to Move on startup. The extracted
 archive is tested outside the checkout against the same protocol fixture and
 byte-compared with the hosted workspace. It contains no alternate UI or engine.
+
+The default appearance is red highlights on black and neutral grey surfaces.
+Neutral backgrounds are independently selectable; older saved tinted palettes
+retain their appearance. Reset appearance applies the current default. Unlit
+controls inherit the palette; actual musical LED colors remain authoritative.
