@@ -10,6 +10,11 @@ instead of rerunning inference. Transpose, inherited register and spelling stay
 live. A desktop decode microbenchmark improved from about 825 to 77 ns/read;
 this does not establish that every physical-device crackle is resolved.
 
+Temporary tonic-position cues now use the active track color on Move, Joint
+Play and RGB Launchpad; older limited-color Launchpads use their existing
+palette approximation. Cue duration, octave readout and note ownership stay
+unchanged, with no new host reads.
+
 The expanded chord and operation cells now use taller text where it fits.
 Chord spellings and Roman numerals retain their contrasting letter heights,
 with more letter and line spacing. Long operation names retain a compact

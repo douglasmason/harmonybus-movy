@@ -7,12 +7,12 @@ const {positionHighlight,POSITION_HIGHLIGHT_MS}=await import('../dist/esm/keyboa
 const {setPadPosition}=await import('../dist/esm/seq/pad-position.js');
 const {padColor,refreshHarmonyPads}=await import('../dist/esm/seq/pads.js');
 const {seqHandleMidi}=await import('../dist/esm/seq/router.js');
-const {C_WHITE}=await import('../dist/esm/seq/colors.js');
+const {trackColor}=await import('../dist/esm/seq/colors.js');
 const {selectTrack}=await import('../dist/esm/track/focus.js');
 const {portFor}=await import('../dist/esm/track/registry.js');
 const {setFlag}=await import('../dist/esm/seq/flags.js');
 const {tickLaunchpad,unloadLaunchpad}=await import('../dist/esm/surfaces/launchpad.js');
-const {launchpadIndex}=await import('../dist/esm/surfaces/protocol.js');
+const {launchpadIndex,legacyColor}=await import('../dist/esm/surfaces/protocol.js');
 const {PAD_PALETTE}=await import('../dist/esm/keyboard/pad-palette.js');
 const joint=await import('../dist/esm/seq/joint-play.js');
 const {ledFrameReset}=await import('../dist/esm/seq/led-cache.js');
@@ -34,13 +34,13 @@ try{
     arrow(1);assert.equal(keyboardState.columnOffset,1);
     const queried=reads;
     const lit=Array.from({length:32},(_,index)=>padColor(68+index,68,3,false));
-    for(const index of [1,9,17,25])assert.equal(lit[index],C_WHITE,'Move highlights all tonic approach rows');
+    for(const index of [1,9,17,25])assert.equal(lit[index],trackColor(appState.activeTrack.index),'Move highlights all tonic approach rows');
     now+=POSITION_HIGHLIGHT_MS-1;assert(positionHighlight(60));
     arrow(1);assert.equal(keyboardState.columnOffset,2);
-    assert.equal(padColor(70,68,3,false),C_WHITE);
-    assert.notEqual(padColor(69,68,3,false),C_WHITE,'old column clears immediately');
+    assert.equal(padColor(70,68,3,false),trackColor(appState.activeTrack.index));
+    assert.notEqual(padColor(69,68,3,false),trackColor(appState.activeTrack.index),'old column clears immediately');
     now+=POSITION_HIGHLIGHT_MS-1;assert(positionHighlight(60),'repeat movement renews the cue');
-    now++;assert(!positionHighlight(60));assert.notEqual(padColor(70,68,3,false),C_WHITE,'normal colors return at expiry');
+    now++;assert(!positionHighlight(60));assert.notEqual(padColor(70,68,3,false),trackColor(appState.activeTrack.index),'normal colors return at expiry');
     assert.equal(reads,queried,'LED cue does not poll the host');
     setPadPosition(7);now+=1000;arrow(1);now+=200;
     assert(positionHighlight(60),'press at a limit previews the current tonic');
@@ -69,13 +69,20 @@ try{
         for(let i=0;i<60;i++){now+=10;tickLaunchpad(now);}
         sent.length=0;arrow(1);
         for(let i=0;i<60;i++){now+=10;tickLaunchpad(now);}
-        const lit=colorsFor(model),expected=model===1?63:PAD_PALETTE[C_WHITE].map(value=>Math.round(value*127/255));
+        const lit=colorsFor(model),expected=model===1?legacyColor(trackColor(appState.activeTrack.index),false,false,false,false):PAD_PALETTE[trackColor(appState.activeTrack.index)].map(value=>Math.round(value*127/255));
         for(let row=0;row<8;row++)assert.deepEqual(lit.get(row*8+1),expected,'surface '+model+' tonic column '+row);
         now+=POSITION_HIGHLIGHT_MS;sent.length=0;
         for(let i=0;i<60;i++){now+=10;tickLaunchpad(now);}
         assert.notDeepEqual(colorsFor(model).get(1),expected,'surface restores resting LEDs');
     }
     unloadLaunchpad();setFlag('hblaunchpad',0);
+
+    // The active track, not a fixed white or role-overlay color, owns the cue.
+    for(let track=0;track<4;track++){
+        selectTrack(track);setPadPosition(0);setPadPosition(1);
+        assert.equal(padColor(69,68,track,false),trackColor(track),'active track '+track+' tonic color');
+    }
+    selectTrack(3);
 
     // Joint's role overlay still yields to the same temporary cue.
     joint.restoreJoint([{pads:8,lower:0,upper:2,bass:0,comp:0}]);joint.setJointEnabled(true);
@@ -84,7 +91,7 @@ try{
     const move=[];globalThis.move_midi_internal_send=packet=>{move.push([...packet]);return true;};
     for(let i=0;i<20;i++){ledFrameReset();joint.paintJointPads(i===0);}
     const colors=new Map(move.flatMap(packet=>{const entries=[];for(let i=0;i<packet.length;i+=4)if((packet[i+1]&240)===144)entries.push([packet[i+2],packet[i+3]]);return entries;}));
-    assert.equal(colors.get(69),C_WHITE,'Joint tonic follows the shared cue');
+    assert.equal(colors.get(69),trackColor(appState.activeTrack.index),'Joint tonic follows the shared cue');
     joint.setJointEnabled(false);
 }finally{Date.now=realNow;}
 console.log('Position cue: real arrows, full tonic columns, expiry/retrigger, boundaries, owner/key/clock changes, no extra reads, Move/Joint/X/Mini LED packets pass');

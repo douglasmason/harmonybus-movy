@@ -23,19 +23,22 @@ def patch_pad_position(root: Path) -> None:
     # The cue shares existing LED frames and never changes note ownership.
     path = root / "src/seq/pads.ts"
     source = "import { positionHighlight } from '../keyboard/position-highlight.js';\n" + path.read_text()
-    source = replace_once(source, "    const background = restingPadColor(padNote, padMin, track, false, holdNotes);", """    if (holdNotes === null && positionHighlight(padMapFor(track)[index] ?? -1, pianoApproachTarget(track,index))) return C_WHITE;
+    source = replace_once(source, "    const background = restingPadColor(padNote, padMin, track, false, holdNotes);", """    if (holdNotes === null && positionHighlight(padMapFor(track)[index] ?? -1, pianoApproachTarget(track,index))) return trackColor(track);
     const background = restingPadColor(padNote, padMin, track, false, holdNotes);""")
     path.write_text(source)
 
     path = root / "src/surfaces/launchpad.ts"
-    source = "import { positionHighlight } from '../keyboard/position-highlight.js';\nimport { C_WHITE } from '../seq/colors.js';\n" + path.read_text()
+    source = "import { positionHighlight } from '../keyboard/position-highlight.js';\nimport { trackColor } from '../seq/colors.js';\n" + path.read_text()
     source = replace_once(source, "            const approach = cell.target >= 0;", """            const approach = cell.target >= 0;
-            if (positionHighlight(cell.pitch,cell.target)) return model === 1 ? 63 : C_WHITE;""")
+            if (positionHighlight(cell.pitch,cell.target)) {
+                const cue = trackColor(track);
+                return model === 1 ? legacyColor(cue,false,false,false,false) : cue;
+            }""")
     path.write_text(source)
 
     path = root / "src/seq/joint-play.ts"
-    source = replace_once(path.read_text(), "import { trackColor } from './colors.js';", "import { trackColor, C_WHITE } from './colors.js';\nimport { positionHighlight } from '../keyboard/position-highlight.js';")
-    source = replace_once(source, "    const changes=next.flatMap", """    cells.forEach((cell,index)=>{if(positionHighlight(cell.pitch,cell.target))next[index]=C_WHITE;});
+    source = replace_once(path.read_text(), "import { trackColor } from './colors.js';", "import { trackColor } from './colors.js';\nimport { positionHighlight } from '../keyboard/position-highlight.js';")
+    source = replace_once(source, "    const changes=next.flatMap", """    cells.forEach((cell,index)=>{if(positionHighlight(cell.pitch,cell.target))next[index]=trackColor(appState.activeTrack.index);});
     const changes=next.flatMap""")
     path.write_text(source)
 
