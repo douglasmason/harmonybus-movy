@@ -271,6 +271,65 @@ unloadLaunchpad();assert.equal(nativeWrites.at(-1)[0],'surface_release');
 selectTrack(5);
 console.log('Launchpad Mini MK3 batches: owner track, retry identity and source-local teardown pass');
 
+// Lifecycle cancellation must outrank a busy shared transport's stale note retries.
+const { surfaceInput } = await import('../dist/esm/surfaces/input.js');
+for (const profile of [1,2,3]) for (const transition of ['off','park','profile']) {
+    selectTrack(0);keyboardState.layout=0;
+    const started=2300+profile*100;
+    setFlag('hblaunchpad',profile);
+    tickLaunchpad(started);tickLaunchpad(started+10);tickLaunchpad(started+20);
+    const pad=profile===1?112:11,top=profile===1?104:91;
+    onMidiMessageExternal([176,top,127]);
+    onMidiMessageExternal([144,pad,100]);
+    // Another controller must survive Launchpad cancellation, with its retry identity.
+    surfaceInput.enqueue(1,{track:2,status:144,note:60,pitch:60,value:90,shift:0,row:-1,full:0});
+    acknowledge=false;assert.equal(flushLaunchpadInput(),false);
+    const otherEvent=nativeWrites.at(-1)[1].split(';').find(event=>Number(event.split(',')[3])===188);
+    const commandsBefore=nativeWrites.length,controlsBefore=writes.length,claimsBefore=claims.length;
+    if(transition==='park')globalThis.overtakeParked=true;
+    else setFlag('hblaunchpad',transition==='off'?0:profile===2?3:2);
+    onMidiMessageExternal([176,top+1,127]);
+    assert.equal(writes.length,controlsBefore,'the old profile cannot start another operation before its next lifecycle tick');
+    tickLaunchpad(started+30);
+    const cancellation=nativeWrites.slice(commandsBefore).filter(([key])=>key.startsWith('surface_'));
+    assert.equal(cancellation[0][0],'surface_release_source',`${profile}/${transition}: cancellation precedes any stale retry`);
+    assert.equal(cancellation[0][1].split(',')[0],'0');
+    assert.equal(cancellation.length,1,'one bounded shared transport attempt per tick, including profile changes');
+    assert(claims.slice(claimsBefore).some(([channel,output])=>channel===0&&output===-1),'busy input cannot retain the old channel claim');
+    assert(writes.slice(controlsBefore).some(([,key,value])=>key.endsWith('approach_touch_1')&&value==='Cancel'),
+        'busy input cannot retain the held operation');
+    const fence=nativeWrites.at(-1)[1];tickLaunchpad(started+40);
+    assert.equal(nativeWrites.at(-1)[1],fence,'retry retains the cancellation fence identity');
+    acknowledge=true;tickLaunchpad(started+50);
+    const recovered=nativeWrites.slice(commandsBefore).filter(([key])=>key==='surface_events');
+    assert.deepEqual(recovered.map(([,value])=>value),[otherEvent],'only the other controller replays after recovery');
+    globalThis.overtakeParked=false;setFlag('hblaunchpad',0);unloadLaunchpad();
+    surfaceInput.release(1);flushLaunchpadInput();
+}
+// An accepted first batch also reports incomplete while more than 32 events remain.
+selectTrack(0);setFlag('hblaunchpad',3);tickLaunchpad(2800);tickLaunchpad(2810);
+for(let repeat=0;repeat<64;repeat++)onMidiMessageExternal([144,11,100]);
+const backlogStart=nativeWrites.length;
+setFlag('hblaunchpad',0);tickLaunchpad(2820);
+assert(!nativeWrites.slice(backlogStart).some(([key])=>key==='surface_events'),
+    'disabling a surface discards its unattempted backlog instead of draining old onsets in batches');
+assert.equal(nativeWrites.at(-1)[0],'surface_release_source');
+
+// The optional-host-API fallback must release too, even when another source stalls.
+setFlag('hblaunchpad',3);tickLaunchpad(2830);tickLaunchpad(2840);
+const blockingInput=globalThis.host_module_set_param_blocking;
+delete globalThis.host_module_set_param_blocking;
+onMidiMessageExternal([144,11,100]);
+assert.deepEqual(midi.at(-1),[0,144,38,100]);
+globalThis.host_module_set_param_blocking=blockingInput;
+surfaceInput.enqueue(1,{track:2,status:144,note:61,pitch:61,value:90,shift:0,row:-1,full:0});
+acknowledge=false;globalThis.overtakeParked=true;tickLaunchpad(2850);
+assert.deepEqual(midi.at(-1),[0,128,38,0],'a busy engine cannot delay direct-route note cleanup');
+acknowledge=true;tickLaunchpad(2860);
+globalThis.overtakeParked=false;setFlag('hblaunchpad',0);surfaceInput.release(1);flushLaunchpadInput();
+selectTrack(5);
+console.log('Launchpad lifecycle: all profiles cancel before busy retries, release controls/claims, keep fence identity and preserve other surfaces');
+
 // The external renderer holds pulse peaks, including nested/error restoration.
 const { withSteadyHarmonyLights, harmonyPulse } = await import('../dist/esm/keyboard/harmony-pads.js');
 assert.equal(harmonyPulse(0.5,0),0);

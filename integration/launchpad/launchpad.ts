@@ -93,19 +93,20 @@ function release(index: number): void {
     seqCmd(`nof ${owner.track} ${owner.pitch}`);
 }
 
-export function releaseLaunchpad(): void {
+/** Cancel owned input first; report whether the shared transport drained. */
+export function releaseLaunchpad(): boolean {
     surfaceInput.release(0);
-    flushLaunchpadInput();
     for (const index of [...held.keys()]) release(index);
     for (const releaseControl of controls.values()) releaseControl?.(true);
     controls.clear(); modifier = false;
     if (engineReady()) seqCmdFlush();
+    return flushLaunchpadInput();
 }
 
 /** Undo only the channel claim owned here; other channel remaps are untouched. */
-export function unloadLaunchpad(): void {
+export function unloadLaunchpad(): boolean {
     setLaunchpadPreviewFrozen(false);
-    releaseLaunchpad();
+    const inputReady = releaseLaunchpad();
     for (const ownerTrack of visited) portFor(ownerTrack).setParam('midi_fx1:surface_enabled', '0');
     visited.clear();
     if (configured) {
@@ -119,6 +120,7 @@ export function unloadLaunchpad(): void {
     initialization = []; layoutSignature = ''; sampledAt = ledAt = ledReadyAt = -Infinity;
 
     banks.forEach(bank => { bank.cells = []; bank.view = null; bank.payload = ''; });
+    return inputReady;
 }
 
 function configure(next: LaunchpadModel): boolean {
@@ -242,9 +244,13 @@ function colors(): number[] {
 /** One RGB SysEx per visual frame; legacy hardware retains its message limit.
  * Failed queue writes keep the entire frame pending for a bounded retry. */
 export function tickLaunchpad(now = Date.now()): void {
-    if (!flushLaunchpadInput()) return;
     const next = (globalThis.overtakeParked === true ? 0 : isolation ? isolation === 'off' ? 0 : 2 : flagValue('hblaunchpad')) as LaunchpadModel | 0;
-    if (next !== model) { unloadLaunchpad(); if (next) configure(next); }
+    // A busy note retry must not postpone cancellation or replay old onsets.
+    // Unload already attempts the shared drain: do not spend a second wait here.
+    let inputReady: boolean;
+    if (next !== model) { inputReady = unloadLaunchpad(); if (next) configure(next); }
+    else inputReady = flushLaunchpadInput();
+    if (!inputReady) return;
     if (!configured || globalThis.overtakeParked === true) return;
     if (isolation === 'route') return;
     if (initialization.length) {
@@ -301,7 +307,7 @@ export function tickLaunchpad(now = Date.now()): void {
 /** Releases retain the press owner across track, page and performance-mode changes. */
 export function onMidiMessageExternal(data: number[]): void {
     if (isolation) return; // Isolate generated workload from physical external input.
-    if (!configured || data.length < 3 || !data.every(value => Number.isInteger(value))) return;
+    if (!launchpadAvailable() || data.length < 3 || !data.every(value => Number.isInteger(value))) return;
     const [status, note, value] = data;
     if (status < 128 || status > 239 || (status & 15) !== 0 || note < 0 || note > 127 || value < 0 || value > 127) return;
     const type = status & 240, index = launchpadIndex(model as LaunchpadModel, note);

@@ -37,7 +37,7 @@ def patch_field_play(root: Path) -> None:
     path.write_text(source)
     path = root / 'src/surfaces/launchpad.ts'
     source = "import { fieldActive, fieldPad, fieldPressure, fieldColors, clearFieldOutput, releaseFieldSource } from '../seq/field-play.js';\n" + path.read_text()
-    source = source.replace('export function releaseLaunchpad(): void {', "export function releaseLaunchpad(): void {\n    releaseFieldSource('launchpad');")
+    source = replace_once(source, 'export function releaseLaunchpad(): boolean {', "export function releaseLaunchpad(): boolean {\n    releaseFieldSource('launchpad');")
     source = source.replace('if(gridActive()){frameReady=true;}else sample(now);','if(fieldActive()||gridActive()){frameReady=true;}else sample(now);')
     source = source.replace('const desired = gridActive()?', "const desired = fieldActive()?fieldColors('launchpad',8,8):gridActive()?")
     source = replace_once(source,'    const top = type === 176 ?', '''    if(fieldActive()&&index>=0){if(type===160)fieldPressure('launchpad',index,value);else if(type===128||type===144)fieldPad('launchpad',index,type===144&&value>0,8,8,modifier);return;}
