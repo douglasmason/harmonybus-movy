@@ -72,6 +72,27 @@ globalThis.fill_rect=(...args)=>fills.push(args);drawHbPerformanceMode();
 globalThis.fill_rect=oldFill;assert.equal(fills.length,0,'Chord Play owns its footer');
 chord.harmonyOff();
 
+// Native conductor queue owns its musical lifetime, not Chord Play UI focus.
+selectTrack(3);seqState.sessionMode=false;chord.setChordEnabled(true);
+conductorControls.setParam('midi_fx1:hb_chord_queue_status','cq1|2|4|C|G|1|0|2|1|0|2|C|G');
+commands.length=0;
+chord.setChordEnabled(false);
+assert(!commands.some(([key,value])=>key==='chord_select'&&value==='off'),'hiding Chord Play cannot cancel queued harmony');
+assert(!commands.some(([key,value])=>key==='chord_route'&&value==='off'),'queued accompaniment survives mode exit');
+chord.setChordEnabled(true);
+assert(!commands.some(([key,value])=>key==='chord_select'&&value==='off'),'reentering Chord Play is not Harmony Off');
+selectTrack(4);clock+=200;chord.tickChord();
+assert(chord.chordActive(),'another melody track may control the same conductor');
+assert(!commands.some(([key,value])=>key==='chord_select'&&value==='off'),'melody focus never clears native queue');
+selectTrack(0);clock+=200;chord.tickChord();
+assert(!chord.chordActive(),'conductor-focus note-view conflict exits controller only');
+assert(!commands.some(([key,value])=>key==='chord_select'&&value==='off'),'conductor focus still cannot clear native queue');
+selectTrack(3);chord.setChordEnabled(true);
+assert(!commands.some(([key,value])=>key==='chord_select'&&value==='off'),'returning to previous Chord Play preserves the cycle');
+commands.length=0;chord.harmonyOff();
+assert(commands.some(([key,value])=>key==='chord_select'&&value==='off'),'K8 Off remains the explicit cancel action');
+conductorControls.setParam('midi_fx1:hb_chord_queue_status','--');
+
 // The shared motif loader gets an explicit conductor owner, while melody pads
 // retain their track. Confirm through the real Chord Play MIDI dispatcher.
 const conductor=portFor(0),read=conductor.getParam,oldGet=globalThis.host_module_get_param;
