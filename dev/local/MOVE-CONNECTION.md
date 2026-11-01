@@ -199,3 +199,16 @@ the capability contract: identity, command delivery, Link response, recording
 completion, Wi-Fi/lock loss, tool changes and trusted TLS/CORS permissions.
 Manager has no atomic identity-and-command operation, so changing tools during
 a request remains an upstream race. Nothing was installed or changed on Move.
+
+### Explicit capability check
+
+Check capabilities reads only the fixed installed Movy module.json through the
+companion. It never subscribes to state, opens the remote WebSocket, starts the
+mirror or sends musical commands. The report separates installed module version,
+subscription safety and companion transport configuration. Eligibility is not a
+connection or proof of the currently active tool; the existing paired handshake
+still checks those before accepting commands. Host version remains unknown, and
+rich semantic controls and device audio are not available through this adapter.
+A missing metadata endpoint does not prevent the separate screen mirror.
+Changing address or switching engines discards a pending report. HTTPS pages
+reject insecure endpoints before requesting metadata, just as for the mirror.

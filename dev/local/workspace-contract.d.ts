@@ -76,3 +76,16 @@ export interface DeviceFrame {
 export interface DeviceTransportModuleCapability {
  browser_transport_v1?: {state_read_preserves_dirty: true};
 }
+
+/** Metadata-only companion report; eligibility never grants control ownership. */
+export interface DeviceCapabilityReport {
+ schema: 1;
+ moduleVersion: string;
+ hostVersion: null;
+ semantic: false;
+ input: false;
+ audio: false;
+ supportedModule: boolean;
+ stateReadPreservesDirty: boolean;
+ companionTransportEnabled: boolean;
+}

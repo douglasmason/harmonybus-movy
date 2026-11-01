@@ -5,7 +5,7 @@ import {request as httpsRequest} from 'node:https';
 import {WebSocket,WebSocketServer} from 'ws';
 import {deviceTransportMessage} from './move-transport.mjs';
 
-function moduleInfo(address){
+export function moduleInfo(address){
  return new Promise((resolve,reject)=>{
   const url=new URL('/api/remote-ui/module-assets/movy/module.json',address);
   const request=(url.protocol==='https:'?httpsRequest:httpRequest)(url,{headers:{Accept:'application/json'}},response=>{
@@ -16,10 +16,7 @@ function moduleInfo(address){
     try{
      if(response.statusCode!==200)throw new Error('Installed Movy metadata unavailable');
      const info=JSON.parse(body);
-     if(info.id!=='movy'||!/^0\.34\.(?:0|1-hbclean\.\d+)$/.test(info.version))throw new Error('Installed Movy version is not supported by this transport adapter');
-     // Stock subscribe_tool reads state before any command. Current Movy clears
-     // its autosave dirty flag on that read; version/identity alone is unsafe.
-     if(info.browser_transport_v1?.state_read_preserves_dirty!==true)throw new Error('This Movy build lacks a persistence-safe remote subscription. Screen remains read-only.');
+     if(info?.id!=='movy'||typeof info.version!=='string'||info.version.length>80)throw new Error('Installed Movy metadata unavailable');
      resolve(info);
     }catch(error){reject(error);}
    });
@@ -28,6 +25,7 @@ function moduleInfo(address){
   request.on('error',reject);request.end();
  });
 }
+export const supportedModule=info=>/^0\.34\.(?:0|1-hbclean\.\d+)$/.test(info.version);
 export function attachTransport(server,{origin,allowedOrigin,moveAddress,pairingKey}){
  if(!/^[a-f0-9]{64}$/.test(pairingKey))throw new Error('Invalid companion pairing key');
  const host=new URL(origin).host;
@@ -62,6 +60,9 @@ export function attachTransport(server,{origin,allowedOrigin,moveAddress,pairing
   });
   moduleInfo(moveAddress).then(metadata=>{
    if(closed)return;info=metadata;
+   if(!supportedModule(info))throw new Error('Installed Movy version is not supported by this transport adapter');
+   // Stock subscribe_tool reads state and can consume the autosave dirty flag.
+   if(info.browser_transport_v1?.state_read_preserves_dirty!==true)throw new Error('This Movy build lacks a persistence-safe remote subscription. Screen remains read-only.');
    const url=new URL('/ws/remote-ui',moveAddress);url.protocol=url.protocol==='https:'?'wss:':'ws:';
    upstream=new WebSocket(url,{maxPayload:1024*1024,handshakeTimeout:5000,followRedirects:false});
    upstream.on('open',()=>upstream.send(JSON.stringify({type:'subscribe_tool'})));
