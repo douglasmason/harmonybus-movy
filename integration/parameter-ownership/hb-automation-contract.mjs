@@ -44,7 +44,7 @@ assert.equal(page.knobParamInfo(8),null);
 assert.equal(reads,beforeReads,'descriptors use cached controller state');
 assert.equal(writes.length,0,'describing controls does not write parameters');
 
-const {assignLane,automationRegistry,resetAutomation,handleAutomationKnob}=await import('../dist/esm/seq/automation.js');
+const {assignLane,automationRegistry,resetAutomation,handleAutomationKnob,laneForParam}=await import('../dist/esm/seq/automation.js');
 const {setEditGuard}=await import('../dist/esm/seq/engine.js');
 const commands=[];setEditGuard(op=>commands.push(op));
 resetAutomation();
@@ -54,6 +54,11 @@ assert.equal(assignLane(0,0,rate,()=>true),1);
 assert(commands.includes('abase 0 0 127'),'Square is recorded from its actual base');
 assert(commands.includes('abase 0 1 85'),'named 4 is option 2 of 4, not numeric value 4');
 assert.equal(automationRegistry()[0][0].targetParam,'synth:shape');
+const {normalizedOf}=await import('../src/vendor/schwung/shared/param_pages/render_page_movy.mjs');
+page.render('Choices',{activeLanes:3,held:true,heldValues:new Map([[0,2],[1,2]]),
+    laneForKey:key=>laneForParam(0,'synth:'+key)});
+assert.equal(normalizedOf(page.ctl.metaAt(1),page.ctl.decorations[1].value),2/3,
+    'held numeric option names keep the same choice as the automation index');
 for(const slot of [3,4,5,6,7])assert.equal(handleAutomationKnob(0,slot,page.knobParamInfo(slot),1,()=>{throw Error('invalid mapping');}),false);
 for(const value of [null,undefined,'','garbage','Infinity','NaN',2]){
     page.ctl.state.values.amount=value;
@@ -94,6 +99,16 @@ assert(commands.includes('alabel 0 0 synth:p02_gain'));
 assert(commands.includes('abase 0 0 95'));
 assert.equal(reads,beforeDescriptorReads,'resolved targets add no host reads');
 assert(!commands.some(command=>/^(ra|note|chord|motion)/.test(command)),'parameter lanes do not write abstract musical events');
+const automation={activeLanes:1,held:true,heldValues:new Map([[0,87]]),
+    laneForKey:key=>laneForParam(0,'synth:'+key)};
+const describe=page.ctl.describePage;let descriptions=0;
+page.ctl.describePage=(...args)=>{descriptions++;return describe(...args);};
+try{page.render('Pad 2',automation);}finally{page.ctl.describePage=describe;}
+assert.equal(descriptions,1,'automation decorations and touch header share one frame description');
+assert.deepEqual(page.ctl.decorations?.[0],{locked:true,value:87},'the displayed held lock follows its concrete target');
+selectPad(0);page.render('Pad 1',automation);
+assert.equal(page.ctl.decorations,null,'another pad does not inherit this automation indicator');
+selectPad(1);
 setEditGuard(null);
 
 // Hold-to-modulate uses that same onset descriptor, even after pad navigation.

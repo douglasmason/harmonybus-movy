@@ -46,5 +46,38 @@ def patch_parameter_ownership(root: Path) -> None:
             };
         },
 ''' + source[end:]
+    title_lines: str = '''            const editTarget=String(ctl.state.values.chord_edit_target||'Track Settings');
+            if(keysOf().includes('chord_edit_target')&&editTarget.startsWith('Lane '))title+=' · '+editTarget;
+'''
+    if source.count(title_lines) != 1:
+        raise RuntimeError('Expected one chord editor title before sharing its description')
+    source = source.replace(title_lines, '', 1)
+    source = replace_once(source, '            if(drawMotifLoader(lanePort))return;\n',
+                          '            if(drawMotifLoader(lanePort))return;\n' + title_lines +
+                          '            const description = ctl.describePage({ title });\n')
+    source = replace_once(source, '''                const decs = keysOf().map((k) => {
+                    if (!k) return null;
+                    const lane = auto.laneForKey(k as string);''', '''                const decs = description.cells.map((cell: any) => {
+                    if (!cell) return null;
+                    const key = qualify(cell.fullKey).slice(componentKey.length + 1);
+                    const lane = auto.laneForKey(key);''')
+    source = replace_once(source, '''                    return held === undefined ? { locked: true }
+                                              : { locked: true, value: held };''', '''                    const value = held !== undefined && cell.kind === 'enum'
+                        ? lib.enumWireValue(ctl.metaAt(cell.slot), Math.round(held), cell.raw) : held;
+                    return value === undefined ? { locked: true }
+                                               : { locked: true, value };''')
+    source = replace_once(source, 'const touchHeader = ctl.describePage({ title }).header;',
+                          'const touchHeader = description.header;')
+    path.write_text(source)
+    path = root / 'src/renderer/schwung-lib.ts'
+    source = path.read_text()
+    source = replace_once(source, '    createController: any;', '    createController: any;\n    enumWireValue: any;')
+    source = replace_once(source, 'const [pc, pi, rpm, el, wr, vo] = await Promise.all([',
+                          'const [pc, pi, rpm, el, wr, vo, pf] = await Promise.all([')
+    source = replace_once(source, "        import('../vendor/schwung/shared/param_pages/voices.mjs'),", """        import('../vendor/schwung/shared/param_pages/voices.mjs'),
+        // @ts-ignore — existing bundled wire-format helper; no host reads
+        import('../vendor/schwung/shared/param_format.mjs'),""")
+    source = replace_once(source, '        applyInput: pi.applyInput,',
+                          '        applyInput: pi.applyInput, enumWireValue: pf.enumWireValue,')
     path.write_text(source)
     print('Parameter pages: shared input/display/LED ownership, onset releases and bounded LED retries')

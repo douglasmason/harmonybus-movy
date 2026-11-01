@@ -12,6 +12,9 @@ format, and its full key already resolves the selected child instance. The same
 descriptor feeds parameter recording, held-step locks and LFO assignment.
 No second enum parser, child-key resolver, host-version branch or settings
 renderer is introduced. Describing a control adds no host reads or writes.
+Held-step indicators resolve that same concrete target, and the existing
+upstream enum wire formatter converts locked choice indices for display. A
+lock on option 2 of `1 / 2 / 4 / 8` therefore displays `4`, including its arc.
 
 Readouts, triggers, file selectors, explicitly non-automatable controls,
 zero-width ranges and invalid/unavailable values cannot seed a parameter lane.
