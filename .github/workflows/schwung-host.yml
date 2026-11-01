@@ -2,10 +2,10 @@ name: Schwung host compatibility
 on:
   pull_request:
     branches: [main]
-    paths: ['integration/schwung-host/**', 'integration/settings-case/**', 'integration/pad-position/**', 'scripts/patch_operation_labels.py', 'scripts/patch_settings_case.py', 'scripts/test_schwung_shared_source.py', 'scripts/patch_running_transport.py', '.github/workflows/schwung-host.yml']
+    paths: ['integration/schwung-host/**', 'integration/settings-case/**', 'integration/pad-position/**', 'scripts/patch_operation_labels.py', 'scripts/patch_diagnostic_polling.py', 'integration/hb-analysis.mjs', 'scripts/patch_settings_case.py', 'scripts/test_schwung_shared_source.py', 'scripts/patch_running_transport.py', '.github/workflows/schwung-host.yml']
   push:
     branches: [main]
-    paths: ['integration/schwung-host/**', 'integration/settings-case/**', 'integration/pad-position/**', 'scripts/patch_operation_labels.py', 'scripts/patch_settings_case.py', 'scripts/test_schwung_shared_source.py', 'scripts/patch_running_transport.py', '.github/workflows/schwung-host.yml']
+    paths: ['integration/schwung-host/**', 'integration/settings-case/**', 'integration/pad-position/**', 'scripts/patch_operation_labels.py', 'scripts/patch_diagnostic_polling.py', 'integration/hb-analysis.mjs', 'scripts/patch_settings_case.py', 'scripts/test_schwung_shared_source.py', 'scripts/patch_running_transport.py', '.github/workflows/schwung-host.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -85,6 +85,7 @@ jobs:
           node browser-test/hb-schwung-host.mjs
           node browser-test/hb-settings-case.mjs
           node browser-test/hb-action-label.mjs
+          node browser-test/hb-analysis.mjs
           node browser-test/hb-position-highlight.mjs
           node browser-test/hb-chord-range.mjs
           node browser-test/hb-feedback-polling.mjs
