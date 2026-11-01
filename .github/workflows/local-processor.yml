@@ -26,7 +26,7 @@ jobs:
       - name: Check lighting projection
         run: |
           npm --prefix dev/local ci
-          node --test dev/local/lighting-test.mjs dev/local/performance-test.mjs dev/local/move-device-test.mjs dev/local/move-transport-test.mjs
+          node --test dev/local/workspace-theme-test.mjs dev/local/lighting-test.mjs dev/local/performance-test.mjs dev/local/move-device-test.mjs dev/local/move-transport-test.mjs
       - name: Pin Rust toolchain
         run: |
           rustup toolchain install 1.99.1 --profile minimal
