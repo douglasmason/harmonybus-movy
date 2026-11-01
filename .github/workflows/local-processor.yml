@@ -9,7 +9,7 @@ on:
       - 'tests/full_chain_audio.c'
       - '.github/workflows/local-processor.yml'
   push:
-    branches: [dev/local-current-20261021, dev/browser-audio-sessions-20261022]
+    branches: [main, dev/local-current-20261021, dev/browser-audio-sessions-20261022]
   workflow_dispatch:
 permissions:
   contents: read
