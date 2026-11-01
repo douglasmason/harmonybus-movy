@@ -58,7 +58,7 @@ const UPPER = {
   "~": "00000/00000/01001/10110/00000/00000/00000",
   "°": "0110/1001/1001/0110/0000/0000/0000"
 };
-const MUSICAL = {
+const REGULAR = {
   "a": "0000/0000/0000/0110/1001/1111/1001/0000",
   "b": "1000/1000/1000/1110/1001/1001/1110/0000",
   "c": "0000/0000/0000/0111/1000/1000/0111/0000",
@@ -67,8 +67,8 @@ const MUSICAL = {
   "f": "011/100/100/111/100/100/100/000",
   "g": "0000/0000/0000/0111/1001/0111/0001/1110",
   "h": "1000/1000/1000/1110/1001/1001/1001/0000",
-  "i": "010/000/000/010/010/010/010/000",
-  "j": "0010/0000/0000/0010/0010/1010/1010/0100",
+  "i": "000/000/010/000/010/010/010/000",
+  "j": "0000/0000/0010/0000/0010/1010/1010/0100",
   "k": "1000/1000/1001/1010/1100/1010/1001/0000",
   "l": "10/10/10/10/10/10/01/00",
   "m": "00000/00000/00000/11010/10101/10101/10101/00000",
@@ -131,11 +131,11 @@ const atlas=(source)=>new Map(Object.entries(source).map(([letter,bitmap])=>{
     return [letter,{width,runs}];
 }));
 const CAPITAL_GLYPHS=atlas(UPPER);
-const MUSICAL_GLYPHS=atlas(MUSICAL);
+const REGULAR_GLYPHS=atlas(REGULAR);
 const SMOOTH_GLYPHS=atlas(SMOOTH);
 function glyphFor(letter,face){
     const code=face==='upper'?letter.toUpperCase():letter;
-    if(code>='a'&&code<='z')return (face==='musical'?MUSICAL_GLYPHS:SMOOTH_GLYPHS).get(code);
+    if(code>='a'&&code<='z')return (face==='regular'?REGULAR_GLYPHS:SMOOTH_GLYPHS).get(code);
     return CAPITAL_GLYPHS.get(code)??CAPITAL_GLYPHS.get('?');
 }
 export function nativeTextWidth(text,face='smooth'){
