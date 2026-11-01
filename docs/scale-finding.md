@@ -41,10 +41,23 @@ substitution.
 ## Scope
 
 This first increment implements the manual selection surface and the persistent
-LED feedback only. It does **not** capture or analyze Move's microphone. A later
-input-monitoring stage can overlay bounded chroma brightness over this same
-32-pad projection, subject to realtime/underrun testing. It must not overwrite
-the white reference tonic or green chosen mode.
+LED feedback only. It does **not** capture or analyze Move's microphone.
+
+**Microphone lifecycle contract (for the subsequent input-monitoring increment):**
+Capture, FFT/chroma analysis, and LED strength updates are strictly owned by
+Scale Finding mode. Entering this view alone may enable capture (if the user has
+chosen Auto/On and microphone permission/input routing is available); switching
+to *any* other view, returning to Clips, closing the tool, unmounting the audio
+source, loading/resetting a Set, or disabling the mode must synchronously disable
+the capture and analysis subscriptions, clear stale chroma, and restore regular
+pad feedback. There is no always-on microphone monitor, idle background sampler,
+or polling outside Key Finding. Never use a background mic just because transport
+is stopped. When playing within Key Finding, automatic self-audio gating may
+suspend analysis; it is not permission to listen outside the mode.
+
+A later input-monitoring stage can overlay bounded chroma brightness over the
+same 32-pad projection, subject to realtime/underrun testing. It must not
+overwrite the white reference tonic or green chosen mode.
 
 The selection is transient input-mode UI state, not recorded or saved with a
 clip. Existing Session navigation, Back and normal melodic pad ownership are
