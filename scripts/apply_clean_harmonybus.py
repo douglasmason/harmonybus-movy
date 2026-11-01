@@ -695,6 +695,8 @@ def main() -> int:
     patch_queue_feedback(root)
     from patch_diagnostic_polling import patch_diagnostic_polling
     patch_diagnostic_polling(root)
+    from patch_output_capture import patch_queue_report_access
+    patch_queue_report_access(root)
     print("HarmonyBus clean integration applied")
     return 0
 

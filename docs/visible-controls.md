@@ -1,4 +1,4 @@
-# Movy 0.34.1-hbclean.294 — live settings and balanced lowercase
+# Movy 0.34.1-hbclean.295 — live settings and balanced lowercase
 
 Ordinary lowercase bodies now sit one pixel below capitals: four rows in the
 five-row fonts and six in the seven-row value font. Ascenders `b d f h k l t`
@@ -24,7 +24,7 @@ modules, non-knob pages and the fallback model keep their existing paths.
 
 No new renderer, host-version checks, transport or automation representation is
 introduced. Host-native parameter modulation remains distinct from abstract
-musical clip automation. This includes .293's arrow/octave cues and the prior
+musical clip automation. This includes .294's queue diagnostic captures, .293's arrow/octave cues and the prior
 queue fixes. Browser connectivity and private audience are unchanged.
 
 Validation covers all 26 lowercase glyphs across five font paths, the actual

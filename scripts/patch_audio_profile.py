@@ -75,7 +75,7 @@ def patch_audio_profile(root: Path) -> None:
     }
     if (cpuDetail.page === 1) {
         const values = seqState.cpuProfile.split(',').map(Number);
-        drawHeader('AUDIO PEAK', (values[2] || 0) + ' OVER');
+        drawHeader('AUDIO CLICK:CHECK', (values[2] || 0) + ' OVER');
         const names = ['INPUT/CONFIG','SEQUENCER','CLIP METADATA','MIDI/CONTEXT','HB PREPARE','CLICK/LOAD','CHAIN RENDER'];
         fontPrint5x3(0, 9, 'WORST ' + (values[4] || 0) + '/' + (values[5] || 0) + 'US', 1);
         for (let index = 0; index < names.length; index++) {

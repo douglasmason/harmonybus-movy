@@ -5,6 +5,7 @@ import { seqCmd, statusSeq, engineReady } from './engine.js';
 import { currentSetUuid, sessionReady } from './set-session.js';
 import { flagValue } from './flags.js';
 import { portFor } from '../track/registry.js';
+import { TRACK_COUNT } from '../track/ref.js';
 import { keyboardState } from '../keyboard/state.js';
 import { safeWrite } from './persist-store.js';
 import { setMovePreviewFrozen, isMovePreviewFrozen } from '../keyboard/harmony-pads.js';
@@ -67,6 +68,40 @@ export const PREVIEW_TEST_PHOTOS = PREVIEW_TEST_LABELS.length + 2;
 let enteredAt = 0, runningAt = 0, requestedAfter = 0, lastSeenStatus = 0, lastStatusAt = 0;
 let context = '', duration = 0, appliedPass = 0;
 let startedTransport = false, transportSet = '';
+const queueFields = ['services', 'activations', 'recoveries', 'lateChanges', 'clears', 'rearms',
+    'maxLateBeats', 'lastDueBeat', 'lastActualBeat', 'owner'];
+type QueueSnapshot = { track: number; status: string; diagnostics: Record<string, number> | null };
+let queueBefore: QueueSnapshot[] = [];
+function normalQuickCheck(): boolean {
+    return !previewTest.isolation && !previewTest.workers && !previewTest.thread && previewTest.quick;
+}
+/** Two bounded snapshots only: before arming and after the engine stops timing. */
+function queueSnapshot(): QueueSnapshot[] {
+    return Array.from({ length: TRACK_COUNT }, (_, track) => {
+        const port = portFor(track);
+        const parts = (port.getParam('midi_fx1:hb_chord_queue_diagnostics') || '').split('|');
+        const values = parts.slice(1).map(Number);
+        const supported = parts[0] === 'qd1' && values.length === queueFields.length && values.every(Number.isFinite);
+        return { track: track + 1, status: port.getParam('midi_fx1:hb_chord_queue_status') || '',
+            diagnostics: supported ? Object.fromEntries(queueFields.map((field, index) => [field, values[index]])) : null };
+    });
+}
+/** Keep timing and queue evidence together; never write during measurement. */
+function saveQuickReport(): void {
+    const path = '/data/UserData/schwung/audio-check-' + Date.now() + '.json';
+    const report = { format: 'movy-audio-check-v1', capturedAt: new Date().toISOString(),
+        complete: true, captures: previewTest.captures, queueBefore, queueAfter: queueSnapshot(),
+        limitations: ['Queue counters and peaks are cumulative for the loaded HarmonyBus module, not reset by this check',
+            'Subtract before/after counts only for the same module lifetime; do not subtract peaks',
+            'The single conductor queue is shared: snapshots through different tracks may repeat the same totals; do not sum them',
+            'Queue snapshots bracket the capture and are sequential, not sample-synchronous with audio metrics',
+            'lateChanges counts activations more than one 96-PPQN tick after their beat deadline; a stalled beat clock can hide wall-time delay',
+            'recoveries counts requests to restore missing live selection; it does not identify why a voice was lost',
+            'null diagnostics means unsupported or unavailable, not zero activity',
+            'This existing check adds a test tone; PCM checks internal tone, not host/DAC output; late callbacks are not crackle counts'],
+    };
+    previewTest.reportPath = safeWrite(path, JSON.stringify(report, null, 2)) ? path : '';
+}
 
 function contextKey(): string {
     // Recorded key/scale modulation is part of the workload, not a setup change.
@@ -158,6 +193,7 @@ export function clickPreviewTest(now = Date.now(), compare = false, isolation = 
     if (seqState.recording || seqState.countingIn) { fail('STOP RECORDING FIRST', now); return; }
     if (!previewTest.quick && !launchpadPreviewReady()) { fail('ENABLE LAUNCHPAD FIRST', now); return; }
     previewTest.pass = 0; appliedPass = 0; previewTest.captures = []; previewTest.photo = 0; previewTest.reportPath = '';
+    queueBefore = [];
     if (previewTest.workers || previewTest.thread) {
         workerSetup = { launchpad: flagValue('hblaunchpad'), host: flagValue('chtracks'),
             setHost: flagValue('chtrackset'), harmonyBus: portFor(appState.activeTrack.index).getParam('midi_fx1:version') || 'unknown' };
@@ -199,7 +235,10 @@ export function tickPreviewTest(now = Date.now()): void {
         if (fresh && (previewTest.thread ? !seqState.playing : seqState.playing)) enter('settle', now);
         else if (now - enteredAt > TIMEOUT_MS) fail('PLAY START TIMED OUT', now);
     } else if (previewTest.stage === 'settle') {
-        if (now - enteredAt >= SETTLE_MS && audio[0] === 0 && requests[0] === '0') command(previewTest.thread ? 'icapture' : previewTest.workers ? (previewTest.pass === 1 ? 'wserial' : 'wparallel') : previewTest.quick ? 'acapture' : 'aprof_on', 'arming', now);
+        if (now - enteredAt >= SETTLE_MS && audio[0] === 0 && requests[0] === '0') {
+            if (normalQuickCheck()) queueBefore = queueSnapshot();
+            command(previewTest.thread ? 'icapture' : previewTest.workers ? (previewTest.pass === 1 ? 'wserial' : 'wparallel') : previewTest.quick ? 'acapture' : 'aprof_on', 'arming', now);
+        }
         else if (now - enteredAt > TIMEOUT_MS) fail('METER RESET TIMED OUT', now);
     } else if (previewTest.stage === 'arming') {
         if (fresh && audio.length >= (previewTest.quick ? 36 : 29) && requests.length >= 9 && audio[0] === 1 && requests[0] === '1' && (!previewTest.thread || (seqState.cpuThread.startsWith('1;') && seqState.cpuThread.split(';').length === 10 && seqState.cpuIdle.startsWith('1,0;'))) && (!previewTest.workers || (seqState.workerBuild !== '' && seqState.cpuWorker.split(',')[0] === '1'))) {
@@ -227,7 +266,10 @@ export function tickPreviewTest(now = Date.now()): void {
                     previewTest.pass++; enter('settle', now);
                 } else if (previewTest.isolation && previewTest.pass < 3) {
                     previewTest.pass++; setLaunchpadIsolation('off'); enter('settle', now);
-                } else { restore(); if (previewTest.isolation) saveIsolationReport(); if (previewTest.workers || previewTest.thread) saveWorkerReport(); enter('results', now); }
+                } else {
+                    if (normalQuickCheck()) saveQuickReport();
+                    restore(); if (previewTest.isolation) saveIsolationReport(); if (previewTest.workers || previewTest.thread) saveWorkerReport(); enter('results', now);
+                }
             } else if (now - runningAt > captureMs() + 7000) fail('CAPTURE DID NOT COMPLETE', now);
             return;
         }
@@ -317,7 +359,7 @@ export function previewTestLines(): string[] {
             'AT GAP R' + compact(values[26]) + ' Q' + compact(values[27]),
             compactKey(capture.gapRequest || '-'),
             'PCM BAD ' + compact(tone[2] || 0) + ' N ' + compact(tone[1] || 0),
-            'PHOTO THIS  CLICK:REPEAT'];
+            previewTest.reportPath ? 'LOG SAVED  CLICK:REPEAT' : 'SAVE FAILED - PHOTO THIS'];
     }
     if (previewTest.stage === 'intro') return [
         'PREVIEW TEST - 3 X 20S', 'A: NORMAL PREVIEWS', 'B: LAUNCHPAD PREVIEW FROZEN',

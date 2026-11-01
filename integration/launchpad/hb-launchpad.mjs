@@ -383,17 +383,51 @@ const quickPoll=(now,enabled,milliseconds,tone='2,262836,0,0,132300')=>{
     for(let repeat=0;repeat<8;repeat++)seqEngineTick();
     tickPreviewTest(now);
 };
-clickPreviewTest(99990);assert.equal(previewTest.quick,true);assert.equal(previewTest.stage,'intro');
+const quickFiles = new Map();
+const quickWrite = globalThis.host_write_file, quickRead = globalThis.host_read_file;
+globalThis.host_write_file = (path, content) => { quickFiles.set(path, content); return true; };
+globalThis.host_read_file = path => quickFiles.get(path) ?? null;
+const { TRACK_COUNT: queueTrackCount } = await import('../dist/esm/track/ref.js');
+const queuePorts = Array.from({ length: queueTrackCount }, (_, track) => portFor(track));
+const queueGetters = queuePorts.map(port => port.getParam);
+let queueReads = 0, queueActivations = 8;
+queuePorts.forEach((port, track) => { port.getParam = key => {
+    if (key === 'midi_fx1:hb_chord_queue_diagnostics') {
+        queueReads++;
+        return track === 0 ? `qd1|100|${queueActivations}|2|1|0|1|0.375|32|32.375|1` : '';
+    }
+    if (key === 'midi_fx1:hb_chord_queue_status') { queueReads++; return track === 0 ? 'cq1|4|36|C|G|1|0|4|1|0|4|C|G|F|D' : ''; }
+    return queueGetters[track].call(port, key);
+}; });
+const { cpuDetail: queueCpuDetail } = await import('../dist/esm/seq/cpu-page.js');
+queueCpuDetail.page = 1; clickJog();assert.equal(previewTest.quick,true);assert.equal(previewTest.stage,'intro');
 assert(previewTestLines().some(line=>line.includes('35 SECONDS')));
 clickPreviewTest(100000);assert.equal(previewTest.stage,'settle');
 quickPoll(101000,0,0);assert.equal(previewTest.stage,'arming');
+assert.equal(queueReads, queueTrackCount * 2);
 quickPoll(101010,1,10,'1,0,0,0,0');assert.equal(previewTest.stage,'run');
 assert.equal(launchpadPreviewFrozen(),false);assert.equal(isMovePreviewFrozen(),false);
 quickPoll(102010,1,1010);assert.equal(previewTest.remaining,34);
 clearCpuPage();appState.currentView=0;
 quickPoll(104010,1,3010);assert.equal(previewTest.stage,'run','capture survives navigating to performance controls');
 openCpuPage();assert.equal(previewTest.stage,'run','reopening does not reset the capture');
+assert.equal(queueReads, queueTrackCount * 2, 'no queue polling during capture');
+assert.equal(quickFiles.size, 0, 'no report writes during capture');
+queueActivations = 16;
 quickPoll(136020,0,35005);assert.equal(previewTest.stage,'results');
+assert.equal(queueReads, queueTrackCount * 4, 'exactly two bounded snapshots');
+assert.equal(quickFiles.size, 1);
+const quickReport = JSON.parse(quickFiles.get(previewTest.reportPath));
+assert.equal(quickReport.format, 'movy-audio-check-v1');
+assert.equal(quickReport.complete, true);
+assert.equal(quickReport.queueBefore[0].diagnostics.activations, 8);
+assert.equal(quickReport.queueAfter[0].diagnostics.activations, 16);
+assert.equal(quickReport.queueAfter[0].diagnostics.recoveries, 2);
+assert.equal(quickReport.queueAfter[1].diagnostics, null, 'unavailable is not zero');
+assert.equal(quickReport.captures[0].seconds, 35.005);
+assert(previewTestLines().at(-1).includes('LOG SAVED'));
+queuePorts.forEach((port, track) => { port.getParam = queueGetters[track]; });
+globalThis.host_write_file = quickWrite; globalThis.host_read_file = quickRead;
 assert.equal(previewTest.captures.length,1);
 assert.equal(previewTest.captures[0].gapRequest,'ch3:midi_fx1:surface_view0');
 assert(previewTestLines()[0].includes('PCM OK'));
@@ -415,7 +449,8 @@ cancelPreviewTest();clickPreviewTest(120000);clickPreviewTest(120010);
 quickPoll(121010,0,0);quickPoll(121020,1,10);
 quickPoll(164030,1,12000);assert.equal(previewTest.stage,'error','live status without completion cannot claim a result');
 cancelPreviewTest();
-console.log('Quick check: default jog, Launchpad-off support, engine deadline acknowledgement, one frozen screen, failure/incomplete distinction and timeout pass');
+queueCpuDetail.page = 0;
+console.log('Quick check: audio-page jog, Launchpad-off support, engine deadline acknowledgement, one frozen screen, failure/incomplete distinction and timeout pass');
 diagnosticPort.getParam=diagnosticGet;unloadLaunchpad();
 console.log('Guided preview test: real jog, timed A/B/C, fresh acknowledgements, stable photos, live input, both preview gates and restoration pass');
 
