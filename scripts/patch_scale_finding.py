@@ -17,8 +17,8 @@ def patch_scale_finding(root: Path) -> None:
     path: Path = root / 'src/seq/router-buttons.ts'
     source: str = path.read_text()
     source = "import { scaleFindingEnabled, setScaleFindingEnabled } from './scale-finding.js';\n" + source
-    source = replace_once(source, 'return settingsOpen() ? 7 : seqState.sessionMode ? 0 :',
-                          'return scaleFindingEnabled() ? 8 : settingsOpen() ? 7 : seqState.sessionMode ? 0 :')
+    source = replace_once(source, 'return seqState.sessionMode ? 0 : settingsOpen() ? 7 :',
+                          'return seqState.sessionMode ? 0 : scaleFindingEnabled() ? 8 : settingsOpen() ? 7 :')
     source = replace_once(source, '    if(remember)rememberInputView();',
                           '    if(remember)rememberInputView();\n    setScaleFindingEnabled(false);')
     source = replace_once(source, '    if(next===7){seqState.sessionMode=false;setSettingsOpen(true,false);',
