@@ -63,7 +63,8 @@ try{
     const {fontPrint}=await import(pathToFileURL(join(temporary,'normal-font.mjs')));
     pixels.length=0;fontPrint(1,58,'Min Live Overdub',1);const ordinary=JSON.stringify(pixels);
     pixels.length=0;drawHarmonyFooter('Min Live Overdub');assert.equal(JSON.stringify(pixels),ordinary,'ordinary words never use the small Roman font');
-    pixels.length=0;fontPrint(1,58,'v',1);assert.equal(new Set(pixels.map(rect=>rect[1])).size,5);
+    pixels.length=0;fontPrint(1,58,'v',1);assert.equal(new Set(pixels.map(rect=>rect[1])).size,4,'ordinary lowercase body is one row below capitals');
+    pixels.length=0;fontPrint(1,58,'b',1);assert.equal(new Set(pixels.map(rect=>rect[1])).size,5,'ascenders retain capital height');
     pixels.length=0;drawHarmonyFooter('v');assert.equal(new Set(pixels.map(rect=>rect[1])).size,3,'Roman lowercase retains exaggerated height');
     for(const name of ['Dm','Em','Am','Bdim','Bbmaj7','[Dm]','>Dm','C#m7b5','Dm/F']){
         pixels.length=0;fontPrint(1,58,name,1);const normal=JSON.stringify(pixels);
