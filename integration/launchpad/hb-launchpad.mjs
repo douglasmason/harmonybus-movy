@@ -3,7 +3,7 @@ import { installEnv } from './env.mjs';
 installEnv();
 const { launchpadIndex, launchpadNote, sysexPackets, buildSurfaceCells, previewPayload, legacyColor, surfaceFirstRow } = await import('../dist/esm/surfaces/protocol.js');
 const { buildPadMap } = await import('../dist/esm/keyboard/layouts.js');
-for (const model of [1, 2]) {
+for (const model of [1, 2, 3]) {
     for (let index = 0; index < 64; index++) assert.equal(launchpadIndex(model, launchpadNote(model, index)), index);
     assert.equal(launchpadIndex(model, model === 1 ? 8 : 19), -1, 'side buttons have no note assignment');
 }
@@ -184,6 +184,50 @@ globalThis.move_midi_external_send=packets=>{sent.push([...packets]);return true
 activePort.getParam=previousGet;setFlag('hblaunchpad',0);unloadLaunchpad();
 console.log('Launchpad load: bounded native reads, input independent of preview, and USB backpressure pass');
 
+// Mini MK3 reuses the actual surface pipeline, with its own wire identity.
+selectTrack(0);keyboardState.layout=0;
+const miniStart=sent.length;
+setFlag('hblaunchpad',3);tickLaunchpad(1600);tickLaunchpad(1610);tickLaunchpad(1660);
+assert.deepEqual(unpack(sent[miniStart]),[240,0,32,41,2,13,14,1,247], 'Mini enters Programmer mode with product ID 0D');
+assert.equal(sent.length-miniStart,2,'Mini initialization has no X pressure-configuration command');
+const miniFrame=unpack(sent.at(-1));
+assert.deepEqual(miniFrame.slice(0,7),[240,0,32,41,2,13,3]);
+assert.equal((miniFrame.length-8)/5,73,'Mini paints the same complete grid, top controls and modifier');
+const miniAddresses=Array.from({length:73},(_,index)=>miniFrame[8+index*5]);
+assert.deepEqual([...miniAddresses].sort((a,b)=>a-b),
+    [...Array.from({length:64},(_,index)=>(Math.floor(index/8)+1)*10+index%8+1),
+        89,91,92,93,94,95,96,97,98].sort((a,b)=>a-b));
+values.set('approach_latch_slots','0');
+const miniControls=writes.length;
+onMidiMessageExternal([176,89,127]);onMidiMessageExternal([176,91,127]);onMidiMessageExternal([176,91,0]);
+assert(writes.slice(miniControls).some(([,key,value])=>key.endsWith('approach_control_1')&&value==='LatchOn'));
+const miniDrainStart=sent.length;
+for(let now=1661;now<=1710;now++)tickLaunchpad(now);
+assert.equal(sent.length,miniDrainStart,'Mini keeps X full-frame USB drain headroom');
+onMidiMessageExternal([176,89,0]);
+const miniNotes=midi.length;
+onMidiMessageExternal([144,11,127]);onMidiMessageExternal([144,11,127]);
+selectTrack(3);onMidiMessageExternal([144,11,0]);
+assert.deepEqual(midi.slice(miniNotes),[[0,144,38,127],[0,128,38,0],[0,144,38,127],[0,128,38,0]],
+    'Mini repeats retrigger and velocity-zero release retains the original track');
+selectTrack(0);onMidiMessageExternal([144,11,127]);onMidiMessageExternal([176,91,127]);
+const miniSwitch=midi.length,miniRelease=writes.length,miniModeMessages=sent.length;
+setFlag('hblaunchpad',2);tickLaunchpad(1800);tickLaunchpad(1810);
+assert.deepEqual(midi.slice(miniSwitch),[[0,128,38,0]],'switching Mini to X releases Mini notes');
+assert(writes.slice(miniRelease).some(([,key,value])=>key.endsWith('approach_touch_1')&&value==='Cancel'),
+    'profile switching cancels the held Mini operation');
+assert.deepEqual(sent.slice(miniModeMessages).map(unpack),[
+    [240,0,32,41,2,13,14,0,247],
+    [240,0,32,41,2,12,14,1,247],
+    [240,0,32,41,2,12,11,0,1,247],
+], 'Mini returns to Live before X enters Programmer mode and configures pressure');
+setFlag('hblaunchpad',3);tickLaunchpad(1900);
+globalThis.overtakeParked=true;tickLaunchpad(1910);
+assert.deepEqual(unpack(sent.at(-1)),[240,0,32,41,2,13,14,0,247],'parking returns Mini to Live mode');
+assert.deepEqual(claims.at(-1),[0,-1]);
+globalThis.overtakeParked=false;setFlag('hblaunchpad',0);unloadLaunchpad();
+console.log('Launchpad Mini MK3: mode setup, RGB addressing/backpressure, shared controls, repeats, track ownership and teardown pass');
+
 // Existing host APIs only: a burst has one engine write for sound plus recording.
 const { flushLaunchpadInput } = await import('../dist/esm/surfaces/launchpad.js');
 const nativeWrites=[];
@@ -212,6 +256,20 @@ onMidiMessageExternal([128,11,0]);tickLaunchpad(2070);
 assert.equal(nativeWrites[beforePriority][0],'surface_events','pending notes precede frame polling');
 unloadLaunchpad();assert.equal(nativeWrites.at(-1)[0],'surface_release');
 console.log('Launchpad batches: existing host API, ordered note edges, coalesced pressure, bounded waits, retry identity and teardown pass');
+
+setFlag('hblaunchpad',3);tickLaunchpad(2200);tickLaunchpad(2210);
+const miniNativeStart=nativeWrites.length;
+onMidiMessageExternal([144,11,127]);onMidiMessageExternal([144,11,127]);
+selectTrack(6);onMidiMessageExternal([144,11,0]);
+acknowledge=false;assert.equal(flushLaunchpadInput(),false);
+const miniRetry=nativeWrites.at(-1)[1];acknowledge=true;assert(flushLaunchpadInput());
+assert.equal(nativeWrites.at(-1)[1],miniRetry,'Mini retry preserves the engine deduplication serial');
+assert.deepEqual(miniRetry.split(';').map(event=>event.split(',').slice(1,4).map(Number)),
+    [[5,144,11],[5,144,11],[5,128,11]],'Mini uses shared DSP repeat and onset ownership, including zero-velocity release');
+assert.equal(nativeWrites.length-miniNativeStart,2,'Mini adds no per-note blocking host writes');
+unloadLaunchpad();assert.equal(nativeWrites.at(-1)[0],'surface_release');
+selectTrack(5);
+console.log('Launchpad Mini MK3 batches: owner track, retry identity and source-local teardown pass');
 
 // The external renderer holds pulse peaks, including nested/error restoration.
 const { withSteadyHarmonyLights, harmonyPulse } = await import('../dist/esm/keyboard/harmony-pads.js');

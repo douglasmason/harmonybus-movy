@@ -17,7 +17,7 @@ import { flagValue } from '../seq/flags.js';
 import { seqCmd, seqCmdFlush, engineReady } from '../seq/engine.js';
 import { currentSetUuid, sessionReady } from '../seq/set-session.js';
 import { seqState } from '../seq/state.js';
-import { buildSurfaceCells, launchpadIndex, launchpadNote, legacyColor, previewPayload, sysexPackets, surfaceFirstRow } from './protocol.js';
+import { buildSurfaceCells, launchpadIndex, launchpadNote, legacyColor, previewPayload, sysexPackets, surfaceFirstRow, LAUNCHPAD_PROFILES } from './protocol.js';
 import type { LaunchpadModel, SurfaceCell } from './protocol.js';
 
 import { schwungPageFor } from '../renderer/schwung-grid.js';
@@ -70,7 +70,7 @@ export function launchpadAvailable(): boolean {
 export function launchpadPreviewReady(): boolean {
     return launchpadAvailable() && frameReady && initialization.length === 0;
 }
-const prefix = [240, 0, 32, 41, 2, 12];
+let profile: (typeof LAUNCHPAD_PROFILES)[LaunchpadModel] = LAUNCHPAD_PROFILES[1];
 function currentLayoutSignature(): string {
     const selected=appState.activeTrack.index;
     return [selected, keyboardState.mode, keyboardState.layout, keyboardState.scale, baseNoteFor(selected)].join(':');
@@ -111,7 +111,7 @@ export function unloadLaunchpad(): void {
     if (configured) {
         claimChannel(0, 0, -1);
         claimSurface(0, false);
-        if (model === 2 && (!isolation || isolation === 'led')) send(sysexPackets([...prefix, 14, 0, 247]));
+        if (profile.prefix.length && (!isolation || isolation === 'led')) send(sysexPackets([...profile.prefix, 14, 0, 247]));
         else if (model === 1) send([11, 176, 0, 0]);
     }
     frameReady = false; sampleBank = 0; pendingViews.fill(null);
@@ -130,11 +130,11 @@ function configure(next: LaunchpadModel): boolean {
     if (routing && (!host_ext_midi_remap_enable(true) || !claimSurface(0, true))) {
         claimChannel(0, 0, -1); claimSurface(0, false); return false;
     }
-    model = next; configured = true; ledCache.fill(-1); scan = 0;
+    model = next; profile = LAUNCHPAD_PROFILES[next]; configured = true; ledCache.fill(-1); scan = 0;
     initialization = next === 1 ? [[11, 176, 0, 0], [11, 176, 0, 1]] : [
-        sysexPackets([...prefix, 14, 1, 247]), // Programmer mode
-        sysexPackets([...prefix, 11, 0, 1, 247]), // polyphonic pressure, medium threshold
+        sysexPackets([...profile.prefix, 14, 1, 247]), // Programmer mode
     ];
+    if (profile.configurePressure) initialization.push(sysexPackets([...profile.prefix, 11, 0, 1, 247]));
     if (isolation && isolation !== 'led') initialization = [];
     return true;
 }
@@ -239,7 +239,7 @@ function colors(): number[] {
     });
 }
 
-/** One X SysEx per visual frame; legacy hardware retains its message limit.
+/** One RGB SysEx per visual frame; legacy hardware retains its message limit.
  * Failed queue writes keep the entire frame pending for a bounded retry. */
 export function tickLaunchpad(now = Date.now()): void {
     if (!flushLaunchpadInput()) return;
@@ -256,7 +256,7 @@ export function tickLaunchpad(now = Date.now()): void {
         if (now - ledAt >= 250) {
             ledAt = now;
             const level = Math.floor(now / 250) % 2 ? 16 : 32;
-            send(sysexPackets([...prefix, 3, ...Array.from({ length: 64 }, (_, index) =>
+            send(sysexPackets([...profile.prefix, 3, ...Array.from({ length: 64 }, (_, index) =>
                 [3, launchpadNote(2, index), level, level, level]).flat(), 247]));
         }
         return;
@@ -284,17 +284,17 @@ export function tickLaunchpad(now = Date.now()): void {
     }
     if (!changed.length) return;
     const address = (index: number): number => index < 64 ? launchpadNote(model as LaunchpadModel, index) :
-        index < 72 ? (model === 1 ? 104 : 91) + index - 64 : model === 1 ? 8 : 89;
+        index < 72 ? profile.topCc + index - 64 : profile.modifier;
     const packets = model === 1 ? changed.flatMap(index => [index >= 64 && index < 72 ? 11 : 9,
         index >= 64 && index < 72 ? 176 : 144, address(index), desired[index]]) :
-        sysexPackets([...prefix, 3, ...changed.flatMap(index => [3, address(index),
+        sysexPackets([...profile.prefix, 3, ...changed.flatMap(index => [3, address(index),
             ...(desired[index] >= 0x200000 ? [(desired[index] >> 14) & 127, (desired[index] >> 7) & 127, desired[index] & 127] :
                 PAD_PALETTE[desired[index]].map(component => Math.round(component * 127 / 255)))]), 247]);
     if (send(packets)) {
         changed.forEach(index => { ledCache[index] = desired[index]; });
         // Existing host defaults drain three USB MIDI packets per 128-sample
         // callback. Keep only the latest desired frame while this one drains.
-        ledReadyAt = model === 2 ? now + Math.ceil((packets.length / 4) * 128000 / (44100 * 3)) : now;
+        ledReadyAt = profile.prefix.length ? now + Math.ceil((packets.length / 4) * 128000 / (44100 * 3)) : now;
     }
 }
 
@@ -305,8 +305,8 @@ export function onMidiMessageExternal(data: number[]): void {
     const [status, note, value] = data;
     if (status < 128 || status > 239 || (status & 15) !== 0 || note < 0 || note > 127 || value < 0 || value > 127) return;
     const type = status & 240, index = launchpadIndex(model as LaunchpadModel, note);
-    const top = type === 176 ? note - (model === 1 ? 104 : 91) : -1;
-    const isModifier = model === 1 ? note === 8 && (type === 144 || type === 128) : note === 89 && type === 176;
+    const top = type === 176 ? note - profile.topCc : -1;
+    const isModifier = note === profile.modifier && (model === 1 ? type === 144 || type === 128 : type === 176);
     if (isModifier) { modifier = type !== 128 && value > 0; return; }
     if (top >= 0 && top < 8) {
         flushLaunchpadInput();
