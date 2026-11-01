@@ -98,6 +98,8 @@ static void test_chord_queue(void){
     set("ch0:midi_fx1:role","Conductor");set("ch0:midi_fx1:render_channel","3");
     set("ch0:midi_fx1:master_transpose","C");set("ch0:midi_fx1:follower_explicit_root","C");set("ch0:midi_fx1:follower_scale","Major");
     set("ch0:midi_fx1:chord_form","Triad");set("ch0:midi_fx1:arp_playback","Together");
+    /* This section tests Hold semantics; preceding fixtures may leave Loop enabled. */
+    set("ch0:midi_fx1:chord_queue_end","Hold");
     set("ch0:midi_fx1:chord_queue_depth","1");set("ch0:midi_fx1:chord_timing","1/4");set("ch0:midi_fx1:anticipation","On Grid");render(8);
     sent_on=sent_off=0;
     set("chord_queue","0,0,1,0,1,0,1,12");render(8);queue_status(0,"C","--");
