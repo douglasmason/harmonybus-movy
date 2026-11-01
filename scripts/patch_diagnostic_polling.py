@@ -69,3 +69,21 @@ def patch_diagnostic_polling(root: Path) -> None:
     const modelDirty  =''')
     source = replace_once(source, 'activeModel?.tick(!coveredModel)', 'activeModel?.tick(!coveredModel && !sharedValues)')
     path.write_text(source)
+
+    # The legacy bank can differ from the displayed shared page. Its values
+    # must not drive ordinary knob LEDs after value polling changes ownership.
+    source = path.read_text()
+    source = '\n'.join(line.replace(':0);', ':0, sharedValues ? touchPage?.ctl.describePage().cells : undefined);')
+                       if 'updateKnobLEDs(vm,' in line else line for line in source.split('\n'))
+    path.write_text(source)
+    path = root / 'src/renderer/knob-leds.ts'
+    source = path.read_text()
+    source = replace_once(source, 'ownedMask = 0): void {',
+        'ownedMask = 0, sharedCells?: ReadonlyArray<{normalized: number} | null>): void {')
+    source = replace_once(source, "            const flash = pvm?.trigger === 'fired';", """            const shared = sharedCells?.[physK];
+            const normalized = sharedCells ? (shared?.normalized ?? 0) : (pvm?.normalizedValue ?? 0);
+            const flash = !sharedCells && pvm?.trigger === 'fired';""")
+    source = replace_once(source, 'const color = pvm === null ? 0', 'const color = (sharedCells ? !shared : pvm === null) ? 0')
+    source = replace_once(source, 'whiteLevel(pvm.normalizedValue)', 'whiteLevel(normalized)')
+    source = replace_once(source, "(pvm?.normalizedValue ?? -1).toFixed(2)", 'normalized.toFixed(2)')
+    path.write_text(source)

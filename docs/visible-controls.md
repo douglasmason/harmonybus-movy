@@ -17,7 +17,8 @@ The existing diagnostic adapter also owns ordinary HB knob values, using the
 upstream controller's bounded cursor at 25 ticks per second. This is a polling
 budget, not a promise that every field is refreshed at 25 Hz. Unchanged values
 do not repaint, and the covered model retains its lifecycle without duplicate
-value polling. Rendering does not run a second controller tick. Modulation
+value polling. Rendering does not run a second controller tick. Ordinary knob LEDs use the
+shared controller's displayed cells instead of the legacy model's different bank. Modulation
 values/indicators, enum expiry, reload and clock rollback remain live. Failed
 reads retain accepted values; touches retain their first cached paint. Stock
 modules, non-knob pages and the fallback model keep their existing paths.

@@ -280,6 +280,19 @@ console.log('Full Both Lookahead: actual app delivers all pads and retries rejec
         appState.dirty=true;globalThis.tick();const ordinaryPeek=paints;
         time+=10000;appState.dirty=false;globalThis.tick();
         assert.equal(normal.ctl.state.peek,null);assert.equal(paints,ordinaryPeek+1,'ordinary enum peek expires with one repaint');
+        const send=globalThis.setLED,buttonSend=globalThis.setButtonLED,ledPackets=[];
+        globalThis.setLED=(note,color)=>ledPackets.push(['note',note,color]);
+        globalThis.setButtonLED=(cc,color)=>ledPackets.push(['cc',cc,color]);
+        try {
+            const knob=normal.ctl.page.keys.indexOf('play_rotate');
+            for(const [value,color] of [['24',120],['-24',124]]){
+                rotate=value;ledPackets.length=0;
+                for(let index=0;index<40;index++){time+=40;appState.dirty=false;globalThis.tick();}
+                assert(ledPackets.some(packet=>packet[0]==='note'&&packet[1]===knob&&packet[2]===color),
+                    'knob LED follows the displayed controller value, not the hidden model bank');
+                assert(ledPackets.some(packet=>packet[0]==='cc'&&packet[1]===71+knob&&packet[2]===color),'both physical LED addresses use the visible value');
+            }
+        } finally {globalThis.setLED=send;globalThis.setButtonLED=buttonSend;}
         // A host-native modulation flag/value is presentation state, separate
         // from Movy's abstract musical automation descriptors.
         globalThis.shadow_get_param=(slot,key)=>key==='midi_fx1:play_rotate:modulated'?'1':
