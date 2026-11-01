@@ -6,7 +6,7 @@ import {resolve} from 'node:path';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
 import {randomBytes} from 'node:crypto';
-import {attachTransport} from './move-transport-server.mjs';
+import {attachTransport,moduleInfo,supportedModule} from './move-transport-server.mjs';
 import {files} from '../wasm/serve.mjs';
 import {deviceStreamURL} from './move-device.mjs';
 
@@ -26,6 +26,17 @@ export function createDeviceServer({siteRoot,moveAddress,origin,allowedOrigin=nu
   if(request.method!=='GET'){sendError(405,'Read-only companion');return;}
   const url=new URL(request.url,origin),route=url.pathname.replace(/\/$/,'')||'/';
   if(route.startsWith('/downloads/')){sendError(409,'This companion is already extracted. Download updates from the private browser trial.');return;}
+  if(route==='/api/movy-capabilities'){
+   if(url.search){sendError(400,'Capabilities do not accept endpoint overrides');return;}
+   try{
+    const info=await moduleInfo(upstreamURL.origin);
+    if(requester===allowedOrigin){response.setHeader('Access-Control-Allow-Origin',allowedOrigin);response.setHeader('Vary','Origin');}
+    response.setHeader('Content-Type','application/json');
+    response.end(JSON.stringify({schema:1,moduleVersion:info.version,hostVersion:null,semantic:false,input:false,audio:false,
+     supportedModule:supportedModule(info),stateReadPreservesDirty:info.browser_transport_v1?.state_read_preserves_dirty===true,companionTransportEnabled:!!pairingKey}));
+   }catch{sendError(502,'Cannot read installed Movy metadata. Check the Move address and Manager service.');}
+   return;
+  }
   if(route==='/stream-auto'){
    if(url.search!=='?v=2'){sendError(400,'Unsupported stream request');return;}
    if(streams>=2){sendError(503,'Two mirror connections already open');return;}

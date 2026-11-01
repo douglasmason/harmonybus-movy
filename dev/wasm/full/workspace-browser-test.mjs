@@ -103,7 +103,11 @@ try{
  assert(!(await page.locator('[data-workspace=field] .component-content').isVisible()));
  assert(await page.getByRole('button',{name:'Pad 1',exact:true}).isDisabled());
  const stopped=await page.evaluate(()=>__wasmStats());await page.waitForTimeout(300);assert.equal((await page.evaluate(()=>__wasmStats())).blocksProcessed,stopped.blocksProcessed);
- await page.locator('#move-address').fill(origin);await page.locator('#move-connect').click();
+ await page.locator('#move-address').fill(origin);
+ await page.locator('#move-check').click();await page.locator('#move-capabilities').filter({hasText:'Persistence-safe subscription is not advertised'}).waitFor();
+ assert.equal(connections,0);assert.equal(commands.length,0,'metadata check never opens an unsafe subscription');
+ assert(await page.getByRole('button',{name:'Pad 1',exact:true}).isDisabled());
+ await page.locator('#move-connect').click();
  await page.waitForFunction(()=>document.querySelector('#engine-status').textContent.includes('screen & LEDs'));
  await page.waitForFunction(()=>document.querySelector('[aria-label="Pad 1"]').dataset.deviceHeld==='true');
  assert.equal(connections,1);assert.equal(await page.locator('#display-sharp').isDisabled(),true);
@@ -124,6 +128,9 @@ try{
  await page.locator('#move-disconnect').click();
  // Future capability fixture only; production commands below still reach the real DSP.
  persistenceSafe=true;
+ await page.locator('#move-check').click();await page.locator('#move-capabilities').filter({hasText:'Paired Play/Stop eligible'}).waitFor();
+ assert.equal(commands.length,0,'eligible metadata does not open a subscription');
+ assert(await page.locator('[data-move-transport=play]').isDisabled());
  await page.locator('#move-pairing-key').fill(pairingKey);await page.locator('#move-connect').click();
  await page.waitForFunction(()=>!document.querySelector('[data-move-transport=play]').disabled);
  assert.equal(await page.locator('#move-pairing-key').inputValue(),'');assert.equal(commands.length,1,'capable fixture connects with a subscription only');
