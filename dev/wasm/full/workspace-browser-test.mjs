@@ -71,9 +71,30 @@ try{
  await page.locator('#sessions summary').click();await page.locator('#session-save').click();
  await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('Saved')&&!document.querySelector('#session-save').disabled);
  const savedState=await page.evaluate(()=>__wasmRead('state'));
+ // One theme crosses component shadow roots, engine modes and reparented editor.
+ const originalLED=await page.getByRole('button',{name:'Pad 1',exact:true}).getAttribute('style');
+ await page.locator('#appearance summary').click();
+ const wheel=await page.locator('#appearance-wheel').boundingBox();
+ await page.mouse.click(wheel.x+wheel.width*.25,wheel.y+wheel.height*.067);
+ const selectedHue=Number(await page.locator('#appearance-hue').inputValue());assert(Math.abs(selectedHue-240)<3);
+ await page.locator('#appearance-saturation').press('End');await page.locator('#appearance-brightness').press('End');
+ assert.equal(await page.locator('#appearance-brightness').inputValue(),'100');
+ const themeBackground=await page.locator('body').evaluate(node=>getComputedStyle(node).backgroundColor);
+ assert.equal(await page.locator('body').evaluate(node=>getComputedStyle(node).color),'rgb(0, 0, 0)');
+ assert.equal(await page.locator('[data-workspace=field] .component-content').evaluate(node=>getComputedStyle(node).backgroundColor),await page.locator('.accompaniment').evaluate(node=>getComputedStyle(node).backgroundColor));
+ assert.equal(await page.getByRole('button',{name:'Pad 1',exact:true}).getAttribute('style'),originalLED,'theme does not recolor musical LEDs');
+ assert.equal(await page.evaluate(()=>__wasmRead('state')),savedState,'appearance does not edit musical state');
+ await page.locator('#appearance').evaluate(node=>node.dataset.identity='same-theme');
+ await page.locator('#display-expand').click();
+ assert.equal(await page.locator('#display-dialog #appearance').getAttribute('data-identity'),'same-theme');
+ assert.equal(await page.locator('#display-dialog').evaluate(node=>getComputedStyle(node).backgroundColor),themeBackground);
+ for(const width of [390,768,1440]){await page.setViewportSize({width,height:850});assert(await page.locator('#display-dialog').evaluate(node=>node.scrollWidth<=node.clientWidth+1));}
+ await page.getByRole('button',{name:'Close large display',exact:true}).click();
+ await page.setViewportSize({width:1024,height:768});await page.locator('#appearance summary').click();
  // Release a held modifier before suspending the browser. No physical connection occurs on selection.
  await page.locator('#shift').check();await page.waitForFunction(async()=>(await __wasmStats()).move.held>0);
  await page.locator('#engine').selectOption('move');await page.waitForFunction(()=>document.querySelector('#engine-status').dataset.state==='disconnected');
+ assert.equal(await page.locator('body').evaluate(node=>getComputedStyle(node).backgroundColor),themeBackground);
  assert.equal(connections,0);assert(!(await page.locator('#shift').isChecked()));
  await page.waitForFunction(()=>document.querySelector('#hero').hidden===false&&[...document.querySelectorAll('.knob-name')].every(node=>!node.textContent));
  assert(!(await page.locator('[data-workspace=field] .component-content').isVisible()));
@@ -119,10 +140,13 @@ try{
  assert.equal(await page.evaluate(()=>__wasmRead('state')),savedState,'device mirror never overwrites the browser session');
  assert.equal(await page.locator('#audio').getAttribute('aria-pressed'),'false');
  await page.reload();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
+ assert.equal(await page.locator('#appearance-brightness').inputValue(),'100');
+ assert.equal(await page.locator('body').evaluate(node=>getComputedStyle(node).backgroundColor),themeBackground,'appearance survives a saved-session reload');
+ await page.locator('#appearance summary').click();await page.locator('#appearance-reset').click();assert.equal(await page.locator('#appearance-brightness').inputValue(),'12');await page.locator('#appearance summary').click();
  assert.equal(await page.locator('#workspace-layout').inputValue(),'columns');assert.equal(await page.locator('#component-track').inputValue(),'3');
  for(const name of ['field','choices','song','lights'])assert(await page.locator(`[data-workspace=${name}]`).isVisible());
  assert.equal(await page.locator('[data-workspace]').evaluateAll(nodes=>nodes.map(node=>node.dataset.workspace).indexOf('field')),1);
  for(const width of [390,768,1440]){await page.setViewportSize({width,height:850});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));}
- assert.deepEqual(errors,[]);console.log('Unified workspace: shared edits, composition, Song, persistence, live mirror, persistence capability refusal, authenticated future-capability fixture transport, real DSP record/replay, loss, reconnect and engine ownership pass');
+ assert.deepEqual(errors,[]);console.log('Unified workspace: shared color wheel, contrast, persistence, enlarged theme, shared edits, composition, Song, persistence, live mirror, persistence capability refusal, authenticated future-capability fixture transport, real DSP record/replay, loss, reconnect and engine ownership pass');
 }catch(error){if(page)console.error(await page.locator('#error').textContent(),await page.locator('#engine-status').textContent());throw error;}
 finally{await browser.close();for(const socket of moveWS.clients)socket.terminate();moveWS.close();physicalFixture.dispose();for(const client of clients)client.destroy();site.closeAllConnections();move.closeAllConnections();await Promise.all([new Promise(resolve=>site.close(resolve)),new Promise(resolve=>move.close(resolve))]);}

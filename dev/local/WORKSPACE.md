@@ -99,3 +99,15 @@ the autosave dirty flag. A future device-owned persistence capability gates
 Play/Stop; only then does it validate active tool identity, and reports sent requests without inferring playback state.
 The raw mirror and rich canonical editors retain their honest capability
 boundary; see [MOVE-CONNECTION.md](MOVE-CONNECTION.md) for protocol and testing.
+
+
+## Shared appearance
+
+`workspace-palette.mjs` defines one validated hue/saturation/brightness preference
+and contrast-checked CSS palette. `workspace-theme.mjs` owns the color wheel,
+keyboard sliders and browser-local persistence. The Move workspace, enlarged
+editor, Song and Lighting controls use these tokens directly; the build adapter
+lets canonical Field/probability shadow roots inherit them without duplicating
+those editors. Pad/step LEDs, device pixels, field values and rendered lighting
+colors retain their semantic colors. No whole-page hue or brightness filter is
+used. Appearance is independent of engine selection and musical session files.
