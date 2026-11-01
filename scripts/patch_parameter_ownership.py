@@ -13,6 +13,10 @@ def patch_parameter_ownership(root: Path) -> None:
     subprocess.run(['git', '-C', str(root), 'apply', str(patch)], check=True)
     shutil.copy2(assets / 'hb-parameter-ownership.mjs', root / 'browser-test/hb-parameter-ownership.mjs')
     shutil.copy2(assets / 'hb-automation-contract.mjs', root / 'browser-test/hb-automation-contract.mjs')
+    shutil.copy2(assets / 'hb-automation-lifecycle.mjs', root / 'browser-test/hb-automation-lifecycle.mjs')
+    lifecycle_patch: Path = assets / 'automation-lifecycle.patch'
+    subprocess.run(['git', '-C', str(root), 'apply', '--check', str(lifecycle_patch)], check=True)
+    subprocess.run(['git', '-C', str(root), 'apply', str(lifecycle_patch)], check=True)
     path: Path = root / 'src/renderer/schwung-page.ts'
     source: str = path.read_text()
     source = replace_once(source, "import type { TrackPort } from '../track/port.js';",

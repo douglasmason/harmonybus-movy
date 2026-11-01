@@ -84,6 +84,7 @@ jobs:
           node browser-test/abi-parity.mjs
           node browser-test/hb-schwung-host.mjs
           node browser-test/hb-automation-contract.mjs
+          node browser-test/hb-automation-lifecycle.mjs
           node browser-test/hb-settings-case.mjs
           node browser-test/hb-action-label.mjs
           node browser-test/hb-analysis.mjs
