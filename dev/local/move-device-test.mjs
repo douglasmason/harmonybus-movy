@@ -66,6 +66,23 @@ test('failed ownership acknowledgment cannot connect or dispatch to either engin
  await owner.select('move');owner.connect('move.local');assert.equal(connections,0);assert.equal(states.at(-1).state,'error');
  await owner.select('browser');owner.send({type:'move_midi'});assert.equal(writes,0);assert.equal(owner.acceptBrowserFrame(),false);assert.equal(owner.ready,false);
 });
+test('Worker loss invalidates all owners and late activation replies',async()=>{
+ for(const failDuringSwitch of [false,true]){
+  const states=[],frames=[],writes=[];let resume,disabled=0,opened=0;
+  const browser={socket:{send:value=>writes.push(value)},setActive:()=>new Promise(resolve=>{resume=resolve;})};
+  const owner=createMoveConnection({browser,inputs:{disable(){disabled++;}},pageURL:'http://mac.local',onState:state=>states.push(state),onFrame:frame=>frames.push(frame),openDevice(){opened++;}});
+  const switching=failDuringSwitch?owner.select('move'):null;
+  owner.browserClosed();const disabledAfterLoss=disabled;
+  resume?.();await switching;
+  owner.send({type:'move_midi',data:[144,60,100]});owner.watch('field',['status']);
+  await owner.select('browser');await owner.select('move');owner.connect('move.local');owner.disconnect();owner.browserClosed();
+  assert.equal(owner.ready,false);assert.equal(owner.busy,false);assert.equal(owner.acceptBrowserFrame(),false);
+  assert.equal(owner.transport('play'),false);assert.equal(opened,0);assert.deepEqual(writes,[]);
+  assert.equal(disabled,disabledAfterLoss,'loss cleanup is idempotent');
+  assert.equal(states.at(-1).state,'error');assert.match(states.at(-1).message,/reload/);
+  assert.equal(frames.at(-1).ready,false);assert.equal(frames.at(-1).knobLabels,null);
+ }
+});
 test('local companion proxies only the fixed read-only stream, preserving disconnects',async()=>{
  const received=[];let upstreamClosed=false;
  const upstream=createServer((request,response)=>{received.push({method:request.method,path:request.url,cookie:request.headers.cookie});response.writeHead(200,{'Content-Type':'text/event-stream'});response.write('data: '+JSON.stringify(fixture.screen)+'\n\n');response.on('close',()=>{upstreamClosed=true;});});

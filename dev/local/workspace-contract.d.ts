@@ -53,6 +53,8 @@ export interface ConnectionOwner {
  /** Explicit commands, never inferred from LED state. No execution acknowledgment. */
  transport(action: 'play' | 'stop'): boolean;
  disconnect(): void;
+ /** Terminal Worker loss: invalidate observations and commands until reload. */
+ browserClosed(message?: string): void;
  acceptBrowserFrame(): boolean;
 }
 /** The raw mirror deliberately has no semantic labels or writable controls. */

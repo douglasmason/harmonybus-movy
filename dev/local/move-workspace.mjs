@@ -43,7 +43,10 @@ export function mountMoveWorkspace({connection,inputs}){
    if(component){if(visible&&available)component.resume();else component.suspend();}
    const content=panel.querySelector('.component-content');
    if(content){content.inert=!available;content.hidden=!available;}
-   const limitation=panel.querySelector('.component-limit');if(limitation)limitation.hidden=available;
+   const limitation=panel.querySelector('.component-limit');if(limitation){
+    limitation.hidden=available;
+    limitation.textContent=connection.engine==='move'?'This component needs semantic engine data, which the connected Move mirror does not provide.':'Browser engine offline. Reload to restart; unsaved edits may be lost.';
+   }
   }
   if(shown.has('lights')&&available)lighting.resume();else lighting.suspend();
   for(const picker of pickers)picker.checked=shown.has(picker.dataset.showComponent);
@@ -88,7 +91,7 @@ export function mountMoveWorkspace({connection,inputs}){
  function setAvailable(value){
   suspend();available=value;cache.clear();demand.clear();frame=null;apply();
   if(!value){
-   document.querySelector('#song-summary').textContent='Song state is unavailable from the Move mirror protocol.';
+   document.querySelector('#song-summary').textContent=connection.engine==='move'?'Song state is unavailable from the Move mirror protocol.':'Song state is unavailable while the browser engine is offline.';
    // Discard prior browser lighting observations rather than show them as device state.
    lighting.paint(new Map(),new Map(),0);
   }
