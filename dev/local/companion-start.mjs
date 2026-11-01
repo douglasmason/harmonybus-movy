@@ -16,7 +16,8 @@ export function startCompanion(args,siteRoot){
  const options=companionOptions(args);
  if(options.help){
   console.log('node start.mjs --host YOUR_COMPUTER_LAN_IP --move http://move.local:7700\nDefaults: this computer only (127.0.0.1), port 7703. No device request until Connect.\nComputer IPv4 addresses (choose your trusted LAN):');
-  for(const addresses of Object.values(networkInterfaces()))for(const address of addresses??[])if(address.family==='IPv4'&&!address.internal)console.log(address.address);
+  try{for(const addresses of Object.values(networkInterfaces()))for(const address of addresses??[])if(address.family==='IPv4'&&!address.internal)console.log(address.address);}
+  catch{console.log('Address listing unavailable. Find your computer’s LAN IPv4 in its network settings.');}
   return null;
  }
  const server=createDeviceServer({siteRoot,moveAddress:options.move,origin:options.origin});

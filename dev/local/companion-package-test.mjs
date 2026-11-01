@@ -26,6 +26,7 @@ test('extracted archive boots independently, serves identical UI and proxies onl
  assert.equal(download.status,200);assert.equal(createHash('sha256').update(Buffer.from(await download.arrayBuffer())).digest('hex'),sha);
  const temp=await mkdtemp(join(tmpdir(),'move-companion-'));t.after(()=>rm(temp,{recursive:true,force:true}));
  execFileSync('tar',['-xzf',fileURLToPath(archive),'-C',temp]);const root=join(temp,'move-companion');
+ assert.match(execFileSync(process.execPath,['start.mjs','--help'],{cwd:root,encoding:'utf8'}),/YOUR_COMPUTER_LAN_IP/);
  const manifest=JSON.parse(await readFile(join(root,'BUILD.json')));
  for(const [path,hash]of Object.entries(manifest.files))assert.equal(createHash('sha256').update(await readFile(join(root,path))).digest('hex'),hash,path);
  async function compare(folder,prefix=''){
