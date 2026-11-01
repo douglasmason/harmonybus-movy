@@ -34,7 +34,7 @@ const nativeCtx={fillRect:(x,y,w,h,color)=>{
 const nativeCapture=(value,face)=>capture(()=>native.drawNativeText(nativeCtx,0,0,value,face,1));
 const litRows=value=>Array.from({length:8},(_,index)=>value.slice(index*128,(index+1)*128).some(Boolean));
 for(const letter of 'abcdefghijklmnopqrstuvwxyz'){
-    for(const face of ['musical','smooth','upper']){
+    for(const face of ['regular','smooth','upper']){
         const rendered=nativeCapture(letter,face);
         assert(rendered.some(Boolean),face+' contains '+letter);
         assert(!rendered.slice(8*128).some(Boolean),'large glyph fits native eight rows');
@@ -42,9 +42,9 @@ for(const letter of 'abcdefghijklmnopqrstuvwxyz'){
     }
 }
 assert.deepEqual(nativeCapture('ii','upper'),nativeCapture('II','upper'),'all-uppercase style is explicit');
-assert.notDeepEqual(nativeCapture('ii','musical'),nativeCapture('II','musical'),'musical lowercase preserves Roman-numeral quality');
-assert.notDeepEqual(nativeCapture('Dm','musical'),nativeCapture('DM','musical'),'minor chord spelling remains distinct');
-const smallC=litRows(nativeCapture('c','musical'));
+assert.notDeepEqual(nativeCapture('ii','regular'),nativeCapture('II','regular'),'musical lowercase preserves Roman-numeral quality');
+assert.notDeepEqual(nativeCapture('Dm','regular'),nativeCapture('DM','regular'),'minor chord spelling remains distinct');
+const smallC=litRows(nativeCapture('c','regular'));
 const smoothC=litRows(nativeCapture('c','smooth'));
 const largeC=litRows(nativeCapture('C','upper'));
 assert.equal(smallC.findIndex(Boolean),3,'musical x-height starts three rows below capital top');
@@ -53,7 +53,7 @@ assert.equal(largeC.findIndex(Boolean),0,'capital is full height');
 assert.equal(smallC.filter(Boolean).length,4,'musical body is four rows');
 assert.equal(smoothC.filter(Boolean).length,6,'smooth body is six rows');
 assert.equal(largeC.filter(Boolean).length,7,'capitals use seven independently drawn rows');
-assert(native.nativeTextWidth('Bdim','musical')<30,'full-size chord label fits a physical knob cell');
+assert(native.nativeTextWidth('Bdim','regular')<30,'full-size chord label fits a physical knob cell');
 
 for(const [name,print,height] of [
     ['shared labels',text=>font4.fontPrint4x5(ctx,0,0,text,1),5],
