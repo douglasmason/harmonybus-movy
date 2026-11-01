@@ -8,7 +8,7 @@ const layouts=new Map();
 function wrap(text,width,measure){
     const lines=[];
     let line='';
-    for(let word of text.trim().split(/\\s+/)){
+    for(let word of text.trim().split(/\s+/)){
         if(line&&measure(line+' '+word)<=width){line+=' '+word;continue;}
         if(line){lines.push(line);line='';}
         while(measure(word)>width){
