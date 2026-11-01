@@ -92,7 +92,7 @@ def patch_settings_case(root: Path) -> None:
     # settings renderer and Movy's custom chord widgets.
     shutil.copy2(assets / 'hb_large_font.mjs', pages / 'hb_large_font.mjs')
     (pages / 'hb_large_font.d.mts').write_text(
-        "export type NativeFace = 'upper' | 'musical' | 'smooth';\n"
+        "export type NativeFace = 'upper' | 'regular' | 'smooth';\n"
         "export const NATIVE_FONT_HEIGHT: number;\n"
         "export function nativeTextWidth(text: string, face?: NativeFace): number;\n"
         "export function drawNativeText(ctx: {fillRect(x:number,y:number,w:number,h:number,color:number):void}, x:number, y:number, text:string, face?:NativeFace, color?:number):number;\n"
