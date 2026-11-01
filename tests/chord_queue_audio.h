@@ -20,15 +20,38 @@ static void test_chord_queue_sustained(void){
     set("ch0:midi_fx1:chord_queue_depth","4");set("ch0:midi_fx1:chord_queue_end","Loop");
     set("ch0:midi_fx1:chord_timing","1 Bar");set("ch0:midi_fx1:anticipation","On Grid");
     const int roots[]={0,7,5,2};const char *names[]={"C","G","F","D"};
-    char command[64],status[512];
+    char command[64],status[512],bank[1024]="";
+    for(int slot=0;slot<21;slot++){
+        snprintf(command,sizeof(command),"%s%d,1,0,1,0,1,12,0,0",slot?";":"",roots[slot%4]);
+        strcat(bank,command);
+    }
+    set("ch0:midi_fx1:hb_chord_bank",bank);
     for(int index=0;index<4;index++){
         snprintf(command,sizeof(command),"0,%d,1,2,1,0,1,12",roots[index]);set("chord_queue",command);
     }
     render(8);queue_status(3,"C","G");sent_on=sent_off=0;set("cmd","play");
-    int blocks=0,previous_attacks=0;
+    int blocks=0,previous_attacks=0,feedback_reads=0;
+    set("cmd","aprof_on");
     for(int bar=0;bar<128;bar++){
         int target=(int)((bar*2.0+0.05)*44100.0/128.0);
-        render(target-blocks);blocks=target;
+        while(blocks<target){
+            int chunk=target-blocks;if(chunk>17)chunk=17;
+            render(chunk);blocks+=chunk;
+            /* Two clean loops, then roughly 20 Hz feedback reads, serialized
+               between callbacks as host parameter requests are. This is not
+               a simulation of device USB traffic or thread scheduling. */
+            if(bar>=8){
+                char before[512],after[512],feedback[4096];
+                int attacks_before=sent_on,releases_before=sent_off;
+                assert(api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",before,sizeof(before))>0);
+                assert(api->get_param(instance,"ch0:midi_fx1:hb_chord_bank_snapshot",feedback,sizeof(feedback))>0);
+                assert(!strncmp(feedback,"cb1|",4));
+                assert(api->get_param(instance,"ch0:midi_fx1:harmony_source_snapshot",feedback,sizeof(feedback))>0);
+                assert(api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",after,sizeof(after))>0);
+                assert(!strcmp(before,after)&&sent_on==attacks_before&&sent_off==releases_before);
+                feedback_reads++;
+            }
+        }
         /* Shared voices may remain sounding across two triads. There must be
            a change, but never a stream of repeated recovery attacks. */
         int attacks=sent_on-previous_attacks;
@@ -40,9 +63,17 @@ static void test_chord_queue_sustained(void){
         if(cursor!=bar%4||next_at!=(bar+1)*4.0)fprintf(stderr,"bar %d: %s\n",bar,status);
         assert(cursor==bar%4&&total==4&&next_at==(bar+1)*4.0);
         queue_status(bar%4==3?4:3-bar%4,names[bar%4],names[(bar+1)%4]);
+        if(bar==7||bar==63||bar==127){
+            char profile[8192];api->get_param(instance,"status",profile,sizeof(profile));
+            char *audio=strstr(profile," aprof=1,");assert(audio);
+            char *profile_end=strstr(audio," tonecheck=");if(profile_end)*profile_end=0;
+            printf("Queue profile through bar %d (desktop fixture): %s\n",bar+1,audio);
+            set("cmd","aprof_off");if(bar<127)set("cmd","aprof_on");
+        }
     }
     set("cmd","stop");render(8);
-    puts("Queued Chord Play: 128 bars at one bar per chord retain exact cues and loop size");
+    assert(feedback_reads>4800);
+    printf("Queued Chord Play: 128 bars retain exact cues and loop size with %d read-only feedback bursts\n",feedback_reads);
 }
 static void test_chord_queue(void){
     set("cmd","stop");render(8);set("chord_select","off");set("chord_route","off");
