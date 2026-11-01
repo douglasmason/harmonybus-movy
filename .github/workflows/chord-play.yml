@@ -1,4 +1,4 @@
-name: Parameter automation verification and release
+name: Queue first-deadline verification and release
 on:
   push:
     branches: [main]
@@ -85,6 +85,7 @@ on:
       - docs/diagnostic-polling.md
       - docs/visible-controls.md
       - docs/queue-fixed-buffer.md
+      - docs/queue-first-deadline.md
       - docs/parameter-automation-contract.md
       - scripts/check_release_base.py
       - scripts/test_release_base.py
@@ -205,6 +206,7 @@ on:
       - docs/diagnostic-polling.md
       - docs/visible-controls.md
       - docs/queue-fixed-buffer.md
+      - docs/queue-first-deadline.md
       - docs/parameter-automation-contract.md
       - scripts/check_release_base.py
       - scripts/test_release_base.py
@@ -247,7 +249,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.297
+  SOURCE_VERSION: 0.34.1-hbclean.298
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -337,7 +339,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: parameter-automation-297
+          name: queue-first-deadline-298
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -358,10 +360,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.296':
-              raise SystemExit('Expected Movy 296 before parameter automation release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.297':
+              raise SystemExit('Expected Movy 297 before first-deadline queue release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — shared parameter automation targets" --notes-file docs/parameter-automation-contract.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — preserve first queue deadlines" --notes-file docs/queue-first-deadline.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -374,7 +376,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.296':
+          if metadata['version'] != '0.34.1-hbclean.297':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
@@ -382,5 +384,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add release.json
-          git commit -m "Publish verified parameter automation $SOURCE_VERSION [skip ci]"
+          git commit -m "Publish verified queue deadlines $SOURCE_VERSION [skip ci]"
           git push origin HEAD:main
