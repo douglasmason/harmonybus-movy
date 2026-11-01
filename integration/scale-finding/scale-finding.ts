@@ -56,7 +56,8 @@ export function setScaleFindingEnabled(next:boolean):void{
 }
 /** Physical pad shift is an input reference, not a key modulation. */
 export function scaleTonicColumn():number{
-    return clampMod(keyboardState.columnOffset,8);
+    return keyboardState.columnOffset>=0&&keyboardState.columnOffset<=7?
+        keyboardState.columnOffset:clampMod(keyboardState.columnOffset,7);
 }
 /** Pad notes ascend as seven scalar degrees plus an octave repeat.
  * Rows on the Move run bottom -> top, so the Major family is at the top. */
@@ -66,7 +67,7 @@ export function scalePadSelection(pad:number):Selection|null{
     const family=sevenNoteScales.find(item=>item.name===rowFamilies[familyIndex]);
     if(!family)return null;
     const column=pad%8;
-    const degree=clampMod(column-scaleTonicColumn(),7);
+    const degree=clampMod(column-keyboardState.columnOffset,7);
     const relativeRoot=family.degrees[degree];
     const degrees=family.degrees.map(note=>clampMod(note-relativeRoot,12)).sort((left,right)=>left-right);
     const matched=firstMatch(degrees);
