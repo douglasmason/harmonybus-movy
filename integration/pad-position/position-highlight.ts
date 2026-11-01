@@ -10,11 +10,13 @@ let owner = -1;
 let set = '';
 let generation = -1;
 let root = -1, scale = -1, mode = -1, layout = -1, offset = 0;
+let octave = -1;
 
 export function beginPositionHighlight(now = Date.now()): void {
     started = now;
     expires = now + POSITION_HIGHLIGHT_MS;
     owner = appState.activeTrack.index;
+    octave = keyboardState.octave[owner];
     set = currentSetUuid();
     generation = currentGen();
     ({rootPc: root, scale, mode, layout, columnOffset: offset} = keyboardState);
@@ -26,7 +28,8 @@ export function positionHighlight(pitch: number, target = -1, now = Date.now()):
     if (!expires) return false;
     if (now < started || now >= expires || owner !== appState.activeTrack.index ||
         set !== currentSetUuid() || generation !== currentGen() || root !== keyboardState.rootPc || scale !== keyboardState.scale ||
-        mode !== keyboardState.mode || layout !== keyboardState.layout || offset !== keyboardState.columnOffset) {
+        mode !== keyboardState.mode || layout !== keyboardState.layout || offset !== keyboardState.columnOffset ||
+        octave !== keyboardState.octave[owner]) {
         expires = 0;
         return false;
     }

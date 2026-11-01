@@ -1,4 +1,4 @@
-# Parent key and pad position — Movy 0.34.1-hbclean.275
+# Parent key and pad position
 
 Left/Right shift the keyboard pattern one column during melodic note play,
 including Chord Play and Joint Play. The arrows leave the current panel open;
@@ -43,19 +43,28 @@ through position changes and release correctly; the next press uses the new map.
 Recorded notes retain their source degrees and follow later parent-key changes.
 The parent readout reuses the normal and Joint preview caches without extra polls.
 
-After an actual position change, the input tonic briefly lights white for 1.2
+After an arrow press or position change, the input tonic briefly lights white for 1.2
 seconds (bright amber on the original Mini). Approach pads resolving to that
 tonic join the cue, making the whole tonic column visible in Approach layouts.
 Fourth-based layouts mark only actual tonic pitches. Normal/Chord Play, Joint
 Play and Launchpad X/Mini share this cue in their existing LED frames. A further
-move renews it; blocked endpoints do not. Track, Set/engine generation, key or
-layout changes cancel it. It adds no native polling, MIDI notes or settings
+press renews it, including at blocked endpoints. Track, Set/engine generation, key,
+octave or layout changes cancel the old cue. It adds no native polling, MIDI notes or settings
 redraw timer, and normal pad colors return automatically.
 
-Install HarmonyBus **0.2.307** from `douglasmason/harmonybus` and Movy
-**0.34.1-hbclean.275** from `douglasmason/harmonybus-movy` through Schwung's
-repository installer, then restart. Resolved-operation feedback, Chord Discovery, adaptive operations,
-eight-note scales, Fill libraries and the audio-context improvements are included.
+The Move arrows and +/- buttons expose press/release, not separate capacitive
+touch events. Pressing +/- during melodic pad play changes the selected track's
+octave as before, reveals the tonic pads, and briefly shows e.g. `T4 tonic C4`.
+The note names the **input tonic register**, not the leftmost shifted pad or the
+final HarmonyBus voice after key travel/inversion. MIDI note 60 is C4 in this
+readout, matching Movy's existing note labels. At an octave limit, pressing the
+button previews the current register without transposing. Releases do not
+retrigger the cue. Session bank navigation, Grid paging and held-step editing
+keep their existing button ownership.
+
+Install Movy **0.34.1-hbclean.293** using `douglasmason/harmonybus-movy` through
+Schwung's repository installer, then restart. Its embedded HarmonyBus core
+includes the previously verified queue fixes.
 
 Verification covers all layouts/scales, input priority, limits and pressed lights,
 physical MIDI knob/reset controls and screen/light ownership in Chord/Joint Play,

@@ -43,7 +43,8 @@ try{
     now++;assert(!positionHighlight(60));assert.notEqual(padColor(70,68,3,false),C_WHITE,'normal colors return at expiry');
     assert.equal(reads,queried,'LED cue does not poll the host');
     setPadPosition(7);now+=1000;arrow(1);now+=200;
-    assert(!positionHighlight(60),'blocked boundary does not prolong the cue');
+    assert(positionHighlight(60),'press at a limit previews the current tonic');
+    now+=POSITION_HIGHLIGHT_MS;assert(!positionHighlight(60));
     setPadPosition(1);selectTrack(2);assert(!positionHighlight(60));selectTrack(3);assert(!positionHighlight(60),'owner change cancels permanently');
     setPadPosition(3);bumpGen();assert(!positionHighlight(60),'Set/engine generation change cancels the cue');
     setPadPosition(2);keyboardState.rootPc=2;assert(!positionHighlight(62),'key change cancels old cue');
