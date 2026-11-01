@@ -255,7 +255,45 @@ console.log('Full Both Lookahead: actual app delivers all pads and retries rejec
         assert.equal(paints,withPeek+1,'expired overlay repaints the underlying settings exactly once');
         const ordinary=normal.ctl.pages.findIndex(entry=>entry.keys?.includes('play_rotate'));assert(ordinary>=0);
         normal.goToPage(ordinary);refreshes=[];time+=40;globalThis.tick();
-        assert.deepEqual(refreshes,[true],'ordinary editable controls resume model value polling');
-        console.log('Normal Play diagnostics: 25 snapshots/s, 0 unchanged full-page draws, no duplicate value polling, immediate changes and normal-mode restoration');
+        // The visible controller must discover host edits even when the legacy
+        // model is on another bank and reports no dirtiness.
+        let rotate='0';
+        globalThis.shadow_get_param=(slot,key)=>key==='midi_fx1:play_rotate'?rotate:read(slot,key);
+        for(let index=0;index<80;index++){time+=40;globalThis.tick();}
+        rotate='2';paints=0;
+        for(let index=0;index<80;index++){time+=40;appState.dirty=false;globalThis.tick();}
+        assert.equal(normal.ctl.state.values.play_rotate,'2','visible settings discover external edits without legacy model dirtiness');
+        assert(paints>0,'accepted external edit repaints the visible controls');
+        paints=0;refreshes=[];const ordinaryTicks=normal.ctl.state.tickCount;
+        for(let index=0;index<100;index++){time+=10;appState.dirty=false;globalThis.tick();}
+        assert.equal(normal.ctl.state.tickCount-ordinaryTicks,25,'ordinary visible controller retains bounded polling');
+        assert.equal(paints,0,'unchanged ordinary controls do not repaint');
+        assert.equal(refreshes.length,100);assert(refreshes.every(value=>value===false),'ordinary shared controls do not duplicate legacy value polls');
+        rotate=null;
+        for(let index=0;index<40;index++){time+=40;appState.dirty=false;globalThis.tick();}
+        assert.equal(normal.ctl.state.values.play_rotate,'2','unavailable host values retain the accepted value');
+        assert.equal(paints,0,'failed reads do not repaint unchanged values');
+        rotate='3';time-=10000;
+        for(let index=0;index<40;index++){time+=40;appState.dirty=false;globalThis.tick();}
+        assert.equal(normal.ctl.state.values.play_rotate,'3','clock rewind does not freeze ordinary settings');
+        normal.ctl.state.peek={key:'play_rotate',title:'Rotate',options:['0','1'],index:0,at:time};
+        appState.dirty=true;globalThis.tick();const ordinaryPeek=paints;
+        time+=10000;appState.dirty=false;globalThis.tick();
+        assert.equal(normal.ctl.state.peek,null);assert.equal(paints,ordinaryPeek+1,'ordinary enum peek expires with one repaint');
+        // A host-native modulation flag/value is presentation state, separate
+        // from Movy's abstract musical automation descriptors.
+        globalThis.shadow_get_param=(slot,key)=>key==='midi_fx1:play_rotate:modulated'?'1':
+            key==='midi_fx1:play_rotate'?'4':read(slot,key);
+        for(let index=0;index<80;index++){time+=40;appState.dirty=false;globalThis.tick();}
+        assert.equal(normal.ctl.state.modCache.play_rotate,true);
+        assert.equal(normal.ctl.state.modValues.play_rotate,'4','upstream controller keeps host-native live values current');
+        normal.reload();const reloaded=normal.ctl.pages.findIndex(entry=>entry.keys?.includes('play_rotate'));
+        normal.goToPage(reloaded);const afterReload=normal.ctl.state.tickCount;
+        time+=1;globalThis.tick();assert(normal.ctl.state.tickCount>afterReload,'reload rearms visible polling immediately');
+        const {setSchwungGridMode}=await import('../dist/esm/renderer/schwung-grid.js');
+        setSchwungGridMode('off');refreshes=[];time+=40;globalThis.tick();
+        assert.deepEqual(refreshes,[true],'fallback controls resume their own value polling');
+        setSchwungGridMode('page');
+        console.log('Normal Play controls and diagnostics: independent 25Hz polling, zero unchanged redraws, no duplicate model polls, host modulation, failed-read retention, reload, expiry and fallback pass');
     } finally {normal.render=render;model.tick=modelTick;Date.now=clock;globalThis.shadow_get_param=read;}
 }
