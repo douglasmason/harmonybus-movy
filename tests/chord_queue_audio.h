@@ -72,6 +72,23 @@ static void test_chord_queue_sustained(void){
         }
     }
     set("cmd","stop");render(8);
+    /* Loop ownership survives Stop; silence must not trigger voice recovery.
+       Play restarts the same visible four-chord phrase, not a hidden clip. */
+    int stopped_attacks=sent_on;
+    render(200);assert(sent_on==stopped_attacks);
+    queue_status(4,"D","C");
+    api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",status,sizeof(status));
+    assert(strstr(status,"|3|4|C|G|F|D"));
+    char feedback[4096];
+    api->get_param(instance,"ch0:midi_fx1:hb_chord_bank_snapshot",feedback,sizeof(feedback));
+    assert(!strcmp(strrchr(feedback,','),",1"));
+    set("cmd","play");render(20);queue_status(3,"C","G");
+    api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",status,sizeof(status));
+    assert(strstr(status,"|0|4|C|G|F|D"));
+    render(690);queue_status(2,"G","F");
+    set("cmd","stop");render(8);set("chord_select","off");render(8);
+    api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",status,sizeof(status));
+    assert(!strcmp(status,"--"));
     assert(feedback_reads>4800);
     printf("Queued Chord Play: 128 bars retain exact cues and loop size with %d read-only feedback bursts\n",feedback_reads);
 }
@@ -81,6 +98,8 @@ static void test_chord_queue(void){
     set("ch0:midi_fx1:role","Conductor");set("ch0:midi_fx1:render_channel","3");
     set("ch0:midi_fx1:master_transpose","C");set("ch0:midi_fx1:follower_explicit_root","C");set("ch0:midi_fx1:follower_scale","Major");
     set("ch0:midi_fx1:chord_form","Triad");set("ch0:midi_fx1:arp_playback","Together");
+    /* This section tests Hold semantics; preceding fixtures may leave Loop enabled. */
+    set("ch0:midi_fx1:chord_queue_end","Hold");
     set("ch0:midi_fx1:chord_queue_depth","1");set("ch0:midi_fx1:chord_timing","1/4");set("ch0:midi_fx1:anticipation","On Grid");render(8);
     sent_on=sent_off=0;
     set("chord_queue","0,0,1,0,1,0,1,12");render(8);queue_status(0,"C","--");
