@@ -89,6 +89,13 @@ assert(!chord.chordActive(),'conductor-focus note-view conflict exits controller
 assert(!commands.some(([key,value])=>key==='chord_select'&&value==='off'),'conductor focus still cannot clear native queue');
 selectTrack(3);chord.setChordEnabled(true);
 assert(!commands.some(([key,value])=>key==='chord_select'&&value==='off'),'returning to previous Chord Play preserves the cycle');
+commands.length=0;
+chord.setJointChordConductor(0);
+chord.setJointChordConductor(null);
+assert(!commands.some(([key,value])=>key==='chord_select'&&value==='off'),
+    'switching Joint conductor knobs on the same owner preserves the queue');
+assert(commands.some(([key,value])=>key==='chord_joint'&&value==='0'),
+    'Joint knob surface still identifies the conductor');
 commands.length=0;chord.harmonyOff();
 assert(commands.some(([key,value])=>key==='chord_select'&&value==='off'),'K8 Off remains the explicit cancel action');
 conductorControls.setParam('midi_fx1:hb_chord_queue_status','--');
