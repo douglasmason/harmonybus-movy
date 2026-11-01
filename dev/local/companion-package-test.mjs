@@ -43,6 +43,7 @@ test('extracted archive boots independently, serves identical UI and proxies onl
  t.after(()=>child.kill());
  await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Companion startup timeout')),10000);let output='';child.stdout.on('data',data=>{output+=data;if(output.includes('Select Engine')){clearTimeout(timer);resolve();}});child.once('exit',code=>{clearTimeout(timer);reject(new Error('Companion exited '+code+': '+output));});child.stderr.on('data',data=>output+=data);});
  assert.equal(requests,0,'startup never contacts Move');const origin=`http://127.0.0.1:${port}`;
+ assert.deepEqual(await (await fetch(origin+'/api/movy-companion')).json(),{schema:1,service:'hb-movy-companion'});assert.equal(requests,0,'identification never contacts Move');
  assert.equal(await (await fetch(origin+'/move/')).text(),await readFile(new URL('move/index.html',site),'utf8'));
  assert.equal((await fetch(origin+'/stream-auto?v=2',{method:'POST'})).status,405);
  assert.equal((await fetch(origin+'/stream-auto?v=2',{headers:{Origin:'https://unrelated.example'}})).status,403);
