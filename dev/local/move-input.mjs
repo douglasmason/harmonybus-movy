@@ -1,5 +1,5 @@
 /** Touch and keyboard gestures for the adaptable HB/Movy control grid. */
-export function mountMoveInput({controls,send}){
+export function mountMoveInput({controls,send,releaseOthers=()=>{},othersHeld=()=>false}){
  const selector=document.querySelector('#encoder');
  const status=document.querySelector('#control-status');
  const active=new Map(),buttons=new Map(),aliases=new Set(),shiftOwners=new Set(),shiftButtons=new Set();
@@ -48,8 +48,11 @@ export function mountMoveInput({controls,send}){
  }
  function clickJog(){if([...active.keys()].some(control=>control.type==='cc'&&control.index===3))return;midi([176,3,127]);midi([176,3,0]);}
  function release(){
+  // Cancel canonical editors before the engine-wide release, while the old owner is active.
+  try{releaseOthers();}finally{
   for(const button of active.values())button.dataset.held='false';active.clear();shiftOwners.clear();
   document.querySelector('#shift').checked=false;send({type:'dev_release'});refreshSelected();
+  }
  }
  // Both the physical control grid and the screen cells use this one gesture
  // owner. A second finger on an alias cannot release the first finger's knob.
@@ -149,7 +152,7 @@ export function mountMoveInput({controls,send}){
  document.querySelector('#shift').onchange=event=>{if(enabled)setShift(event.target,event.target.checked);};
  window.addEventListener('blur',release);document.addEventListener('visibilitychange',()=>{if(document.hidden)release();});
  document.addEventListener('keydown',event=>{if(event.key==='Escape')release();});
- return {release,refreshSelected,isHeld:()=>active.size>0||shiftOwners.size>0,
+ return {release,refreshSelected,isHeld:()=>active.size>0||shiftOwners.size>0||othersHeld(),
   selectPanel:(token,index)=>{if(enabled&&!active.size&&!shiftOwners.size)send({type:'move_panel',token,index});},
   disable:()=>{release();enabled=false;for(const button of [...buttons.values(),...aliases])button.disabled=true;document.querySelector('#shift').disabled=true;refreshSelected();},
   bindAlias(control,button){aliases.add(button);button.disabled=!enabled;bind(control,button);return ()=>active.get(control)===button;},

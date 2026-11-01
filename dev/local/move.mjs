@@ -12,7 +12,7 @@ try{
  const {socket,audio,sessions,metadata}=browser;
  let connection,sessionUI,workspace,workspaceAvailable=true;
  const send=message=>connection?.send(message);
- const inputs=mountMoveInput({controls,send}),surface=mountMoveSurface(inputs);
+ const inputs=mountMoveInput({controls,send,releaseOthers:()=>workspace?.release(),othersHeld:()=>workspace?.isHeld()??false}),surface=mountMoveSurface(inputs);
  const audioButton=document.querySelector('#audio'),audioStatus=document.querySelector('#audio-status');
  const compSource=document.querySelector('#comp-source');
  const playMode=document.querySelector('#play-mode');
@@ -101,7 +101,7 @@ try{
  };
  document.querySelector('#audio-test').onclick=async()=>{if(!isBrowser())return;try{await audio.testSpeaker();if(audio.enabled){audioButton.textContent='Disable audio';audioButton.setAttribute('aria-pressed','true');}}catch(error){audioStatus.textContent=error.message;}};
  document.querySelector('#monitor-level').oninput=event=>{audio.master=Number(event.target.value);if(audio.gain)audio.gain.gain.value=audio.master;};
- document.querySelector('#stop').onclick=()=>{workspace.release();inputs.release();errorBox.textContent='';};
+ document.querySelector('#stop').onclick=()=>{inputs.release();errorBox.textContent='';};
  socket.onmessage=({data})=>{
   if(!connection.acceptBrowserFrame())return;
   const message=JSON.parse(data);
@@ -164,6 +164,6 @@ try{
  zoom.onchange=()=>document.documentElement.style.setProperty('--display-width',zoom.value+'px');
  sessionUI=await mountSessions({sessions,storageKey:'move',legacyStorageKeys:['current'],isActive:isBrowser,captureUI:()=>({monitor:audio.master,displayWidth:Number(zoom.value),displaySharp:sharp.checked,workspace:workspace.capture()}),
   restoreUI:ui=>{workspace.restore(ui?.workspace);audio.master=Number.isFinite(ui?.monitor)?Math.max(0,Math.min(1,ui.monitor)):.35;document.querySelector('#monitor-level').value=audio.master;zoom.value=String([384,512,640].includes(ui?.displayWidth)?ui.displayWidth:512);zoom.onchange();sharp.checked=ui?.displaySharp!==false;sharp.dispatchEvent(new Event('change'));},
-  disableAudio,isStopped:()=>isBrowser()&&stopped&&!inputs.isHeld()&&!workspace.isHeld(),release:()=>{workspace.release();inputs.release();}});
+  disableAudio,isStopped:()=>isBrowser()&&stopped&&!inputs.isHeld(),release:()=>{inputs.release();}});
  engineSelector.disabled=false;
 }catch(error){errorBox.textContent='Cannot start Move: '+error.message;feedback.textContent='Engine unavailable';}

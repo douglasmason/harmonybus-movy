@@ -56,6 +56,18 @@ try{
  await slider.press('ArrowRight');
  await page.waitForFunction(async()=>(Number((await __wasmRead('ch0:midi_fx1:field_outputs_view2')).split(',')[53])&1)===1);
  await page.locator('[data-workspace=field] #release').click();
+ // Global cancellation must reach the canonical editor, not just physical Move inputs.
+ // Dispatch at the document so the field slider's own Escape handler cannot mask the gap.
+ await slider.focus();await page.keyboard.down('ArrowRight');
+ await page.locator('#workspace-layout').selectOption('columns');
+ assert.equal(await page.locator('#workspace-layout').inputValue(),'stack','held editor blocks recomposition');
+ await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+ await page.locator('#workspace-layout').selectOption('columns');
+ assert.equal(await page.locator('#workspace-layout').inputValue(),'columns','global Escape releases the editor owner');
+ await page.waitForTimeout(550); // Past the canonical editor's 400ms hold refresh.
+ await page.keyboard.up('ArrowRight');
+ assert.equal(Number((await page.evaluate(()=>__wasmRead('ch0:midi_fx1:field_outputs_view2'))).split(',')[53]),0,'late key-up cannot latch a cancelled gesture');
+
  await page.locator('[data-workspace=field]').evaluate(node=>{node.dataset.identity='retained';});
  await page.getByRole('button',{name:'Move up · Field outputs',exact:true}).click();
  assert.equal(await page.locator('[data-workspace=field]').getAttribute('data-identity'),'retained');

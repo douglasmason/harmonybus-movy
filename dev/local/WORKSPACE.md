@@ -126,3 +126,15 @@ The default appearance is red highlights on black and neutral grey surfaces.
 Neutral backgrounds are independently selectable; older saved tinted palettes
 retain their appearance. Reset appearance applies the current default. Unlit
 controls inherit the palette; actual musical LED colors remain authoritative.
+
+## Unified gesture cancellation
+
+The shared Move input owner includes canonical editor holds in `isHeld()` and
+cancels those editors before sending the engine-wide release. Escape, pointer
+cancellation, lost capture, blur, hiding, Stop & release and session actions
+therefore share one path. Editor cancellation uses each existing component's
+`release()` method: no duplicate gesture state, alternate musical operation or
+latched commit is introduced. Engine switches still cancel the old owner before
+suspending it. The browser regression holds a real Field override, invokes the
+global Escape path, checks that recomposition unlocks and no production latch is created, waits past lease
+renewal, and verifies that a late key-up cannot latch the cancelled edit.
