@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readFileSync,writeFileSync} from 'node:fs';
 import {installEnv} from './env.mjs';
 installEnv();await import('../dist/esm/app/globals.js');
 const {installMockEngine}=await import('./mock-engine.mjs');
@@ -245,15 +245,16 @@ try {
  page.ctl.state.touched=1;page.ctl.state.touchOrder=[1];chord.renderChord();
  assert(region(9,29).filter(Boolean).length>whole.filter(Boolean).length,'touch inverts the full chord action');
  page.ctl.state.touched=-1;page.ctl.state.touchOrder=[];chord.renderChord();
- const minor=region(13,18),lowerRoman=region(19,24);
+ const minor=region(11,18),lowerRoman=region(20,27);
  chordMeta.chordName='DM';chordMeta.chordRoman='II';chord.renderChord();
- assert.notDeepEqual(region(13,18),minor,'Dm uses a distinct lowercase m in the shared grid');
- assert.notDeepEqual(region(19,24),lowerRoman,'ii uses distinct lowercase glyphs in the shared grid');
+ assert.notDeepEqual(region(11,18),minor,'Dm uses a distinct lowercase m in the shared grid');
+ assert.notDeepEqual(region(20,27),lowerRoman,'ii uses distinct lowercase glyphs in the shared grid');
  chordMeta.chordName='m';chordMeta.chordRoman='v';chord.renderChord();
  const occupiedRows=(start,end)=>Array.from({length:end-start},(_,row)=>labelPixels.slice((start+row)*128+40,(start+row)*128+56).some(Boolean)).filter(Boolean).length;
- assert.equal(occupiedRows(13,18),3,'chord spelling retains the contrasting minor suffix');
- assert.equal(occupiedRows(19,24),3,'Roman quality retains small lowercase');
+ assert.equal(occupiedRows(11,18),5,'chord spelling retains the contrasting minor suffix');
+ assert.equal(occupiedRows(20,27),5,'Roman quality retains small lowercase');
  chordMeta.chordName='Dm';chordMeta.chordRoman='ii';
  const beforeRender=writes.length;chord.renderChord();assert.equal(writes.length,beforeRender,'drawing chord notation never writes parameters');
+ if(process.env.CHORD_PIXELS)writeFileSync(process.env.CHORD_PIXELS,JSON.stringify([...labelPixels]));
 }finally{globalThis.clear_screen=oldClear;globalThis.fill_rect=oldFill;}
 console.log('Chord text: native spelled names, quality-aware Roman numerals and distinct lowercase pixels pass');

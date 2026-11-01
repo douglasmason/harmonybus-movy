@@ -38,6 +38,7 @@ const render=()=>{pixels.fill(0);page.render('Normal Play');return region();};
 const beforeWrites=writes;
 page.ctl.state.values.motion_control_1='1';const first=render();
 const beforeReads=reads; // Existing LED state polling warmed by the first frame.
+assert(Array.from({length:22},(_,row)=>first.slice(row*32,(row+1)*32).some(Boolean)).filter(Boolean).length>=14,'two short operation lines use the expanded height');
 assert(first.some(Boolean));page.ctl.state.values.motion_control_1='999';assert.deepEqual(render(),first,'no numeric widget or numbered label survives');
 action.label='Chromatic Connector Below';assert.notDeepEqual(render(),first,'full operation name owns the entire cell');
 page.ctl.state.touched=0;page.ctl.state.touchOrder=[0];const held=render();

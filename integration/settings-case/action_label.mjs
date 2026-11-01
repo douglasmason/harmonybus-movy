@@ -25,18 +25,24 @@ export function drawActionLabel(ctx,x,y,width,height,label,active){
     let layout=layouts.get(key);
     if(!layout){
         let measure=fontWidth4x5,print=fontPrint4x5,lines=wrap(text,budget,measure);
-        const count=Math.max(1,Math.floor((height+2)/7));
+        let textHeight=7,gap=3,count=Math.max(1,Math.floor((height+gap)/(textHeight+gap)));
+        if(lines.length>count){textHeight=5;gap=2;count=Math.max(1,Math.floor((height+gap)/(textHeight+gap)));}
         if(lines.length>count){measure=fontWidth5x3;print=fontPrint5x3;lines=wrap(text,budget,measure);}
         if(lines.length>count){
             lines=lines.slice(0,count);let last=lines[count-1];
             while(last&&measure(last+'..')>budget)last=last.slice(0,-1);
             lines[count-1]=last+'..';
         }
-        layout={lines,measure,print};
+        layout={lines,measure,print,textHeight,gap};
         if(layouts.size>=128)layouts.clear();
         layouts.set(key,layout);
     }
     ctx.fillRect(x+1,y,width-2,height,active?1:0);
-    const top=y+Math.floor((height-(layout.lines.length*7-2))/2);
-    layout.lines.forEach((line,index)=>layout.print(ctx,x+Math.floor((width-layout.measure(line))/2),top+index*7,line,active?0:1));
+    const top=y+Math.floor((height-(layout.lines.length*layout.textHeight+(layout.lines.length-1)*layout.gap))/2);
+    layout.lines.forEach((line,index)=>{
+        const rowTop=top+index*(layout.textHeight+layout.gap);
+        const scaled={fillRect:(px,py,w,h,color)=>ctx.fillRect(px,rowTop+Math.floor(py*layout.textHeight/5),w,
+            Math.floor((py+h)*layout.textHeight/5)-Math.floor(py*layout.textHeight/5),color)};
+        layout.print(scaled,x+Math.floor((width-layout.measure(line))/2),0,line,active?0:1);
+    });
 }
