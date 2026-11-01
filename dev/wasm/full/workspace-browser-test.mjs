@@ -74,6 +74,9 @@ try{
  // One theme crosses component shadow roots, engine modes and reparented editor.
  const originalLED=await page.getByRole('button',{name:'Pad 1',exact:true}).getAttribute('style');
  await page.locator('#appearance summary').click();
+ assert(await page.locator('#appearance-neutral').isChecked());
+ assert.equal(await page.locator('body').evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(0, 0, 0)');
+ await page.locator('#appearance-neutral').uncheck();
  const wheel=await page.locator('#appearance-wheel').boundingBox();
  await page.mouse.click(wheel.x+wheel.width*.25,wheel.y+wheel.height*.067);
  const selectedHue=Number(await page.locator('#appearance-hue').inputValue());assert(Math.abs(selectedHue-240)<3);
@@ -141,8 +144,9 @@ try{
  assert.equal(await page.locator('#audio').getAttribute('aria-pressed'),'false');
  await page.reload();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
  assert.equal(await page.locator('#appearance-brightness').inputValue(),'100');
+ assert(!(await page.locator('#appearance-neutral').isChecked()));
  assert.equal(await page.locator('body').evaluate(node=>getComputedStyle(node).backgroundColor),themeBackground,'appearance survives a saved-session reload');
- await page.locator('#appearance summary').click();await page.locator('#appearance-reset').click();assert.equal(await page.locator('#appearance-brightness').inputValue(),'12');await page.locator('#appearance summary').click();
+ await page.locator('#appearance summary').click();await page.locator('#appearance-reset').click();assert.equal(await page.locator('#appearance-brightness').inputValue(),'0');await page.locator('#appearance summary').click();
  assert.equal(await page.locator('#workspace-layout').inputValue(),'columns');assert.equal(await page.locator('#component-track').inputValue(),'3');
  for(const name of ['field','choices','song','lights'])assert(await page.locator(`[data-workspace=${name}]`).isVisible());
  assert.equal(await page.locator('[data-workspace]').evaluateAll(nodes=>nodes.map(node=>node.dataset.workspace).indexOf('field')),1);

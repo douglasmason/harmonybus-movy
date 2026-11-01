@@ -88,9 +88,9 @@ export function mountMoveSurface(inputs){
     color=color.map(channel=>Math.round(channel*level));animating=true;
    }
    const bright=color.reduce((sum,channel)=>sum+channel,0),rgb=`rgb(${color.join(',')})`;
-   button.style.setProperty('--led',bright?rgb:'#34453d');button.dataset.lit=String(bright>0);
+   button.style.setProperty('--led',bright?rgb:'var(--ui-border,#444)' );button.dataset.lit=String(bright>0);
    if(control.group==='pads'||control.group==='steps'){
-    button.style.backgroundColor=bright?rgb:'#202b25';button.style.color=bright>400?'#101713':'#edf5ee';
+    button.style.backgroundColor=bright?rgb:'var(--ui-control,#1a1a1a)' ;button.style.color=bright?(bright>400?'#101713':'#edf5ee'):'var(--ui-fg,#fff)';
    }
   }
   if(animating)animation=requestAnimationFrame(paint);
