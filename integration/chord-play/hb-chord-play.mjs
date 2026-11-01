@@ -251,8 +251,8 @@ try {
  assert.notDeepEqual(region(20,27),lowerRoman,'ii uses distinct lowercase glyphs in the shared grid');
  chordMeta.chordName='m';chordMeta.chordRoman='v';chord.renderChord();
  const occupiedRows=(start,end)=>Array.from({length:end-start},(_,row)=>labelPixels.slice((start+row)*128+40,(start+row)*128+56).some(Boolean)).filter(Boolean).length;
- assert.equal(occupiedRows(11,18),5,'chord spelling retains the contrasting minor suffix');
- assert.equal(occupiedRows(20,27),5,'Roman quality retains small lowercase');
+ assert.equal(occupiedRows(11,18),4,'musical suffix has native four-row x-height under seven-row capitals');
+ assert.equal(occupiedRows(20,27),4,'Roman quality uses intentionally shorter native lowercase');
  chordMeta.chordName='Dm';chordMeta.chordRoman='ii';
  const beforeRender=writes.length;chord.renderChord();assert.equal(writes.length,beforeRender,'drawing chord notation never writes parameters');
  if(process.env.CHORD_PIXELS)writeFileSync(process.env.CHORD_PIXELS,JSON.stringify([...labelPixels]));

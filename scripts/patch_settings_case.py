@@ -88,6 +88,15 @@ def patch_settings_case(root: Path) -> None:
         subprocess.run(['git', '-C', str(root), 'apply', '-p2',
                         '--directory=src/vendor/schwung', str(delta)], check=True)
     pages: Path = vendor / 'param_pages'
+    # Install one pixel-native large-font implementation for both the shared
+    # settings renderer and Movy's custom chord widgets.
+    shutil.copy2(assets / 'hb_large_font.mjs', pages / 'hb_large_font.mjs')
+    (pages / 'hb_large_font.d.mts').write_text(
+        "export type NativeFace = 'upper' | 'regular' | 'smooth';\n"
+        "export const NATIVE_FONT_HEIGHT: number;\n"
+        "export function nativeTextWidth(text: string, face?: NativeFace): number;\n"
+        "export function drawNativeText(ctx: {fillRect(x:number,y:number,w:number,h:number,color:number):void}, x:number, y:number, text:string, face?:NativeFace, color?:number):number;\n"
+    )
     lower: dict[str, list[int]] = json.loads((assets / 'lowercase.json').read_text())
     compact: dict[str, list[int]] = dict(lower)
     compact.update(a=[3, 0, 6, 4, 7, 6], b=[3, 1, 1, 3, 5, 3],
