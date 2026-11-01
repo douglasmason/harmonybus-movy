@@ -10,6 +10,15 @@ instead of rerunning inference. Transpose, inherited register and spelling stay
 live. A desktop decode microbenchmark improved from about 825 to 77 ns/read;
 this does not establish that every physical-device crackle is resolved.
 
+The expanded chord and operation cells now use taller text where it fits.
+Chord spellings and Roman numerals retain their contrasting letter heights,
+with more letter and line spacing. Long operation names retain a compact
+fallback. Crowded queue footers omit “Loop” before reducing the visible chord
+list, while keeping the position/count and current-chord brackets.
+
+Queue service also reads the latest transport snapshot before the conductor
+phase, so a paused transport cannot strand a stale running-state check.
+
 The Audio detail page can now save the existing 35-second audio check together
 with before/after Chord Play queue evidence. This is diagnostic evidence for
 intermittent missed changes and crackles, not a confirmed hardware fix.

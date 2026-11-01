@@ -4,7 +4,7 @@ import {registerWidget,isWidgetAvailable} from '../renderer/schwung-widgets.js';
 import {chordDegrees,intentLabel,type ChordStatus} from './chord-colors.js';
 
 // Both chord spelling and Roman quality benefit from contrasting letter heights.
-export const chordTextWidth=(text:string):number=>glyphRunWidth(text,notationGlyph,5,-1);
+export const chordTextWidth=(text:string):number=>glyphRunWidth(text,notationGlyph,5,0);
 
 /** Display notation only: quality and spelling come from the native chord name. */
 export function chordRoman(intent:number,target:number,status:ChordStatus|undefined):string {
@@ -41,13 +41,16 @@ export function registerChordLabels():void {
         const width=ctx.width,height=ctx.height,active=!!group.movyTouched;
         ctx.fillRect(1,0,width-2,height,active?1:0);
         const names=[String(meta.chordName??'--'),String(meta.chordRoman??'')].filter(Boolean);
-        const firstY=Math.floor((height-(names.length*6-1))/2);
+        const textHeight=height>=19?7:5,gap=2;
+        const firstY=Math.floor((height-(names.length*textHeight+(names.length-1)*gap))/2);
         ctx.fillRect(1,0,width-2,1,1);ctx.fillRect(1,height-1,width-2,1,1);
         ctx.fillRect(1,0,1,height,1);ctx.fillRect(width-2,0,1,height,1);
         names.forEach((name,index)=>{
             const text=fitChordText(name,width-6);
-            drawGlyphRun(Math.floor((width-chordTextWidth(text))/2),firstY+index*6,text,active?0:1,notationGlyph,5,-1,
-                (x,y,w,h,color)=>ctx.fillRect(x,y,w,h,color));
+            const top=firstY+index*(textHeight+gap);
+            drawGlyphRun(Math.floor((width-chordTextWidth(text))/2),0,text,active?0:1,notationGlyph,5,0,
+                (x,y,w,h,color)=>ctx.fillRect(x,top+Math.floor(y*textHeight/5),w,
+                    Math.floor((y+h)*textHeight/5)-Math.floor(y*textHeight/5),color));
         });
     }});
 }
