@@ -1,4 +1,4 @@
-# Movy 0.34.1-hbclean.297
+# Movy 0.34.1-hbclean.298
 
 The first queued chord now preserves its scheduled beat when serviced late.
 Previously, seed activation replaced the deadline with the current beat. A
