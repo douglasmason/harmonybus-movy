@@ -19,8 +19,9 @@ Accepted cached values remain available through transient failed reads; a valid
 value restores eligibility after an unresolved initial read. An already captured
 descriptor retains its original pad when the current selection changes.
 
-These are component-qualified host parameter lanes. Movy's abstract musical
-clips and their operation/event representations remain distinct and unchanged.
+These are Movy's lanes targeting component-qualified host parameters. Schwung's
+native song-data/p-lock recovery and Movy's abstract musical clips and their
+operation/event representations remain distinct and unchanged.
 Existing lane identities and saved data do not change. This fixes new target
 selection and lane seeding; it does not rewrite previously recorded values.
 

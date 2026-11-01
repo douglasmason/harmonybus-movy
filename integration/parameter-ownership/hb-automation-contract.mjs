@@ -27,6 +27,7 @@ const writes=[];
 const port={track:{index:0},bulkReads:false,
     getParam:key=>{reads++;return values.get(key)??null;},
     setParam:(key,value)=>{writes.push([key,value]);values.set(key,value);return true;},
+    setParamTimeout:(key,value)=>port.setParam(key,value),
 };
 const page=createSchwungPage(port);
 assert(page.ready);
@@ -94,4 +95,18 @@ assert(commands.includes('abase 0 0 95'));
 assert.equal(reads,beforeDescriptorReads,'resolved targets add no host reads');
 assert(!commands.some(command=>/^(ra|note|chord|motion)/.test(command)),'parameter lanes do not write abstract musical events');
 setEditGuard(null);
-console.log('Shared automation contract: named enums, numeric option names, access/invalid guards, per-pad keys/ranges and actual lane commands pass without descriptor I/O');
+
+// Hold-to-modulate uses that same onset descriptor, even after pad navigation.
+const {holdTouch,holdTick,assignCommit,resetAssignMode}=await import('../dist/esm/lfo/assign-mode.js');
+const {HOLD_MS}=await import('../dist/esm/model/constants.js');
+const realNow=Date.now;let now=realNow();
+try{
+    Date.now=()=>now;
+    holdTouch({port,keyPrefix:'',slot:0,label:'T1',id:'t0',components:['synth'],hasRetrigger:true},0,firstPad);
+    now+=HOLD_MS+1;assert(holdTick());
+    assert.equal(assignCommit().assigned,true);
+    assert.equal(values.get('lfo1:target'),'synth');
+    assert.equal(values.get('lfo1:target_param'),'p01_gain');
+    assert.equal(values.get('lfo1:enabled'),'1');
+}finally{Date.now=realNow;resetAssignMode();}
+console.log('Shared automation contract: named enums, numeric option names, access/invalid guards, per-pad keys/ranges, lane commands and LFO onset ownership pass without descriptor I/O');
