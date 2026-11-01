@@ -136,5 +136,5 @@ therefore share one path. Editor cancellation uses each existing component's
 `release()` method: no duplicate gesture state, alternate musical operation or
 latched commit is introduced. Engine switches still cancel the old owner before
 suspending it. The browser regression holds a real Field override, invokes the
-global Escape path, checks the production hold/latch masks, waits past lease
+global Escape path, checks that recomposition unlocks and no production latch is created, waits past lease
 renewal, and verifies that a late key-up cannot latch the cancelled edit.
