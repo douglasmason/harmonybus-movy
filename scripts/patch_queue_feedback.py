@@ -8,6 +8,10 @@ def patch_queue_feedback(root: Path) -> None:
     path: Path = root / 'src/seq/chord-play.ts'
     source: str = path.read_text()
     source = replace_once(source,
+        "        const waiting=valid&&queue[6]==='1',depth=valid?Number(queue[7]):setup.playMode?(Number(conductor.getParam('midi_fx1:chord_queue_depth'))||2):0;",
+        "        const depthSetting=!valid&&setup.playMode?conductor.getParam('midi_fx1:chord_queue_depth'):null;\n"
+        "        const waiting=valid&&queue[6]==='1',depth=valid?Number(queue[7]):setup.playMode?(depthSetting==='Touch Phrase'?0:Number(depthSetting)||2):0;")
+    source = replace_once(source,
         "    if(setup.playMode&&!entered)seqToast('Queued '+performanceStatus('queue_count')+' / '+performanceStatus('queue_next'));",
         "    // The native queue snapshot owns feedback; enqueue has not necessarily\n"
         "    // reached the audio thread when this gesture returns.")
