@@ -69,3 +69,14 @@ export function openDeviceConnection({url,onFrame,onState,EventSourceClass=globa
  }catch(error){finish('error',error.message);}
  return {capabilities,transport:action=>!closed&&connected&&capabilities.transport?control?.send(action)??false:false,close:()=>finish('disconnected','Disconnected from Move')};
 }
+
+/** Explicit metadata-only diagnostic. Never opens the tool subscription or grants controls. */
+export async function checkDeviceCapabilities(address,pageURL,{signal,fetcher=globalThis.fetch}={}){
+ const url=new URL('/api/movy-capabilities',deviceStreamURL(address,pageURL));
+ const response=await fetcher(url,{signal,credentials:'omit',cache:'no-store',redirect:'error'});
+ if(!response.ok)throw new Error('Capability check unavailable. Use the updated local companion address; direct Move endpoints may only provide the mirror.');
+ const info=await response.json();
+ if(info?.schema!==1||typeof info.moduleVersion!=='string'||info.moduleVersion.length>80||info.hostVersion!==null||info.semantic!==false||info.input!==false||info.audio!==false||['supportedModule','stateReadPreservesDirty','companionTransportEnabled'].some(key=>typeof info[key]!=='boolean'))throw new Error('Unsupported companion capability report.');
+ const reason=!info.supportedModule?'Installed module version is not supported by this transport adapter.':!info.stateReadPreservesDirty?'Persistence-safe subscription is not advertised; controls remain read-only.':!info.companionTransportEnabled?'Persistence-safe subscription advertised; this companion is read-only.':'Paired Play/Stop eligible; an explicit paired connection is still required.';
+ return `Installed Movy ${info.moduleVersion}. Host version unknown. ${reason} Rich labels, pad/knob input and device audio streaming are unavailable. This check does not connect or change the device.`;
+}
