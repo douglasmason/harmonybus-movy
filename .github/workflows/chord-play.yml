@@ -1,4 +1,4 @@
-name: Chord queue stability verification and release
+name: Shared diagnostic polling verification and release
 on:
   push:
     branches: [main]
@@ -78,6 +78,9 @@ on:
       - integration/settings-case/**
       - scripts/patch_settings_case.py
       - scripts/patch_operation_labels.py
+      - scripts/patch_diagnostic_polling.py
+      - integration/hb-analysis.mjs
+      - docs/diagnostic-polling.md
       - docs/settings-case.md
       - integration/ui-responsiveness/**
       - scripts/patch_ui_responsiveness.py
@@ -188,6 +191,9 @@ on:
       - integration/settings-case/**
       - scripts/patch_settings_case.py
       - scripts/patch_operation_labels.py
+      - scripts/patch_diagnostic_polling.py
+      - integration/hb-analysis.mjs
+      - docs/diagnostic-polling.md
       - docs/settings-case.md
       - integration/ui-responsiveness/**
       - scripts/patch_ui_responsiveness.py
@@ -227,7 +233,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.291
+  SOURCE_VERSION: 0.34.1-hbclean.292
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -315,7 +321,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: chord-queue-291
+          name: diagnostic-polling-292
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -336,10 +342,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.290':
-              raise SystemExit('Expected Movy 290 before chord queue release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.291':
+              raise SystemExit('Expected Movy 291 before diagnostic polling release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Chord queue stability" --notes-file docs/chord-queue-release.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — quieter diagnostic pages" --notes-file docs/diagnostic-polling.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -352,7 +358,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.290':
+          if metadata['version'] != '0.34.1-hbclean.291':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
@@ -360,5 +366,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add release.json
-          git commit -m "Publish verified chord queue $SOURCE_VERSION [skip ci]"
+          git commit -m "Publish verified diagnostic polling $SOURCE_VERSION [skip ci]"
           git push origin HEAD:main

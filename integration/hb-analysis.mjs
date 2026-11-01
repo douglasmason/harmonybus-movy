@@ -72,6 +72,31 @@ try {
     frame='fp1|G4|5th|Root|A4|--|--|--|--';now+=40;
     appState.dirty=false;globalThis.tick();
     assert.deepEqual(page.ctl.page.keys.map(key=>page.ctl.state.values[key]),frame.split('|').slice(1),'Quiet app still publishes the entire changed frame');
+    const originalRender=page.render,originalTick=model.tick;
+    let paints=0,refreshes=[];
+    page.render=(...args)=>{paints++;return originalRender(...args);};
+    model.tick=(refresh=true)=>{refreshes.push(refresh);return false;};
+    try {
+        const before=reads;paints=0;
+        for(let index=0;index<100;index++){now+=10;appState.dirty=false;globalThis.tick();}
+        assert.equal(reads-before,25,'unchanged diagnostics retain 25Hz acquisition');
+        assert.equal(paints,0,'unchanged diagnostic values do not redraw the hosted page');
+        assert.equal(refreshes.length,100,'covered model lifecycle continues every tick');
+        assert(refreshes.every(refresh=>refresh===false),'covered model does not duplicate diagnostic value reads');
+        const accepted=page.ctl.page.keys.map(key=>page.ctl.state.values[key]);
+        frame='fp1|partial';now+=40;appState.dirty=false;globalThis.tick();
+        assert.equal(paints,0,'invalid snapshots retain the old display without redraw');
+        assert.deepEqual(page.ctl.page.keys.map(key=>page.ctl.state.values[key]),accepted);
+        frame='fp1|C4|Root|3rd|E4|G4|5th|Root|C5';now+=40;appState.dirty=false;globalThis.tick();
+        assert.equal(paints,1,'recovery paints a changed complete frame immediately');
+        assert.deepEqual(page.ctl.page.keys.map(key=>page.ctl.state.values[key]),frame.split('|').slice(1));
+        frame='fp1|D4|Root|3rd|F#4|A4|5th|Root|D5';now-=1000;appState.dirty=false;globalThis.tick();
+        assert.equal(paints,2,'clock rollback cannot freeze diagnostic acquisition');
+        page.reload();now+=1;appState.dirty=false;globalThis.tick();
+        assert.equal(page.ctl.state.values.fpath_0_0_3,'F#4','reload refreshes a same-kind snapshot');
+        console.log('Diagnostic redraw work: 100 idle ticks, 25 snapshots, 0 page redraws, 0 covered model value polls');
+    } finally {page.render=originalRender;model.tick=originalTick;}
+
 } finally {Date.now=savedNow;globalThis.shadow_get_param=oldRead;}
 console.log('Real app analysis: held-note refresh does not depend on control-model dirtiness');
 
@@ -193,3 +218,44 @@ console.log('Live display snapshots: Next Harm, Chord Timing and Follower Root u
     } finally {globalThis.shadow_get_param=read;globalThis.move_midi_internal_send=send;Date.now=clock;}
 }
 console.log('Full Both Lookahead: actual app delivers all pads and retries rejected colors');
+
+// The ordinary Normal Play settings surface used to force 25 whole redraws/s.
+// Keep its existing control model quiet, but observe whether it was asked to poll.
+{
+    const settings=await import('../dist/esm/seq/hb-settings.js');
+    const {seqState}=await import('../dist/esm/seq/state.js');
+    const clock=Date.now,read=globalThis.shadow_get_param,modelTick=model.tick;
+    settings.setSettingsOpen(false);seqState.sessionMode=false;setFlag('hbsteprow',0);
+    const normal=schwungPageFor(0,'midi_fx1');normal.reload();
+    const index=normal.ctl.pages.findIndex(entry=>entry.keys?.includes('inferred_root'));
+    assert(index>=0,'Normal Play retains its follower root diagnostics');normal.goToPage(index);
+    const keys=[...normal.ctl.page.keys],values=keys.map(key=>String(params['midi_fx1:'+key]??'--'));
+    let snapshot='dp1|'+values.join('|'),count=0,paints=0,refreshes=[];
+    let time=clock()+600000;Date.now=()=>time;
+    globalThis.shadow_get_param=(slot,key)=>key==='midi_fx1:follower_root_snapshot'?(count++,snapshot):read(slot,key);
+    const render=normal.render;
+    normal.render=(...args)=>{paints++;return render(...args);};
+    model.tick=(refresh=true)=>{refreshes.push(refresh);return false;};
+    try {
+        appState.dirty=true;globalThis.tick();time+=40;globalThis.tick();
+        paints=count=0;refreshes=[];const controllerTicks=normal.ctl.state.tickCount;
+        for(let index=0;index<100;index++){time+=10;appState.dirty=false;globalThis.tick();}
+        assert.equal(count,25,'Normal Play retains 25 diagnostic snapshots/s');
+        assert.equal(normal.ctl.state.tickCount-controllerTicks,25,'controller retries and writes retain their existing cadence without painting');
+        assert.equal(paints,0,'Normal Play skips unchanged full-page draws');
+        assert.equal(refreshes.length,100);assert(refreshes.every(value=>value===false),'Normal Play covered model skips duplicate value polls');
+        values[keys.indexOf('inferred_root')]='D';snapshot='dp1|'+values.join('|');
+        time+=40;appState.dirty=false;globalThis.tick();assert.equal(paints,1,'changed diagnostic paints without independent model dirtiness');
+        snapshot='dp1|partial';time+=40;appState.dirty=false;globalThis.tick();assert.equal(paints,1,'failed diagnostic retains old frame');
+        assert.equal(normal.ctl.state.values.inferred_root,'D');
+        normal.ctl.state.peek={key:keys[0],title:'Root',options:['Auto'],index:0,at:time};
+        appState.dirty=true;globalThis.tick();const withPeek=paints;
+        time+=10000;appState.dirty=false;globalThis.tick();
+        assert.equal(normal.ctl.state.peek,null,'peek expires while its underlying snapshot is unchanged');
+        assert.equal(paints,withPeek+1,'expired overlay repaints the underlying settings exactly once');
+        const ordinary=normal.ctl.pages.findIndex(entry=>entry.keys?.includes('play_rotate'));assert(ordinary>=0);
+        normal.goToPage(ordinary);refreshes=[];time+=40;globalThis.tick();
+        assert.deepEqual(refreshes,[true],'ordinary editable controls resume model value polling');
+        console.log('Normal Play diagnostics: 25 snapshots/s, 0 unchanged full-page draws, no duplicate value polling, immediate changes and normal-mode restoration');
+    } finally {normal.render=render;model.tick=modelTick;Date.now=clock;globalThis.shadow_get_param=read;}
+}
