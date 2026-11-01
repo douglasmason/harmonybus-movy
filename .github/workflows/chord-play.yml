@@ -81,6 +81,8 @@ on:
       - scripts/patch_diagnostic_polling.py
       - integration/hb-analysis.mjs
       - docs/diagnostic-polling.md
+      - scripts/check_release_base.py
+      - scripts/test_release_base.py
       - docs/settings-case.md
       - integration/ui-responsiveness/**
       - scripts/patch_ui_responsiveness.py
@@ -194,6 +196,8 @@ on:
       - scripts/patch_diagnostic_polling.py
       - integration/hb-analysis.mjs
       - docs/diagnostic-polling.md
+      - scripts/check_release_base.py
+      - scripts/test_release_base.py
       - docs/settings-case.md
       - integration/ui-responsiveness/**
       - scripts/patch_ui_responsiveness.py
@@ -243,6 +247,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify concurrent release guard
+        run: python3 scripts/test_release_base.py
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -337,7 +343,7 @@ jobs:
             exit 0
           fi
           git fetch origin main
-          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo 'Main moved concurrently; installer unchanged'; exit 1; }
+          python3 scripts/check_release_base.py "$GITHUB_SHA" origin/main
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -350,7 +356,7 @@ jobs:
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
           git fetch origin main
-          test "$(git rev-parse origin/main)" = "$GITHUB_SHA" || { echo 'Main moved concurrently; installer unchanged'; exit 1; }
+          python3 scripts/check_release_base.py "$GITHUB_SHA" origin/main
           git switch -C installer-pointer origin/main
           python3 - <<'PY'
           import json

@@ -33,3 +33,9 @@ fixes released in 291 from Movy #187/#189 and HarmonyBus #98, plus the typograph
 tonic-position improvements in 290. The concurrent browser workspace/connectivity
 changes are preserved. No physical Move deployment or private-audience change
 is performed.
+
+Release publication permits concurrent browser-only commits under `dev/local/`,
+`dev/wasm/` and their build workflow. The tested commit must remain an ancestor;
+device inputs, release rules and installer metadata must be unchanged. The
+installer update starts from the latest main and uses a normal fast-forward push,
+preserving browser work and rejecting any later race.
