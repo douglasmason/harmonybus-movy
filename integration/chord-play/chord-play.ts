@@ -144,6 +144,12 @@ function performanceOwner(track:number):PerformancePort{
 }
 export const chordEnabled=():boolean=>enabled;
 export const chordActive=():boolean=>enabled&&!seqState.sessionMode;
+/** The native conductor queue is the one authoritative live loop.
+ * A mode or melody-track change relinquishes only UI ownership. */
+export function chordQueueOwned():boolean {
+    return (portFor(setup.conductor).getParam('midi_fx1:hb_chord_queue_status')??'').startsWith('cq1|');
+}
+
 export function chordSnapshot():Setup{return {...setup,slots:setup.slots.map(slot=>({...slot}))};}
 export function restoreChord(value:unknown):void{
     setChordEnabled(false);setup=fresh();
@@ -168,9 +174,16 @@ export function releaseChordTouches():void{
 }
 export function setChordEnabled(value:boolean):void{
     if(enabled===value)return;
-    releaseChordTouches();resetBank();resetKnobLedCache();if(!value&&bankKnobs){for(let knob=0;knob<8;knob++){cachedSetAnimLED(knob,0,0,0);cachedSetAnimLED(71+knob,0,0,0,true);}bankKnobs=false;}send('chord_select','off');enabled=value;activeSlot=-1;route='';
-    if(value&&[setup.conductor,setup.comp,setup.bass].includes(appState.activeTrack.index))selectTrack(Array.from({length:16},(_,index)=>(index+3)%16).find(track=>![setup.conductor,setup.comp,setup.bass].includes(track))!);
-    if(!value)send('chord_route','off');
+    // Controller visibility does not imply Harmony Off. A live conductor queue
+    // remains audible when its UI is hidden or track focus moves.
+    const continuing=!value&&chordQueueOwned();
+    releaseChordTouches();resetBank();resetKnobLedCache();
+    if(!value&&bankKnobs){for(let knob=0;knob<8;knob++){cachedSetAnimLED(knob,0,0,0);cachedSetAnimLED(71+knob,0,0,0,true);}bankKnobs=false;}
+    if(!value&&!continuing)send('chord_select','off');
+    enabled=value;activeSlot=-1;route='';
+    if(value&&[setup.conductor,setup.comp,setup.bass].includes(appState.activeTrack.index))
+        selectTrack(Array.from({length:16},(_,index)=>(index+3)%16).find(track=>![setup.conductor,setup.comp,setup.bass].includes(track))!);
+    if(!value&&!continuing)send('chord_route','off');
     page=null;appState.dirty=true;
 }
 export function selectChordSlot(index:number):void{
@@ -254,7 +267,11 @@ export function chordPanelPort(track:number):TrackPort{
             const assignments={cp_melody:appState.activeTrack.index,cp_comp:setup.comp,cp_conductor:setup.conductor,cp_bass_track:setup.bass};
             const others=Object.entries(assignments).filter(([key])=>key!==bare).map(([,track])=>track);
             if(others.includes(selected)){seqToast('Choose distinct tracks');return false;}
-            releaseChordTouches();send('chord_select','off');activeSlot=-1;
+            releaseChordTouches();
+            // A track assignment is not a new performance. The native
+            // single-owner queue changes conductor on the first new chord.
+            if(!chordQueueOwned())send('chord_select','off');
+            activeSlot=-1;
             if(bare==='cp_melody')selectTrack(selected);else setup[bare==='cp_comp'?'comp':bare==='cp_bass_track'?'bass':'conductor']=selected;
             page=null;route='';
         }else if(bare==='cp_bass_source'){setChordBassClip(selected===1);}
@@ -467,7 +484,7 @@ function performanceStatus(field:string):string {
         const queue=setup.playMode?(conductor.getParam('midi_fx1:hb_chord_queue_status')??'').split('|'):[];
         const queued=queue[0]==='cq1',count=queued?Number(queue[1]):0;
         const live=active==='1',waiting=queued&&queue[6]==='1',depth=queued?Number(queue[7]):Number(conductor.getParam('midi_fx1:chord_queue_depth'))||2;
-        const queueState=!setup.playMode?'Off':waiting||!queued?((queued&&queue[3]!=='--'?'Hold ':'Fill ')+count+(depth?'/'+depth:' Release')):(queue[8]==='1'?'Loop ':'Ready ')+count;
+        const queueState=!setup.playMode?'Off':waiting||!queued?((queued&&queue[3]!=='--'?'Hold ':'Queue ')+count+(depth?'/'+depth:' Release')):(queue[8]==='1'?'Loop ':'Ready ')+count;
         const snapshot=queue.join('|');if(statusCache?.values.queue_snapshot!==snapshot)appState.dirty=true;
         statusCache={at:now,identity,values:{queue_snapshot:snapshot,queue_current:queued?queue[3]:!seqState.playing&&!live?'Off':effective||'--',queue_next:queued?queue[4]:'--',queue_count:queueState,effective:effective||'--',override:live?'On':active==='0'?'Off':'--',next:queued?queue[4]:seqState.playing?(next||'--'):'--',handoff:queued?queueState:live?(seqState.playing?'Next event':'Off button'):'--',key:key||'--'}};
     }
