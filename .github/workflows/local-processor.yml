@@ -68,6 +68,8 @@ jobs:
           node dev/wasm/full/session-browser-test.mjs
           WASM_PACKAGED=1 node dev/wasm/full/workspace-browser-test.mjs
           WASM_PACKAGED=1 node dev/wasm/full/move-browser-test.mjs
+          node dev/wasm/package-companion.mjs
+          node --test dev/local/companion-package-test.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: browser-joint-static

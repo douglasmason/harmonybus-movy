@@ -40,7 +40,14 @@ Apple's [local-network privacy note](https://developer.apple.com/documentation/t
 exempts Safari traffic from the app-level permission; that does not waive web
 mixed-content, CORS or future site-level network permission checks.
 
-The simplest local path is the included companion on a computer on
+The trial’s **Engine → Move → Connecting from an iPad** section offers a
+portable companion download. Extract it on your computer and run
+`node start.mjs --help` (Node.js 22+). It includes this exact tested workspace
+and its Node dependency; no Git/compiler/npm install is needed. See
+[portable instructions](COMPANION-README.md). The archive launcher is read-only
+and binds loopback unless you explicitly choose one private LAN address.
+
+The source-development path is the included companion on a computer on
 the same trusted LAN. It serves the **same packaged workspace** and proxies one
 fixed Move mirror endpoint, without installing anything on Move:
 

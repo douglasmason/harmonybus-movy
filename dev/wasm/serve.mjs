@@ -3,6 +3,7 @@ import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 export const files=new Map([['/','index.html'],['/THIRD-PARTY-NOTICES.txt','THIRD-PARTY-NOTICES.txt'],['/engine.mjs','engine.mjs'],['/build/hb.mjs','build/hb.mjs'],['/build/hb.wasm','build/hb.wasm'],['/build/seq.wasm','build/seq.wasm']]);
+export const downloads=new Set(['/downloads/move-companion.tar.gz','/downloads/move-companion.sha256']);
 for(const [route,file] of [
  ['/joint','../local/workspace-redirect.html'],
  ['/move','../local/move.html'],
@@ -17,9 +18,9 @@ export function serve(port=7702,siteRoot=null) {
  return createServer(async(request,response)=>{
   const route=new URL(request.url,'http://localhost').pathname.replace(/\/$/,'')||'/';
   const diagnostic=!siteRoot&&{'/diagnostic-joint':'../local/joint.html','/joint.js':'../local/build/joint.js'}[route];
-  const name=diagnostic||files.get(route);
+  const name=diagnostic||files.get(route)||(siteRoot&&downloads.has(route)?route.slice(1):null);
   if(!name){response.writeHead(404).end();return;}
-  try{const bytes=await readFile(siteRoot?new URL(route==='/'?'index.html':['/joint','/move'].includes(route)?route.slice(1)+'/index.html':route.slice(1),siteRoot):new URL(name,import.meta.url));response.setHeader('Content-Type',name.endsWith('.wasm')?'application/wasm':name.endsWith('.mjs')||name.endsWith('.js')?'text/javascript':name.endsWith('.css')?'text/css':name.endsWith('.json')?'application/json':name.endsWith('.txt')?'text/plain':'text/html');response.end(bytes);}
+  try{const bytes=await readFile(siteRoot?new URL(route==='/'?'index.html':['/joint','/move'].includes(route)?route.slice(1)+'/index.html':route.slice(1),siteRoot):new URL(name,import.meta.url));response.setHeader('Content-Type',name.endsWith('.tar.gz')?'application/gzip':name.endsWith('.sha256')?'text/plain':name.endsWith('.wasm')?'application/wasm':name.endsWith('.mjs')||name.endsWith('.js')?'text/javascript':name.endsWith('.css')?'text/css':name.endsWith('.json')?'application/json':name.endsWith('.txt')?'text/plain':'text/html');response.end(bytes);}
   catch{response.writeHead(404).end('Build dev/wasm first');}
  }).listen(port,'127.0.0.1');
 }
