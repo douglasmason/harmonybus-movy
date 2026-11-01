@@ -10,7 +10,7 @@ cells used the same scaling technique.
 - **Upper**: full-height seven-row capitals (plus a blank row for consistent
   line metrics), digits and notation punctuation. Explicit all-uppercase text
   preserves its existing meaning and never depends on a lowercase substitution.
-- **Musical**: seven-row capitals and distinctly shorter four-row lowercase
+- **Regular**: seven-row capitals and distinctly shorter four-row lowercase
   bodies. Chord spellings and quality-aware Roman numerals use this face:
   `Dm`, `ii`, `G7`, `viio`, `Bdim`.
 - **Smooth**: the same capital glyphs but separately drawn six-row lowercase
