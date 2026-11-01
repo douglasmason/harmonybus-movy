@@ -1,4 +1,4 @@
-//! One consumptive queue read, using the existing fixed-buffer chain API.
+//! Chord service reads using the existing fixed-buffer chain API.
 use std::ffi::CStr;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -16,5 +16,19 @@ pub fn read(mut get: impl FnMut(&CStr, &mut [u8]) -> i32) -> Event {
     match text.parse::<u8>() {
         Ok(pitch) if pitch < 128 => Event::Pitch(pitch),
         _ => Event::None,
+    }
+}
+
+/// Read the live-selection flag on every block without allocating strings.
+/// Only an exact `0` expires the host recording gate; an unavailable or invalid
+/// reply must not release a held chord. This is independent of queue cue reads.
+pub fn selection_active(mut get: impl FnMut(&CStr, &mut [u8]) -> i32) -> Option<bool> {
+    let key = CStr::from_bytes_with_nul(b"midi_fx1:hb_chord_active\0").unwrap();
+    let mut buffer = [0u8; 2];
+    if get(key, &mut buffer) != 1 { return None; }
+    match buffer[0] {
+        b'0' => Some(false),
+        b'1' => Some(true),
+        _ => None,
     }
 }
