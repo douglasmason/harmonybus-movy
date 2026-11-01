@@ -7,9 +7,11 @@ Uppercase acronyms and explicitly uppercase labels remain uppercase.
 
 There are three treatments: existing capitals, normalized lowercase for ordinary
 interface text, and the original small lowercase for Roman numerals and chord spellings.
-Ordinary lowercase shares the full five-row extent in compact fonts and seven-row
-extent in the value strip, including `c`, `n`, `o` and `u`. Advances and widget
-heights stay unchanged. Musical case (`Dm`, `ii`, `II`) remains distinct.
+Ordinary lowercase bodies share a common top one pixel below capitals: four rows
+in compact fonts and six rows in the value strip. Ascenders `b d f h k l t`
+reach the full five- or seven-row capital height. In particular, `c o e s` have
+the same top and baseline. Advances and widget heights stay unchanged. Musical
+case (`Dm`, `ii`, `II`) remains distinct.
 Chord widgets explicitly use the smaller atlas for both musical lines. Ordinary
 labels and values keep normalized text. Musical footers select the smaller atlas
 only for complete Roman or spelled-chord tokens, including queued `[Dm]`, leaving
