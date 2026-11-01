@@ -25,6 +25,7 @@ export function createDeviceServer({siteRoot,moveAddress,origin,allowedOrigin=nu
   response.setHeader('X-Content-Type-Options','nosniff');response.setHeader('Cache-Control','no-store');
   if(request.method!=='GET'){sendError(405,'Read-only companion');return;}
   const url=new URL(request.url,origin),route=url.pathname.replace(/\/$/,'')||'/';
+  if(route.startsWith('/downloads/')){sendError(409,'This companion is already extracted. Download updates from the private browser trial.');return;}
   if(route==='/stream-auto'){
    if(url.search!=='?v=2'){sendError(400,'Unsupported stream request');return;}
    if(streams>=2){sendError(503,'Two mirror connections already open');return;}

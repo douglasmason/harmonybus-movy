@@ -111,3 +111,13 @@ lets canonical Field/probability shadow roots inherit them without duplicating
 those editors. Pad/step LEDs, device pixels, field values and rendered lighting
 colors retain their semantic colors. No whole-page hue or brightness filter is
 used. Appearance is independent of engine selection and musical session files.
+
+## Portable companion
+
+`dev/wasm/package-companion.mjs` copies the tested static artifact unchanged and
+ships the existing mirror server with its pinned Node dependency. The archive's
+`BUILD.json` records source provenance and file hashes; a separate SHA256 verifies
+the archive. `companion-start.mjs` provides a read-only launcher with explicit
+private-LAN binding. It never discovers/connects to Move on startup. The extracted
+archive is tested outside the checkout against the same protocol fixture and
+byte-compared with the hosted workspace. It contains no alternate UI or engine.
