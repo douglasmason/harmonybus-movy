@@ -5,7 +5,7 @@ import {registerWidget,isWidgetAvailable} from '../renderer/schwung-widgets.js';
 import {chordDegrees,intentLabel,type ChordStatus} from './chord-colors.js';
 
 // Both chord spelling and Roman quality benefit from contrasting letter heights.
-export const chordTextWidth=(text:string):number=>nativeTextWidth(text,'musical');
+export const chordTextWidth=(text:string):number=>nativeTextWidth(text,'regular');
 
 /** Display notation only: quality and spelling come from the native chord name. */
 export function chordRoman(intent:number,target:number,status:ChordStatus|undefined):string {
@@ -53,7 +53,7 @@ export function registerChordLabels():void {
             const top=firstY+index*(textHeight+gap);
             const left=Math.floor((width-measure(text))/2);
             if(native){
-                drawNativeText(ctx,left,top,text,'musical',active?0:1);
+                drawNativeText(ctx,left,top,text,'regular',active?0:1);
             }else{
                 drawGlyphRun(left,0,text,active?0:1,notationGlyph,5,0,
                     (x,y,w,h,color)=>ctx.fillRect(x,top+y,w,h,color));
