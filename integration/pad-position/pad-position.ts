@@ -1,6 +1,7 @@
 /** Horizontal placement belongs to the keyboard, independently of its key. */
 import { appState, trackIsDrum } from '../app/state.js';
-import { keyboardState, COLUMN_OFFSET_MIN, COLUMN_OFFSET_MAX } from '../keyboard/state.js';
+import { keyboardState, baseNoteFor, COLUMN_OFFSET_MIN, COLUMN_OFFSET_MAX } from '../keyboard/state.js';
+import { midiNoteName } from '../keyboard/notes.js';
 import { beginPositionHighlight } from '../keyboard/position-highlight.js';
 import { invalidateHarmonyPadGeometry } from '../keyboard/harmony-pads.js';
 import { padsPlayNotes } from './router-pads.js';
@@ -28,17 +29,31 @@ export function padPositionLabel(): string {
     return offset === 0 ? 'Default' : Math.abs(offset) + (offset > 0 ? ' right' : ' left');
 }
 
+/** Preview the current geometry even when a navigation limit prevents movement. */
+export function showPadPosition(): void {
+    beginPositionHighlight();
+    appState.dirty = true;
+    seqToast('Pad position: ' + padPositionLabel());
+}
+
+/** Absolute tonic register, independent of the horizontally shifted left pad. */
+export function showPadOctave(): void {
+    if (!padPositionActive()) return;
+    beginPositionHighlight();
+    appState.dirty = true;
+    const track = appState.activeTrack.index;
+    seqToast('T' + (track + 1) + ' tonic ' + midiNoteName(baseNoteFor(track)));
+}
+
 /** One setter for arrows, settings and reset; held notes retain their owners. */
 export function setPadPosition(offset: number): boolean {
     if (!Number.isFinite(offset)) return false;
     const next = Math.max(COLUMN_OFFSET_MIN, Math.min(COLUMN_OFFSET_MAX, Math.round(offset)));
     if (next === keyboardState.columnOffset) return false;
     keyboardState.columnOffset = next;
-    beginPositionHighlight();
     invalidateHarmonyPadGeometry();
     markUiStateDirty();
-    appState.dirty = true;
-    seqToast('Pad position: ' + padPositionLabel());
+    showPadPosition();
     return true;
 }
 
@@ -50,6 +65,6 @@ export function shiftPadPosition(direction: number): boolean {
 /** Consume releases and blocked endpoints too, so they cannot switch panels. */
 export function padPositionMidi(data: number[]): boolean {
     if ((data[0] & 240) !== 176 || ![62, 63].includes(data[1]) || !padPositionActive()) return false;
-    if (data[2]) shiftPadPosition(data[1] === 63 ? 1 : -1);
+    if (data[2] && !shiftPadPosition(data[1] === 63 ? 1 : -1)) showPadPosition();
     return true;
 }

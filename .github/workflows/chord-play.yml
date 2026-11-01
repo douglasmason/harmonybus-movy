@@ -1,4 +1,4 @@
-name: Shared diagnostic polling verification and release
+name: Pad navigation feedback verification and release
 on:
   push:
     branches: [main]
@@ -21,6 +21,7 @@ on:
       - scripts/patch_chord_discovery.py
       - tests/chord_discovery_audio.h
       - docs/pad-position.md
+      - docs/pad-navigation-cues.md
       - tests/audio_probe.c
       - tests/pad_parent_key_audio.h
       - integration/harmonybus.ref
@@ -136,6 +137,7 @@ on:
       - scripts/patch_chord_discovery.py
       - tests/chord_discovery_audio.h
       - docs/pad-position.md
+      - docs/pad-navigation-cues.md
       - tests/audio_probe.c
       - tests/pad_parent_key_audio.h
       - integration/harmonybus.ref
@@ -237,7 +239,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.292
+  SOURCE_VERSION: 0.34.1-hbclean.293
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -327,7 +329,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: diagnostic-polling-292
+          name: pad-navigation-293
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -348,10 +350,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.291':
-              raise SystemExit('Expected Movy 291 before diagnostic polling release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.292':
+              raise SystemExit('Expected Movy 292 before pad navigation release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — quieter diagnostic pages" --notes-file docs/diagnostic-polling.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — tonic and octave navigation cues" --notes-file docs/pad-navigation-cues.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -364,7 +366,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.291':
+          if metadata['version'] != '0.34.1-hbclean.292':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
@@ -372,5 +374,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add release.json
-          git commit -m "Publish verified diagnostic polling $SOURCE_VERSION [skip ci]"
+          git commit -m "Publish verified pad navigation $SOURCE_VERSION [skip ci]"
           git push origin HEAD:main

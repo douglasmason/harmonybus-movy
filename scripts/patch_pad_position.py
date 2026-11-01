@@ -10,8 +10,13 @@ def patch_pad_position(root: Path) -> None:
     path: Path = root / "src/seq/pad-position.ts"
     path.write_text((assets / "pad-position.ts").read_text())
     (root / "src/keyboard/position-highlight.ts").write_text((assets / "position-highlight.ts").read_text())
+    path = root / "src/midi/router.ts"
+    source: str = "import { showPadOctave } from '../seq/pad-position.js';\n" + path.read_text()
+    source = replace_once(source, '            changeOctave(appState.activeTrack.index, dir);',
+                          '            changeOctave(appState.activeTrack.index, dir);\n            showPadOctave();')
+    path.write_text(source)
     path = root / "build/browser.mjs"
-    source: str = replace_once(path.read_text(), "    entryPoints: [", "    entryPoints: [\n        resolve(root, 'src/seq/pad-position.ts'),")
+    source = replace_once(path.read_text(), "    entryPoints: [", "    entryPoints: [\n        resolve(root, 'src/seq/pad-position.ts'),")
     source = replace_once(source, "resolve(root, 'src/keyboard/state.ts'),", "resolve(root, 'src/keyboard/state.ts'),\n        resolve(root, 'src/keyboard/position-highlight.ts'),")
     path.write_text(source)
 
