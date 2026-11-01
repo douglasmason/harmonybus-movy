@@ -21,8 +21,9 @@ export function chordQueueOwned():boolean {
     source = replace_once(source,
         '    endChordStepEntry();releaseChordTouches();harmonyOff();',
         '''    endChordStepEntry();releaseChordTouches();
-    // Switching Joint's knob surface is not a Harmony Off gesture.
-    if(!chordQueueOwned())harmonyOff();''')
+    // Merely choosing Joint's chord-knob conductor never cancels a
+    // running queue. Another conductor replaces it only on its first
+    // accepted chord selection via the existing native single-owner bridge.''')
     source = replace_once(source,
         """    endChordStepEntry();releaseChordTouches();resetBank();resetKnobLedCache();if(!value&&bankKnobs){for(let knob=0;knob<8;knob++){cachedSetAnimLED(knob,0,0,0);cachedSetAnimLED(71+knob,0,0,0,true);}bankKnobs=false;}send('chord_select','off');enabled=value;activeSlot=-1;route='';
     if(value&&[setup.conductor,setup.comp,setup.bass].includes(appState.activeTrack.index))selectTrack(Array.from({length:16},(_,index)=>(index+3)%16).find(track=>![setup.conductor,setup.comp,setup.bass].includes(track))!);
