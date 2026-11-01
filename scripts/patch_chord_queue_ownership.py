@@ -18,11 +18,8 @@ def patch_chord_queue_ownership(root: Path) -> None:
 export function chordQueueOwned():boolean {
     return (portFor(conductorTrack()).getParam('midi_fx1:hb_chord_queue_status')??'').startsWith('cq1|');
 }''')
-    if '    endChordStepEntry();releaseChordTouches();harmonyOff(false);' not in source:
-        owner_start = source.find('export function setJointChordConductor')
-        raise AssertionError('Joint owner seam: '+repr(source[owner_start:owner_start+800]))
     source = replace_once(source,
-        '    endChordStepEntry();releaseChordTouches();harmonyOff(false);',
+        '    endChordStepEntry();releaseChordTouches();harmonyOff();',
         '''    endChordStepEntry();releaseChordTouches();
     // Switching Joint's knob surface is not a Harmony Off gesture.
     if(!chordQueueOwned())harmonyOff(false);''')
