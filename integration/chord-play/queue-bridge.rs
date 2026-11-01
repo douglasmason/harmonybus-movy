@@ -12,9 +12,10 @@ impl Instance {
     }
     fn tick_chord_queue(&mut self) {
         let Some(track)=self.chord_queue else {return;};
-        let Some(event)=self.chains.get_param(track,"midi_fx1:hb_chord_queue_take") else {return;};
-        if event=="off" {self.chord_queue=None;self.release_chord_selection();return;}
-        let Some(pitch)=event.parse::<u8>().ok().filter(|pitch|*pitch<128) else {return;};
-        self.activate_chord_selection(track,pitch);
+        match self.chains.hb_chord_queue_take(track) {
+            hb_queue_read::Event::Off => {self.chord_queue=None;self.release_chord_selection();}
+            hb_queue_read::Event::Pitch(pitch) => self.activate_chord_selection(track,pitch),
+            hb_queue_read::Event::None => {}
+        }
     }
 }
