@@ -28,8 +28,8 @@ def patch_launchpad(root: Path) -> None:
     path.write_text(source)
     path = root / "src/seq/flags-def.ts"
     source = path.read_text()
-    flag: str = """    { key: 'hblaunchpad', name: 'Launchpad', min: 0, max: 2, def: 0,
-      labels: ['OFF', 'LEGACY', 'X'], release: true, uiOnly: true,
+    flag: str = """    { key: 'hblaunchpad', name: 'Launchpad', min: 0, max: 3, def: 0,
+      labels: ['OFF', 'LEGACY', 'X', 'MINI MK3'], release: true, uiOnly: true,
       hint: 'Dedicated HB input on USB channel 1.' },
 """
     position: int = source.index('\n];', source.index('export const FLAGS:'))

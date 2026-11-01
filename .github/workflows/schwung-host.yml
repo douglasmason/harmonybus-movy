@@ -2,10 +2,12 @@ name: Schwung host compatibility
 on:
   pull_request:
     branches: [main]
-    paths: ['integration/schwung-host/**', 'integration/parameter-ownership/**', 'scripts/patch_parameter_ownership.py', 'integration/settings-case/**', 'integration/pad-position/**', 'scripts/patch_operation_labels.py', 'scripts/patch_diagnostic_polling.py', 'integration/hb-analysis.mjs', 'scripts/patch_settings_case.py', 'scripts/test_schwung_shared_source.py', 'scripts/patch_running_transport.py', '.github/workflows/schwung-host.yml']
+    # Surface profiles use the same host claims, input queue and preview APIs.
+    # Keep them covered against both supported host versions.
+    paths: ['integration/launchpad/**', 'scripts/patch_launchpad.py', 'integration/schwung-host/**', 'integration/parameter-ownership/**', 'scripts/patch_parameter_ownership.py', 'integration/settings-case/**', 'integration/pad-position/**', 'scripts/patch_operation_labels.py', 'scripts/patch_diagnostic_polling.py', 'integration/hb-analysis.mjs', 'scripts/patch_settings_case.py', 'scripts/test_schwung_shared_source.py', 'scripts/patch_running_transport.py', '.github/workflows/schwung-host.yml']
   push:
     branches: [main]
-    paths: ['integration/schwung-host/**', 'integration/parameter-ownership/**', 'scripts/patch_parameter_ownership.py', 'integration/settings-case/**', 'integration/pad-position/**', 'scripts/patch_operation_labels.py', 'scripts/patch_diagnostic_polling.py', 'integration/hb-analysis.mjs', 'scripts/patch_settings_case.py', 'scripts/test_schwung_shared_source.py', 'scripts/patch_running_transport.py', '.github/workflows/schwung-host.yml']
+    paths: ['integration/launchpad/**', 'scripts/patch_launchpad.py', 'integration/schwung-host/**', 'integration/parameter-ownership/**', 'scripts/patch_parameter_ownership.py', 'integration/settings-case/**', 'integration/pad-position/**', 'scripts/patch_operation_labels.py', 'scripts/patch_diagnostic_polling.py', 'integration/hb-analysis.mjs', 'scripts/patch_settings_case.py', 'scripts/test_schwung_shared_source.py', 'scripts/patch_running_transport.py', '.github/workflows/schwung-host.yml']
   workflow_dispatch:
 permissions:
   contents: read

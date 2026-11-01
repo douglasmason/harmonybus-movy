@@ -1,5 +1,11 @@
 /** Physical addressing and USB-MIDI encoding; musical rules live in HarmonyBus. */
-export type LaunchpadModel = 1 | 2;
+export type LaunchpadModel = 1 | 2 | 3;
+/** Saved profile IDs stay stable. X and Mini MK3 share the Programmer grid. */
+export const LAUNCHPAD_PROFILES = {
+    1: { prefix: [], topCc: 104, modifier: 8, configurePressure: false },
+    2: { prefix: [240, 0, 32, 41, 2, 12], topCc: 91, modifier: 89, configurePressure: true },
+    3: { prefix: [240, 0, 32, 41, 2, 13], topCc: 91, modifier: 89, configurePressure: false },
+} as const;
 export type SurfaceCell = { pitch: number; target: number; row: number };
 
 /** Center Move's four rows, retaining complete approach/keyboard groups.
@@ -7,7 +13,7 @@ export type SurfaceCell = { pitch: number; target: number; row: number };
  * cannot be divided between both ends without splitting a target group. */
 export function surfaceFirstRow(layout: number): number { return layout === 3 ? 0 : -2; }
 
-/** Index zero is bottom left on both generations. */
+/** Index zero is bottom left on every supported profile. */
 export function launchpadIndex(model: LaunchpadModel, note: number): number {
     if (model === 1) {
         const column = note % 16, row = Math.floor(note / 16);

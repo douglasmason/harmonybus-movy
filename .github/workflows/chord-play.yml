@@ -1,4 +1,4 @@
-name: Chord active-read verification and release
+name: Launchpad Mini MK3 verification and release
 on:
   push:
     branches: [main]
@@ -90,6 +90,7 @@ on:
       - scripts/patch_queue_feedback.py
       - docs/automation-recovery.md
       - docs/automation-mapping.md
+      - docs/launchpad-mini-mk3.md
       - docs/parameter-automation-contract.md
       - scripts/check_release_base.py
       - scripts/test_release_base.py
@@ -215,6 +216,7 @@ on:
       - scripts/patch_queue_feedback.py
       - docs/automation-recovery.md
       - docs/automation-mapping.md
+      - docs/launchpad-mini-mk3.md
       - docs/parameter-automation-contract.md
       - scripts/check_release_base.py
       - scripts/test_release_base.py
@@ -257,7 +259,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.302
+  SOURCE_VERSION: 0.34.1-hbclean.303
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -347,7 +349,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: chord-active-read-302
+          name: launchpad-mini-mk3-303
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -368,10 +370,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.301':
-              raise SystemExit('Expected Movy 301 before chord active-read release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.302':
+              raise SystemExit('Expected Movy 302 before Launchpad Mini MK3 release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — allocation-free active chord checks" --notes-file docs/chord-active-fixed-buffer.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Launchpad Mini MK3 profile" --notes-file docs/launchpad-mini-mk3.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -384,7 +386,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.301':
+          if metadata['version'] != '0.34.1-hbclean.302':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
@@ -392,5 +394,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add release.json
-          git commit -m "Publish verified chord active reads $SOURCE_VERSION [skip ci]"
+          git commit -m "Publish verified Launchpad Mini MK3 $SOURCE_VERSION [skip ci]"
           git push origin HEAD:main
