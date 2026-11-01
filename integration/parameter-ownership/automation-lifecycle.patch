@@ -1,0 +1,109 @@
+--- a/src/seq/automation.ts
++++ b/src/seq/automation.ts
+@@ -13,7 +13,7 @@
+ import { beginGesture, undoableEdit } from '../undo/edit.js';
+ import { seqSideEffect } from '../undo/record.js';
+ import { seqCmd, requestLabelSync } from './engine.js';
+-import { isMixTarget } from './lane-mapping.js';
++import { isChainTarget } from './lane-mapping.js';
+ import { seqState } from './state.js';
+ import { seqToast } from './render.js';
+ import { beginStepAutomation, heldRange } from './step-edit.js';
+@@ -146,7 +146,7 @@
+     // param cache: this new lane's abs-CC would resolve through find_param_info on
+     // an empty synth_params and be dropped. Warm it so the first playback is
+     // audible (the reselect-time warm can't cover a lane that doesn't exist yet).
+-    requestLaneWarm(track);
++    if (isChainTarget(tp)) requestLaneWarm(track);
+     return lane;
+ }
+
+@@ -316,7 +316,7 @@
+     /* A mix lane is not mapped inside the chain, so `knob_<N>_name` says nothing
+      * about it — probing one would read null, call the mapping cleared, and
+      * re-apply every lane on the track on every sweep. */
+-    const first = lanes.findIndex((e) => e !== null && !isMixTarget(e.targetParam)&&!e.targetParam.startsWith('generator:'));
++    const first = lanes.findIndex((e) => e !== null && isChainTarget(e.targetParam));
+     if (first < 0) return; // no lanes on this track → no IPC
+     const e = lanes[first]!;
+     const name = readKnobName(t, first);
+@@ -326,8 +326,9 @@
+     if (name && name.indexOf(target) >= 0 && name.indexOf(param) >= 0) return;
+     for (let l = 0; l < 8; l++) {
+         const le = lanes[l];
+-        if (le) apply(t, l, le.targetParam);
+-    }
++        if (le && isChainTarget(le.targetParam)) apply(t, l, le.targetParam);
++    }
++    requestLaneWarm(t);
+ }
+
+ /* A chain module (re)load leaves the host's per-component param-metadata cache
+@@ -347,8 +348,7 @@
+     const seen = new Set<string>();
+     for (let l = 0; l < 8; l++) {
+         const e = lanes[l];
+-        if (!e) continue;
+-        if(e.targetParam.startsWith('generator:'))continue;
++        if (!e || !isChainTarget(e.targetParam)) continue;
+         const comp = e.targetParam.slice(0, e.targetParam.indexOf(':'));
+         if (seen.has(comp)) continue; // the refresh is per-component, not per-lane
+         seen.add(comp);
+@@ -366,9 +366,10 @@
+
+ /* Schedule `track`'s lane param-cache warm after a chain (re)load. */
+ export function requestLaneWarm(track: number): void {
+-    if (track < 0 || track >= 4) return;
++    if (!Number.isInteger(track) || track < 0 || track >= TRACK_COUNT) return;
++    if (!registry[track].some((entry) => entry !== null && isChainTarget(entry.targetParam))) return;
+     warmPending[track] = WARM_WINDOW;
+-    if (registry[track].some((e) => e !== null)) mlog('auto warm req t=' + track);
++    mlog('auto warm req t=' + track);
+ }
+
+ /* Per-tick pump for scheduled warms. Cheap when idle (all counters 0). `verify`,
+@@ -384,7 +385,7 @@
+         warmPending[t] = c - 1;
+         if (c % WARM_STRIDE === 0) warmLaneParams(t, readValue);
+         if (c === 1 && verify) {                       // window just closed
+-            const first = registry[t].findIndex((e) => e !== null);
++            const first = registry[t].findIndex((entry) => entry !== null && isChainTarget(entry.targetParam));
+             if (first >= 0) verify(t, first);
+         }
+     }
+@@ -437,11 +438,13 @@
+      * in the next. */
+     for (let t = 0; t < TRACK_COUNT && t < tracks.length; t++) {
+         const lanes = tracks[t].split('.');
++        let needsWarm = false;
+         for (let l = 0; l < 8 && l < lanes.length; l++) {
+             const tp = lanes[l];
+             if (!tp || tp === '-') { registry[t][l] = null; continue; }
+             const v = validate(t, tp);
+             if (v === 'drop') { clearLane(t, l, false); continue; }
++            if (isChainTarget(tp) && registry[t][l]?.targetParam !== tp) needsWarm = true;
+             const r: LaneRange = v === 'unknown' ? { min: 0, max: 1, type: 'float' } : v;
+             registry[t][l] = {
+                 targetParam: tp, shortName: tp.split(':')[1] ?? tp,
+@@ -449,5 +452,8 @@
+             };
+             apply(t, l, tp);
+         }
+-    }
+-}
++        // A Set restore must recover cold caches too. Repeated label syncs
++        // with identical targets do not extend the finite recovery window.
++        if (needsWarm) requestLaneWarm(t);
++    }
++}
+--- a/src/seq/lane-mapping.ts
++++ b/src/seq/lane-mapping.ts
+@@ -58,3 +58,8 @@
+ export function isMixTarget(targetParam: string): boolean {
+     return targetParam.startsWith(MIX_TARGET + ':');
+ }
++
++/** Only component parameters have host knob mappings and metadata caches. */
++export function isChainTarget(targetParam: string): boolean {
++    return !isMixTarget(targetParam) && !targetParam.startsWith('generator:');
++}
