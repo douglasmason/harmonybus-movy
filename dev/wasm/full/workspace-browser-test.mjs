@@ -41,6 +41,9 @@ try{
  page=await browser.newPage({viewport:{width:1024,height:768}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await page.goto(origin+'/joint/?view=field');await page.waitForURL('**/move/?view=field');
  await page.waitForFunction(()=>!document.querySelector('#engine').disabled);
+ await page.waitForFunction(expected=>document.querySelector('#move-address').value===expected,origin);
+ assert.equal(connections,0);assert.equal(commands.length,0,'autofill never contacts Move');
+ assert.equal(await page.locator('#engine').inputValue(),'browser');
  await page.locator('[data-workspace=field] #status').filter({hasText:'Connected'}).waitFor();
  await page.locator('#workspace-options summary').click();
  for(const name of ['choices','song','lights'])await page.locator(`[data-show-component=${name}]`).check();
@@ -103,7 +106,7 @@ try{
  assert(!(await page.locator('[data-workspace=field] .component-content').isVisible()));
  assert(await page.getByRole('button',{name:'Pad 1',exact:true}).isDisabled());
  const stopped=await page.evaluate(()=>__wasmStats());await page.waitForTimeout(300);assert.equal((await page.evaluate(()=>__wasmStats())).blocksProcessed,stopped.blocksProcessed);
- await page.locator('#move-address').fill(origin);
+ assert.equal(await page.locator('#move-address').inputValue(),origin,'companion endpoint is ready without typing');
  await page.locator('#move-check').click();await page.locator('#move-capabilities').filter({hasText:'Persistence-safe subscription is not advertised'}).waitFor();
  assert.equal(connections,0);assert.equal(commands.length,0,'metadata check never opens an unsafe subscription');
  assert(await page.getByRole('button',{name:'Pad 1',exact:true}).isDisabled());

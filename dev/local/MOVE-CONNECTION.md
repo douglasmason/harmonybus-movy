@@ -212,3 +212,13 @@ rich semantic controls and device audio are not available through this adapter.
 A missing metadata endpoint does not prevent the separate screen mirror.
 Changing address or switching engines discards a pending report. HTTPS pages
 reject insecure endpoints before requesting metadata, just as for the mirror.
+
+### Companion address setup
+
+The same workspace checks only its own server's `/api/movy-companion` identity.
+A valid response fills an untouched, empty address field with the page's origin.
+It does not scan the network, request Move metadata, open a stream, choose an
+engine or send commands. The hosted static trial has no companion identity and
+keeps manual endpoint entry. Manual edits and an active connection take priority;
+page exit cancels discovery. The identity response contains no pairing key or
+upstream device address, and retains the companion's Host/Origin checks.

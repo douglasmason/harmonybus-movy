@@ -1,4 +1,4 @@
-import {checkDeviceCapabilities} from './move-device.mjs';
+import {checkDeviceCapabilities,discoverPageCompanion} from './move-device.mjs';
 import {openBrowserConnection} from '/wasm/full/joint-transport.mjs';
 import {controls,mountMoveSurface} from './build/move-surface.mjs';
 import {mountMoveInput} from './move-input.mjs';
@@ -54,7 +54,14 @@ try{
   if(sessionUI?.isBusy()){engineSelector.value=connection.engine;return;}
   errorBox.textContent='';await connection.select(engineSelector.value);
  };
- address.addEventListener('input',cancelCheck);
+ let addressEdited=false;
+ address.addEventListener('input',()=>{addressEdited=true;cancelCheck();});
+ const discovery=new AbortController(),discoveryTimeout=setTimeout(()=>discovery.abort(),3000);
+ discoverPageCompanion(location.href,{signal:discovery.signal}).then(endpoint=>{
+  if(!endpoint||discovery.signal.aborted||addressEdited||address.value||connection.engine==='move'&&address.disabled)return;
+  address.value=endpoint;
+  document.querySelector('#move-endpoint-hint').textContent='This local companion address is ready. Choose Connect explicitly; Move has not been contacted.';
+ }).finally(()=>clearTimeout(discoveryTimeout));
  check.onclick=async()=>{
   cancelCheck();const request=new AbortController();capabilityRequest=request;check.disabled=true;capabilityStatus.textContent='Checking installed module metadata…';
   const timeout=setTimeout(()=>request.abort(),6000);
@@ -66,7 +73,7 @@ try{
  connect.onclick=()=>{const key=transportEnabled.checked?pairingKey.value.trim():undefined;pairingKey.value='';if(transportEnabled.checked&&!/^[a-f0-9]{64}$/.test(key)){controlState(false,'Enter the 64-character pairing key printed by the companion.');return;}connection.connect(address.value,{pairingKey:key,onControlState:controlState});};
  for(const button of transportButtons)button.onclick=()=>{if(!connection.transport(button.dataset.moveTransport))transportStatus.textContent='Request not sent · transport unavailable or busy';};
  disconnect.onclick=()=>connection.disconnect();
- window.addEventListener('pagehide',()=>{cancelCheck();connection.disconnect();});
+ window.addEventListener('pagehide',()=>{discovery.abort();cancelCheck();connection.disconnect();});
  document.addEventListener('visibilitychange',()=>{if(document.hidden&&connection.engine==='move')connection.disconnect();});
  playMode.onchange=()=>{
   if(currentMode===null)return;

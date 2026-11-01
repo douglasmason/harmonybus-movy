@@ -13,8 +13,8 @@ compiler, npm install, or software installation on Move is needed.
 
    Replace the example computer address. If Move's name does not resolve, use
    its actual IP in `--move`. Change `--port 7703` if that port is occupied.
-5. Open the printed **local** URL on your iPad. Select **Engine → Move**, enter
-   the printed companion address, then **Connect**. Same Wi-Fi alone does not
+5. Open the printed **local** URL on your iPad. Select **Engine → Move**, confirm
+   the automatically filled companion address, then **Connect**. Same Wi-Fi alone does not
    connect. Stop with Ctrl+C; reconnect explicitly after restarting.
 
 With no arguments, `node start.mjs` binds only 127.0.0.1 for this computer.
