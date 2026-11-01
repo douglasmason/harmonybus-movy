@@ -39,6 +39,10 @@ const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disab
 let page;
 try{
  page=await browser.newPage({viewport:{width:1024,height:768}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
+ await page.addInitScript(()=>{
+  const NativeWorker=window.Worker;
+  window.Worker=class extends NativeWorker{constructor(...args){super(...args);window.testEngineWorker=this;}};
+ });
  await page.goto(origin+'/joint/?view=field');await page.waitForURL('**/move/?view=field');
  await page.waitForFunction(()=>!document.querySelector('#engine').disabled);
  await page.waitForFunction(expected=>document.querySelector('#move-address').value===expected,origin);
@@ -174,5 +178,20 @@ try{
  assert.equal(await page.locator('[data-workspace]').evaluateAll(nodes=>nodes.map(node=>node.dataset.workspace).indexOf('field')),1);
  for(const width of [390,768,1440]){await page.setViewportSize({width,height:850});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));}
  assert.deepEqual(errors,[]);console.log('Unified workspace: shared color wheel, contrast, persistence, enlarged theme, shared edits, composition, Song, persistence, live mirror, persistence capability refusal, authenticated future-capability fixture transport, real DSP record/replay, loss, reconnect and engine ownership pass');
+ // Exercise the real Worker error -> transport close -> shared owner path.
+ await page.evaluate(()=>window.testEngineWorker.dispatchEvent(new ErrorEvent('error',{message:'Fixture Worker failure'})));
+ await page.waitForFunction(()=>document.querySelector('#engine-status').dataset.state==='error');
+ for(const name of ['field','choices','song','lights']){
+  assert(!(await page.locator(`[data-workspace=${name}] .component-content`).isVisible()));
+  assert.match(await page.locator(`[data-workspace=${name}] .component-limit`).textContent(),/Browser engine offline/);
+ }
+ assert(await page.getByRole('button',{name:'Pad 1',exact:true}).isDisabled());
+ assert(await page.locator('#audio').isDisabled());assert(await page.locator('#stop').isDisabled());
+ const connectionsAtFailure=connections;
+ await page.locator('#engine').selectOption('move');
+ assert.equal(await page.locator('#engine').inputValue(),'browser');
+ assert.equal(await page.locator('#engine-status').getAttribute('data-state'),'error');
+ assert.equal(connections,connectionsAtFailure,'engine failure never automatically contacts Move');
+ assert.deepEqual(errors,[]);console.log('Worker failure clears shared editors and disables dispatch until reload');
 }catch(error){if(page)console.error(await page.locator('#error').textContent(),await page.locator('#engine-status').textContent());throw error;}
 finally{await browser.close();for(const socket of moveWS.clients)socket.terminate();moveWS.close();physicalFixture.dispose();for(const client of clients)client.destroy();site.closeAllConnections();move.closeAllConnections();await Promise.all([new Promise(resolve=>site.close(resolve)),new Promise(resolve=>move.close(resolve))]);}

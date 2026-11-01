@@ -138,3 +138,12 @@ latched commit is introduced. Engine switches still cancel the old owner before
 suspending it. The browser regression holds a real Field override, invokes the
 global Escape path, checks that recomposition unlocks and no production latch is created, waits past lease
 renewal, and verifies that a late key-up cannot latch the cancelled edit.
+
+Worker failure is terminal for the current connection owner. It invalidates
+commands and observations, cancels component timers, blanks the display and
+disables controls. A late activation reply cannot revive the session, and engine
+selection cannot silently start a replacement or connect to Move. Reload is
+explicit; only previously saved session data is recoverable. A connected device
+mirror is closed without sending a stop command to the physical instrument.
+Owner tests cover loss during activation; the packaged browser regression injects
+a Worker error through the real transport callback and checks every editor.
