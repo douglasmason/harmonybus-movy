@@ -130,6 +130,12 @@ def patch_native(root: Path) -> None:
         crate::hb_queue_read::read(|key, buffer| instance.hb_get_small(key, buffer))
     }
 
+    /// Keep the per-block expiry check allocation-free as well as queue reads.
+    pub fn hb_chord_active(&mut self, slot: usize) -> Option<bool> {
+        let instance = self.slots.get_mut(slot)?.as_mut()?;
+        crate::hb_queue_read::selection_active(|key, buffer| instance.hb_get_small(key, buffer))
+    }
+
     pub fn get_param(&mut self, slot: usize, key: &str) -> Option<String> {''')
     path.write_text(source)
     (root / 'engine/crates/seq-core/src/chord_record.rs').write_text((assets / 'chord-record.rs').read_text())
@@ -233,7 +239,7 @@ pub fn parse(message:''')
         // HB expires the live override at the next recorded harmony boundary.
         // Close only its recording gate; the native player already owns note-offs.
         if let Some((track,pitch))=self.chord_note {
-            if self.chains.get_param(track,"midi_fx1:hb_chord_active").as_deref()==Some("0") {
+            if self.chains.hb_chord_active(track)==Some(false) {
                 self.chord_note=None;self.engine.live_note_off(track,pitch);
             }
         }''')

@@ -97,7 +97,7 @@ index a6abf7d7..034c6014 100644
          // Close only its recording gate; the native player already owns note-offs.
 -        if let Some((track,pitch))=self.chord_note {
 +        if let Some((track,pitch,derive))=self.chord_note {
-             if self.chains.get_param(track,"midi_fx1:hb_chord_active").as_deref()==Some("0") {
+             if self.chains.hb_chord_active(track)==Some(false) {
                  self.chord_note=None;self.engine.live_note_off(track,pitch);
 +                if derive {self.joint_follow(surface_route::Event{track,pitch,status:0x80,value:0,approach:None,full_velocity:false},false);}
              }
