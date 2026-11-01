@@ -1,4 +1,4 @@
-name: Launchpad Mini MK3 verification and release
+name: Queue footer verification and release
 on:
   push:
     branches: [main]
@@ -94,6 +94,7 @@ on:
       - docs/automation-recovery.md
       - docs/automation-mapping.md
       - docs/launchpad-mini-mk3.md
+      - docs/surface-cancellation.md
       - docs/parameter-automation-contract.md
       - scripts/check_release_base.py
       - scripts/test_release_base.py
@@ -223,6 +224,7 @@ on:
       - docs/automation-recovery.md
       - docs/automation-mapping.md
       - docs/launchpad-mini-mk3.md
+      - docs/surface-cancellation.md
       - docs/parameter-automation-contract.md
       - scripts/check_release_base.py
       - scripts/test_release_base.py
