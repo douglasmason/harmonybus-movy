@@ -176,7 +176,7 @@ export function setChordEnabled(value:boolean):void{
     if(enabled===value)return;
     // Controller visibility does not imply Harmony Off. A live conductor queue
     // remains audible when its UI is hidden or track focus moves.
-    const continuing=!value&&chordQueueOwned();
+    const continuing=!value&&(setup.playMode===1||chordQueueOwned());
     releaseChordTouches();resetBank();resetKnobLedCache();
     if(!value&&bankKnobs){for(let knob=0;knob<8;knob++){cachedSetAnimLED(knob,0,0,0);cachedSetAnimLED(71+knob,0,0,0,true);}bankKnobs=false;}
     if(!value&&!continuing)send('chord_select','off');
@@ -270,7 +270,7 @@ export function chordPanelPort(track:number):TrackPort{
             releaseChordTouches();
             // A track assignment is not a new performance. The native
             // single-owner queue changes conductor on the first new chord.
-            if(!chordQueueOwned())send('chord_select','off');
+            if(setup.playMode!==1&&!chordQueueOwned())send('chord_select','off');
             activeSlot=-1;
             if(bare==='cp_melody')selectTrack(selected);else setup[bare==='cp_comp'?'comp':bare==='cp_bass_track'?'bass':'conductor']=selected;
             page=null;route='';
