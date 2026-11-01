@@ -176,7 +176,10 @@ pub fn parse(message:''')
     fn input_event(&mut self, event: surface_route::Event, derive:bool) {''')
     source = replace_once(source, '        self.joint_follow(event,false);', '        if derive {self.joint_follow(event,false);}')
     source = replace_once(source, '    fn set_param(&mut self, key: &str, val: &str) {', '''    fn set_param(&mut self, key: &str, val: &str) {
-        if key=="cmd" && val.split(';').any(|command|matches!(command.split_whitespace().next(),Some("stop"|"reset"))){self.clear_chord_queue();self.release_chord_selection();}''')
+        if key=="cmd" {
+            if val.split(';').any(|command|command.split_whitespace().next()==Some("reset")){self.clear_chord_queue();}
+            if val.split(';').any(|command|matches!(command.split_whitespace().next(),Some("stop"|"reset"))){self.release_chord_selection();}
+        }''')
     source = replace_once(source, '            "joint_links" => {', '''            "chord_queue" => {
                 if val=="off" {self.clear_chord_queue();}
                 else if matches!(val,"commit"|"end") {if let Some(track)=self.chord_queue {self.chains.set_param(track,"midi_fx1:hb_chord_queue",val);self.tick_chord_queue();}}

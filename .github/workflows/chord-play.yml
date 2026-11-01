@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 name: Visible controls verification and release
+=======
+name: Queued Chord Play verification and release
+>>>>>>> origin/queue-diagnostics-196
 on:
   push:
     branches: [main]
@@ -357,7 +361,11 @@ jobs:
           if metadata['version'] != '0.34.1-hbclean.294':
               raise SystemExit('Expected Movy 294 before visible controls release; installer unchanged')
           PY
+<<<<<<< HEAD
           gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — live settings and balanced lowercase" --notes-file docs/visible-controls.md
+=======
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — queued playback overhead and pause/resume" --notes-file docs/queue-diagnostics.md
+>>>>>>> origin/queue-diagnostics-196
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
