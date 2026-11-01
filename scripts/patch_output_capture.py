@@ -83,3 +83,15 @@ def patch_output_capture(root: Path) -> None:
     path = root / 'engine/crates/movy-dsp/src/audio_profile.rs'
     source = path.read_text().replace('    pub fn start_idle_capture', '    pub fn start_output_capture(&mut self) { self.start(); self.capture_limit_ns=15_000_000_000; }\n    pub fn start_idle_capture')
     path.write_text(source)
+
+
+def patch_queue_report_access(root: Path) -> None:
+    """Expose the queue/audio report after the shared router ownership patches."""
+    path: Path = root / 'src/midi/router.ts'
+    source: str = path.read_text()
+    source = replace_once(source, 'import { cpuPageActive, toggleCpuDetail }',
+                          'import { cpuPageActive, toggleCpuDetail, cpuDetail }')
+    source = replace_once(source,
+                          'clickPreviewTest(Date.now(), appState.shiftHeld, false, false, false, !appState.shiftHeld)',
+                          'clickPreviewTest(Date.now(), appState.shiftHeld, false, false, false, !appState.shiftHeld && cpuDetail.page !== 1)')
+    path.write_text(source)
