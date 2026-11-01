@@ -56,7 +56,7 @@ assert.equal(scale.scaleFindingColors()[fifthPad],11,'chosen pad is play-green')
 assert.equal(scale.scaleFindingColors()[24],120,'the other reference-tonic column pad is white');
 assert(scale.scaleFindingMidi([144,6,127]),'K7 touch arms selection');
 assert.equal(scale.scaleFindingSnapshot().armed,true);
-seqHandleMidi([144,24+68-24+4,100]); // MIDI pad note 68+28
+seqHandleMidi([144,68+fifthPad,100]); // top row, fifth pad
 assert.deepEqual(writes.slice(-3),[
     [0,'midi_fx1:key_center_tonic','G'],
     [0,'midi_fx1:key_center_explicit_scale','Mixolydian'],
