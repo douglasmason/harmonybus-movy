@@ -1,4 +1,4 @@
-name: Queue diagnostic capture verification and release
+name: Queued Chord Play verification and release
 on:
   push:
     branches: [main]
@@ -355,7 +355,7 @@ jobs:
           if metadata['version'] != '0.34.1-hbclean.293':
               raise SystemExit('Expected Movy 293 before queue diagnostic release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — queue timing diagnostic captures" --notes-file docs/queue-diagnostics.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — queued playback overhead and pause/resume" --notes-file docs/queue-diagnostics.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)

@@ -1,5 +1,15 @@
 # Movy 0.34.1-hbclean.294
 
+Loop mode now retains the chord list across pause. Playback stops silently;
+Play restarts that same list at chord one, with its loop membership and cursor
+available to the display and knob LEDs. Explicit No Harmony and Reset clear it.
+Hold mode retains its existing clear-on-stop behavior.
+
+Repeated selection reads now reuse fixed-size, thread-local chord interpretation
+instead of rerunning inference. Transpose, inherited register and spelling stay
+live. A desktop decode microbenchmark improved from about 825 to 77 ns/read;
+this does not establish that every physical-device crackle is resolved.
+
 The Audio detail page can now save the existing 35-second audio check together
 with before/after Chord Play queue evidence. This is diagnostic evidence for
 intermittent missed changes and crackles, not a confirmed hardware fix.
