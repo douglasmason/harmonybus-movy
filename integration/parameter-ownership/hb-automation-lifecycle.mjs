@@ -58,7 +58,8 @@ assert.deepEqual(remapped,[[lastTrack,2,'synth:cutoff'],[lastTrack,3,'synth:reso
 let repairedReads=0;
 drain(()=>repairedReads++);
 assert.equal(repairedReads,12,'repair must arm the same bounded recovery');
-for(let track=0;track<TRACK_COUNT;track++)verifyLaneMappings(()=> 'synth: cutoff',()=>assert.fail('intact mapping'));
+for(let track=0;track<TRACK_COUNT;track++)verifyLaneMappings(
+    (owner,lane)=>automationRegistry()[owner][lane].targetParam.replace(':',': '),()=>assert.fail('intact mapping'));
 drain(()=>assert.fail('intact mappings must not keep warming'));
 
 // Set restore warms newly restored chain targets, including the final bank.
@@ -95,4 +96,78 @@ assignLane(lastTrack,lastTrack,descriptor(),()=>true);
 resetAutomation();
 for(const track of [-1,TRACK_COUNT,NaN,0.5])requestLaneWarm(track);
 drain(()=>assert.fail('reset/invalid requests must not read'));
+
+// The host reports exactly "target: param". Substrings identify a different
+// parameter or component, even when both expected words appear in the name.
+for(const [target,key,reported] of [
+    ['fx1','gain','fx1: gain_db'],
+    ['fx1','gain','midi_fx1: gain'],
+    ['synth','p01_gain','synth: p01_gain_db'],
+    ['synth','gain','synth: other_gain'],
+]){
+    reset();assignLane(lastTrack,lastTrack,descriptor(target,key),()=>true);
+    const repaired=[];let probes=0;
+    for(let sweep=0;sweep<TRACK_COUNT;sweep++)verifyLaneMappings(
+        ()=>{probes++;return reported;},(owner,lane,param)=>repaired.push([owner,lane,param]));
+    assert.equal(probes,1,'one name read per visited track');
+    assert.deepEqual(repaired,[[lastTrack,0,target+':'+key]],'reject wrong identity '+reported);
+}
+for(const reported of ['synth: cutoff','synth:cutoff','  synth :  cutoff  ']){
+    reset();assignLane(lastTrack,lastTrack,descriptor(),()=>true);
+    for(let sweep=0;sweep<TRACK_COUNT;sweep++)verifyLaneMappings(
+        ()=>reported,()=>assert.fail('spacing must not cause repair: '+reported));
+}
+
+// An intact first mapping must not conceal a broken later mapping forever.
+// Full banks include holes and virtual lanes; each eligible lane gets visited.
+reset();
+for(let track=0;track<TRACK_COUNT;track++){
+    assignLane(track,track,descriptor('mix','send1'),()=>true);
+    assignLane(track,track,descriptor('generator','density'),()=>true);
+    assignLane(track,track,descriptor(),()=>true);
+    assignLane(track,track,descriptor('fx1','mix'),()=>true);
+    assignLane(track,track,descriptor('midi_fx1','root'),()=>true);
+    clearLane(track,3,false);
+}
+const visited=new Map(),repairs=[];
+let laterMappingBroken=true;
+for(let call=0;call<TRACK_COUNT*2;call++){
+    let probes=0;
+    verifyLaneMappings((track,lane)=>{
+        probes++;
+        const lanes=visited.get(track)??[];lanes.push(lane);visited.set(track,lanes);
+        assert([2,4].includes(lane),'skip holes and virtual lanes');
+        if(track===lastTrack&&lane===4&&laterMappingBroken)return null;
+        return automationRegistry()[track][lane].targetParam.replace(':',': ');
+    },(track,lane,param)=>{repairs.push([track,lane,param]);laterMappingBroken=false;});
+    assert.equal(probes,1,'at most one host read per verification call');
+}
+for(let track=0;track<TRACK_COUNT;track++)assert.deepEqual(visited.get(track),[2,4]);
+assert.deepEqual(repairs,[[lastTrack,2,'synth:cutoff'],[lastTrack,4,'midi_fx1:root']]);
+drain(()=>{});
+for(let call=0;call<TRACK_COUNT*2;call++)verifyLaneMappings(
+    (track,lane)=>automationRegistry()[track][lane].targetParam.replace(':',': '),
+    ()=>assert.fail('repaired lanes must remain stable'));
+drain(()=>assert.fail('stable mappings do not restart cache recovery'));
+reset();
+for(let track=0;track<TRACK_COUNT;track++)for(let lane=0;lane<8;lane++)
+    assignLane(track,track,descriptor('synth','parameter'+lane),()=>true);
+const fullBankVisits=Array.from({length:TRACK_COUNT},()=>[]);
+for(let call=0;call<TRACK_COUNT*8;call++){
+    let probes=0;
+    verifyLaneMappings((track,lane)=>{
+        probes++;fullBankVisits[track].push(lane);
+        return 'synth: parameter'+lane;
+    },()=>assert.fail('full bank mappings are intact'));
+    assert.equal(probes,1);
+}
+for(const lanes of fullBankVisits)assert.deepEqual(lanes,[0,1,2,3,4,5,6,7],
+    'a full bank is covered in eight visits without increasing read budget');
+// Reset the traversal as well as lanes, so a new Set starts at its own first lane.
+verifyLaneMappings(()=>null,()=>{});
+reset();assignLane(0,0,descriptor(),()=>true);
+const resetProbe=[];
+verifyLaneMappings((track,lane)=>{resetProbe.push([track,lane]);return 'synth: cutoff';},()=>assert.fail('reset mapping'));
+assert.deepEqual(resetProbe,[[0,0]]);
+console.log('Automation mapping: exact identities, spacing, all tracks/lanes, holes, virtual controls, stable repair and reset pass within one host read per call');
 console.log('Automation recovery: all 16 tracks, bounded reads, component deduplication, restore/remap, virtual-lane isolation and idle/reset cancellation pass');
