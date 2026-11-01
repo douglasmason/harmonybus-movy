@@ -17,14 +17,14 @@ test('direct play-mode choices retain device Back history, playback and saved pe
  const choose=async mode=>{await send({type:'move_mode',previous:frame.mode,mode});await until(()=>frame.mode===mode);};
  try{
   await send({type:'subscribe_tool'});await until(()=>frame?.ready);
-  assert.deepEqual(frame.modes,['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings']);
+  assert.deepEqual(frame.modes,['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings','Scale Finding']);
   const clips=service.read('state');
-  for(const mode of [6,7,0,2,4,5,3,1]){
+  for(const mode of [6,7,0,2,4,5,3,8,1]){
    const previous=frame.mode;await choose(mode);
    assert.equal(service.read('state'),clips,'view selection must not edit clips');
-   await send({type:'move_mode',previous,mode:(mode+1)%8});assert.equal(frame.mode,mode,'stale selection cannot override current mode');
+   await send({type:'move_mode',previous,mode:(mode+1)%9});assert.equal(frame.mode,mode,'stale selection cannot override current mode');
   }
-  for(const mode of [-1,8,1.5,'3',null]){await send({type:'move_mode',previous:1,mode});assert.equal(frame.mode,1,'invalid choice ignored');}
+  for(const mode of [-1,9,1.5,'3',null]){await send({type:'move_mode',previous:1,mode});assert.equal(frame.mode,1,'invalid choice ignored');}
   for(const data of [[144,68,100],[144,0,127],[176,49,127]]){
    await midi(data);await send({type:'move_mode',previous:1,mode:5});assert.equal(frame.mode,1,'held pad, touch or modifier owns input');
    await midi([data[0],data[1],0]);
