@@ -52,8 +52,10 @@ assert.equal(commands.filter(([key])=>key==='chord_select'||key==='chord_queue')
 assert.deepEqual(chord.chordSnapshot(),saved,'audition never changes the saved bank');
 chord.chordMidi([144,25,100]);chord.chordMidi([128,25,0]);assert.deepEqual(chord.chordSnapshot(),saved,'first Save only arms review');
 chord.chordMidi([144,25,100]);chord.chordMidi([128,25,0]);assert.notDeepEqual(chord.chordSnapshot().slots[0],saved.slots[0]);
-chord.chordMidi([144,24,100]);chord.chordMidi([128,24,0]);assert(commands.some(([key,value])=>key==='chord_select'&&value!=='off'));
 const controls=chord.chordPanelPort(0);controls.getParam('midi_fx1:chain_params');
+assert(controls.setParam('midi_fx1:cp_play_mode','Immediate'),
+    'discovery commit tests an explicit Immediate entry after the new Queued default');
+chord.chordMidi([144,24,100]);chord.chordMidi([128,24,0]);assert(commands.some(([key,value])=>key==='chord_select'&&value!=='off'));
 assert(controls.setParam('midi_fx1:cp_play_mode','Queued'));owner.setParam('midi_fx1:chord_queue_depth','Touch Phrase');
 const queuedBefore=commands.length;chord.chordMidi([144,24,100]);chord.chordMidi([128,24,0]);
 const queued=commands.slice(queuedBefore).filter(([key])=>key==='chord_queue');
