@@ -93,6 +93,10 @@ def patch_settings_case(root: Path) -> None:
     # Install one pixel-native large-font implementation for both the shared
     # settings renderer and Movy's custom chord widgets.
     shutil.copy2(assets / 'hb_large_font.mjs', pages / 'hb_large_font.mjs')
+    (pages / 'font5x3.d.mts').write_text(
+        """export function fontWidth5x3(text: string): number;
+export function fontPrint5x3(ctx: {fillRect(x: number, y: number, width: number, height: number, color: number): void}, x: number, y: number, text: string, color?: number): void;
+""")
     (pages / 'hb_large_font.d.mts').write_text(
         "export type NativeFace = 'upper' | 'regular' | 'smooth';\n"
         "export const NATIVE_FONT_HEIGHT: number;\n"
