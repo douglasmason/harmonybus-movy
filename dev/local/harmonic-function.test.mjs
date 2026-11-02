@@ -10,7 +10,10 @@ const chord=notes=>analyzeHarmonicFunction(signal(notes),major);
 
 test('requires a valid explicit seven-note tonic hypothesis',()=>{
  assert.equal(functionalTemplates(major).length,6);
- assert.equal(functionalTemplates(minor).length,5);
+ assert.equal(functionalTemplates(minor).length,4);
+ assert(!functionalTemplates(minor).some(entry=>entry.degree===7),'natural minor bVII is not an automatic dominant');
+ const harmonicMinor={tonic:9,notes:[9,11,0,2,4,5,8]};
+ assert(functionalTemplates(harmonicMinor).some(entry=>entry.functionName==='D'&&entry.degree===7),'raised leading-tone VII can be dominant');
  assert.equal(functionalTemplates({...major,notes:[0,2]}).length,0);
  assert.equal(functionalTemplates({...major,notes:[2,4,5,7,9,11,0]}).length,0);
  assert.equal(analyzeHarmonicFunction(signal([0,4,7]),null).functionName,'?');
