@@ -80,6 +80,7 @@ export function pianoGapColumn(column: number): boolean {
     path = root / "src/seq/leds.ts"
     source = "import { padPositionActive, canShiftPadPosition } from './pad-position.js';\nimport { clipsSurfaceActive } from './clips-view.js';\n" + path.read_text()
     source = source.replace("import {chordActive,chordPage}", "import {chordPadModalActive}")
+    source = "import {scaleFindingActive} from './scale-finding.js';\nimport {COLUMN_OFFSET_MIN,COLUMN_OFFSET_MAX} from '../keyboard/state.js';\n" + source
     source = replace_once(source, """    if (!settingsActive() && chordActive()) {
         const navigation=chordPage().ctl.hbNavigation;
         cachedSetButtonLED(CC_LEFT,navigation?.canMove(-1)?WHITE_DIM:WHITE_OFF);
@@ -88,6 +89,9 @@ export function pianoGapColumn(column: number): boolean {
         cachedSetButtonLED(CC_RIGHT,groupArrowColor(1));
     } else if (chordPadModalActive()) {
         cachedSetButtonLED(CC_LEFT,WHITE_OFF);cachedSetButtonLED(CC_RIGHT,WHITE_OFF);
+    } else if (scaleFindingActive()) {
+        cachedSetButtonLED(CC_LEFT,keyboardState.columnOffset>COLUMN_OFFSET_MIN?WHITE_DIM:WHITE_OFF);
+        cachedSetButtonLED(CC_RIGHT,keyboardState.columnOffset<COLUMN_OFFSET_MAX?WHITE_DIM:WHITE_OFF);
     } else if (padPositionActive()) {
         cachedSetButtonLED(CC_LEFT,canShiftPadPosition(-1)?WHITE_DIM:WHITE_OFF);
         cachedSetButtonLED(CC_RIGHT,canShiftPadPosition(1)?WHITE_DIM:WHITE_OFF);""")
