@@ -34,7 +34,8 @@ assert(!commands.some(([key,value])=>key==='chord_select'&&value!=='off'&&value!
 assert.equal(chord.chordSnapshot().playMode,1);
 const saved=chord.chordSnapshot();chord.restoreChord(saved);assert.equal(chord.chordSnapshot().playMode,1);
 chord.setChordEnabled(true);
-commands.length=0; // Snapshot creation/mode restoration may include earlier explicit Off.
+// Flush old restoration commands before attributing writes to this mode change.
+seqCmdFlush();commands.length=0;
 assert(port.setParam('midi_fx1:cp_play_mode','Immediate'));
 assert(!commands.some(([key,value])=>key==='chord_queue'&&value==='off'),
     'switching to Immediate preserves the stored progression: '+JSON.stringify(commands));
