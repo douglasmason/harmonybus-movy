@@ -54,9 +54,9 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
         'Jog: settings/routing']},
     6:{name:'Chord Play',lines:[
         'X: cancel chord queue',
-        'Loop: Queued / Immediate',
-        'Mute: queue active/off',
-        'K8: range / Off']},
+        'Sample: Immediate / Queued',
+        'Loop: repeat / hold',
+        'Mute: queue active/off']},
     8:{name:'Scale Finding',lines:[
         'Sample: tap latch, hold listen',
         'K5: layout K6: window',
