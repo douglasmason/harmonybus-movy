@@ -50,10 +50,9 @@ pub fn audio_input_block(frames: usize) -> Option<&'static [i16]> {
         if key == "mic_listen" {
             self.mic.set_listening(val == "1"); return;
         }"""),
-        ("    fn render(&mut self, out_audio: &mut [i16]) {\n        self.blocks += 1;",
+        ("    fn render(&mut self, out_audio: &mut [i16]) {",
          """    fn render(&mut self, out_audio: &mut [i16]) {
-        self.mic.capture(out_audio.len()/2);
-        self.blocks += 1;"""),
+        self.mic.capture(out_audio.len()/2);"""),
     ):
         dsp_source = replace_once(dsp_source, old, new)
     # The status block is further modified by earlier patches, so match its
