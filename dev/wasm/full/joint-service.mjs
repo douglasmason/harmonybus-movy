@@ -109,6 +109,10 @@ export async function createJointService(raw,emit,build=null,createSurface=null)
     }else if(message.type==='move_mode'){
      if(!surface)throw new Error('Move surface is unavailable');
      surface.selectMode(message.previous,message.mode);
+    }else if(message.type==='move_scale_mic'){
+     if(!surface)throw new Error('Move surface is unavailable');
+     if(typeof message.action!=='string'||message.action.length>24)throw new Error('Invalid scale action');
+     surface.scaleMic(message.action,message.value);
     }else if(message.type==='move_comp_source'){
      if(!surface)throw new Error('Move surface is unavailable');
      surface.setCompSource(message.group,message.source);
