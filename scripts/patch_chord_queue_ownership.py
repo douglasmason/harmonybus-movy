@@ -58,6 +58,18 @@ def patch_chord_queue_ownership(root: Path) -> None:
         "export function harmonyOff():void{",
         """export function harmonyOff():void{
     buttonQueuePresent=false;buttonQueueOverride=false;buttonQueueLoop=true;""")
+    source = replace_once(source,
+        "    const current=chordPage();if(!contextVisible(current))return null;",
+        """    const current=chordPage();
+    // The native stored progression is musical context, never a transient
+    // hint. It stays on the footer through knob touch and page navigation.
+    if(buttonQueuePresent){
+        const status=performanceStatus('queue_count');
+        return queueFooterText(performanceStatus('queue_next'),
+            buttonQueueOverride?status:'Muted '+status,
+            performanceStatus('queue_snapshot'));
+    }
+    if(!contextVisible(current))return null;""")
     # Apply after Joint's composed step and knob painter, not to the base
     # render assets. Only chord slots pulse white; clip/motif launch controls
     # retain their own separate feedback.
