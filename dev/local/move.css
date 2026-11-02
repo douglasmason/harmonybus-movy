@@ -111,6 +111,15 @@ body.display-expanded{overflow:hidden}
 .finder-chroma{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:3px;margin:12px 0;max-width:900px}
 .finder-chroma>div{text-align:center;font-size:11px}
 .finder-chroma meter{width:100%;height:12px;display:block}
+/* Match physical Move's five RGB intensity steps: black track; per-note
+ * dark yellow / dim yellow / burnt orange / orange / brightest red fill.
+ * Browser meters do not own the tonic/require indicators on the pad grid. */
+.finder-chroma meter::-webkit-meter-bar{background:#000;border:1px solid #393939;border-radius:3px}
+.finder-chroma meter::-webkit-meter-optimum-value,
+.finder-chroma meter::-webkit-meter-suboptimum-value,
+.finder-chroma meter::-webkit-meter-even-less-good-value{background:var(--pitch-heat-color,#000)}
+.finder-chroma meter::-moz-meter-bar{background:var(--pitch-heat-color,#000)}
+
 .finder-candidates{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
 .finder-candidates button{min-width:100px}
 .finder-function-current{font-weight:600;padding:10px 8px;border-left:3px solid var(--ui-focus,#aaa);margin:8px 0}
