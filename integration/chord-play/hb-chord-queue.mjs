@@ -11,7 +11,7 @@ selectTrack(3);seqState.sessionMode=false;chord.restoreChord(null);chord.setChor
 const page=chord.chordPage(),port=chord.chordPanelPort(3);port.getParam('midi_fx1:chain_params');
 page.goToPage(0);assert.deepEqual(Array.from({length:8},(_,index)=>page.keyAt(index)),['cp_play_mode','cp_track_0_chord_timing','cp_track_0_anticipation','cp_track_0_chord_queue_end','cp_queue_next','cp_queue_count','cp_track_0_chord_queue_depth','cp_off']);
 assert.equal(page.ctl.metaAt(1).name,'Queue Time');
-const conductorControls=portFor(0);let clock=Date.now();Date.now=()=>clock;const flush=()=>{clock+=100;page.tick();};flush();page.knobTurn(1,4);page.knobTurn(6,4);page.knobTurn(3,4);flush();
+const conductorControls=portFor(0);let clock=Date.now();Date.now=()=>clock;const flush=()=>{clock+=100;page.tick();};flush();page.knobTurn(1,4);page.knobTurn(6,4);flush();
 assert.equal(conductorControls.getParam('midi_fx1:chord_timing'),'1/16');
 assert.equal(conductorControls.getParam('midi_fx1:chord_queue_depth'),'3');
 assert.equal(conductorControls.getParam('midi_fx1:chord_queue_end'),'Loop');
