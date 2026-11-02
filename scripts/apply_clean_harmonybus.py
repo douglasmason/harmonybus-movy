@@ -705,6 +705,8 @@ def main() -> int:
     patch_session_loop(root)
     from patch_external_mode_actions import patch_external_mode_actions
     patch_external_mode_actions(root)
+    from patch_chord_queue_ownership import patch_chord_queue_ownership
+    patch_chord_queue_ownership(root)
     print("HarmonyBus clean integration applied")
     return 0
 
