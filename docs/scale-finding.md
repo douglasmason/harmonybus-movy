@@ -1,72 +1,86 @@
-# Scale Finding (manual first increment)
+# Scale Finding: families, piano evidence, and microphone-assisted matching
 
-Scale Finding is a separate Session view after HB Settings. Unlike Chord Play,
-the 4×8 pad grid is a **silent** modal selection tool; no pad produces an instrument
-MIDI note or clip event.
+Scale Finding is the silent Session view after HB Settings. The 4×8 pad
+surface never emits instrument notes or records clip data. Copy commits the
+**tonic AND the scale** together by calling conductor track 1's existing
+HarmonyBus `key_center_tonic`, `key_center_explicit_scale`, and
+`key_center_apply=Apply` operations. It never changes follower input scale.
+X clears only transient preview and listening evidence, not the committed key.
 
-## Pad geometry and colors
+## Layouts and controllers
 
-- Top row: Major. Then Aeolian (Natural Minor), Melodic Minor, Harmonic Minor.
-- Knobs 1–4 choose independent seven-note families for their corresponding rows.
-  Each row rotates the selected collection through its seven degrees; pad 8
-  repeats the tonic one octave above. This reuses the generated HarmonyBus
-  scale catalog, not a second musical vocabulary.
-- Knob 8 changes the **reference tonic**, independently of the active track.
-- The reference tonic column is **always white**, using existing physical pad
-  positioning, not the selected track's color. It does not time out like the
-  existing 1.2-second normal-play position cue.
-- The last selected pad is **play green** (Move palette 11), even before
-  committing, overriding its white cell. Its column in the other three rows
-  retains white when it denotes the reference tonic.
-- Knob 7 arms one-shot selection. The next pad commits the derived effective
-  tonic and mode through HarmonyBus `key_center_tonic`,
-  `key_center_explicit_scale`, and `key_center_apply=Apply`. It does not
-  change `keyboardState.scale` or an individual follower keyboard.
-- The native Key Center resolver determines conductor/follower harmony, travel,
-  and later recorded input projection. The new mode never edits clips or
-  transfers note ownership.
+- **K5:** switch Family → Piano → Inline, keeping evidence when changing layouts.
+- **Family:** four seven-note families and their modes; K1–K4 change families,
+  K8 changes the reference tonic, K7 arms a one-shot pad-to-key commit.
+  The white tonic *column* persists regardless of focused track and the
+  selected pad is play-green. Unmapped native rotations are refused.
+- **Piano:** two pairs of rows laid out like a piano, lower pair for temporary
+  held-note evidence and upper pair for toggled persistent-note evidence.
+  Black-key gaps are inert. Repeated C serves as octave reference.
+- **Inline:** twelve chromatic pitch classes over two rows, repeated in
+  upper/lower live/latch pairs; extra cells are inert.
+- **K7 + pitch pad:** designate that pitch as the tonic for piano/inline.
+  K8 turns the tonic directly. White indicates tonic, green indicates selected
+  note evidence. The manual octave repeat does not infer the tonic.
+- **K6:** set the microphone accumulation window, 0.12–16 seconds.
+- **K7 turn:** choose the next/previous matching scale in Piano/Inline.
+- **Sample:** listen/stop pitch-class collection, without recording or saving audio.
+  The Sample LED is bright while listening, dim when the provider is ready,
+  and dark when microphone input is unavailable. Stopping retains the
+  accumulated chroma for review before choosing a key.
+- **Loop:** reserved for possible evidence replay/looping. It does not toggle
+  microphone collection or enter the old bar Loop Edit view in Scale Finding.
+- **Copy:** apply selected **tonic + scale**. A candidate must be compatible
+  with the selected notes; no background detector can change a key on its own.
+- **X:** clear transient note evidence (and candidate selection). Global
+  Capture, Shift, Undo/Redo, Play, Record are not reassigned.
 
-For example, on the Major row with C as reference, pad 5 selects G Mixolydian
-and applies **G Mixolydian as the shared live Key Center**. This is the same
-semantics as the existing Set Live Key operation and is deliberately not
-equivalent to setting a follower's input scale.
+## Candidate matching
 
-The existing shared scale catalog has a finite set of native modes. If a
-rotation has no exact native counterpart, the UI reports `Unmapped mode`,
-leaves K7 armed, and makes **no partial key change**. This is essential for
-some harmonic-minor rotations, including Phrygian dominant, which need a
-separate native musical-catalog extension rather than a silently wrong
-substitution.
+The ranker uses the checked-in HarmonyBus scale catalog and restricts to
+native-supported scale names, rather than inventing a mode. With tonic
+declared, it scores coverage of selected pitch classes, penalizes extra notes
+and shows compatible matches ahead of approximate ones. If no candidate is
+compatible, Copy refuses the operation. This remains an aid to listening:
+music may modulate, include chromatic approaches or contain non-diatonic
+chord tones, so a selected scale is a hypothesis rather than a certainty.
 
-## Scope
+## Microphone acquisition and privacy
 
-This first increment implements the manual selection surface and the persistent
-LED feedback only. It does **not** capture or analyze Move's microphone.
+**Browser studio** can analyze its local microphone after the user explicitly
+presses Sample or the on-page Start Listening button and grants permission.
+The analyzer uses bounded 8192-point FFT frames on its own analyzer node,
+maps harmonic evidence to twelve pitch-class values, and sends only a
+12-number normalized chroma snapshot to the *local* Movy browser engine
+approximately 11 times/second. Raw microphone samples are not persisted,
+sent to HarmonyBus, or forwarded to an external device/service. The mic
+source is never connected to speaker output.
 
-**Microphone lifecycle contract (for the subsequent input-monitoring increment):**
-Capture, FFT/chroma analysis, and LED strength updates are strictly owned by
-Scale Finding mode. Entering this view alone may enable capture (if the user has
-chosen Auto/On and microphone permission/input routing is available); switching
-to *any* other view, returning to Clips, closing the tool, unmounting the audio
-source, loading/resetting a Set, or disabling the mode must synchronously disable
-the capture and analysis subscriptions, clear stale chroma, and restore regular
-pad feedback. There is no always-on microphone monitor, idle background sampler,
-or polling outside Key Finding. Never use a background mic just because transport
-is stopped. When playing within Key Finding, automatic self-audio gating may
-suspend analysis; it is not permission to listen outside the mode.
+An exponential accumulator is weighted by the K6 aggregation window.
+Five stable palette levels are used to avoid overwhelming Move's LED queue;
+white tonic and manually selected green notes take priority over intensity.
+The window is an aggregation time constant, not a hard-cutoff buffer size.
+A long window helps with sparse melodies but can retain earlier key material.
+The analyzer is not a guaranteed polyphonic chord transcriber: loud harmonics,
+room noise, speaker bleed and percussive transients can create false positives.
 
-A later input-monitoring stage can overlay bounded chroma brightness over the
-same 32-pad projection, subject to realtime/underrun testing. It must not
-overwrite the white reference tonic or green chosen mode.
+The browser immediately disconnects and closes its microphone stream on
+Stop, mode exit, browser engine suspension, tab hiding, page unload or
+disconnect. The production sequencer refuses microphone chroma when it is
+not listening or Scale Finding is inactive. The Sample LED also indicates
+unavailability when no microphone provider exists.
 
-The selection is transient input-mode UI state, not recorded or saved with a
-clip. Existing Session navigation, Back and normal melodic pad ownership are
-restored on exit.
+**On-device limitation:** Schwung's published JavaScript UI API currently
+does not expose a verified, nonblocking microphone audio buffer to Movy's
+UI. The physical Move runs manual Family/Piano/Inline Scale Finding, but
+its microphone listening action remains unavailable until a dedicated
+native audio-input bridge is provided and real-device underrun tests pass.
+No unverified system sampler polling or realtime DSP hook is installed.
 
-## Validation
+## Verification
 
-The UI test checks top-row modal rotation, always-white tonic columns,
-track-independent green selection, no instrumental notes, exact shared-key
-writes to conductor track 1, one-shot arm, release behavior, shifted tonic
-position, and native Move pad-frame delivery. Device microphone and physical
-palette tests remain separate.
+`hb-scale-finding.mjs` validates the silent pad surface, persistent family
+tonic colors, key application, pitch-class evidence, ranked preview,
+aggregation-window EMA, microphone stop retention, clearing, and mode exit.
+Browser and production integration tests must pass before a release is
+published. Device microphone streaming remains explicitly out of scope.
