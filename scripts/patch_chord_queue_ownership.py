@@ -36,6 +36,25 @@ def patch_chord_queue_ownership(root: Path) -> None:
             send('chord_select','leave');
             activeSlot=-1;''')
     source = replace_once(source, "'Hold ':'Fill '", "'Hold ':'Queue '")
+    # Selection preference is not permission to destroy an existing queue.
+    source = replace_once(source,
+        "send('chord_queue','off');setup.playMode=selected;",
+        "setup.playMode=selected;")
+    # A queued progression outlives the Queued/Immediate preference. The LED
+    # reflects actual native override authority, read only at existing 100ms
+    # status refreshes rather than during LED painting.
+    source = replace_once(source,
+        "const queue=setup.playMode?(conductor.getParam('midi_fx1:hb_chord_queue_status')??'').split('|'):[];",
+        "const queue=(conductor.getParam('midi_fx1:hb_chord_queue_status')??'').split('|');")
+    source = replace_once(source,
+        "const queued=queue[0]==='cq1',count=queued?Number(queue[1]):0;",
+        """const queued=queue[0]==='cq1',count=queued?Number(queue[1]):0;
+        buttonQueuePresent=queued;
+        buttonQueueOverride=queued&&conductor.getParam('midi_fx1:hb_chord_queue_override')==='On';""")
+    source = replace_once(source,
+        "export function harmonyOff():void{",
+        """export function harmonyOff():void{
+    buttonQueuePresent=false;buttonQueueOverride=false;""")
     path.write_text(source)
 
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
@@ -52,6 +71,26 @@ def patch_chord_queue_ownership(root: Path) -> None:
                     }
                 }
                 else if val=="off" {self.clear_chord_queue();self.release_chord_selection();}''')
+    # The physical Loop button changes authority, not queue ownership.
+    # Disabling releases the one live chord through the existing MIDI path.
+    source = replace_once(source,
+        '            "chord_queue" => {',
+        '''            "chord_override" => {
+                if let Some((owner,action))=val.split_once(',') {
+                    if let Ok(track)=owner.parse::<usize>() {
+                        if self.chord_queue==Some(track) {
+                            if action=="off" {
+                                self.chains.set_param(track,"midi_fx1:hb_chord_queue_override","Off");
+                                self.release_chord_selection();
+                            } else if action=="on" {
+                                self.chains.set_param(track,"midi_fx1:hb_chord_queue_override","On");
+                                self.chord_queue_tick=None;
+                            }
+                        }
+                    }
+                }
+            }
+            "chord_queue" => {''')
     source = replace_once(source,
         'if next!=self.chord_joint {self.clear_chord_queue();self.release_chord_selection();self.chord_joint=next;}',
         '''if next!=self.chord_joint {
