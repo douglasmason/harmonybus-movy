@@ -16,7 +16,9 @@ chord.restoreChord(null);
 chord.setChordEnabled(true);
 assert.equal(router.sessionPlayMode(),6);
 const conductor=portFor(0),page=chord.chordPanelPort(3);
+page.getParam('midi_fx1:chain_params'); // initialize real panel metadata before virtual parameter edits
 assert(page.setParam('midi_fx1:cp_play_mode','Queued'));
+assert(chord.chordQueuedMode(),'queued mode is owned by the Chord Play controller');
 conductor.setParam('midi_fx1:chord_queue_end','Hold');
 const before=chord.chordSnapshot();
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_BRIGHT),WHITE_DIM,
