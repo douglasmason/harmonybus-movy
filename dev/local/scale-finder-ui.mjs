@@ -1,7 +1,7 @@
 /** Browser-only Scale Finding UI; same 12-value evidence as production Move mode.
  * The connected Move mirror is read-only and never acquires browser microphone.
  */
-import {createScaleMicrophone} from './scale-microphone.mjs';
+import {createScaleMicrophone,pitchEnergyColor} from './scale-microphone.mjs';
 import {createHarmonicFunctionTracker,FUNCTION_LABELS} from './harmonic-function.mjs';
 
 const names=['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
@@ -179,7 +179,11 @@ export function mountScaleFinderUI({send,isBrowser}){
    const chromaKey=JSON.stringify(finder.chroma);
    if(chromaKey!==lastChroma){
     lastChroma=chromaKey;
-    finder.chroma.forEach((value,index)=>{meters[index].value=value;});
+    finder.chroma.forEach((value,index)=>{
+     const intensity=Math.max(0,Math.min(1,Number(value)||0));
+     meters[index].value=intensity;
+     meters[index].style.setProperty('--pitch-heat-color',pitchEnergyColor(intensity));
+    });
    }
    if(Array.isArray(finder.noteOverrides)&&finder.noteOverrides.length===12){
     for(let note=0;note<12;note++){
