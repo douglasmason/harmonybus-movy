@@ -16,7 +16,7 @@ import {seqToast} from './render.js';
 import {fieldEraseAvailable,fieldEraseActive,setFieldEraseHeld} from './field-play.js';
 import {motifEditing,motifAction,motifPage,motifFinish} from '../renderer/hb-motif.js';
 import {schwungActiveFor} from '../renderer/schwung-grid.js';
-import {chordActive, chordQueuedMode, chordLoopSelected, chordLoopButton, chordSampleButton, chordRetrigger, chordMuteSelected, chordMuteButton, chordPadModalActive, harmonyOff} from './chord-play.js';
+import {chordActive, chordQueuedMode, chordQueuePresent, chordLoopSelected, chordLoopButton, chordSampleButton, chordRetrigger, chordMuteSelected, chordMuteButton, chordPadModalActive, harmonyOff} from './chord-play.js';
 import {jointActive, jointChordKnobs} from './joint-play.js';
 import {settingsActive} from './hb-settings.js';
 import {fontPrint} from '../font/index.js';
@@ -128,9 +128,9 @@ export function modeButtonColor(cc:number,fallback:number):number {
     if(inputModeSelectorOpen())return cc===CC_MODE_LOOP?WHITE_OFF:fallback;
     if(chordButtonContext()){
         if(cc===CC_MODE_CLEAR)return WHITE_DIM;
-        if(cc===CC_MODE_LOOP)return chordLoopSelected()?WHITE_BRIGHT:WHITE_DIM;
+        if(cc===CC_MODE_LOOP)return !chordQueuePresent()?WHITE_OFF:chordLoopSelected()?WHITE_BRIGHT:WHITE_DIM;
         if(cc===CC_MODE_SAMPLE)return chordQueuedMode()?WHITE_DIM:WHITE_BRIGHT;
-        if(cc===CC_MODE_MUTE)return chordMuteSelected()?WHITE_BRIGHT:WHITE_DIM;
+        if(cc===CC_MODE_MUTE)return !chordQueuePresent()?WHITE_OFF:chordMuteSelected()?WHITE_BRIGHT:WHITE_DIM;
         return fallback;
     }
     if(scaleFindingActive()){
@@ -295,13 +295,13 @@ export function modeActionDescriptors():ModeActionDescriptor[]{
         set(CC_MODE_CLEAR,'Harmony Off','Clear the live harmonic override / queued chord',true);
         set(CC_MODE_LOOP,'Queue end: '+(chordLoopSelected()?'Loop':'Hold'),
             'Loop repeats the saved progression; Hold sustains the final chord',
-            true,chordLoopSelected());
+            chordQueuePresent(),chordQueuePresent()&&chordLoopSelected());
         set(CC_MODE_SAMPLE,'Chord entry: '+(chordQueuedMode()?'Queued':'Immediate'),
             'Sample lit: Immediate; dim: Queued, without clearing the stored progression',
             true,!chordQueuedMode());
-        set(CC_MODE_MUTE,'Queue active',
-            'Activate or bypass the stored progression without deleting it',
-            true,chordMuteSelected());
+        set(CC_MODE_MUTE,'Mute queue',
+            'Bright only while the stored progression is bypassed; it is never deleted',
+            chordQueuePresent(),chordMuteSelected());
     }else if(mode===4){
         set(CC_MODE_CLEAR,'Erase cell','Hold X then press an occupied Grid cell',true,gridEraseActive(),'hold+pad');
         set(CC_MODE_LOOP,'Follow grid','Toggle moving playhead page vs fixed page',true,gridFollowActive());
