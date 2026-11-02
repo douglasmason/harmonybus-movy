@@ -27,22 +27,42 @@ conductor.setParam('midi_fx1:hb_chord_queue_override','On');
 const before=chord.chordSnapshot();
 chord.tickChord();
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_DIM),WHITE_BRIGHT,
-    'lit Loop means queued chord entry');
+    'Loop lit indicates repeating rather than holding the final chord');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_BRIGHT),WHITE_DIM,
+    'Sample dim indicates Queued entry');
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_CLEAR,0),WHITE_DIM);
+const queueBeforeMode=conductor.getParam('midi_fx1:hb_chord_queue_status');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true);
+assert(!chord.chordQueuedMode(),'Sample switches to Immediate');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_DIM),WHITE_BRIGHT,
+    'Immediate lights the Sample button');
+assert.equal(conductor.getParam('midi_fx1:hb_chord_queue_status'),queueBeforeMode,
+    'entry changes do not delete the existing native queue');
+assert.equal(conductor.getParam('midi_fx1:chord_queue_end'),'Loop');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),true,
+    'Sample release never opens the stock sampler in Chord Play');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true);
+assert(chord.chordQueuedMode(),'Sample returns to queued entry');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),true);
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_BRIGHT),WHITE_DIM);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false),true);
-assert.equal(conductor.getParam('midi_fx1:chord_queue_end'),'Loop',
-    'Loop button never changes the separate end-of-queue policy');
-assert(!chord.chordQueuedMode(),'Loop switches to Immediate without clearing native queue');
+assert.equal(conductor.getParam('midi_fx1:chord_queue_end'),'Hold',
+    'Loop toggles only the queue-end policy');
+assert(!chord.chordLoopSelected());
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_BRIGHT),WHITE_DIM);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false),true);
-assert(chord.chordQueuedMode(),'Loop switches back to Queued');
 assert.equal(conductor.getParam('midi_fx1:chord_queue_end'),'Loop');
+assert(chord.chordLoopSelected());
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true);
 assert.equal(chord.chordSnapshot().selected,before.selected,'Loop never selects a chord');
+assert.equal(conductor.getParam('midi_fx1:hb_chord_queue_status'),queueBeforeMode);
 const loopAction=buttons.modeActionDescriptors().find(action=>action.cc===buttons.CC_MODE_LOOP);
-assert.equal(loopAction?.label,'Chord entry: Queued');
+assert.equal(loopAction?.label,'Queue end: Loop');
 assert.equal(loopAction?.active,true);
+const sampleAction=buttons.modeActionDescriptors().find(action=>action.cc===buttons.CC_MODE_SAMPLE);
+assert.equal(sampleAction?.label,'Chord entry: Queued');
+assert.equal(sampleAction?.active,false);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,true),true,
     'Shift+Loop retriggers the stored chord cycle without erasing it');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true);
@@ -50,8 +70,9 @@ assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,127,false),true,'X is 
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,0,false),true,'X release is owned');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_COPY,127,false),false,
     'plain Copy remains reserved for real abstract clip copying');
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),false,
-    'Sampling keeps its original meaning outside Scale Finding');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true,
+    'Chord Play owns Sample entry mode rather than the stock sampler');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),true);
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_MUTE,WHITE_OFF),WHITE_BRIGHT,
     'unmuted queue has a bright Mute/active indicator');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_MUTE,127,false),true);
@@ -90,6 +111,8 @@ assert(buttons.showModeHelp(6,true,1000));
 buttons.tickModeHelp(4000);
 assert.equal(buttons.modeHelpSnapshot(4001).visible,false,'expiry clears overlay');
 chord.setChordEnabled(false);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),false,
+    'outside Chord Play, Sample keeps its stock behavior');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,127,false),false);
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,44),WHITE_OFF,
     'plain Loop no longer unexpectedly enters the bar editor');
