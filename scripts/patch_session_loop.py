@@ -22,7 +22,7 @@ def patch_session_loop(root: Path) -> None:
     source = replace_once(source,
         "'HB Settings','Scale Finding'];",
         "'HB Settings','Scale Finding','Loop Edit'];")
-    source = "import {loopEditResizeHold} from './loop-mode.js';\\n" + source
+    source = "import {loopEditResizeHold} from './loop-mode.js';\n" + source
     path.write_text(source)
     path = root / 'src/seq/loop-mode.ts'
     source = path.read_text()
