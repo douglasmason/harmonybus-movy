@@ -30,6 +30,19 @@
   </details>
   <div class="toolbar"><strong>Matching scales</strong><button id="finder-apply" type="button">Apply tonic + scale (Copy)</button></div>
   <div id="finder-candidates" class="finder-candidates" role="group" aria-label="Select candidate scale"></div>
+
+  <details id="finder-functions" class="finder-settings finder-functions">
+   <summary>Harmonic function · advanced</summary>
+   <p>Advisory tonic / predominant / dominant / unknown analysis only. Choose a compatible seven-note scale above, then pin that tonal hypothesis. Chromatic is flagged independently. Short notes and ambiguous chords stay unknown; nothing is recorded or applied automatically.</p>
+   <div class="toolbar">
+    <button id="finder-function-pin" type="button">Pin selected tonic + scale</button>
+    <button id="finder-function-unpin" type="button">Unpin</button>
+    <button id="finder-function-clear" type="button">Clear timeline</button>
+   </div>
+   <p id="finder-function-source" role="status">Pin a scale to begin listening for harmonic functions.</p>
+   <div id="finder-function-current" class="finder-function-current" aria-live="polite">Unknown · no function yet</div>
+   <div id="finder-function-timeline" class="finder-function-timeline" role="list" aria-label="Recent detected harmonic functions"></div>
+  </details>
   <p class="hint">Selected tonic is a separate musical choice. Candidate scales come from the shared HarmonyBus catalog; none is applied until Copy. On-device Move microphone capture is not provided by this browser-only input.</p>
  </section>
  <section id="surface" class="workspace-component" data-workspace="pads" aria-label="Interactive Move surface"><div id="knobs" class="knobs" aria-label="Eight touch encoders"></div><div class="playing-grid"><div id="tracks" class="tracks" aria-label="Tracks"></div><div id="pads" class="pads" aria-label="Playing pads"></div><div id="functions" class="functions" aria-label="Editing controls"></div></div><div id="steps" class="steps" aria-label="Sixteen steps"></div><p id="mode-actions-guide" class="mode-actions-guide" aria-live="polite">Mode actions appear when the browser engine is running.</p></section>
