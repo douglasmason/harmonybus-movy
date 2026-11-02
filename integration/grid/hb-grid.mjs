@@ -19,7 +19,7 @@ for(let track=0;track<16;track++){
  port.setParam=(key,value)=>{values.set(key.split(':').at(-1),value);return true;};
  port.getMany=keys=>keys.map(port.getParam);port.setMany=pairs=>pairs.every(([key,value])=>port.setParam(key,value));
 }
-installMockEngine();seqEngineTick();setFlag('chtracks',1);seqState.reportedTrack=0;seqState.sessionMode=false;
+const engine=installMockEngine();seqEngineTick();setFlag('chtracks',1);seqState.reportedTrack=0;seqState.sessionMode=false;
 let now=10000;Date.now=()=>now;
 grid.restoreGrid(null);grid.setGridEnabled(true);assert.equal(padsPlayNotes(),false,'grid never forwards cell edits to the synth');
 assert(schwungLibAvailable());const page=grid.gridPage();for(let tick=0;tick<5;tick++){now+=100;page.tick();}
@@ -80,3 +80,31 @@ assert.equal(grid.gridHiddenDirections(false),'^');assert.equal(grid.gridHiddenD
 occupancy[55]='1';grid.gridAccept('0@/1@/3@'+occupancy.join(''),0);assert.equal(grid.gridHiddenDirections(false),'^v');
 occupancy[61]='1';grid.gridAccept('0@/1@/3@'+occupancy.join(''),0);assert.equal(grid.gridHiddenDirections(false),'^v!');
 grid.gridViews.move.lane=0;assert.equal(grid.gridHiddenDirections(false),'v!','visible notes are not counted as hidden');
+
+// X must only remove a cell demonstrated to exist in the acknowledged
+// native Grid window. Grid's gtog verb would ADD an absent note otherwise.
+grid.restoreGrid(null);grid.setGridEnabled(true);
+seqState.loopStart=0;seqState.lenSteps=16;seqState.playing=false;seqState.reportedTrack=0;
+grid.gridViews.move.page=0;grid.gridViews.move.lane=0;grid.gridViews.move.division=0;grid.gridViews.move.follow=false;
+grid.gridAccept('0@0:24:60/1@',0);
+grid.setGridEraseHeld(true);
+assert(grid.gridEraseActive());
+const {C_REC_RED}=await import('../dist/esm/seq/colors.js');
+assert.equal(grid.gridColors('move',4,8)[0],C_REC_RED,
+    'occupied pads turn red only for the duration of held-X erasure');
+const eraseCount=()=>engine.ops.filter(op=>op.startsWith('gtog ')).length;
+const beforeErase=eraseCount();
+grid.gridPad('move',0,true,100);grid.gridPad('move',0,false,0);
+seqEngineTick();
+assert.equal(eraseCount(),beforeErase+1,
+    'occupied Grid cell produces exactly one native undoable toggle');
+assert(engine.ops.some(op=>op.startsWith('gtog 0 0 24 60 ')));
+grid.gridAccept('0@/1@',0);
+const beforeEmpty=eraseCount();
+grid.gridPad('move',0,true,100);grid.gridPad('move',0,false,0);
+seqEngineTick();
+assert.equal(eraseCount(),beforeEmpty,'empty cell never sends a toggle that would create a note');
+grid.setGridEraseHeld(false);
+assert(!grid.gridEraseActive());
+grid.setGridEnabled(false);
+console.log('Grid held-X erase: occupied-only native toggle, red feedback, empty-cell guard and clean release pass');
