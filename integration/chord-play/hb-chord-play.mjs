@@ -198,6 +198,9 @@ assert.equal(writes.length,untouched,'overview reads never change routing, recor
 assert.equal(statusPort.setParam('midi_fx1:cp_status_effective','C'),false,'overview cannot edit native state');
 portFor(0).setParam('midi_fx1:hb_chord_active','0');now+=100;
 assert.equal(status('override'),'Off');assert.equal(status('handoff'),'--','native expiry clears the live handoff display');
+// This section verifies the Immediate audition's contextual bank labels.
+// New sessions default to Queued; selecting Immediate explicitly is required.
+assert(statusPort.setParam('midi_fx1:cp_play_mode','Immediate'));
 const {fontWidth}=await import('../dist/esm/font/index.js');
 for(const [slot,label] of [[0,'Home 9:Parallel'],[7,'Parallel 9:Blues'],[14,'Blues 9:Home']]){
  find('cp_slot_'+slot);page.ctl.state.touched=-1;page.ctl.state.peek=null;
