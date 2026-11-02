@@ -83,17 +83,17 @@ export function scaleMicNativeFrame():NativeScaleMicFrame|null {
     let micAvailable:boolean|null=null, micListening:boolean|null=null;
     let micData:{seq:number;values:number[]}|null=null;""")
     engine_source = replace_once(engine_source,
-        "        if (key === 'play')",
-        """        if(key==='mca')micAvailable=val==='1';
-        else if(key==='mcs')micListening=val==='1';
-        else if(key==='mcv'){
+        "        const val = kv.slice(eq + 1);",
+        """        const val = kv.slice(eq + 1);
+        if(key==='mca')micAvailable=val==='1';
+        if(key==='mcs')micListening=val==='1';
+        if(key==='mcv'){
             const [sequence,hex]=val.split('.');
             if(/^\\d+$/.test(sequence)&&/^[0-9a-f]{24}$/.test(hex)){
                 micData={seq:Number(sequence),
                     values:Array.from({length:12},(_,i)=>parseInt(hex.slice(i*2,i*2+2),16)/127)};
             }
-        }
-        else if (key === 'play')""")
+        }""")
     engine_source = replace_once(engine_source,
         "    adoptLoopWindow();",
         """    if(micAvailable!==null&&micListening!==null&&micData){
