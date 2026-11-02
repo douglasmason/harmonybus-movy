@@ -8,6 +8,7 @@ const {appState}=await import('../dist/esm/app/state.js');
 const {seqCmdFlush}=await import('../dist/esm/seq/engine.js');
 const loader=await import('../dist/esm/renderer/hb-motif-loader.js');
 selectTrack(3);seqState.sessionMode=false;chord.restoreChord(null);chord.setChordEnabled(true);
+assert.equal(chord.chordSnapshot().playMode,1,'new and reset Chord Play defaults to queued');
 const page=chord.chordPage(),port=chord.chordPanelPort(3);port.getParam('midi_fx1:chain_params');
 page.goToPage(0);assert.deepEqual(Array.from({length:8},(_,index)=>page.keyAt(index)),['cp_play_mode','cp_track_0_chord_timing','cp_track_0_anticipation','cp_track_0_chord_queue_end','cp_queue_next','cp_queue_count','cp_track_0_chord_queue_depth','cp_off']);
 assert.equal(page.ctl.metaAt(1).name,'Queue Time');
@@ -33,7 +34,8 @@ assert(!commands.some(([key,value])=>key==='chord_select'&&value!=='off'&&value!
 assert.equal(chord.chordSnapshot().playMode,1);
 const saved=chord.chordSnapshot();chord.restoreChord(saved);assert.equal(chord.chordSnapshot().playMode,1);
 chord.setChordEnabled(true);assert(port.setParam('midi_fx1:cp_play_mode','Immediate'));
-assert(commands.some(([key,value])=>key==='chord_queue'&&value==='off'));
+assert(!commands.some(([key,value])=>key==='chord_queue'&&value==='off'),
+    'switching to Immediate preserves the stored progression');
 
 // Off clears the current harmony/queue without changing the selection mode.
 port.setParam('midi_fx1:cp_play_mode','Queued');seqState.playing=true;chord.harmonyOff();assert.equal(chord.chordSnapshot().playMode,1);
@@ -50,6 +52,7 @@ for(const playing of [false,true])for(const control of [7,23,31]){
 }
 seqState.playing=false;
 port.setParam('midi_fx1:cp_play_mode','Queued');
+conductorControls.setParam('midi_fx1:hb_chord_queue_override','On');
 conductorControls.setParam('midi_fx1:hb_chord_queue_status','cq1|1|-1|C|G7|1|1|3|0|0|2|C|G7');
 const queuePage=chord.chordPage();queuePage.goToPage(0);
 assert.match(chord.chordContextTrail(),/Hold 1\/3 \[C\] G7/);
