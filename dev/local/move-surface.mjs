@@ -29,6 +29,16 @@ export function mountMoveSurface(inputs){
    stepName:button.querySelector('.step-name'),stepDetail:button.querySelector('.step-detail'),
    option:document.querySelector(`#encoder option[value="${control.index}"]`)};
  });
+ // Preserve the physical button name for screen readers and existing shortcuts,
+ // while giving contextual actions their own second visible label.
+ const actionLabels=new Map();
+ for(const {control,button} of buttons){
+  if(control.group!=='functions')continue;
+  const secondary=document.createElement('span');secondary.className='mode-action';
+  secondary.setAttribute('aria-hidden','true');button.appendChild(secondary);
+  actionLabels.set(control.index,secondary);
+ }
+ const modeGuide=document.querySelector('#mode-actions-guide');
  const rowHeadings=[...document.querySelectorAll('.pad-row-label')];
  const text=(node,value)=>{if(node.textContent!==value)node.textContent=value;};
  let frame=null,lastFrame=null,tempo=120,animation=null;
@@ -53,6 +63,19 @@ export function mountMoveSurface(inputs){
     text(option,control.name+(label?' · '+label.name:''));
     if(status.dataset.encoder===String(control.index))text(status,title);
    }
+   if(control.group==='functions'){
+    const action=frame.modeActions?.find(item=>item.cc===control.index);
+    const secondary=actionLabels.get(control.index);
+    const caption=action&&action.label!==control.name&&
+      !(control.name==='Delete'&&action.label==='Delete')?action.label:'';
+    text(secondary,caption);
+    button.dataset.actionAvailable=String(action?.available??true);
+    button.dataset.actionActive=String(action?.active??false);
+    button.dataset.actionGesture=action?.gesture??'tap';
+    const description=action?action.detail+(action.available?'':' · Unavailable'):'';
+    const title=control.name+(caption?' · '+caption:'')+(description?' · '+description:'');
+    if(button.title!==title){button.title=title;button.setAttribute('aria-description',description);}
+   }
    if(control.group==='pads'){
     const label=frame.padLabels?.pads[control.index-68];
     text(primary,label?.primary??String(control.index-67));text(note,label?.secondary??'');
@@ -73,6 +96,13 @@ export function mountMoveSurface(inputs){
     if(button.getAttribute('aria-label')!==name){button.setAttribute('aria-label',name);button.title=name;button.querySelector('.control-label').textContent=name;}
    }
   }
+   if(modeGuide){
+    const active=(frame.modeActions??[]).filter(action=>action.available&&action.label!==action.physical);
+    const mode=frame.modes?.[frame.mode]??'Input';
+    text(modeGuide,mode+' · '+(active.length?
+      active.map(action=>action.physical+': '+action.label).join('  ·  '):
+      'Standard buttons')+' · Launchpad right: Copy, X, Loop, Mute, Sample, Back, Session; top-right: Latch');
+   }
    inputs.refreshSelected();lastFrame=frame;
   }
   const surface=frame.surface;let animating=false;
