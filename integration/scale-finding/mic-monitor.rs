@@ -1,6 +1,6 @@
 //! Low-overhead physical Move audio-input tap for Scale Finding.
 //! RT callback: at most 16 atomic mono writes for a 128-frame block.
-//! Worker: bounded 36-frequency Goertzel bank, never on the callback.
+//! Worker: bounded 36-frequency Goertzel bank and harmonic-residual chroma, never on the callback.
 //! This is the host's already-routed AUDIO_IN (mic or line); it does not
 //! configure hardware input routing and NEVER records audio to a file.
 use std::sync::atomic::{AtomicBool, AtomicI16, AtomicU8, AtomicU64, Ordering};
@@ -161,28 +161,70 @@ fn worker_loop(shared: Arc<Shared>) {
         shared.result_seq.fetch_add(1, Ordering::Release);
     }
 }
-fn analyze(samples: &[f32; WINDOW], window: &[f32; WINDOW], sample_rate: f32) -> [u8; BINS] {
-    let mut peak = [0f32; BINS];
+const LOWEST_MIDI: usize = 48;
+const HIGHEST_MIDI_EXCLUSIVE: usize = 84;
+const PITCH_BINS: usize = HIGHEST_MIDI_EXCLUSIVE - LOWEST_MIDI;
+// A loud fundamental can masquerade as the fifth (its third partial)
+// or third (its fifth partial) at a *higher octave*. Suppress predicted
+// overtone energy at those exact upper-note bins, then fold to 12 classes.
+// Subtract from the raw spectrum (not the residual) to avoid cascades.
+const THIRD_PARTIAL_SEMITONES: usize = 19;
+const FIFTH_PARTIAL_SEMITONES: usize = 28;
+const THIRD_PARTIAL_LEAKAGE: f32 = 0.45;
+const FIFTH_PARTIAL_LEAKAGE: f32 = 0.30;
+
+fn measured_pitch_spectrum(
+    samples: &[f32; WINDOW], window: &[f32; WINDOW], sample_rate: f32,
+) -> [f32; PITCH_BINS] {
     let mean_square: f32 = samples.iter().map(|sample| sample * sample).sum::<f32>() / WINDOW as f32;
-    if mean_square < 0.000004 { return [0; BINS]; } // <-54 dBFS
-    for midi in 48..84 {
+    if !mean_square.is_finite() || mean_square < 0.000004 || sample_rate <= 0.0 {
+        return [0.0; PITCH_BINS]; // -54 dBFS; preserve silence
+    }
+    let mut pitch_spectrum = [0.0f32; PITCH_BINS];
+    for midi in LOWEST_MIDI..HIGHEST_MIDI_EXCLUSIVE {
         let frequency = 440.0 * 2.0f32.powf((midi as f32 - 69.0) / 12.0);
         let omega = std::f32::consts::TAU * frequency / sample_rate;
         let coefficient = 2.0 * omega.cos();
-        let mut prior = 0f32;
-        let mut older = 0f32;
+        let mut prior = 0.0f32;
+        let mut older = 0.0f32;
         for (sample, weight) in samples.iter().zip(window.iter()) {
             let current = sample * weight + coefficient * prior - older;
             older = prior;
             prior = current;
         }
         let power = (prior * prior + older * older - coefficient * prior * older).max(0.0);
-        let note = midi as usize % BINS;
-        peak[note] = peak[note].max(power.sqrt());
+        pitch_spectrum[midi - LOWEST_MIDI] = power.sqrt();
     }
-    let maximum = peak.iter().copied().fold(0f32, f32::max);
-    if maximum < 0.01 { return [0; BINS]; }
-    std::array::from_fn(|index| (127.0 * (peak[index] / maximum).clamp(0.0, 1.0)).round() as u8)
+    pitch_spectrum
+}
+
+/// Twelve pitch classes from measured fundamentals. For every potential
+/// harmonic we subtract only what a *lower, measured fundamental* could
+/// explain. This is an evidence heuristic, not a polyphonic transcription.
+/// It cannot resolve a quiet true fifth beneath a loud root's third partial.
+fn project_pitch_classes(
+    pitch_spectrum: &[f32; PITCH_BINS], suppress_harmonics: bool,
+) -> [u8; BINS] {
+    let mut chroma_peak = [0.0f32; BINS];
+    for (index, raw_magnitude) in pitch_spectrum.iter().copied().enumerate() {
+        let third_leakage = if suppress_harmonics && index >= THIRD_PARTIAL_SEMITONES {
+            THIRD_PARTIAL_LEAKAGE * pitch_spectrum[index - THIRD_PARTIAL_SEMITONES]
+        } else { 0.0 };
+        let fifth_leakage = if suppress_harmonics && index >= FIFTH_PARTIAL_SEMITONES {
+            FIFTH_PARTIAL_LEAKAGE * pitch_spectrum[index - FIFTH_PARTIAL_SEMITONES]
+        } else { 0.0 };
+        let remaining = (raw_magnitude - third_leakage - fifth_leakage).max(0.0);
+        let pitch_class = (index + LOWEST_MIDI) % BINS;
+        chroma_peak[pitch_class] = chroma_peak[pitch_class].max(remaining);
+    }
+    let maximum = chroma_peak.iter().copied().fold(0.0f32, f32::max);
+    if maximum < 0.01 || !maximum.is_finite() { return [0; BINS]; }
+    std::array::from_fn(|index| (127.0 * (chroma_peak[index] / maximum).clamp(0.0, 1.0)).round() as u8)
+}
+
+fn analyze(samples: &[f32; WINDOW], window: &[f32; WINDOW], sample_rate: f32) -> [u8; BINS] {
+    let spectrum = measured_pitch_spectrum(samples, window, sample_rate);
+    project_pitch_classes(&spectrum, true)
 }
 
 #[cfg(test)]
@@ -201,6 +243,78 @@ mod tests {
         assert_eq!(bins.iter().position(|value| *value == *bins.iter().max().unwrap()), Some(9));
         assert!(bins[9]>90);
     }
+    /// Deterministic harmonic-rich instrument; no external test audio or
+    /// library licensing requirement in the portable test suite.
+    fn synth(notes: &[(i32, f32)]) -> [f32; WINDOW] {
+        let sample_rate = 44100.0 / DECIMATION as f32;
+        std::array::from_fn(|frame_index| {
+            let elapsed = frame_index as f32 / sample_rate;
+            notes.iter().map(|(midi, amplitude)| {
+                let fundamental = 440.0 * 2.0f32.powf((*midi as f32 - 69.0) / 12.0);
+                (1..=8).map(|partial| {
+                    let frequency = fundamental * partial as f32;
+                    if frequency >= sample_rate * 0.5 { return 0.0; }
+                    amplitude * (std::f32::consts::TAU * frequency * elapsed
+                        + 0.06 * partial as f32).sin() / partial as f32
+                }).sum::<f32>()
+            }).sum::<f32>() * 0.2
+        })
+    }
+    #[test] fn a_complex_c_does_not_invent_a_g() {
+        let audio = synth(&[(48, 1.0)]);
+        let spectrum = measured_pitch_spectrum(&audio, &test_window(), 44100.0/8.0);
+        let old = project_pitch_classes(&spectrum, false);
+        let corrected = project_pitch_classes(&spectrum, true);
+        assert!(old[7] >= 25, "old detector hears the third harmonic as G: {old:?}");
+        assert!(corrected[7] <= 12, "harmonic residual suppresses false G: {corrected:?}");
+        assert_eq!(corrected[0], 127, "C remains a strong fundamental");
+    }
+    #[test] fn major_and_minor_triads_retain_real_chord_tones() {
+        for (notes, expected, unwanted) in [
+            ([(48,1.0),(52,1.0),(55,1.0)], [0,4,7], [2,11]),
+            ([(50,1.0),(53,1.0),(57,1.0)], [2,5,9], [0,4]),
+        ] {
+            let audio = synth(&notes);
+            let result = analyze(&audio, &test_window(), 44100.0/8.0);
+            for pitch_class in expected {
+                assert!(result[pitch_class]>=75, "missed true chord tone {pitch_class}: {result:?}");
+            }
+            for pitch_class in unwanted {
+                assert!(result[pitch_class]<=22, "retained overtone {pitch_class}: {result:?}");
+            }
+        }
+    }
+    #[test] fn present_g4_is_not_erased_under_c3() {
+        let audio = synth(&[(48,1.0),(67,0.7)]);
+        let corrected = analyze(&audio, &test_window(), 44100.0/8.0);
+        assert!(corrected[7]>=32, "genuine G4 must remain visible: {corrected:?}");
+        assert_eq!(corrected[0],127);
+    }
+    #[test] #[ignore] fn chroma_cpu_comparison_benchmark() {
+        use std::time::Instant;
+        let audio = synth(&[(48,1.0),(52,1.0),(55,1.0)]);
+        let window = test_window();
+        let mut checksum = 0u64;
+        let now = Instant::now();
+        for _ in 0..128 {
+            checksum += analyze(&audio, &window, 44100.0/8.0)[0] as u64;
+        }
+        let us_per_frame = now.elapsed().as_micros() as f64 / 128.0;
+        println!("chroma_harmonic_sieve_us_per_frame={us_per_frame:.1} checksum={checksum}");
+        let spectrum = measured_pitch_spectrum(&audio, &window, 44100.0/8.0);
+        let now = Instant::now();
+        for _ in 0..4096 {
+            checksum += project_pitch_classes(&spectrum, false)[0] as u64;
+        }
+        let legacy_us = now.elapsed().as_micros() as f64 / 4096.0;
+        let now = Instant::now();
+        for _ in 0..4096 {
+            checksum += project_pitch_classes(&spectrum, true)[0] as u64;
+        }
+        let residual_us = now.elapsed().as_micros() as f64 / 4096.0;
+        println!("chroma_projection_legacy_us={legacy_us:.3} harmonic_us={residual_us:.3} checksum={checksum}");
+    }
+
     #[test] fn disabled_has_no_capture() {
         let monitor=MicMonitor::new();
         monitor.capture(128);
