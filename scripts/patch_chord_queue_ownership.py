@@ -36,10 +36,10 @@ def patch_chord_queue_ownership(root: Path) -> None:
             send('chord_select','leave');
             activeSlot=-1;''')
     source = replace_once(source, "'Hold ':'Fill '", "'Hold ':'Queue '")
-    # Selection preference is not permission to destroy an existing queue.
-    source = replace_once(source,
-        "send('chord_queue','off');setup.playMode=selected;",
-        "setup.playMode=selected;")
+    # Chord Play's canonical source owns this guarantee. Do not silently
+    # reintroduce a destructive mode switch through composition patches.
+    if "send('chord_queue','off');setup.playMode=selected;" in source:
+        raise RuntimeError("Chord entry-mode switch must preserve the queue")
     # Queue status caching was extracted by the UI overhead patch; update the
     # canonical raw snapshot rather than the earlier inline parse.
     source = replace_once(source,
