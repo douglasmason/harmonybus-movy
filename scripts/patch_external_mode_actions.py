@@ -7,8 +7,7 @@ def patch_external_mode_actions(root: Path) -> None:
     """Add seven side buttons without repurposing eight operation buttons or latch."""
     path: Path = root / 'src/surfaces/launchpad.ts'
     source: str = path.read_text()
-    source = """import {onMidiMessageInternal} from '../midi/router.js';
-import {modeButtonColor,modeActionDescriptors} from '../seq/mode-buttons.js';
+    source = """import {modeButtonColor,modeActionDescriptors} from '../seq/mode-buttons.js';
 import {WHITE_DIM,WHITE_BRIGHT,C_WHITE,C_DARKGREY,C_LIGHTGREY,C_GREEN,C_REC_RED} from '../seq/colors.js';
 import {fieldEraseActive} from '../seq/field-play.js';
 import {gridEraseActive} from '../seq/grid.js';
@@ -18,9 +17,14 @@ import {gridEraseActive} from '../seq/grid.js';
 let ledCache: number[] = new Array(80).fill(-1);
 const sideToMoveCc=[50,51,118,88,58,119,60] as const;
 const sideHeld=new Set<number>();
+// Set by the canonical MIDI router after it initializes. No eager import of
+// midi/router from the surface: that would evaluate MovePads before bootstrap.
+let forwardModeAction:((data:number[])=>void)|null=null;
+export function setLaunchpadActionForwarder(dispatch:(data:number[])=>void):void{forwardModeAction=dispatch;}
+function routeModeAction(cc:number,value:number):void{forwardModeAction?.([176,cc,value]);}
 const rightCc=(slot:number):number=>19+slot*10;
 function releaseRightActions():void{
-    for(const slot of sideHeld)onMidiMessageInternal([176,sideToMoveCc[slot],0]);
+    for(const slot of sideHeld)routeModeAction(sideToMoveCc[slot],0);
     sideHeld.clear();
 }
 ''')
@@ -63,7 +67,7 @@ function releaseRightActions():void{
         }else{
             if(!sideHeld.delete(slot))return;
         }
-        onMidiMessageInternal([176,cc,value]);
+        routeModeAction(cc,value);
         sampledAt=-Infinity;
         return;
     }''')
@@ -72,6 +76,10 @@ function releaseRightActions():void{
     source = replace_once(source,
         "fieldPad('launchpad',index,type===144&&value>0,8,8,modifier)",
         "fieldPad('launchpad',index,type===144&&value>0,8,8,modifier||fieldEraseActive())")
+    path.write_text(source)
+    path = root / 'src/midi/router.ts'
+    source = "import {setLaunchpadActionForwarder} from '../surfaces/launchpad.js';\n" + path.read_text()
+    source += "\nsetLaunchpadActionForwarder(onMidiMessageInternal);\n"
     path.write_text(source)
 
     # The seven new lamps share the existing complete SysEx transaction.
