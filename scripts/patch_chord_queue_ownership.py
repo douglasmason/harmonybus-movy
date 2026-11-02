@@ -51,11 +51,11 @@ def patch_chord_queue_ownership(root: Path) -> None:
         """const queued=queue[0]==='cq1',count=queued?Number(queue[1]):0;
         buttonQueuePresent=queued;
         buttonQueueOverride=queued&&conductor.getParam('midi_fx1:hb_chord_queue_override')==='On';
-        buttonQueueMute=buttonQueueOverride&&conductor.getParam('midi_fx1:hb_chord_queue_mute')==='On';""")
+        buttonQueueMuted=buttonQueueOverride&&conductor.getParam('midi_fx1:hb_chord_queue_mute')==='On';""")
     source = replace_once(source,
         "export function harmonyOff():void{",
         """export function harmonyOff():void{
-    buttonQueuePresent=false;buttonQueueOverride=false;buttonQueueMute=false;""")
+    buttonQueuePresent=false;buttonQueueOverride=false;buttonQueueMuted=false;""")
     path.write_text(source)
 
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
