@@ -13,6 +13,9 @@ import {loopEditResizeHold} from './loop-mode.js';
 import {gridActive,gridEraseActive,gridFollowActive,setGridEraseHeld,toggleGridFollow} from './grid.js';
 import {scaleFindingActive,scaleFindingCanApply,scaleFindingCanClear,clearScaleFindingPreview,commitScaleFindingPreview} from './scale-finding.js';
 import {seqToast} from './render.js';
+import {fieldEraseAvailable,fieldEraseActive,setFieldEraseHeld} from './field-play.js';
+import {motifEditing,motifAction,motifPage,motifFinish} from '../renderer/hb-motif.js';
+import {schwungActiveFor} from '../renderer/schwung-grid.js';
 import {chordActive, chordQueuedMode, chordLoopSelected, chordLoopButton, chordPadModalActive, harmonyOff} from './chord-play.js';
 import {jointActive, jointChordKnobs} from './joint-play.js';
 import {settingsActive} from './hb-settings.js';
@@ -30,8 +33,9 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
     2:{name:'Motif Play',lines:[
         'Pads: melody / harmony',
         'Touch: relative operations',
-        'Loop Edit: Session mode',
-        'Copy: normal clipboard']},
+        'Copy: motif to slot',
+        'X: cancel motif draft',
+        'Loop Edit: Session mode']},
     3:{name:'Joint Play',lines:[
         'Pads: selected actors',
         'X: Off with chord knobs',
@@ -45,9 +49,9 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
         'Copy: normal clipboard']},
     5:{name:'Field Play',lines:[
         'Pads: speed / shape',
-        'Shift+pad: clear output',
-        'Jog: settings/routing',
-        'Copy: normal clipboard']},
+        'X+pad: erase output lane',
+        'Only in Outputs view',
+        'Jog: settings/routing']},
     6:{name:'Chord Play',lines:[
         'X: harmony Off',
         'Loop: cycle / Hold',
@@ -109,6 +113,11 @@ function chordButtonContext():boolean{
 }
 /** A consumed press keeps ownership until its release even across a mode change. */
 const capturedReleases=new Set<number>();
+function motifActionPage(){
+    if(sessionPlayMode()!==2||inputModeSelectorOpen())return null;
+    const page=schwungActiveFor(appState.activeTrack.index,'midi_fx1');
+    return page?.ready&&page.moduleId==='harmonybus'&&motifPage(page)?page:null;
+}
 /** Read-only LED state: never poll the engine from this painter. */
 export function modeButtonColor(cc:number,fallback:number):number {
     if(inputModeSelectorOpen())return cc===CC_MODE_LOOP?WHITE_OFF:fallback;
@@ -123,6 +132,11 @@ export function modeButtonColor(cc:number,fallback:number):number {
         if(cc===CC_MODE_COPY)return scaleFindingCanApply()?WHITE_DIM:WHITE_OFF;
         if(cc===CC_MODE_LOOP)return WHITE_OFF; // mic evidence hold comes later
     }
+    if(sessionPlayMode()===2){
+        if(cc===CC_MODE_COPY)return motifActionPage()&&!motifEditing()?WHITE_DIM:WHITE_OFF;
+        if(cc===CC_MODE_CLEAR&&motifEditing())return WHITE_DIM;
+    }
+    if(fieldEraseAvailable()&&cc===CC_MODE_CLEAR)return fieldEraseActive()?WHITE_BRIGHT:WHITE_DIM;
     if(gridActive()){
         if(cc===CC_MODE_CLEAR)return gridEraseActive()?WHITE_BRIGHT:WHITE_DIM;
         if(cc===CC_MODE_LOOP)return gridFollowActive()?WHITE_BRIGHT:WHITE_DIM;
@@ -139,7 +153,7 @@ export function modeButtonMidi(cc:number,value:number,shiftHeld:boolean):boolean
         return true;
     }
     if(!down&&capturedReleases.delete(cc)){
-        if(cc===CC_MODE_CLEAR)setGridEraseHeld(false);
+        if(cc===CC_MODE_CLEAR){setGridEraseHeld(false);setFieldEraseHeld(false);}
         if(cc===CC_MODE_LOOP)loopEditResizeHold(false);
         return true;
     }
@@ -184,9 +198,25 @@ export function modeButtonMidi(cc:number,value:number,shiftHeld:boolean):boolean
             }
             return true;
         }
+        if(motifEditing()&&sessionPlayMode()===2){
+            if(down){capturedReleases.add(cc);dismissModeHelp();motifFinish(true);}
+            return true;
+        }
+        if(fieldEraseAvailable()){
+            if(down){capturedReleases.add(cc);dismissModeHelp();setFieldEraseHeld(true);}
+            else setFieldEraseHeld(false);
+            return true;
+        }
         if(gridActive()){
             if(down){capturedReleases.add(cc);dismissModeHelp();setGridEraseHeld(true);}
             else setGridEraseHeld(false);
+            return true;
+        }
+    }
+    if(cc===CC_MODE_COPY&&sessionPlayMode()===2){
+        const owner=motifActionPage();
+        if(owner&&!motifEditing()){
+            if(down){capturedReleases.add(cc);dismissModeHelp();motifAction(owner,'motif_copy');}
             return true;
         }
     }
@@ -195,4 +225,50 @@ export function modeButtonMidi(cc:number,value:number,shiftHeld:boolean):boolean
         return true;
     }
     return false;
+}
+
+/** Presentation facts shared by Move LEDs, Launchpad side lamps and Remote UI.
+ * Never touch the DSP from this pure read-only projection.
+ */
+export interface ModeActionDescriptor {
+    cc:number; physical:string; label:string; detail:string;
+    available:boolean; active:boolean; gesture:'tap'|'hold'|'hold+pad';
+}
+export function modeActionDescriptors():ModeActionDescriptor[]{
+    const mode=sessionPlayMode(),chord=chordButtonContext(),motif=motifActionPage();
+    const result:ModeActionDescriptor[]=[
+        {cc:CC_MODE_COPY,physical:'Copy',label:'Copy',detail:'Copy the current clip or steps',available:true,active:false,gesture:'tap'},
+        {cc:CC_MODE_CLEAR,physical:'X',label:'Delete',detail:'Delete selected clip or steps',available:true,active:false,gesture:'hold'},
+        {cc:CC_MODE_LOOP,physical:'Loop',label:'Loop Edit in Session',detail:'Choose Session > Loop Edit for bar loops',available:false,active:false,gesture:'tap'},
+        {cc:CC_MODE_MUTE,physical:'Mute',label:'Mute track',detail:'Mute the currently focused track',available:true,active:false,gesture:'tap'},
+        {cc:CC_MODE_SAMPLE,physical:'Sample',label:'Sample',detail:'Native sampling button; microphone finder not yet connected',available:true,active:false,gesture:'tap'},
+    ];
+    const set=(cc:number,label:string,detail:string,available=true,active=false,gesture:ModeActionDescriptor['gesture']='tap'):void=>{
+        const descriptor=result.find(item=>item.cc===cc);
+        if(descriptor)Object.assign(descriptor,{label,detail,available,active,gesture});
+    };
+    if(mode===0)set(CC_MODE_LOOP,'Scenes (hold)','Hold Loop and press a step to launch a scene',true,false,'hold');
+    if(mode===2){
+        set(CC_MODE_COPY,'Copy motif','Copy selected motif to its armed library slot',!!motif&&!motifEditing());
+        set(CC_MODE_CLEAR,motifEditing()?'Cancel motif':'Delete step',
+            motifEditing()?'Cancel the current uncommitted motif draft':'Normal step-delete gesture',true,false,'tap');
+    }
+    if(chord){
+        set(CC_MODE_CLEAR,'Harmony Off','Clear the live harmonic override / queued chord',true);
+        set(CC_MODE_LOOP,chordQueuedMode()?'Repeat queue':'Loop Edit in Session',
+            chordQueuedMode()?'Toggle queued chord ending between Loop and Hold':'Chord queue not enabled',
+            chordQueuedMode(),chordQueuedMode()&&chordLoopSelected());
+    }else if(mode===4){
+        set(CC_MODE_CLEAR,'Erase cell','Hold X then press an occupied Grid cell',true,gridEraseActive(),'hold+pad');
+        set(CC_MODE_LOOP,'Follow grid','Toggle moving playhead page vs fixed page',true,gridFollowActive());
+    }else if(mode===5){
+        set(CC_MODE_CLEAR,'Erase output','Hold X then press a Field output lane',fieldEraseAvailable(),fieldEraseActive(),'hold+pad');
+    }else if(mode===8){
+        set(CC_MODE_COPY,'Apply key','Apply the selected scale to the shared parent key',scaleFindingCanApply());
+        set(CC_MODE_CLEAR,'Clear preview','Discard uncommitted key/scale selection only',scaleFindingCanClear());
+        set(CC_MODE_LOOP,'Freeze evidence','Available with a future evidence accumulator',false);
+    }else if(mode===9){
+        set(CC_MODE_LOOP,'Resize loop','Hold Loop and turn Jog to resize the bar loop',true,false,'hold');
+    }
+    return result;
 }
