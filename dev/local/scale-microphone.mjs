@@ -31,7 +31,9 @@ export function spectrumToChroma(decibels,sampleRate,fftSize){
    const exactMidi=69+12*Math.log2((bin*hertzPerBin)/440);
    const midi=Math.round(exactMidi);
    if(midi<lowestMidi||midi>highestMidi||Math.abs(exactMidi-midi)>.5)continue;
-   const energy=Math.pow(10,(Math.min(-12,level)+72)/32);
+   // Web Audio reports power in dB; invert with /20 to get linear
+   // amplitude like the Move Goertzel worker (not compressed /32).
+   const energy=Math.pow(10,(Math.min(-12,level)+72)/20);
    const index=midi-lowestMidi;
    spectrum[index]=Math.max(spectrum[index],energy);
  }
