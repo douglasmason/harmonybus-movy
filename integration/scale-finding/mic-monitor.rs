@@ -18,6 +18,7 @@ struct Shared {
     write_pos: AtomicU64,
     active: AtomicBool,
     shutdown: AtomicBool,
+    worker_ready: AtomicBool,
     result_seq: AtomicU64,
     result: [AtomicU8; BINS],
 }
@@ -25,7 +26,8 @@ impl Shared {
     fn new() -> Self {
         Self { pcm: std::array::from_fn(|_| AtomicI16::new(0)),
             write_pos: AtomicU64::new(0), active: AtomicBool::new(false),
-            shutdown: AtomicBool::new(false), result_seq: AtomicU64::new(0),
+            shutdown: AtomicBool::new(false), worker_ready: AtomicBool::new(false),
+            result_seq: AtomicU64::new(0),
             result: std::array::from_fn(|_| AtomicU8::new(0)) }
     }
 }
@@ -43,7 +45,8 @@ impl MicMonitor {
         Self { shared, worker }
     }
     pub fn available(&self) -> bool {
-        self.worker.is_some() && crate::host::audio_input_available()
+        self.worker.is_some() && self.shared.worker_ready.load(Ordering::Acquire)
+            && crate::host::audio_input_available()
     }
     pub fn listening(&self) -> bool {
         self.shared.active.load(Ordering::Acquire)
@@ -93,12 +96,15 @@ impl Drop for MicMonitor {
     fn drop(&mut self) {
         self.shared.active.store(false, Ordering::Release);
         self.shared.shutdown.store(true, Ordering::Release);
-        if let Some(worker) = self.worker.take() { let _ = worker.join(); }
+        // The plugin's destroy_instance may run on Schwung's SPI RT thread.
+        // Never join a worker from that callback. Its Arc owns the ring until
+        // it notices shutdown and exits; unpark makes its exit prompt.
+        if let Some(worker) = self.worker.take() { worker.thread().unpark(); }
     }
 }
 
 #[cfg(target_os = "linux")]
-fn demote_worker() {
+fn demote_worker() -> bool {
     // A child thread inherits Move's SCHED_FIFO 70 from the SPI callback.
     // The first action MUST be SCHED_OTHER, before any DSP or allocations.
     #[repr(C)]
@@ -110,25 +116,31 @@ fn demote_worker() {
     }
     unsafe {
         let parameter = SchedParam { sched_priority: 0 };
-        let _ = sched_setscheduler(0, 0, &parameter); // SCHED_OTHER = 0
+        if sched_setscheduler(0, 0, &parameter) != 0 {
+            // Fail CLOSED: inherited SCHED_FIFO workers starve Move audio.
+            return false;
+        } // SCHED_OTHER = 0
         let mut cpuset = [0u8; 128];
         cpuset[0] = 0b0000_0111; // cores 0-2; leave core 3 for SPI
         let _ = sched_setaffinity(0, cpuset.len(), cpuset.as_ptr());
         let _ = nice(10);
     }
+    true
 }
 #[cfg(not(target_os = "linux"))]
-fn demote_worker() {}
+fn demote_worker() -> bool { true }
 
 fn worker_loop(shared: Arc<Shared>) {
-    demote_worker();
+    if !demote_worker() { return; }
+    shared.worker_ready.store(true, Ordering::Release);
     let mut samples = [0f32; WINDOW];
     let mut window = [0f32; WINDOW];
     for (index, coefficient) in window.iter_mut().enumerate() {
         *coefficient = 0.5 - 0.5 * (std::f32::consts::TAU * index as f32 / (WINDOW - 1) as f32).cos();
     }
     loop {
-        thread::sleep(Duration::from_millis(160));
+        // Park permits nonblocking teardown from an RT destroy callback.
+        thread::park_timeout(Duration::from_millis(160));
         if shared.shutdown.load(Ordering::Acquire) { break; }
         if !shared.active.load(Ordering::Acquire) { continue; }
         let position = shared.write_pos.load(Ordering::Acquire);
