@@ -15,8 +15,11 @@ export function functionalTemplates(hypothesis={}){
  const tonicThird=MODULO(notes[2]-tonic,12);
  if(![3,4].includes(tonicThird))return [];
  const minor=tonicThird===3;
- const definitions=[['T',0],['PD',1],['PD',3],['D',4],['D',6]];
- // VI is only a tonic substitute in major; in minor VI is commonly predominant.
+ const definitions=[['T',0],['PD',1],['PD',3],['D',4]];
+ // VII has a dominant function only when it contains a genuine leading tone.
+ // A modal flat-VII in natural minor or Mixolydian is not automatically D.
+ if(MODULO(tonic-notes[6],12)===1)definitions.push(['D',6]);
+ // VI is a tonic substitute in major; minor VI is commonly predominant.
  if(!minor)definitions.push(['T',5]);
  return definitions.map(([functionName,degree])=>({
   functionName,degree:degree+1,
