@@ -97,9 +97,35 @@ assert.equal(conductor.getParam('midi_fx1:key_center_explicit_scale'),appliedSca
     'X clears only the transient Scale Finding preview, not the committed parent key');
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_COPY,WHITE_DIM),WHITE_OFF,
     'Copy cannot apply without a selected candidate');
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),false,
-    'Sampling retains its original mapping until microphone capture is verified');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_DIM),WHITE_OFF,
+    'Sample LED is off without an available microphone provider');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true,
+    'Scale Finding consumes Sample even when microphone is unavailable');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),true,
+    'Sampling release remains captured and cannot open the stock sampler');
+assert.equal(scale.scaleMicrophoneListening(),false);
+scale.setScaleMicrophoneAvailable(true);
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_OFF),WHITE_DIM,
+    'available but idle Sample LED is dim');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true);
+assert(scale.scaleMicrophoneListening(),'Sample starts evidence collection');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_OFF),WHITE_BRIGHT,
+    'Sample LED illuminates while listening');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),true);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false),true);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true);
+assert(scale.scaleMicrophoneListening(),'reserved Loop cannot toggle microphone listening');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),true);
+assert(!scale.scaleMicrophoneListening(),'Sample stops listening without changing key');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_BRIGHT),WHITE_OFF,
+    'Loop remains reserved and dark in Scale Finding');
+const scaleActions=buttons.modeActionDescriptors();
+assert.equal(scaleActions.find(action=>action.cc===buttons.CC_MODE_SAMPLE)?.label,'Listen / stop');
+assert.equal(scaleActions.find(action=>action.cc===buttons.CC_MODE_LOOP)?.available,false);
 scale.setScaleFindingEnabled(false);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),false,
+    'Sample returns to stock handling outside Scale Finding');
 
 grid.restoreGrid(null);grid.setGridEnabled(true);
 assert.equal(router.sessionPlayMode(),4);
@@ -157,8 +183,12 @@ scale.setScaleFindingEnabled(true);
 const finding=buttons.modeActionDescriptors();
 assert.equal(finding.find(action=>action.cc===119)?.label,'Clear preview');
 assert.equal(finding.find(action=>action.cc===60)?.label,'Apply key');
-assert.equal(finding.find(action=>action.cc===118)?.label,'Sample');
-assert.match(finding.find(action=>action.cc===118)?.detail??'',/not yet connected/);
+assert.equal(finding.find(action=>action.cc===118)?.label,'Listen / stop');
+assert.match(finding.find(action=>action.cc===118)?.detail??'',/pitch-class data collection/);
+assert.equal(finding.find(action=>action.cc===118)?.available,false,
+    'on-device microphones cannot be advertised without an input provider');
+assert.equal(finding.find(action=>action.cc===58)?.available,false,
+    'Loop is explicitly reserved rather than pretending to start listening');
 scale.setScaleFindingEnabled(false);
 grid.setGridEnabled(true);
 const gridActions=buttons.modeActionDescriptors();

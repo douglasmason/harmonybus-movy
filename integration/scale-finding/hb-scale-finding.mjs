@@ -40,6 +40,10 @@ keyboardState.columnOffset=0;
 scale.setScaleFindingEnabled(true);
 assert(scale.scaleFindingActive());
 assert.equal(buttons.sessionPlayMode(),8);
+assert.equal(scale.scaleEvidenceWindowMs(),1800);
+assert(scale.scaleFindingMidi([176,76,1]),'K6 window encoder is consumed in Family layout');
+assert(scale.scaleEvidenceWindowMs()>1800,'K6 tunes aggregation in Family as well as Piano');
+scale.setScaleEvidenceWindowMs(1800);
 assert.equal(padsPlayNotes(),false,'Scale Finding replaces instrumental pad notes');
 assert.deepEqual(scale.scaleFindingColors().filter((color,index)=>index%8===0),
     [120,120,120,120],'white tonic appears in all four rows continuously');
@@ -83,6 +87,47 @@ assert(frames.some(packet=>packet.length>=4),'real Move LED packets produced');
 const unchanged=writes.length;
 scale.renderScaleFinding();
 assert.equal(writes.length,unchanged,'rendering never writes native parameters');
+// Evidence layouts share the silent Move pad owner and the conductor-only Apply.
+scale.setFinderLayout('piano');
+assert.equal(scale.finderLayoutName(),'piano');
+assert.equal(scale.finderPadPitch(16),0,'piano C');
+assert.equal(scale.finderPadPitch(18),4,'piano E');
+assert.equal(scale.finderPadPitch(20),7,'piano G');
+assert.equal(scale.finderPadPitch(26),null,'unoccupied upper black-key slot');
+const beforeEvidence=writes.length;
+for(const pad of [16,18,20])assert(scale.scaleFindingMidi([144,68+pad,100]));
+assert.equal(writes.length,beforeEvidence,'selecting evidence has no key or clip writes');
+const evidence=scale.scaleFindingEvidenceSnapshot();
+assert.equal(evidence.latchedNotes,(1<<0)|(1<<4)|(1<<7));
+assert(scale.scaleFindingCandidates().some(candidate=>candidate.name==='Major'&&candidate.compatible));
+const majorIndex=scale.scaleFindingCandidates().findIndex(candidate=>candidate.name==='Major');
+assert(majorIndex>=0&&scale.selectScaleCandidate(majorIndex));
+assert(scale.commitScaleFindingPreview(),'Copy commits selected tonic and scale together');
+assert.deepEqual(writes.slice(-3),[
+    [0,'midi_fx1:key_center_tonic','C'],
+    [0,'midi_fx1:key_center_explicit_scale','Major'],
+    [0,'midi_fx1:key_center_apply','Apply']
+]);
+assert(scale.setScaleEvidenceWindowMs(1000));
+assert.equal(scale.scaleEvidenceWindowMs(),1000);
+scale.setScaleMicrophoneAvailable(true);
+assert(scale.setScaleMicrophoneListening(true));
+const chroma=Array(12).fill(0);chroma[1]=1;chroma[3]=0.4;
+assert(scale.ingestScaleChroma(chroma,10000));
+assert(scale.scaleFindingEvidenceSnapshot().chroma[1]>0.6,'time-window EMA accumulates chroma');
+assert(scale.scaleFindingColors()[25]>0,'audio pitch evidence is visualized');
+const retained=scale.scaleFindingEvidenceSnapshot().chroma[1];
+assert(scale.setScaleMicrophoneListening(false));
+assert.equal(scale.ingestScaleChroma(Array(12).fill(0),10200),false,
+    'no evidence ingress after Sample stops microphone capture');
+assert.equal(scale.scaleFindingEvidenceSnapshot().chroma[1],retained,
+    'stopping listening freezes evidence until X');
+assert(scale.clearScaleFindingPreview(),'X clears manual and audio evidence');
+assert.equal(scale.scaleFindingEvidenceSnapshot().latchedNotes,0);
+assert.equal(scale.scaleFindingEvidenceSnapshot().chroma[1],0);
+scale.setFinderLayout('inline');
+assert.equal(scale.finderPadPitch(0),0);
+assert.equal(scale.finderPadPitch(9),9);
 scale.setScaleFindingEnabled(false);
 assert(!scale.scaleFindingActive());
 assert(padsPlayNotes(),'normal note ownership resumes after leaving');

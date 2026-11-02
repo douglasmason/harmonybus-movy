@@ -5,6 +5,7 @@ import {mountMoveInput} from './move-input.mjs';
 import {mountSessions} from './session-ui.mjs';
 import {createMoveConnection} from './move-connection.mjs';
 import {mountMoveWorkspace} from './move-workspace.mjs';
+import {mountScaleFinderUI} from './scale-finder-ui.mjs';
 
 const errorBox=document.querySelector('#error'),feedback=document.querySelector('#feedback');
 try{
@@ -26,6 +27,7 @@ try{
  const transportButtons=[...document.querySelectorAll('[data-move-transport]')];
  const controlState=(ready,message)=>{for(const button of transportButtons)button.disabled=!ready;transportStatus.textContent=message;};
  const isBrowser=()=>connection.engine==='browser'&&!connection.busy&&connection.ready;
+ const scaleFinder=mountScaleFinderUI({send,isBrowser});
  connection=createMoveConnection({browser,inputs:{disable(){workspace?.suspend();inputs.disable();}},pageURL:location.href,onFrame:frame=>surface.update(frame),
   onState:({engine,state,message})=>{
    if(state==='switching')cancelCheck();
@@ -43,7 +45,7 @@ try{
    for(const selector of ['.accompaniment','.played-readout','#sessions','#audio-settings'])document.querySelector(selector).hidden=!local;
    document.querySelector('.screen-hint').textContent=local?'Drag a displayed parameter to adjust it; tap to touch its knob.':'Live device pixels. Rich labels and remote gestures are unavailable in this protocol.';
    if(!local){
-    surface.setSemanticAvailable(false);
+    scaleFinder.stop();surface.setSemanticAvailable(false);
     playMode.disabled=true;playMode.replaceChildren(new Option('Read on Move display',''));
     currentMode=null;modeNames='';lastTrack=-1;
     feedback.textContent=state==='connected'?'Use physical controls for pads, knobs and recording · audio plays on Move':message;
@@ -117,6 +119,7 @@ try{
    }));
   }
   currentMode=frame.mode;playMode.value=String(currentMode);
+  scaleFinder.update(frame);
   playMode.disabled=!frame.ready||frame.held>0||inputs.isHeld();
   accompaniment=frame.accompaniment;
   if(accompaniment){
@@ -155,7 +158,7 @@ try{
   if(frame.ready)inputs.enable();
  };
  socket.onerror=error=>{errorBox.textContent=error.message??'Engine connection failed';};
- socket.onclose=()=>{connection.browserClosed();disableAudio();feedback.textContent='Engine closed · reload to restart';compSource.disabled=playMode.disabled=true;};
+ socket.onclose=()=>{scaleFinder.stop();connection.browserClosed();disableAudio();feedback.textContent='Engine closed · reload to restart';compSource.disabled=playMode.disabled=true;};
  send({type:'subscribe_tool'});
  for(const id of ['audio','audio-test','stop'])document.querySelector('#'+id).disabled=false;
  document.querySelector('#build').textContent=`Movy ${audio.build?.engineSource?.integrationVersion??'unknown'} · HarmonyBus ${metadata.version} · engine ${audio.build?.engineSource?.commit?.slice(0,12)??'unknown'} · UI ${audio.build?.hostSource?.commit?.slice(0,12)??'local'} · 44,100 Hz`;
