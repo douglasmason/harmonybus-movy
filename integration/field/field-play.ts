@@ -19,6 +19,7 @@ import { currentSetUuid } from './set-session.js';
 import { syncPadRoute } from '../track/pad-route.js';
 import { releaseLaunchpad } from '../surfaces/launchpad.js';
 
+let fieldEraseHeld=false;
 let enabled=false, owner=-1, lastRead=-Infinity, lastSend=-Infinity, setId='';
 let page:SchwungPage|null=null;
 let samples:number[]=Array(64).fill(64), paint:number[]=Array(32).fill(-1);
@@ -29,7 +30,16 @@ const held=new Map<string,{rate:number;zoom:number}>();
 const rates=[-400,-200,-100,0,100,150,200,400];
 export function fieldActive():boolean{return enabled&&!seqState.sessionMode;}
 export function fieldEnabled():boolean{return enabled;}
+/** Output erasure is only available on the existing live-output surface. */
+export function fieldEraseAvailable():boolean{return fieldActive()&&outputView&&!settingsOpen;}
+export function fieldEraseActive():boolean{return fieldEraseAvailable()&&fieldEraseHeld;}
+export function setFieldEraseHeld(next:boolean):void {
+    const value=next&&fieldEraseAvailable();
+    if(fieldEraseHeld===value)return;
+    fieldEraseHeld=value;appState.dirty=true;
+}
 export function releaseField():void{
+    fieldEraseHeld=false;
     pendingFinishes=[];releaseOutputs();sendOutputs();held.clear();if(owner>=0)portFor(owner).setParam('midi_fx1:field_release','1');lastSend=-Infinity;
 }
 export function setFieldEnabled(value:boolean):void{
@@ -52,7 +62,7 @@ export function fieldPage():SchwungPage{
     return followPanel(page);
 }
 /** Last-pressed wins; releasing it restores another held gesture or baseline. */
-export function fieldPad(source:string,index:number,down:boolean,width=8,height=4,clear=appState.shiftHeld):boolean{
+export function fieldPad(source:string,index:number,down:boolean,width=8,height=4,clear=appState.shiftHeld||fieldEraseHeld):boolean{
     if(!['move','launchpad','remote'].includes(source)||!fieldActive()||!engineReady()||!Number.isInteger(index)||index<0||index>=width*height||width!==8||![4,8].includes(height))return false;
     if(outputView){if(clear&&down)clearFieldOutput(outputLane(vertical?index%8:Math.floor(index/8)));else finishOutput(outputPad(source,index,down,height));sendOutputs();appState.dirty=true;return true;}
     const key=source+':'+index;
