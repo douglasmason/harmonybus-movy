@@ -1,6 +1,7 @@
 import {notationGlyph} from '../font/notation.js';
 import {drawNativeText,nativeTextWidth} from '../vendor/schwung/shared/param_pages/hb_large_font.mjs';
 import {drawGlyphRun, glyphRunWidth} from '../font/blit.js';
+import {fontPrint5x3,fontWidth5x3} from '../vendor/schwung/shared/param_pages/font5x3.mjs';
 import {registerWidget,isWidgetAvailable} from '../renderer/schwung-widgets.js';
 import {chordDegrees,intentLabel,type ChordStatus} from './chord-colors.js';
 
@@ -45,13 +46,13 @@ export function registerChordLabels():void {
         const chordName=String(meta.chordName??'--');
         const roman=String(meta.chordRoman??'');
         const showRoman=!!roman;
-        // Explicit per-line metrics: a normal 5px chord name over an 8px Roman.
-        // Compact 15px cells use two 5px lines; an extra top inset always
-        // clears the frame instead of allowing the capitals to touch its edge.
-        const largeRoman=showRoman&&height>=17;
-        const nameHeight=5,romanHeight=largeRoman?8:5,gap=showRoman?1:0;
+        // The stock compact 5x3 name font allows a real three-pixel top
+        // clearance; leave the larger musical Roman below with its own gap.
+        const nameHeight=5,gap=showRoman?1:0;
+        const largeRoman=showRoman&&height>=19;
+        const romanHeight=largeRoman?8:5;
         const usedHeight=nameHeight+(showRoman?gap+romanHeight:0);
-        const top=Math.max(2,Math.floor((height-usedHeight)/2));
+        const top=Math.max(3,Math.min(height-usedHeight-2,Math.floor((height-usedHeight)/2)));
         ctx.fillRect(1,0,width-2,1,1);ctx.fillRect(1,height-1,width-2,1,1);
         ctx.fillRect(1,0,1,height,1);ctx.fillRect(width-2,0,1,height,1);
         const compactMeasure=(value:string)=>glyphRunWidth(value,notationGlyph,5,0);
@@ -61,7 +62,9 @@ export function registerChordLabels():void {
             drawGlyphRun(left,0,text,active?0:1,notationGlyph,5,0,
                 (x,dy,w,h,color)=>ctx.fillRect(x,y+dy,w,h,color));
         };
-        drawCompact(chordName,top);
+        const compactName=fitChordText(chordName,width-6,fontWidth5x3);
+        fontPrint5x3({fillRect:(x:number,y:number,w:number,h:number,color:number)=>ctx.fillRect(x,top+y,w,h,color)},
+            Math.floor((width-fontWidth5x3(compactName))/2),0,compactName,active?0:1);
         if(showRoman){
             const romanTop=top+nameHeight+gap;
             if(largeRoman){
