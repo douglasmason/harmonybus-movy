@@ -60,7 +60,7 @@ def tamzen_lowercase(schwung_root: Path) -> list[list[int]]:
         rows = map_letter_to_rows[letter]
         occupied: list[int] = [index for index, row in enumerate(rows) if row]
         rows = rows[occupied[0]:occupied[-1] + 1]
-        height: int = 7 if letter in 'bdfhklt' else 6
+        # Dotted i/j require the full cap-height band for their dot; the other\n        # normalized lowercase bodies remain shorter than capitals.\n        height: int = 7 if letter in 'bdfhijklt' else 6
         normalized.append([6, 0, 5, 7, *([0] * (7 - height)),
                            *(rows[index * len(rows) // height] for index in range(height))])
     return normalized
