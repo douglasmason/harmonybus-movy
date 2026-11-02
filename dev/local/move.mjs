@@ -52,7 +52,7 @@ try{
     audioStatus.textContent=connection.ready?'Browser engine suspended · browser session retained · no session transfer':'Waiting for browser suspension acknowledgment';
    }else if(!switching){audioStatus.textContent='Browser audio off · tap Enable audio to listen';}
   }});
- workspace=mountMoveWorkspace({connection,inputs});
+ workspace=mountMoveWorkspace({connection,inputs,openComponent:surface.openComponent});
  engineSelector.onchange=async()=>{
   if(sessionUI?.isBusy()){engineSelector.value=connection.engine;return;}
   errorBox.textContent='';await connection.select(engineSelector.value);
