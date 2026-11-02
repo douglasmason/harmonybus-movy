@@ -58,14 +58,18 @@ def patch_chord_queue_ownership(root: Path) -> None:
         "export function harmonyOff():void{",
         """export function harmonyOff():void{
     buttonQueuePresent=false;buttonQueueOverride=false;buttonQueueMuted=false;""")
-    # This is the last controller integration stage: upstream Joint patches
-    # have to apply before changing the step/knob LED painter.
+    # Apply after Joint's composed step and knob painter, not to the base
+    # render assets. Only chord slots pulse white; clip/motif launch controls
+    # retain their own separate feedback.
     source = replace_once(source,
-        "const slot=stepSlot(index),contentKey=contentStepKey(index),color=contentKey?(conductorContentColor(contentKey,conductorTrack())??123):slot<0?123:chordSlotColor(slot);cachedSetAnimLED(16+index,color,chordSlotQueued(slot)?0:color,chordSlotQueued(slot)?ANIM_PULSE_SLOW:0);",
-        "const slot=stepSlot(index),contentKey=contentStepKey(index),color=contentKey?(conductorContentColor(contentKey,conductorTrack())??123):slot<0?123:chordSlotColor(slot),pulse=slot>=0&&(color===120||chordSlotQueued(slot));cachedSetAnimLED(16+index,color,pulse?0:color,pulse?ANIM_PULSE_SLOW:0);")
+        "cachedSetAnimLED(16+index,color,chordSlotQueued(slot)?0:color,chordSlotQueued(slot)?ANIM_PULSE_SLOW:0);",
+        "cachedSetAnimLED(16+index,color,(!contentKey&&color===120||chordSlotQueued(slot))?0:color,(!contentKey&&color===120||chordSlotQueued(slot))?ANIM_PULSE_SLOW:0);")
     source = replace_once(source,
-        "const index=knob===7?-1:Number(keys[knob]!.slice(8)),color=conductorContentColor(keys[knob]??'',conductorTrack())??(index<0?123:chordSlotColor(index));cachedSetAnimLED(knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0);cachedSetAnimLED(71+knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0,true);",
-        "const index=knob===7?-1:Number(keys[knob]!.slice(8)),color=conductorContentColor(keys[knob]??'',conductorTrack())??(index<0?123:chordSlotColor(index)),pulse=index>=0&&(color===120||chordSlotQueued(index));cachedSetAnimLED(knob,color,pulse?0:color,pulse?ANIM_PULSE_SLOW:0);cachedSetAnimLED(71+knob,color,pulse?0:color,pulse?ANIM_PULSE_SLOW:0,true);")
+        "cachedSetAnimLED(knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0);",
+        "cachedSetAnimLED(knob,color,(/^cp_slot_/.test(keys[knob]??'')&&color===120||chordSlotQueued(index))?0:color,(/^cp_slot_/.test(keys[knob]??'')&&color===120||chordSlotQueued(index))?ANIM_PULSE_SLOW:0);")
+    source = replace_once(source,
+        "cachedSetAnimLED(71+knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0,true);",
+        "cachedSetAnimLED(71+knob,color,(/^cp_slot_/.test(keys[knob]??'')&&color===120||chordSlotQueued(index))?0:color,(/^cp_slot_/.test(keys[knob]??'')&&color===120||chordSlotQueued(index))?ANIM_PULSE_SLOW:0,true);")
     path.write_text(source)
 
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
