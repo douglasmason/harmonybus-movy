@@ -16,7 +16,7 @@ import {seqToast} from './render.js';
 import {fieldEraseAvailable,fieldEraseActive,setFieldEraseHeld} from './field-play.js';
 import {motifEditing,motifAction,motifPage,motifFinish} from '../renderer/hb-motif.js';
 import {schwungActiveFor} from '../renderer/schwung-grid.js';
-import {chordActive, chordQueuedMode, chordLoopSelected, chordLoopButton, chordRetrigger, chordMuteSelected, chordMuteButton, chordPadModalActive, harmonyOff} from './chord-play.js';
+import {chordActive, chordQueuedMode, chordLoopSelected, chordLoopButton, chordSampleButton, chordRetrigger, chordMuteSelected, chordMuteButton, chordPadModalActive, harmonyOff} from './chord-play.js';
 import {jointActive, jointChordKnobs} from './joint-play.js';
 import {settingsActive} from './hb-settings.js';
 import {fontPrint} from '../font/index.js';
@@ -39,7 +39,7 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
     3:{name:'Joint Play',lines:[
         'Pads: selected actors',
         'X: Off with chord knobs',
-        'Loop: Queued / Immediate',
+        'Loop: repeat / hold',
         'Mute: queue active/off']},
     4:{name:'Grid Sequencer',lines:[
         'Pads: time / pitch cells',
@@ -128,7 +128,8 @@ export function modeButtonColor(cc:number,fallback:number):number {
     if(inputModeSelectorOpen())return cc===CC_MODE_LOOP?WHITE_OFF:fallback;
     if(chordButtonContext()){
         if(cc===CC_MODE_CLEAR)return WHITE_DIM;
-        if(cc===CC_MODE_LOOP)return chordQueuedMode()?WHITE_BRIGHT:WHITE_DIM;
+        if(cc===CC_MODE_LOOP)return chordLoopSelected()?WHITE_BRIGHT:WHITE_DIM;
+        if(cc===CC_MODE_SAMPLE)return chordQueuedMode()?WHITE_DIM:WHITE_BRIGHT;
         if(cc===CC_MODE_MUTE)return chordMuteSelected()?WHITE_DIM:WHITE_BRIGHT;
         return fallback;
     }
@@ -202,6 +203,10 @@ export function modeButtonMidi(cc:number,value:number,shiftHeld:boolean):boolean
     if(shiftHeld||inputModeSelectorOpen())return false;
     if(cc===CC_MODE_MUTE&&chordButtonContext()){
         if(down){capturedReleases.add(cc);dismissModeHelp();chordMuteButton();}
+        return true;
+    }
+    if(cc===CC_MODE_SAMPLE&&chordButtonContext()){
+        if(down){capturedReleases.add(cc);dismissModeHelp();chordSampleButton();}
         return true;
     }
     if(cc===CC_MODE_SAMPLE&&scaleFindingActive()){
@@ -288,9 +293,12 @@ export function modeActionDescriptors():ModeActionDescriptor[]{
     }
     if(chord){
         set(CC_MODE_CLEAR,'Harmony Off','Clear the live harmonic override / queued chord',true);
-        set(CC_MODE_LOOP,'Chord entry: '+(chordQueuedMode()?'Queued':'Immediate'),
-            'Choose queued or immediate chord input; do not delete the stored progression',
-            true,chordQueuedMode());
+        set(CC_MODE_LOOP,'Queue end: '+(chordLoopSelected()?'Loop':'Hold'),
+            'Loop repeats the saved progression; Hold sustains the final chord',
+            true,chordLoopSelected());
+        set(CC_MODE_SAMPLE,'Chord entry: '+(chordQueuedMode()?'Queued':'Immediate'),
+            'Sample lit: Immediate; dim: Queued, without clearing the stored progression',
+            true,!chordQueuedMode());
         set(CC_MODE_MUTE,'Queue active',
             'Activate or bypass the stored progression without deleting it',
             true,!chordMuteSelected());
