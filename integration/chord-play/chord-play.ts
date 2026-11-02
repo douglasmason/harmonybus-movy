@@ -85,6 +85,13 @@ export function chordSlotColor(index:number):number{
     return chordColor(status,slot.intent,setup.colorView,index===selected,!!slot.enabled);
 }
 export function chordSlotQueued(index:number):boolean{return !!setup.playMode&&!!setup.slots[index]?.enabled&&!!bankStatus?.slots[index]?.queued;}
+/** The sounding harmony breathes white even when already consumed by Hold.
+ * All other queued harmonies breathe in their implied-quality color. */
+function chordLedState(index:number):readonly [number,number,number] {
+    const color=index<0?123:chordSlotColor(index);
+    const pulse=index>=0&&(color===120||chordSlotQueued(index));
+    return [color,pulse?0:color,pulse?ANIM_PULSE_SLOW:0];
+}
 /** Shared defaults are native; slot overrides travel with each selected chord. */
 const rangeTouches=new Map<number,{shift:boolean;moved:boolean}>();
 const rangeTurns=new Map<number,{at:number;remainder:number;identity:string}>();
@@ -407,11 +414,11 @@ export function chordKnobLEDMask():number{
 }
 export function paintChordSteps():boolean{
     if(!chordActive())return false;
-    for(let index=0;index<16;index++){const slot=stepSlot(index),color=slot<0?123:chordSlotColor(slot);cachedSetAnimLED(16+index,color,chordSlotQueued(slot)?0:color,chordSlotQueued(slot)?ANIM_PULSE_SLOW:0);}
+    for(let index=0;index<16;index++){const [color,base,animation]=chordLedState(stepSlot(index));cachedSetAnimLED(16+index,color,base,animation);}
     const current=!settingsActive()?page:null;
     const keys=Array.from({length:8},(_,knob)=>current?.keyAt(knob)??null),onBank=keys.some(key=>/^cp_slot_/.test(key??''));
     if(onBank){
-        for(let knob=0;knob<8;knob++){const index=knob===7?-1:Number(keys[knob]!.slice(8)),color=index<0?123:chordSlotColor(index);cachedSetAnimLED(knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0);cachedSetAnimLED(71+knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0,true);}
+        for(let knob=0;knob<8;knob++){const index=knob===7?-1:Number(keys[knob]!.slice(8)),[color,base,animation]=chordLedState(index);cachedSetAnimLED(knob,color,base,animation);cachedSetAnimLED(71+knob,color,base,animation,true);}
     }else if(bankKnobs){
         for(let knob=0;knob<8;knob++)if(!current||!(current.knobLEDMask&(1<<knob))){const color=keys[knob]?123:0;cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);}
     }
