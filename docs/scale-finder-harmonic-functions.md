@@ -44,7 +44,7 @@ Given an explicitly pinned seven-note scale, it builds a small
 diatonic *triad-template* set:
 - T: degree I (and VI as a tonic substitute in major);
 - PD: degrees II and IV;
-- D: degrees V and VII.
+- D: degree V, with VII included only when its root is a raised leading tone (a semitone below the tonic). Modal flat-VII is not automatically dominant.
 
 Unknown is a full output state, not a failure to pick a chord.
 The model refuses to label one- or two-note input and rejects noisy,
