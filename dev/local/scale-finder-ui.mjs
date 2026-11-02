@@ -2,6 +2,7 @@
  * The connected Move mirror is read-only and never acquires browser microphone.
  */
 import {createScaleMicrophone} from './scale-microphone.mjs';
+import {createHarmonicFunctionTracker,FUNCTION_LABELS} from './harmonic-function.mjs';
 
 const names=['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
 
@@ -17,12 +18,63 @@ export function mountScaleFinderUI({send,isBrowser}){
  const candidates=document.querySelector('#finder-candidates');
  const overrides=document.querySelector('#finder-overrides');
  const resetOverrides=document.querySelector('#finder-reset-overrides');
+ const functionPin=document.querySelector('#finder-function-pin');
+ const functionUnpin=document.querySelector('#finder-function-unpin');
+ const functionClear=document.querySelector('#finder-function-clear');
+ const functionSource=document.querySelector('#finder-function-source');
+ const functionCurrent=document.querySelector('#finder-function-current');
+ const functionTimeline=document.querySelector('#finder-function-timeline');
  const apply=document.querySelector('#finder-apply');
  const clear=document.querySelector('#finder-clear');
  let active=false,started=false,requestedListening=false,listenPending=false,stopPending=false,lastCandidates='',lastChroma='';
+ let lastFinder=null,lastFunctionRender='',previousHasEvidence=false;
+ const functionTracker=createHarmonicFunctionTracker();
+ const renderFunctionTimeline=()=>{
+  const state=functionTracker.snapshot();
+  const selected=lastFinder?.candidates?.[lastFinder.candidateIndex];
+  const pinnable=lastFinder?.layout!=='family'&&selected?.compatible&&
+     Array.isArray(selected.notes)&&selected.notes.length===7;
+  functionPin.disabled=!pinnable;
+  functionUnpin.disabled=!state.pinned;
+  functionClear.disabled=!state.segments.length;
+  const context=state.pinned?
+    'Pinned '+names[state.pinned.tonic]+' '+state.pinned.name+
+    ' · browser microphone only'+(requestedListening?' · observing':' · paused; evidence retained'):
+    'Select a compatible seven-note scale above and pin it. No tonal center is inferred automatically.';
+  const label=state.current?
+    FUNCTION_LABELS[state.current.functionName]+
+      (state.current.chromatic?' · chromatic evidence':'')+
+      ' · '+(state.current.reason==='ambiguous function'?'ambiguous':'advisory'):
+    'Unknown · no stable function detected';
+  const fingerprint=JSON.stringify([context,label,state.segments]);
+  if(fingerprint===lastFunctionRender)return;
+  lastFunctionRender=fingerprint;
+  functionSource.textContent=context;
+  functionCurrent.textContent=label;
+  functionTimeline.replaceChildren();
+  for(const segment of state.segments){
+   const item=document.createElement('span');
+   item.className='finder-function-segment';
+   item.setAttribute('role','listitem');
+   item.dataset.function=segment.functionName;
+   item.dataset.chromatic=String(segment.chromatic);
+   item.textContent=segment.functionName+(segment.chromatic?' · Chrom':'');
+   item.title=FUNCTION_LABELS[segment.functionName]+
+     (segment.chromatic?' with out-of-key observations':'')+
+     ' · detected duration '+((segment.endMs-segment.startMs)/1000).toFixed(1)+' s';
+   functionTimeline.append(item);
+  }
+ };
  const request=(action,value)=>{if(active&&isBrowser())send({type:'move_scale_mic',action,value});};
  const analyzer=createScaleMicrophone({
-  onChroma:values=>{if(active&&requestedListening&&isBrowser())request('chroma',values);},
+  onChroma:values=>{
+   if(!active||!requestedListening||!isBrowser())return;
+   request('chroma',values);
+   if(functionTracker.snapshot().pinned){
+    functionTracker.observe(values,Date.now());
+    renderFunctionTimeline();
+   }
+  },
   onStatus:message=>{status.textContent=message;}
  });
  for(let index=0;index<12;index++){
@@ -47,9 +99,19 @@ export function mountScaleFinderUI({send,isBrowser}){
   label.append(name,select);overrides.append(label);overrideSelects.push(select);
  }
  resetOverrides.onclick=()=>request('resetOverrides',null);
+ functionPin.onclick=()=>{
+  const selected=lastFinder?.candidates?.[lastFinder?.candidateIndex];
+  if(lastFinder?.layout==='family'||!selected?.compatible)return;
+  if(functionTracker.pin({tonic:selected.tonic,notes:selected.notes,name:selected.name})){
+   lastFunctionRender='';renderFunctionTimeline();
+  }
+ };
+ functionUnpin.onclick=()=>{functionTracker.unpin();lastFunctionRender='';renderFunctionTimeline();};
+ functionClear.onclick=()=>{functionTracker.reset();lastFunctionRender='';renderFunctionTimeline();};
  const stop=()=>{
    const wasListening=analyzer.active||requestedListening;
    active=false;requestedListening=false;listenPending=false;stopPending=false;started=false;lastCandidates='';lastChroma='';
+   lastFinder=null;previousHasEvidence=false;functionTracker.unpin();lastFunctionRender='';
    panel.hidden=true;
    if(analyzer.active)analyzer.stop();
    if(wasListening&&isBrowser())send({type:'move_scale_mic',action:'listen',value:false});
@@ -78,12 +140,19 @@ export function mountScaleFinderUI({send,isBrowser}){
    windowLabel.textContent=(Number(windowSlider.value)/1000).toFixed(2)+' s';
    request('window',Number(windowSlider.value));
  };
- clear.onclick=()=>request('clear',null);
+ clear.onclick=()=>{request('clear',null);functionTracker.reset();renderFunctionTimeline();};
  apply.onclick=()=>request('apply',null);
  function update(frame){
    const finder=frame?.scaleFinding;
    if(!isBrowser()||!finder?.active){if(active)stop();return;}
-   active=true;panel.hidden=false;
+   active=true;panel.hidden=false;lastFinder=finder;
+   const hasEvidence=!!(finder.latchedNotes||finder.heldNotes||
+     finder.chroma?.some(value=>value>0));
+   if(previousHasEvidence&&!hasEvidence){
+    // Also catch the physical X button in the browser emulator.
+    functionTracker.reset();lastFunctionRender='';
+   }
+   previousHasEvidence=hasEvidence;
    if(!started){
     started=true;status.textContent='Microphone stopped · press Sample to listen';
     request('available',analyzer.supported());
@@ -137,6 +206,7 @@ export function mountScaleFinderUI({send,isBrowser}){
      (!(finder.latchedNotes||finder.heldNotes||finder.chroma.some(value=>value>0)||
         finder.manualRequired||finder.manualExcluded)&&finder.layout!=='family');
    if(finder.layout==='family')apply.disabled=finder.selectedPad<0;
+   renderFunctionTimeline();
  }
  document.addEventListener('visibilitychange',()=>{if(document.hidden&&analyzer.active){
    requestedListening=false;analyzer.stop();request('listen',false);
