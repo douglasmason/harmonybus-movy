@@ -141,3 +141,29 @@ assert(!seqState.loopMode);
 buttons.resetModeHelp();
 assert(!buttons.modeHelpSnapshot().visible);
 console.log('Mode buttons: Chord Loop/X, Scale Finding Apply/Clear, Grid Follow/Erase, Loop Edit Session transitions and global pass-through pass');
+
+const {setFlag}=await import('../dist/esm/seq/flags.js');
+setFlag('hbsteprow',2);
+assert.equal(router.sessionPlayMode(),2,'Motif Play owns its own action strip');
+const motifActions=buttons.modeActionDescriptors();
+assert.equal(motifActions.find(action=>action.cc===60)?.label,'Copy motif');
+assert.equal(motifActions.find(action=>action.cc===58)?.available,false,
+    'no false promise of motif repetition without a real repeat owner');
+assert.equal(buttons.modeButtonMidi(60,127,false),true,'Motif Copy cannot silently duplicate a clip');
+assert.equal(buttons.modeButtonMidi(60,0,false),true,'Motif Copy release never edits a clip');
+
+setFlag('hbsteprow',0);
+scale.setScaleFindingEnabled(true);
+const finding=buttons.modeActionDescriptors();
+assert.equal(finding.find(action=>action.cc===119)?.label,'Clear preview');
+assert.equal(finding.find(action=>action.cc===60)?.label,'Apply key');
+assert.equal(finding.find(action=>action.cc===118)?.label,'Sample');
+assert.match(finding.find(action=>action.cc===118)?.detail??'',/not yet connected/);
+scale.setScaleFindingEnabled(false);
+grid.setGridEnabled(true);
+const gridActions=buttons.modeActionDescriptors();
+assert.equal(gridActions.find(action=>action.cc===58)?.label,'Follow grid');
+assert.equal(gridActions.find(action=>action.cc===119)?.gesture,'hold+pad');
+grid.setGridEnabled(false);
+buttons.resetModeHelp();
+console.log('Mode action descriptors: Motif/Scale/Grid labels, physically available gestures and unimplemented actions remain truthful');
