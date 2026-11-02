@@ -48,7 +48,7 @@ def patch_chord_queue_ownership(root: Path) -> None:
     source = replace_once(source,
         "const raw=setup.playMode?(conductor.getParam('midi_fx1:hb_chord_queue_status')??''):'';",
         """const raw=conductor.getParam('midi_fx1:hb_chord_queue_status')??'';
-        const present=raw.startsWith('cq1|');
+        const present=raw.startsWith('cq1|')||raw.startsWith('cq2|');
         const override=present&&conductor.getParam('midi_fx1:hb_chord_queue_override')==='On';
         const loop=conductor.getParam('midi_fx1:chord_queue_end')==='Loop';
         if(buttonQueuePresent!==present||buttonQueueOverride!==override||buttonQueueLoop!==loop)
@@ -82,6 +82,7 @@ def patch_chord_queue_ownership(root: Path) -> None:
     source = replace_once(source,
         "cachedSetAnimLED(71+knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0,true);",
         "cachedSetAnimLED(71+knob,color,(/^cp_slot_/.test(keys[knob]??'')&&color===120||chordSlotQueued(index))?0:color,(/^cp_slot_/.test(keys[knob]??'')&&color===120||chordSlotQueued(index))?ANIM_PULSE_SLOW:0,true);")
+    source = replace_once(source, "valid=queue[0]==='cq1'", "valid=(queue[0]==='cq1'||queue[0]==='cq2')")
     path.write_text(source)
 
     path = root / 'engine/crates/movy-dsp/src/lib.rs'

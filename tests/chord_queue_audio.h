@@ -109,6 +109,36 @@ static void test_chord_queue_sustained(void){
     assert(feedback_reads>4800);
     printf("Queued Chord Play: 128 bars retain exact cues and loop size with %d read-only feedback bursts\n",feedback_reads);
 }
+static void test_chord_queue_long(void){
+    set("cmd","stop");set("chord_select","off");render(8);
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 64 0 \n");render(8);
+    set("ch0:midi_fx1:role","Conductor");set("ch0:midi_fx1:render_channel","3");
+    set("ch0:midi_fx1:chord_queue_depth","Touch Phrase");set("ch0:midi_fx1:chord_queue_end","Hold");
+    set("ch0:midi_fx1:chord_timing","1/16");set("ch0:midi_fx1:anticipation","On Grid");
+    char command[64],status[2048];
+    const int roots[]={0,7,5,2};
+    sent_on=sent_off=0;set("chord_queue","begin,0");
+    for(int index=0;index<64;index++){
+        snprintf(command,sizeof(command),"0,%d,1,2,1,0,1,12",roots[index%4]);
+        set("chord_queue",command);
+    }
+    set("chord_queue","commit");render(8);
+    api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",status,sizeof(status));
+    assert(!strncmp(status,"cq2|63|",7));
+    set("cmd","play");render(2800);
+    api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",status,sizeof(status));
+    assert(!strncmp(status,"cq2|0|",6)&&strstr(status,"|63|64|"));
+    set("chord_queue","begin,0");set("chord_queue","0,7,1,2,1,0,1,12");
+    set("chord_queue","0,5,1,2,1,0,1,12");set("chord_queue","commit");render(160);
+    api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",status,sizeof(status));
+    assert(!strncmp(status,"cq2|0|",6)&&strstr(status,"|65|66|"));
+    set("cmd","stop");render(8);set("cmd","play");render(16);
+    api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",status,sizeof(status));
+    assert(!strncmp(status,"cq2|65|",7)&&strstr(status,"|0|66|"));
+    set("cmd","stop");set("chord_select","off");render(8);
+    assert(sent_on==sent_off);
+    puts("Long Chord Play queue: 64 scheduled chords, retained Hold refill, 66-chord replay and balanced MIDI pass");
+}
 static void test_chord_queue(void){
     set("cmd","stop");render(8);set("chord_select","off");set("chord_route","off");
     set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 64 0 \n");render(4);
@@ -225,6 +255,7 @@ static void test_chord_queue(void){
     set("chord_queue","end");render(16);assert(sent_on>0);set("chord_select","off");render(16);assert(sent_on==sent_off);
     set("ch0:midi_fx1:chord_queue_depth","2");
     test_chord_queue_sustained();
+    test_chord_queue_long();
     set("ch0:midi_fx1:chord_queue_depth","2");set("ch0:midi_fx1:chord_queue_end","Hold");
     set("ch0:midi_fx1:chord_timing","1/4");
     /* A view exit also closes an immediate audition after selecting Queued

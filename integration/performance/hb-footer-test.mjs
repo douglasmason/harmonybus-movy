@@ -31,6 +31,14 @@ try{
     const first=queueFooterText('Dm7','Loop 1/8',queue(0,names));assert.match(first,/^1\/8/);assert.match(first,/C7 \[C\] Dm7/);
     assert.equal(queueFooterText('G7','Hold 1/4','cq1|1|-1|C|G7|1|1|4|0|0|2|C|G7'),'Hold 1/4 [C] G7');
     assert.equal(queueFooterText('G7','Hold 1/4','cq1|1|-1|C|G7|1|1|4|0|0|16|C'),'Next G7  Hold 1/4','incomplete snapshots never invent a loop');
+    const windowNames=Array.from({length:32},(_,index)=>index===16?'F':index===17?'G7':'C');
+    const window='cq2|2047|4|F|G7|1|0|2|1|2048|4096|2032|'+windowNames.join('|');
+    const longFooter=queueFooterText('G7','Loop 2049/4096',window);
+    assert.match(longFooter,/^2049\/4096/);
+    assert.match(longFooter,/\[F\]/,'absolute queue cursor anchors the bounded window');
+    assert(!longFooter.startsWith('Next'),'long queues retain the progression footer');
+    const invalidWindow=window.replace('|2032|','|3000|');
+    assert.match(queueFooterText('G7','Loop 2049/4096',invalidWindow),/^Next/);
     assert.equal(harmonyFooterText(1,3),'P1 T4');
     await build({entryPoints:[new URL('../src/keyboard/relative-feedback.ts',import.meta.url).pathname],bundle:true,format:'esm',outfile:join(temporary,'feedback.mjs')});
     const {parseRelativeFeedback,RelativeFeedbackCache}=await import(pathToFileURL(join(temporary,'feedback.mjs')));

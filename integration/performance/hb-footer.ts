@@ -43,17 +43,23 @@ export function fitFooter(text:string):string {
     return text+'~';
 }
 export function queueFooterText(next:string,status:string,snapshot=''):string {
-    const fields=snapshot.split('|'),cursor=Number(fields[9]),count=Number(fields[10]);
-    const names=fields.slice(11),loop=fields[8]==='1'&&fields[6]==='0';
-    if(fields[0]!=='cq1'||!Number.isInteger(count)||count<1||count>17||names.length!==count||!Number.isInteger(cursor)||cursor< -1||cursor>=count)
+    const fields=snapshot.split('|'),window=fields[0]==='cq2',total=Number(fields[10]);
+    const first=window?Number(fields[11]):0,absoluteCursor=Number(fields[9]);
+    const names=fields.slice(window?12:11),count=names.length,cursor=absoluteCursor<0?-1:absoluteCursor-first;
+    const repeating=fields[8]==='1'&&fields[6]==='0',loop=repeating&&!window;
+    if((fields[0]!=='cq1'&&!window)||!Number.isInteger(total)||total<1||count<1||count>32||
+        !Number.isInteger(first)||first<0||first+count>total||(!window&&count!==total)||
+        !Number.isInteger(absoluteCursor)||absoluteCursor< -1||absoluteCursor>=total||
+        (absoluteCursor>=0&&cursor<0)||cursor>=count)
         return fitFooter('Next '+chordLabel(next)+'  '+status);
     const token=(index:number)=>index===cursor?'['+names[index]+']':names[index];
-    const jump=loop&&cursor>=0&&next!=='--'&&next!==names[(cursor+1)%count]?' >'+next:'';
+    const expectedNext=cursor+1<count?names[cursor+1]:loop?names[0]:undefined;
+    const jump=repeating&&cursor>=0&&next!=='--'&&next!==expectedNext?' >'+next:'';
     let prefix=status+' ';
     const chords=names.map((_,index)=>token(index)).join(' ')+jump;
     const full=prefix+chords;
     if(fontWidth(full)<=126)return full;
-    if(loop){
+    if(repeating){
         prefix=status.replace(/^Loop\s+/,'')+' ';
         if(fontWidth(prefix+chords)<=126)return prefix+chords;
     }

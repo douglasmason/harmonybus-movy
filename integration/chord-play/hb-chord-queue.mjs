@@ -143,6 +143,14 @@ port.setParam('midi_fx1:cp_play_mode','Immediate');chord.selectChordSlot(0);
 commands.length=0;chord.setChordEnabled(false);
 assert(commands.some(([key,value])=>key==='chord_select'&&value==='leave'));
 chord.setChordEnabled(true);port.setParam('midi_fx1:cp_play_mode','Queued');
+const longNames=Array.from({length:32},(_,index)=>index===16?'F':'C');
+conductorControls.setParam('midi_fx1:hb_chord_queue_status','cq2|2047|4|F|C|1|0|2|1|2048|4096|2032|'+longNames.join('|'));
+conductorControls.setParam('midi_fx1:hb_chord_queue_override','On');
+clock+=101;chord.tickChord();
+assert(chord.chordQueuePresent(),'windowed queues keep contextual buttons available');
+assert.equal(port.getParam('midi_fx1:cp_queue_count'),'Loop 2049/4096');
+assert.match(chord.chordContextTrail(),/\[F\]/,'long queue footer follows the absolute sounding cursor');
+conductorControls.setParam('midi_fx1:hb_chord_queue_status','--');clock+=101;chord.tickChord();
 
 // The shared motif loader gets an explicit conductor owner, while melody pads
 // retain their track. Confirm through the real Chord Play MIDI dispatcher.
