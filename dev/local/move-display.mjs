@@ -13,7 +13,7 @@ export function fitValueText(value,width,height,measure,maxSize=6){
 
 /** Replay production geometry at screen resolution, or its exact bitmap. */
 export function mountMoveDisplay(inputs){
- const updateView=mountDisplayView(inputs);
+ const view=mountDisplayView(inputs);
  const canvas=document.querySelector('#hero'),context=canvas.getContext('2d'),pixels=context.createImageData(128,64);
  const sharp=document.querySelector('#screen-sharp'),toggle=document.querySelector('#display-sharp');
  const namespace='http://www.w3.org/2000/svg';
@@ -65,7 +65,7 @@ export function mountMoveDisplay(inputs){
   revision=frame.displayRevision;sharpMode=highResolution;
  }
  toggle.addEventListener('change',paint);
- return {update(next){updateView();if(frame?.device!==next.device)revision=-1;frame=next;paint();}};
+ return {openComponent:view.openComponent,update(next){view.update();if(frame?.device!==next.device)revision=-1;frame=next;paint();}};
 }
 
 /** Reuse the live controls in a modal editing view; do not remount the engine. */
@@ -96,18 +96,25 @@ function mountDisplayView(inputs){
  padsJump.onclick=()=>{if(inputs.isHeld())return;surface.scrollIntoView({block:'start'});surface.focus({preventScroll:true});};
  displayJump.onclick=()=>{if(inputs.isHeld())return;row.scrollIntoView({block:'start'});document.querySelector('#play-mode').focus({preventScroll:true});};
  const close=document.createElement('button');close.type='button';close.textContent='Close large display';
+ let returnFocus=expand;
  titleGroup.append(title,padsJump,filesJump);header.append(titleGroup,close);dialog.append(header);document.body.append(dialog);
  function restore(){
   if(inputs.isHeld())inputs.release();
   home.after(workspace);playbackHome.after(playback);expand.hidden=false;expand.setAttribute('aria-expanded','false');
-  document.body.classList.remove('display-expanded');expand.focus({preventScroll:true});
+  document.body.classList.remove('display-expanded');
+  const target=returnFocus?.isConnected&&returnFocus.getClientRects().length?returnFocus:document.querySelector('#workspace-options summary');
+  target.focus({preventScroll:true});
  }
- expand.onclick=()=>{
+ function openComponent(panel,trigger=expand){
   // Reparenting a captured control could interrupt its original release.
-  if(inputs.isHeld()||dialog.open)return;
+  if(inputs.isHeld()||dialog.open||panel?.hidden)return;
+  returnFocus=trigger;
   header.append(playback);dialog.append(workspace);expand.hidden=true;expand.setAttribute('aria-expanded','true');
-  document.body.classList.add('display-expanded');dialog.showModal();close.focus();
- };
+  document.body.classList.add('display-expanded');dialog.showModal();
+  if(panel){panel.tabIndex=-1;panel.scrollIntoView({block:'start'});panel.focus({preventScroll:true});}
+  else close.focus();
+ }
+ expand.onclick=()=>openComponent();
  close.onclick=()=>dialog.close();
  dialog.addEventListener('close',restore);
  // Disabling Enable audio during startup can move focus to body. Handle an
@@ -132,5 +139,5 @@ function mountDisplayView(inputs){
  });
  // The shared input handler cancels held gestures on Escape. Native dialog
  // cancellation closes this view; the modal keeps background controls inert.
- return ()=>{filesJump.disabled=sessions.hidden;padsJump.disabled=surface.hidden;displayJump.disabled=row.hidden;};
+ return {openComponent,update(){filesJump.disabled=sessions.hidden;padsJump.disabled=surface.hidden;displayJump.disabled=row.hidden;}};
 }
