@@ -26,10 +26,10 @@ No other mode enters the bar editor by pressing Loop.
 |---|---|---|---|---|---|
 | Clips | Existing clip delete | Existing clip copy | Hold scene-row modifier | Existing track mute/solo | Existing sampling |
 | Normal Play | Existing step/clip edit | Existing clipboard | Loop Edit is now under Session | Existing track mute | Existing sampling |
-| Motif Play | Existing edit semantics | Existing clipboard | Reserved for motif-repeat owner | Existing track mute | Existing sampling |
+| Motif Play | **Cancel the active motif draft**; otherwise existing delete | **Copy armed motif into its library slot** using the existing motif owner | Reserved until a true motif-repeat owner exists | Existing track mute | Existing sampling |
 | Joint Play | Harmony Off on chord-knob surface, otherwise existing delete | Existing clipboard | Native queued chord Loop/Hold when queued chord knobs own it | Existing track mute | Existing sampling |
 | Grid Sequencer | **Hold X + pad:** erase existing cell only | Existing clipboard | **Toggle playhead following vs held viewport** | Existing track mute | Existing sampling |
-| Field Play | Existing editing; Shift+pad can clear assigned field | Existing clipboard | Reserved for field cycle / phase owner | Existing track mute | Existing sampling |
+| Field Play | **Hold X + output pad:** clear one assigned output lane; otherwise existing delete | Existing clipboard | Reserved for Field cycle/phase owner | Existing track mute | Existing sampling |
 | Chord Play | **Harmony Off**, releases protected | Existing clipboard (clip promotion not shipped) | **Native chord Queue End Loop/Hold** when queued | Existing track mute | Existing sampling |
 | HB Settings | Existing editing | Existing clipboard | Bar Loop Edit in Session | Existing track mute | Existing sampling |
 | Scale Finding (Inline) | **Clear selected/armed preview only** | **Apply the selected key and scale to shared parent key** | Reserved for future note-evidence hold | Existing track mute | Existing sampling |
@@ -89,8 +89,55 @@ layout should remain a knob-controlled choice inside Scale Finding.
   phase-continuous handoff. The button still invokes the original clipboard.
 - Joint Mute could bypass accompaniment while retaining harmonic context,
   but must not silently mute the entire mixer track.
-- Motif, Field, and Normal Play need a concrete motif/field owner before Loop,
-  X, or Sampling are assigned another specialized meaning.
+- Motif/Field still need a concrete repeat/phase owner before Loop is specialized;
+  both already have real Copy/Cancel or output-clear operations. Normal Play's
+  Loop entry is now under Session. Sampling remains native until microphone
+  input is validated.
 
 All button LEDs use the existing cached diff painter; white off/dim/bright
 states never impersonate RGB. The Scope remains explicitly per input mode.
+
+## Launchpad X / Mini MK3 edge controls
+
+The top **eight** buttons retain the existing operation / page-specific
+controls; the designated uppermost **right** button (CC 89) remains the
+operation latch modifier. The other seven right-side controls on the newer
+Launchpads now proxy actual Move button edges through the existing central
+MIDI router. From **bottom to top**:
+
+| Physical CC | Move action | Current meaning |
+|---:|---|---|
+| 19 | Session | Open mode selector |
+| 29 | Back | Return/cancel |
+| 39 | Sample | Existing sampling function |
+| 49 | Mute | Mixer mute/solo |
+| 59 | Loop | Mode-specific Loop/follow/resize |
+| 69 | X | Mode-specific clear / erase |
+| 79 | Copy | Mode-specific copy / apply |
+
+Every press owns its release, including surface teardown and track/mode
+switches. The already-tested Move RGB palette and packet throttle paint
+all 64 grid pads, eight top operations, the modifier and the seven new
+right-side buttons in **one bounded, cached SysEx frame**. Legacy Launchpad
+has a different edge layout and keeps its prior 73-lamp mapping.
+
+**Caution:** the top buttons are still occupied by operation banks, and in
+Grid they already perform window controls. We deliberately do not multiplex
+more actions onto them, which would risk arbitrary parameter edits.
+
+## Remote UI (browser studio)
+
+The Remote UI now receives `modeActionDescriptors()` from Movy's actual
+controller in its normal frame snapshot. Every function button keeps its
+physical identity for shortcuts and accessibility; a **second visible label**
+states the current action, such as `Copy · Apply key` or `X · Erase cell`.
+Availability and active state are reflected by brightness and annotations,
+while hold and hold+pad gestures have explicit accessible descriptions.
+
+The line below the controls summarizes available actions for the current
+mode and the Launchpad right-edge assignments. Both the inline surface
+and enlarged editor reuse the same controls, so the labels cannot diverge.
+The browser snapshot is read-only and does not poll additional native DSP
+parameters. In **connected physical Move mirror mode**, where rich semantic
+state is unavailable, the UI continues to say so rather than claiming that
+contextual actions can be operated remotely.
