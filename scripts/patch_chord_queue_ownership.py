@@ -43,6 +43,9 @@ def patch_chord_queue_ownership(root: Path) -> None:
     # Queue status caching was extracted by the UI overhead patch; update the
     # canonical raw snapshot rather than the earlier inline parse.
     source = replace_once(source,
+        "    if(setup.playMode)queueStatus();",
+        "    queueStatus();")
+    source = replace_once(source,
         "const raw=setup.playMode?(conductor.getParam('midi_fx1:hb_chord_queue_status')??''):'';",
         """const raw=conductor.getParam('midi_fx1:hb_chord_queue_status')??'';
         const present=raw.startsWith('cq1|');
