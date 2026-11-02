@@ -37,16 +37,6 @@ export function chordLoopButton():void {
     statusCache=null;appState.dirty=true;
     seqToast(next==='Loop'?'Queue repeats':'Queue holds at end');
 }''')
-    # Knob editing Queue End and the Loop button drive the same retained state.
-    source = replace_once(source,
-        'if(target){statusCache=null;return portFor(target.track).setParam(target.key,value);}',
-        '''if(target){
-            statusCache=null;
-            const written=portFor(target.track).setParam(target.key,value);
-            if(written!==false&&target.track===conductorTrack()&&target.key==='chord_queue_end')
-                buttonQueueLoop=value==='Loop';
-            return written;
-        }''')
     path.write_text(source)
 
     path = root / 'src/seq/router-buttons.ts'
