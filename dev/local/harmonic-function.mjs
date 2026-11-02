@@ -7,7 +7,9 @@ const FUNCTIONS=['T','PD','D'];
 const MODULO=(value,modulus)=>((value%modulus)+modulus)%modulus;
 
 /** Build diatonic triad templates from an explicitly pinned scale. */
-export function functionalTemplates({tonic,notes}={}){
+export function functionalTemplates(hypothesis={}){
+ if(!hypothesis||typeof hypothesis!=='object'||Array.isArray(hypothesis))return [];
+ const {tonic,notes}=hypothesis;
  if(!Number.isInteger(tonic)||tonic<0||tonic>11||!Array.isArray(notes)||notes.length!==7||
     notes.some(note=>!Number.isInteger(note)||note<0||note>11)||new Set(notes).size!==7||notes[0]!==tonic)return [];
  const tonicThird=MODULO(notes[2]-tonic,12);
