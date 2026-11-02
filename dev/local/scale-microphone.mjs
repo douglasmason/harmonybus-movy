@@ -36,8 +36,8 @@ export function spectrumToChroma(decibels,sampleRate,fftSize){
    spectrum[index]=Math.max(spectrum[index],energy);
  }
  for(let index=0;index<spectrum.length;index++){
-   const third=index>=19?.45*spectrum[index-19]:0;
-   const fifth=index>=28?.30*spectrum[index-28]:0;
+   const third=index>=19?.28*spectrum[index-19]:0;
+   const fifth=index>=28?.20*spectrum[index-28]:0;
    const energy=Math.max(0,spectrum[index]-third-fifth);
    const pitchClass=(lowestMidi+index)%12;
    result[pitchClass]=Math.max(result[pitchClass],energy);
