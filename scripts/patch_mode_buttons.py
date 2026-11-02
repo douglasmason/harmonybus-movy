@@ -20,6 +20,7 @@ def patch_mode_buttons(root: Path) -> None:
 let buttonQueuePresent=false,buttonQueueOverride=false,buttonQueueLoop=true;
 /** A single native queue is stored independently of its active output. */
 export function chordQueuedMode():boolean{return setup.playMode===1;}
+export function chordQueuePresent():boolean{return buttonQueuePresent;}
 export function chordLoopSelected():boolean{return buttonQueueLoop;}
 /** Shift+Loop replays the same native cycle, including after Hold ends. */
 export function chordRetrigger():void {
@@ -49,6 +50,7 @@ export function chordSampleButton():void {
 }
 /** Loop chooses the end policy. It does not change queue ownership or phase. */
 export function chordLoopButton():void {
+    if(!buttonQueuePresent){seqToast('No chord queue');return;}
     const conductor=conductorTrack(),native=portFor(conductor);
     const old=native.getParam('midi_fx1:chord_queue_end');
     if(old!=='Loop'&&old!=='Hold'){seqToast('Queue end unavailable');return;}
