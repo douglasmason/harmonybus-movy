@@ -20,7 +20,7 @@ def patch_mode_buttons(root: Path) -> None:
 let buttonQueuePresent=false,buttonQueueOverride=false,buttonQueueLoop=true;
 /** A single native queue is stored independently of its active output. */
 export function chordQueuedMode():boolean{return setup.playMode===1;}
-export function chordLoopSelected():boolean{return buttonQueueLoop;}
+export function chordLoopSelected():boolean{return chordQueuedMode();}
 /** Shift+Loop replays the same native cycle, including after Hold ends. */
 export function chordRetrigger():void {
     if(!buttonQueuePresent){seqToast('No saved progression');return;}
@@ -37,16 +37,15 @@ export function chordMuteButton():void {
     buttonQueueOverride=enabled;queueCache=null;statusCache=null;appState.dirty=true;
     seqToast(enabled?'Queue active':'Queue muted');
 }
-/** Loop is the queue-end policy: repeat the progression or hold its final chord. */
+/** Loop changes the selected chord-entry mode; Queue End is a separate
+ * setting whose native default is Loop. Never erase or reset the queue. */
 export function chordLoopButton():void {
-    const conductor=conductorTrack(),native=portFor(conductor);
-    const old=native.getParam('midi_fx1:chord_queue_end');
-    if(old!=='Loop'&&old!=='Hold'){seqToast('Queue end unavailable');return;}
-    const next=old==='Loop'?'Hold':'Loop';
-    native.setParam('midi_fx1:chord_queue_end',next);
-    buttonQueueLoop=next==='Loop';
+    const next=setup.playMode?'Immediate':'Queued';
+    if(!chordPanelPort(appState.activeTrack.index).setParam('midi_fx1:cp_play_mode',next)){
+        seqToast('Mode unavailable');return;
+    }
     queueCache=null;statusCache=null;appState.dirty=true;
-    seqToast('Queue end: '+next);
+    seqToast('Chord entry: '+next);
 }''')
     path.write_text(source)
 
