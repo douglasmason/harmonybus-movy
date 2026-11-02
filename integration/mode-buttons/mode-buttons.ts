@@ -39,7 +39,7 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
     3:{name:'Joint Play',lines:[
         'Pads: selected actors',
         'X: Off with chord knobs',
-        'Loop: chord cycle / Hold',
+        'Loop: override on/off',
         'Copy: clipboard (for now)']},
     4:{name:'Grid Sequencer',lines:[
         'Pads: time / pitch cells',
@@ -54,7 +54,7 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
         'Jog: settings/routing']},
     6:{name:'Chord Play',lines:[
         'X: harmony Off',
-        'Loop: cycle / Hold',
+        'Loop: override on/off',
         'Copy: normal clipboard',
         'K8: range / Off']},
     8:{name:'Scale Finding',lines:[
@@ -123,8 +123,7 @@ export function modeButtonColor(cc:number,fallback:number):number {
     if(inputModeSelectorOpen())return cc===CC_MODE_LOOP?WHITE_OFF:fallback;
     if(chordButtonContext()){
         if(cc===CC_MODE_CLEAR)return WHITE_DIM;
-        if(cc===CC_MODE_LOOP&&chordQueuedMode())return chordLoopSelected()?WHITE_BRIGHT:WHITE_DIM;
-        if(cc===CC_MODE_LOOP)return WHITE_OFF;
+        if(cc===CC_MODE_LOOP)return chordLoopSelected()?WHITE_BRIGHT:WHITE_OFF;
         return fallback;
     }
     if(scaleFindingActive()){
@@ -177,8 +176,7 @@ export function modeButtonMidi(cc:number,value:number,shiftHeld:boolean):boolean
         if(seqState.loopMode){loopEditResizeHold(true);return true;}
         if(shiftHeld)return true;
         if(chordButtonContext()){
-            if(chordQueuedMode()){dismissModeHelp();chordLoopButton();}
-            return true;
+            dismissModeHelp();chordLoopButton();return true;
         }
         if(scaleFindingActive()){seqToast('Use Sample to listen');return true;}
         if(gridActive()){dismissModeHelp();toggleGridFollow();return true;}
@@ -271,9 +269,9 @@ export function modeActionDescriptors():ModeActionDescriptor[]{
     }
     if(chord){
         set(CC_MODE_CLEAR,'Harmony Off','Clear the live harmonic override / queued chord',true);
-        set(CC_MODE_LOOP,chordQueuedMode()?'Repeat queue':'Loop Edit in Session',
-            chordQueuedMode()?'Toggle queued chord ending between Loop and Hold':'Chord queue not enabled',
-            chordQueuedMode(),chordQueuedMode()&&chordLoopSelected());
+        set(CC_MODE_LOOP,'Harmony override',
+            'Enable or bypass the saved chord queue without clearing it; lit means override enabled',
+            true,chordLoopSelected());
     }else if(mode===4){
         set(CC_MODE_CLEAR,'Erase cell','Hold X then press an occupied Grid cell',true,gridEraseActive(),'hold+pad');
         set(CC_MODE_LOOP,'Follow grid','Toggle moving playhead page vs fixed page',true,gridFollowActive());
