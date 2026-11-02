@@ -2,6 +2,20 @@
  * No microphone samples are sent to HarmonyBus, the Move, or a remote server.
  * A small, capped 12-value chroma message goes to the local browser worker.
  */
+// Exact sRGB colors of Schwung LED indices 78,77,28,3,1 (ascending
+// relative luminance). The HTML meter intentionally mimics the pad heatmap.
+export const SCALE_HEAT_COLORS=Object.freeze([
+ '#201C07', // dark yellow
+ '#645817', // dim yellow
+ '#995628', // amber/burnt orange
+ '#C93C00', // bright orange
+ '#FF4032'  // brightest red in the ramp (not pure red #FF0000)
+]);
+export function pitchEnergyColor(strength){
+ if(!Number.isFinite(strength)||strength<0.07)return '#000000';
+ return SCALE_HEAT_COLORS[Math.min(4,Math.floor(Math.min(1,strength)*5))];
+}
+
 export function frequencyToPitchClass(frequency){
  if(!Number.isFinite(frequency)||frequency<=0)return null;
  return ((Math.round(69+12*Math.log2(frequency/440))%12)+12)%12;
