@@ -27,11 +27,21 @@ export function spectrumToChroma(decibels,sampleRate,fftSize){
    if(maxDb<-72)return 0;
    return Math.pow(10,(Math.min(-12,maxDb)+72)/32);
  };
- for(let midi=42;midi<=88;midi++){
-   const fundamental=440*Math.pow(2,(midi-69)/12);
-   const energy=strength(fundamental)+.3*strength(fundamental*2)+.13*strength(fundamental*3);
-   const note=midi%12;
-   result[note]=Math.max(result[note],energy);
+ // Measure fundamentals first, then subtract the expected energy of
+ // higher partials from lower pitches. Adding upper harmonics to a lower
+ // candidate creates subharmonic ghosts (G4 -> C3), while treating the third
+ // harmonic as G invents a fifth above a played C.
+ const lowestMidi=42,highestMidi=88;
+ const spectrum=Array.from({length:highestMidi-lowestMidi+1},(_,index)=>{
+   const midi=lowestMidi+index;
+   return strength(440*Math.pow(2,(midi-69)/12));
+ });
+ for(let index=0;index<spectrum.length;index++){
+   const third=index>=19?.45*spectrum[index-19]:0;
+   const fifth=index>=28?.30*spectrum[index-28]:0;
+   const energy=Math.max(0,spectrum[index]-third-fifth);
+   const pitchClass=(lowestMidi+index)%12;
+   result[pitchClass]=Math.max(result[pitchClass],energy);
  }
  const peak=Math.max(...result);
  if(peak<.001)return result;
@@ -85,7 +95,7 @@ export function createScaleMicrophone({onChroma,onStatus=()=>{}}){
        analyser.getFloatFrequencyData(decibels);
        onChroma(spectrumToChroma(decibels,audioContext.sampleRate,analyser.fftSize));
      },90);
-     onStatus('Listening · Loop stops and retains evidence');
+     onStatus('Listening · Sample stops and retains evidence');
      return true;
     }catch(error){
      for(const track of obtained?.getTracks()??[])track.stop();
