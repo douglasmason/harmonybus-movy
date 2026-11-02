@@ -27,21 +27,21 @@ conductor.setParam('midi_fx1:hb_chord_queue_override','On');
 const before=chord.chordSnapshot();
 chord.tickChord();
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_DIM),WHITE_BRIGHT,
-    'lit Loop selects repeating the progression rather than Hold');
+    'lit Loop means queued chord entry');
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_CLEAR,0),WHITE_DIM);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false),true);
-assert.equal(conductor.getParam('midi_fx1:chord_queue_end'),'Hold',
-    'Loop button switches only the ending policy without muting or clearing');
-assert(!chord.chordLoopSelected());
+assert.equal(conductor.getParam('midi_fx1:chord_queue_end'),'Loop',
+    'Loop button never changes the separate end-of-queue policy');
+assert(!chord.chordQueuedMode(),'Loop switches to Immediate without clearing native queue');
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_BRIGHT),WHITE_DIM);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false),true);
+assert(chord.chordQueuedMode(),'Loop switches back to Queued');
 assert.equal(conductor.getParam('midi_fx1:chord_queue_end'),'Loop');
-assert(chord.chordLoopSelected());
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true);
 assert.equal(chord.chordSnapshot().selected,before.selected,'Loop never selects a chord');
 const loopAction=buttons.modeActionDescriptors().find(action=>action.cc===buttons.CC_MODE_LOOP);
-assert.equal(loopAction?.label,'Queue end: Loop');
+assert.equal(loopAction?.label,'Chord entry: Queued');
 assert.equal(loopAction?.active,true);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,true),true,
     'Shift+Loop retriggers the stored chord cycle without erasing it');
@@ -217,7 +217,7 @@ scale.setScaleFindingEnabled(true);
 const finding=buttons.modeActionDescriptors();
 assert.equal(finding.find(action=>action.cc===119)?.label,'Clear preview');
 assert.equal(finding.find(action=>action.cc===60)?.label,'Apply key');
-assert.equal(finding.find(action=>action.cc===118)?.label,'Listen / stop');
+assert.equal(finding.find(action=>action.cc===118)?.label,'Listen: tap / hold');
 assert.match(finding.find(action=>action.cc===118)?.detail??'',/pitch-class data collection/);
 assert.equal(finding.find(action=>action.cc===118)?.available,false,
     'on-device microphones cannot be advertised without an input provider');
