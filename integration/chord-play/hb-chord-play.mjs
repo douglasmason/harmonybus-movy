@@ -165,7 +165,9 @@ chord.chordMidi([144,7,100]);assert.notEqual(engine.params.chord_select,'off');c
 chord.chordMidi([144,0,100]);assert.notEqual(engine.params.chord_select,'off','same chord remains a retrigger');chord.chordMidi([128,0,0]);
 const edited=chord.chordSnapshot();edited.slots[0].root=5;edited.slots[0].intent=0;chord.restoreChord(edited);chord.setChordEnabled(true);
 selectTrack(4);assert.equal(chord.chordSnapshot().slots[0].root,5,'manual definitions are global across melody tracks');
-chord.resetChordDefaults();assert.deepEqual(chord.chordSnapshot().slots.map(slot=>slot.intent),[...Array(7).fill(1),...Array(7).fill(12),...Array(7).fill(13)]);
+chord.resetChordDefaults();
+assert.equal(chord.chordSnapshot().playMode,1,'Reset Chords restores queued entry');
+assert.deepEqual(chord.chordSnapshot().slots.map(slot=>slot.intent),[...Array(7).fill(1),...Array(7).fill(12),...Array(7).fill(13)]);
 page=chord.chordPage();for(const panel of page.ctl.pages.filter(panel=>panel.keys?.length))assert.equal(panel.keys[7],'cp_off','every Chord Play settings panel reserves knob 8');
 console.log('Global reset, home/parallel/blues banks and universal Harmony Off pass');
 
