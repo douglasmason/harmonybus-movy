@@ -17,36 +17,29 @@ def patch_mode_buttons(root: Path) -> None:
     source = replace_once(source,
         'export const chordActive=():boolean=>enabled&&!seqState.sessionMode;',
         '''export const chordActive=():boolean=>enabled&&!seqState.sessionMode;
-let buttonQueuePresent=false,buttonQueueOverride=false,buttonQueueMuted=false;
-/** LED and Remote UI share this native-backed, nonpolling projection. */
+let buttonQueuePresent=false,buttonQueueOverride=false,buttonQueueLoop=true;
+/** A single native queue is stored independently of its active output. */
 export function chordQueuedMode():boolean{return setup.playMode===1;}
-export function chordLoopSelected():boolean{return buttonQueuePresent&&buttonQueueOverride;}
-export function chordMuteSelected():boolean{return chordLoopSelected()&&buttonQueueMuted;}
-/** Mute only the queue's rendered virtual-input MIDI; never mute the melody or stop its timeline. */
+export function chordLoopSelected():boolean{return buttonQueueLoop;}
+export function chordMuteSelected():boolean{return buttonQueuePresent&&!buttonQueueOverride;}
+/** Mute activates/deactivates the stored progression; it never discards it. */
 export function chordMuteButton():void {
-    if(!chordLoopSelected()){seqToast('Enable Loop first');return;}
-    const conductor=conductorTrack(),next=!buttonQueueMuted;
-    send('chord_mute',conductor+','+(next?'on':'off'));
-    buttonQueueMuted=next;queueCache=null;statusCache=null;appState.dirty=true;
-    seqToast(next?'Chord output muted':'Chord output enabled');
+    if(!buttonQueuePresent){seqToast('No chord queue');return;}
+    const conductor=conductorTrack(),enabled=!buttonQueueOverride;
+    send('chord_override',conductor+','+(enabled?'on':'off'));
+    buttonQueueOverride=enabled;queueCache=null;statusCache=null;appState.dirty=true;
+    seqToast(enabled?'Queue active':'Queue muted');
 }
-/** Loop switches queue authority, never its ending policy or stored content. */
+/** Loop is the queue-end policy: repeat the progression or hold its final chord. */
 export function chordLoopButton():void {
     const conductor=conductorTrack(),native=portFor(conductor);
-    const snapshot=native.getParam('midi_fx1:hb_chord_queue_status')??'';
-    if(!snapshot.startsWith('cq1|')){
-        buttonQueuePresent=false;buttonQueueOverride=false;buttonQueueMuted=false;appState.dirty=true;
-        seqToast('No chord queue');return;
-    }
-    const state=native.getParam('midi_fx1:hb_chord_queue_override');
-    if(state!=='On'&&state!=='Off'){seqToast('Queue override unavailable');return;}
-    const enabled=state!=='On';
-    send('chord_override',conductor+','+(enabled?'on':'off'));
-    buttonQueuePresent=true;buttonQueueOverride=enabled;
-    // Mute is subordinate to Loop authority. Bypass always resets it.
-    if(!enabled)buttonQueueMuted=false;
+    const old=native.getParam('midi_fx1:chord_queue_end');
+    if(old!=='Loop'&&old!=='Hold'){seqToast('Queue end unavailable');return;}
+    const next=old==='Loop'?'Hold':'Loop';
+    native.setParam('midi_fx1:chord_queue_end',next);
+    buttonQueueLoop=next==='Loop';
     queueCache=null;statusCache=null;appState.dirty=true;
-    seqToast(enabled?'Queue override on':'Conductor clip restored');
+    seqToast('Queue end: '+next);
 }''')
     path.write_text(source)
 
