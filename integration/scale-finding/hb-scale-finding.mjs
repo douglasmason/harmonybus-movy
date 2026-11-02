@@ -145,8 +145,12 @@ const chroma=Array(12).fill(0);chroma[1]=1;chroma[3]=0.4;
 assert(scale.ingestScaleChroma(chroma,10000));
 assert(scale.scaleFindingEvidenceSnapshot().chroma[1]>0.6,'time-window EMA accumulates chroma');
 assert(scale.scaleFindingColors()[25]>0,'audio pitch evidence is visualized');
+assert.equal(scale.scaleFindingColors()[24],3,
+    'first strong observation starts orange under the existing EMA smoother');
+assert(scale.ingestScaleChroma(chroma,10500));
+assert(scale.ingestScaleChroma(chroma,11000));
 assert.equal(scale.scaleFindingColors()[24],1,
-    'strongest C# microphone evidence illuminates brightest red hardware LED');
+    'sustained peak C# evidence reaches the brightest red LED');
 assert.equal(scale.scaleFindingColors()[0],120,
     'tonic remains white despite microphone heatmap');
 assert.equal(scale.scaleFindingColors()[18],11,
