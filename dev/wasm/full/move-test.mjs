@@ -118,10 +118,11 @@ test('Chord Play step labels follow native banks, edits and input ownership',asy
    await midi([144,31,100]);await midi([128,31,0]);await until(()=>bank()[2].startsWith('-1,'));
   }
   await panel('Home Chords');
-  for(const index of [49,88]){
-   await midi([176,index,127]);assert.equal(frame.stepLabels,null,'modifier owns the steps: '+index);
-   await midi([176,index,0]);await until(()=>frame.stepLabels!==null);
-  }
+  await midi([176,49,127]);assert.equal(frame.stepLabels,null,'Shift modifier owns the steps');
+  await midi([176,49,0]);await until(()=>frame.stepLabels!==null);
+  // Chord Mute changes queue authority, not the step-label display owner.
+  await midi([176,88,127]);assert.notEqual(frame.stepLabels,null,'Chord Mute retains bank labels');
+  await midi([176,88,0]);
   const beforeLoop=frame.stepLabels;
   await cc(58);
   assert.deepEqual(frame.stepLabels,beforeLoop,'Chord Play Loop never enters the bar editor or hides chord steps');
