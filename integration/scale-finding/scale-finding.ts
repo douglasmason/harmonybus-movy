@@ -26,7 +26,15 @@ export type FinderLayout='family'|'piano'|'inline';
 export type ScaleCandidate={tonic:number;name:string;scale:string;notes:number[];conflicts:number;missing:number;score:number;compatible:boolean};
 const FINDER_LAYOUTS:FinderLayout[]=['family','piano','inline'];
 const NATIVE_SCALES=new Set<string>(FOLLOWER_SCALE_NAMES);
-const EVIDENCE_PALETTE=[89,91,93,15,11] as const;
+// Ordered by increasing sRGB relative luminance using Schwung's pinned
+// hardware palette: dim yellow -> amber -> orange -> bright red.
+// Never use full yellow (#FADC3B): it is visually brighter than red.
+// Physical Move calibration remains an acceptance test.
+export const SCALE_EVIDENCE_PALETTE=[78,77,28,3,1] as const;
+export function scaleEvidenceColor(strength:number):number{
+    if(!Number.isFinite(strength)||strength<0.07)return 0; // no light for no evidence
+    return SCALE_EVIDENCE_PALETTE[Math.min(4,Math.floor(Math.min(1,strength)*5))];
+}
 // White notes on the lower row, black keys on the row above. The last
 // white C repeats as an octave marker. These two rows are duplicated:
 // bottom pair = momentary evidence; upper pair = persistent toggles.
@@ -342,19 +350,18 @@ export function scaleFindingColors():number[]{
         if((latchedNotes|heldNotes)&(1<<pitch))return SCALE_FINDING_GREEN;
         // Audio evidence is advisory; use existing palette instead of per-frame
         // high-frequency custom RGB packets and preserve the tonic priority.
-        const level=microphoneChroma[pitch];
-        if(level>=0.07)return EVIDENCE_PALETTE[Math.min(4,Math.floor(level*5))];
-        return pad>=16?65:79;
+        // Nonselected notes with no pitch energy are truly black.
+        return scaleEvidenceColor(microphoneChroma[pitch]);
     });
     const tonic=scaleTonicColumn();
     return Array.from({length:32},(_,pad)=>{
         if(pad===selectedPad)return SCALE_FINDING_GREEN;
         if(pad%8===tonic)return SCALE_FINDING_WHITE;
         const pitch=scalePadSelection(pad)?.tonic;
-        if(pitch!==undefined&&microphoneChroma[pitch]>=0.07){
-            return EVIDENCE_PALETTE[Math.min(4,Math.floor(microphoneChroma[pitch]*5))];
-        }
-        return ROW_COLORS[3-Math.floor(pad/8)];
+        // Family row identities stay on K1–K4 and screen labels. Pad
+        // color exclusively expresses pitch evidence (apart from tonic /
+        // selected-pad markers), so silence can actually look black.
+        return pitch===undefined?0:scaleEvidenceColor(microphoneChroma[pitch]);
     });
 }
 /** Acknowledged 32-pad frame, preserving rejects for retry. */

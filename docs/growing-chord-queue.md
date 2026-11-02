@@ -1,11 +1,12 @@
-# Movy 0.34.1-hbclean.313 — retained chord progressions
+# Movy 0.34.1-hbclean.314 — retained chord progressions
 
 Install together with HarmonyBus 0.2.311. The queue engine runs in the
 separate HarmonyBus module; updating only Movy keeps the old storage limit.
 
 This release includes the merged Schwung stock-font reuse and the final
 Chord Play button mappings from the previous session, plus queues that can
-grow past sixteen chords.
+grow past sixteen chords. It also preserves the concurrently published
+Scale Finder luminance-ordered energy heatmap from hbclean.313.
 
 - New sessions use Queued entry and Loop. Sample selects Immediate / Queued;
   Loop selects Hold / Loop. Saved explicit preferences are respected.

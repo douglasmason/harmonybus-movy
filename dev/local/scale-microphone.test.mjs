@@ -1,6 +1,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {frequencyToPitchClass,spectrumToChroma,createScaleMicrophone} from './scale-microphone.mjs';
+import {frequencyToPitchClass,spectrumToChroma,createScaleMicrophone,pitchEnergyColor,SCALE_HEAT_COLORS} from './scale-microphone.mjs';
+
+test('heatmap uses black silence, increasingly luminous amber, brightest red at max',()=>{
+ const luminance=hex=>{
+  const values=[1,3,5].map(position=>parseInt(hex.slice(position,position+2),16)/255)
+   .map(channel=>channel<=.04045?channel/12.92:((channel+.055)/1.055)**2.4);
+  return .2126*values[0]+.7152*values[1]+.0722*values[2];
+ };
+ assert.equal(pitchEnergyColor(0),'#000000');
+ assert.equal(pitchEnergyColor(.06),'#000000');
+ assert.equal(pitchEnergyColor(Number.NaN),'#000000');
+ assert.equal(pitchEnergyColor(.07),'#201C07');
+ assert.equal(pitchEnergyColor(.25),'#645817');
+ assert.equal(pitchEnergyColor(.47),'#995628');
+ assert.equal(pitchEnergyColor(.68),'#C93C00');
+ assert.equal(pitchEnergyColor(1),'#FF4032');
+ assert.equal(SCALE_HEAT_COLORS.length,5);
+ const brightness=SCALE_HEAT_COLORS.map(luminance);
+ assert(brightness.every((value,index)=>index===0||value>brightness[index-1]),
+  'no luminance dip at yellow-to-orange or orange-to-red transitions');
+ assert(brightness.at(-1)>luminance('#FF0000'),
+  'bright red variant is brighter than pure red at the maximum tier');
+ assert(luminance('#FADC3B')>brightness.at(-1),
+  'full yellow cannot be used: it would outshine the red maximum');
+});
 
 test('pitch-class conversion preserves octave classes and rejects invalid frequency',()=>{
  assert.equal(frequencyToPitchClass(440),9);

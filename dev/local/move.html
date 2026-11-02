@@ -22,6 +22,9 @@
   <div class="toolbar"><button id="finder-listen" type="button" aria-pressed="false">Start listening (Sample)</button><label>Aggregation window <input id="finder-window" type="range" min="120" max="16000" step="40" value="1800"><output id="finder-window-value">1.8 s</output></label><button id="finder-clear" type="button">Clear evidence (X)</button></div>
   <p id="finder-mic-status" role="status">Microphone off. Browser permission is requested only when you start listening.</p>
   <div id="finder-chroma" class="finder-chroma" aria-label="Pitch-class intensity"></div>
+  <div class="finder-heat-legend" role="img" aria-label="Pitch energy: black means none; increasing brightness from dark yellow to bright red indicates strongest detected energy">
+   <span>None</span><div id="finder-heat-swatches" aria-hidden="true"></div><span>Max · red</span>
+  </div>
   <details id="finder-manual-settings" class="finder-settings">
    <summary>Manual note overrides · 12 note knobs</summary>
    <p>Auto follows observed evidence. Require forces a pitch class into every matching scale; Exclude rules out any scale containing it. Neither changes the live key until Copy.</p>
