@@ -16,7 +16,7 @@ import {seqToast} from './render.js';
 import {fieldEraseAvailable,fieldEraseActive,setFieldEraseHeld} from './field-play.js';
 import {motifEditing,motifAction,motifPage,motifFinish} from '../renderer/hb-motif.js';
 import {schwungActiveFor} from '../renderer/schwung-grid.js';
-import {chordActive, chordQueuedMode, chordLoopSelected, chordLoopButton, chordPadModalActive, harmonyOff} from './chord-play.js';
+import {chordActive, chordQueuedMode, chordLoopSelected, chordLoopButton, chordMuteSelected, chordMuteButton, chordPadModalActive, harmonyOff} from './chord-play.js';
 import {jointActive, jointChordKnobs} from './joint-play.js';
 import {settingsActive} from './hb-settings.js';
 import {fontPrint} from '../font/index.js';
@@ -40,7 +40,7 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
         'Pads: selected actors',
         'X: Off with chord knobs',
         'Loop: override on/off',
-        'Copy: clipboard (for now)']},
+        'Mute: silence queue MIDI']},
     4:{name:'Grid Sequencer',lines:[
         'Pads: time / pitch cells',
         'Arrows: time and rows',
@@ -53,9 +53,9 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
         'Only in Outputs view',
         'Jog: settings/routing']},
     6:{name:'Chord Play',lines:[
-        'X: harmony Off',
+        'X: cancel chord queue',
         'Loop: override on/off',
-        'Copy: normal clipboard',
+        'Mute: queue MIDI on/off',
         'K8: range / Off']},
     8:{name:'Scale Finding',lines:[
         'Sample: listen / stop mic',
@@ -124,6 +124,7 @@ export function modeButtonColor(cc:number,fallback:number):number {
     if(chordButtonContext()){
         if(cc===CC_MODE_CLEAR)return WHITE_DIM;
         if(cc===CC_MODE_LOOP)return chordLoopSelected()?WHITE_BRIGHT:WHITE_OFF;
+        if(cc===CC_MODE_MUTE)return !chordLoopSelected()?WHITE_OFF:chordMuteSelected()?WHITE_BRIGHT:WHITE_DIM;
         return fallback;
     }
     if(scaleFindingActive()){
@@ -186,6 +187,10 @@ export function modeButtonMidi(cc:number,value:number,shiftHeld:boolean):boolean
         return true;
     }
     if(shiftHeld||inputModeSelectorOpen())return false;
+    if(cc===CC_MODE_MUTE&&chordButtonContext()){
+        if(down){capturedReleases.add(cc);dismissModeHelp();chordMuteButton();}
+        return true;
+    }
     if(cc===CC_MODE_SAMPLE&&scaleFindingActive()){
         // Scale Finding owns Sample, including the release. Never open the
         // stock sampler or record audio while entering this input mode.
@@ -272,6 +277,9 @@ export function modeActionDescriptors():ModeActionDescriptor[]{
         set(CC_MODE_LOOP,'Harmony override',
             'Enable or bypass the saved chord queue without clearing it; lit means override enabled',
             true,chordLoopSelected());
+        set(CC_MODE_MUTE,'Mute queue MIDI',
+            'Keep queued harmony and its timing running without emitting generated MIDI',
+            chordLoopSelected(),chordMuteSelected());
     }else if(mode===4){
         set(CC_MODE_CLEAR,'Erase cell','Hold X then press an occupied Grid cell',true,gridEraseActive(),'hold+pad');
         set(CC_MODE_LOOP,'Follow grid','Toggle moving playhead page vs fixed page',true,gridFollowActive());
