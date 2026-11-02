@@ -40,18 +40,21 @@ def patch_chord_queue_ownership(root: Path) -> None:
     source = replace_once(source,
         "send('chord_queue','off');setup.playMode=selected;",
         "setup.playMode=selected;")
-    # A queued progression outlives the Queued/Immediate preference. The LED
-    # reflects actual native override authority, read only at existing 100ms
-    # status refreshes rather than during LED painting.
+    # A queued progression outlives the Queued/Immediate preference.
+    # The queueStatus() helper was introduced by patch_ui_overhead, so
+    # patch that canonical raw/status cache rather than a removed inline read.
     source = replace_once(source,
-        "const queue=setup.playMode?(conductor.getParam('midi_fx1:hb_chord_queue_status')??'').split('|'):[];",
-        "const queue=(conductor.getParam('midi_fx1:hb_chord_queue_status')??'').split('|');")
+        "send('chord_queue','off');setup.playMode=selected;",
+        "setup.playMode=selected;")
     source = replace_once(source,
-        "const queued=queue[0]==='cq1',count=queued?Number(queue[1]):0;",
-        """const queued=queue[0]==='cq1',count=queued?Number(queue[1]):0;
-        buttonQueuePresent=queued;
-        buttonQueueOverride=queued&&conductor.getParam('midi_fx1:hb_chord_queue_override')==='On';
-        buttonQueueMuted=buttonQueueOverride&&conductor.getParam('midi_fx1:hb_chord_queue_mute')==='On';""")
+        "const raw=setup.playMode?(conductor.getParam('midi_fx1:hb_chord_queue_status')??''):'';",
+        """const raw=conductor.getParam('midi_fx1:hb_chord_queue_status')??'';
+        const present=raw.startsWith('cq1|');
+        const override=present&&conductor.getParam('midi_fx1:hb_chord_queue_override')==='On';
+        const muted=override&&conductor.getParam('midi_fx1:hb_chord_queue_mute')==='On';
+        if(buttonQueuePresent!==present||buttonQueueOverride!==override||buttonQueueMuted!==muted)
+            appState.dirty=true;
+        buttonQueuePresent=present;buttonQueueOverride=override;buttonQueueMuted=muted;""")
     source = replace_once(source,
         "export function harmonyOff():void{",
         """export function harmonyOff():void{
