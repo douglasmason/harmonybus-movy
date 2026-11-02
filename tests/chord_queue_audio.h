@@ -12,6 +12,20 @@ static void queue_status(int count,const char *current,const char *next){
     int root=!strcmp(current,"C")?0:!strcmp(current,"G")?7:!strcmp(current,"F")?5:2;
     snprintf(expected,sizeof(expected),"\"root\":%d",root);assert(strstr(context,expected));
 }
+static void queue_surface_roundtrip(void){
+    char before[1024],after[1024];
+    api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",before,sizeof(before));
+    assert(!strncmp(before,"cq1|",4));
+    int attacks=sent_on,releases=sent_off;
+    const char *surfaces[]={"0","4","off"};
+    for(int index=0;index<3;index++){
+        set("chord_select","leave");
+        set("chord_joint",surfaces[index]);
+        api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",after,sizeof(after));
+        assert(!strcmp(before,after));
+        assert(sent_on==attacks&&sent_off==releases);
+    }
+}
 static void test_chord_queue_sustained(void){
     set("cmd","stop");render(8);set("chord_select","off");
     set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 64 0 \n");render(8);
@@ -29,7 +43,8 @@ static void test_chord_queue_sustained(void){
     for(int index=0;index<4;index++){
         snprintf(command,sizeof(command),"0,%d,1,2,1,0,1,12",roots[index]);set("chord_queue",command);
     }
-    render(8);queue_status(3,"C","G");sent_on=sent_off=0;set("cmd","play");
+    render(8);queue_status(3,"C","G");queue_surface_roundtrip();
+    sent_on=sent_off=0;set("cmd","play");
     int blocks=0,previous_attacks=0,feedback_reads=0;
     set("cmd","aprof_on");
     for(int bar=0;bar<128;bar++){
@@ -63,6 +78,7 @@ static void test_chord_queue_sustained(void){
         if(cursor!=bar%4||next_at!=(bar+1)*4.0)fprintf(stderr,"bar %d: %s\n",bar,status);
         assert(cursor==bar%4&&total==4&&next_at==(bar+1)*4.0);
         queue_status(bar%4==3?4:3-bar%4,names[bar%4],names[(bar+1)%4]);
+        if(bar==7||bar==63)queue_surface_roundtrip();
         if(bar==7||bar==63||bar==127){
             char profile[8192];api->get_param(instance,"status",profile,sizeof(profile));
             char *audio=strstr(profile," aprof=1,");assert(audio);
@@ -77,6 +93,7 @@ static void test_chord_queue_sustained(void){
     int stopped_attacks=sent_on;
     render(200);assert(sent_on==stopped_attacks);
     queue_status(4,"D","C");
+    queue_surface_roundtrip();
     api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",status,sizeof(status));
     assert(strstr(status,"|3|4|C|G|F|D"));
     char feedback[4096];
@@ -203,5 +220,11 @@ static void test_chord_queue(void){
     test_chord_queue_sustained();
     set("ch0:midi_fx1:chord_queue_depth","2");set("ch0:midi_fx1:chord_queue_end","Hold");
     set("ch0:midi_fx1:chord_timing","1/4");
+    /* A view exit also closes an immediate audition after selecting Queued
+       with no native queue. No UI preference/snapshot is involved here. */
+    set("cmd","stop");set("chord_select","off");set("chord_joint","off");render(8);
+    sent_on=sent_off=0;set("chord_select","0,0,1,0,1,0,1,12");render(8);
+    assert(sent_on>0);set("chord_queue","off");set("chord_select","leave");render(8);
+    assert(sent_on==sent_off);
     puts("Queued Chord Play: stopped preload survives start, scheduled MIDI, empty hold, refill, balanced releases and activation recording pass");
 }

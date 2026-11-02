@@ -78,6 +78,33 @@ export function scalePadSelection(pad:number):Selection|null{
         supported:!!matched
     };
 }
+/** Drop only the auditioned scale and armed gesture; do not change the parent key. */
+export function clearScaleFindingPreview():boolean {
+    if(!scaleFindingActive())return false;
+    const changed=selectedPad>=0||armed||lastError!=='';
+    selectedPad=-1;armed=false;lastError='';
+    appState.dirty=true;
+    return changed;
+}
+/** Ready to materialize the displayed key through the existing HB Apply path. */
+export function scaleFindingCanApply():boolean {
+    return scaleFindingActive()&&!!scalePadSelection(selectedPad)?.supported;
+}
+export function scaleFindingCanClear():boolean {
+    return scaleFindingActive()&&(selectedPad>=0||armed||lastError!=='');
+}
+/** Copy applies exactly the preview the user selected; no recorded MIDI. */
+export function commitScaleFindingPreview():boolean {
+    if(!scaleFindingActive())return false;
+    const choice=scalePadSelection(selectedPad);
+    if(!choice){seqToast('Choose a scale');return false;}
+    if(!choice.supported){seqToast('Scale not supported');return false;}
+    // Reuse the same transactional three-parameter Apply as armed K7+pad.
+    armed=true;
+    selectScaleFindingPad(selectedPad);
+    return !armed;
+}
+
 export function selectScaleFindingPad(pad:number):boolean{
     if(!scaleFindingActive())return false;
     const chosen=scalePadSelection(pad);

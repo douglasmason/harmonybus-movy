@@ -6,21 +6,43 @@ screen and not to the selected melody track. Switching tracks, returning to
 Clips, moving to Normal/Joint/Scale Finding, and returning to Chord Play must
 never send a native `chord_select=off` or `chord_route=off` for that cycle.
 
-Only the explicit **Harmony Off (K8)** gesture, replacing the performance with
-a new conductor's accepted chord, Set unload/reset, or an explicit destructive
-operation is allowed to retire the shared queued loop. The native
-`chord_queue` handler already enforces a single conductor owner and clears
-the prior owner when a different conductor's selection is accepted. Do not
-create per-view or per-melody queues.
+**Harmony Off (X or K8)**, changing Queued/Immediate selection mode, starting a
+new conductor's chord-entry gesture, and Set unload/reset remain explicit ways
+to retire the shared queue. Hold mode still ends on Stop; Loop mode retains
+the phrase while paused and starts at chord one on Play. The existing native
+`chord_queue` handler enforces one conductor owner. Selecting another screen
+or Joint knob owner alone cannot replace it. No per-view or per-melody queue
+is added.
 
 In the UI `Queue 0/2` means zero accepted choices toward Queue Depth 2. The
 word `Fill` was confusing with our actual musical drum/motif fill operations.
 
-The view hides only its LEDs, touches and panels; chord selection and
-accompaniment routing persist as the current musical performance.
+The view hides only its LEDs, touches and panels; queued chord selection and
+Chord Play's accompaniment route survive closing that view.
 `setJointChordConductor` and the native `chord_joint` context switch must
-also preserve the existing loop. An explicit K8 Off remains the single user
-cancellation gesture.
+also preserve the existing loop. Immediate auditions without a native queue
+still release on mode exit. Returning to Chord Play refreshes queue text and
+LED membership from the native snapshots.
+
+Navigation sends `chord_select=leave`; the native bridge retains an owned
+queue or releases the unqueued audition and route. This runs after preceding
+chord commands on the same command path, without a new UI ownership flag or
+status poll. Selecting the Queued preference alone is not evidence that a
+native queue exists. Explicit `chord_select=off` still clears unconditionally.
+
+## Verification and release
+
+Release `.308` integrates this lifecycle change with `.307`'s contextual X,
+Loop and Session controls. Controller tests traverse Clips, Normal, Joint,
+Grid, Field, HB Settings, Scale Finding and Loop Edit while playing and paused,
+then return to Chord Play and check the footer, queued LED membership and
+melody focus. X/K8 still clear explicitly, and immediate-mode exit still clears
+its audition and route. The production audio test changes Joint surfaces
+before playback, during the 128-bar loop and while paused, asserting unchanged
+queue state and no new attacks/releases from navigation.
+
+Install using `douglasmason/harmonybus-movy`. This fixes cancellation during
+navigation; it does not claim a measured improvement in device audio crackles.
 
 ## Queue -> Conductor Clip (planned transaction)
 
@@ -69,8 +91,9 @@ Resampling** records audio from the main output and is not an abstract
 conductor-track bounce. The appropriate in-Movy terminology is **Copy Queue**
 or **Commit to Clip**, not an audio bounce.
 
-Only Chord Play and Joint's chord-bank surface may override Copy. Other input
-modes retain Movy's existing `seq/duplicate.ts` handler without any changes.
+This proposed queue-copy operation belongs only to Chord Play and Joint's
+chord-bank surface. Other input modes retain their existing contextual Copy
+actions (for example Scale Finding's Apply key and Motif Play's Copy motif).
 A new Copy owner must intercept both press and release before the generic
 duplicate handler; never leave a stuck Copy modifier or inadvertently copy the
 current melody clip. No special behavior if the queue isn't a complete,
@@ -97,7 +120,7 @@ may vary) without opening a modal or altering anything.
    original queue in control and report a visible failure.
 5. **Back**, or Copy a second time while choosing a destination, cancels only
    the picker. The queue keeps playing. **Undo** undoes the clip edit through
-   existing clip Undo, not the previously playing live queue. K8 **Harmony Off**
+   existing clip Undo, not the previously playing live queue. X/K8 **Harmony Off**
    is still the explicit live-loop cancellation gesture.
 
 The picker is a modal input owner: while visible, it temporarily owns the
@@ -111,10 +134,10 @@ that input mode owns them:
 - Capture: retrospective performed MIDI/automation (not an instant
   interpretation of the deliberately assembled chord queue).
 - Sampling: microphone/line/resampling audio (unrelated to abstract clip data).
-- Loop: clip/bar navigation; potentially a future queue-edit submode, but not
-  Copy/Commit.
+- Loop: queued cycle/Hold in Chord Play/Joint; Session owns the separate Loop
+  Edit mode. It is not Copy/Commit.
 - Mute: mixer mute/solo.
-- Delete: destructive clip/step operation, not a substitute for K8 Off.
+- Delete/X: Harmony Off in the chord surface; contextual actions elsewhere.
 - Undo/Redo: the existing Undo history.
 - Back: exit modal/panel; Copy picker cancel when open.
 - Record/Play: transport and real-time recording; leave unchanged.

@@ -29,7 +29,7 @@ try{
  connection=createMoveConnection({browser,inputs:{disable(){workspace?.suspend();inputs.disable();}},pageURL:location.href,onFrame:frame=>surface.update(frame),
   onState:({engine,state,message})=>{
    if(state==='switching')cancelCheck();
-   const local=engine==='browser',switching=state==='switching'||(local&&state==='error');
+   const local=engine==='browser',switching=state==='switching'||!connection.ready;
    if(workspaceAvailable!==(local&&!switching)){workspaceAvailable=local&&!switching;workspace?.setAvailable(workspaceAvailable);}
    engineSelector.value=engine;engineSelector.disabled=state==='switching';
    document.querySelector('#engine-status').textContent=message;
@@ -43,6 +43,7 @@ try{
    for(const selector of ['.accompaniment','.played-readout','#sessions','#audio-settings'])document.querySelector(selector).hidden=!local;
    document.querySelector('.screen-hint').textContent=local?'Drag a displayed parameter to adjust it; tap to touch its knob.':'Live device pixels. Rich labels and remote gestures are unavailable in this protocol.';
    if(!local){
+    surface.setSemanticAvailable(false);
     playMode.disabled=true;playMode.replaceChildren(new Option('Read on Move display',''));
     currentMode=null;modeNames='';lastTrack=-1;
     feedback.textContent=state==='connected'?'Use physical controls for pads, knobs and recording · audio plays on Move':message;
@@ -154,7 +155,7 @@ try{
   if(frame.ready)inputs.enable();
  };
  socket.onerror=error=>{errorBox.textContent=error.message??'Engine connection failed';};
- socket.onclose=()=>{feedback.textContent='Engine closed · reload to reconnect';compSource.disabled=playMode.disabled=true;};
+ socket.onclose=()=>{connection.browserClosed();disableAudio();feedback.textContent='Engine closed · reload to restart';compSource.disabled=playMode.disabled=true;};
  send({type:'subscribe_tool'});
  for(const id of ['audio','audio-test','stop'])document.querySelector('#'+id).disabled=false;
  document.querySelector('#build').textContent=`Movy ${audio.build?.engineSource?.integrationVersion??'unknown'} · HarmonyBus ${metadata.version} · engine ${audio.build?.engineSource?.commit?.slice(0,12)??'unknown'} · UI ${audio.build?.hostSource?.commit?.slice(0,12)??'local'} · 44,100 Hz`;

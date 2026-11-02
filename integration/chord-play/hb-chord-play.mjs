@@ -64,7 +64,7 @@ seqState.sessionMode=true;settings.setSettingsOpen(true);assert.equal(seqState.s
 settings.setSettingsOpen(true);settings.setSettingsOpen(false);assert.equal(seqState.sessionMode,true,'repeated open preserves the Clips return destination');
 settings.setSettingsOpen(true,false);settings.setSettingsOpen(false);assert.equal(seqState.sessionMode,false,'Session-cycle Settings returns to the underlying performance mode');
 for(const mode of [0,1,2]){const hierarchy=hbStepHierarchy(structuredClone(metadata.capabilities.ui_hierarchy),mode);assert.equal(hierarchy.levels.diagnostics.visible_if.movyStepVisible,false);assert(!hierarchy.levels.root.knobs.includes('version'));}
-chord.setChordEnabled(false);assert.equal(engine.params.chord_select,'off');assert.equal(engine.params.chord_route,'off');
+chord.setChordEnabled(false);assert.equal(engine.params.chord_select,'leave','native ownership decides whether to retain a queue or release the audition');
 console.log('Chord Play: three relative banks, conductor commands, fixed track aliases, persistence, settings overlay and curated pages pass');
 
 // Native classifications drive hue/brightness. The UI must not infer harmony.

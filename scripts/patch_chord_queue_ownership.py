@@ -12,45 +12,46 @@ def patch_chord_queue_ownership(root: Path) -> None:
     path: Path = root / 'src/seq/chord-play.ts'
     source: str = path.read_text()
     source = replace_once(source,
-        'export const chordActive=():boolean=>enabled&&!seqState.sessionMode;',
-        '''export const chordActive=():boolean=>enabled&&!seqState.sessionMode;
-/** The native conductor loop owns its own lifetime, not the active input view. */
-export function chordQueueOwned():boolean {
-    return (portFor(conductorTrack()).getParam('midi_fx1:hb_chord_queue_status')??'').startsWith('cq1|');
-}''')
-    source = replace_once(source,
         '    endChordStepEntry();releaseChordTouches();harmonyOff();',
         '''    endChordStepEntry();releaseChordTouches();
     // Merely choosing Joint's chord-knob conductor never cancels a
-    // running queue. Another conductor replaces it only on its first
-    // accepted chord selection via the existing native single-owner bridge.''')
+    // running queue. A new chord-entry command replaces it through the
+    // existing native single-owner bridge.''')
     source = replace_once(source,
         """    endChordStepEntry();releaseChordTouches();resetBank();resetKnobLedCache();if(!value&&bankKnobs){for(let knob=0;knob<8;knob++){cachedSetAnimLED(knob,0,0,0);cachedSetAnimLED(71+knob,0,0,0,true);}bankKnobs=false;}send('chord_select','off');enabled=value;activeSlot=-1;route='';
     if(value&&[setup.conductor,setup.comp,setup.bass].includes(appState.activeTrack.index))selectTrack(Array.from({length:16},(_,index)=>(index+3)%16).find(track=>![setup.conductor,setup.comp,setup.bass].includes(track))!);
     if(!value)send('chord_route','off');""",
-        """    // Only an explicit musical action can cancel an owned live queue.
-    // Ordinary mode/track navigation relinquishes the controller only.
-    const preserving=!value&&(setup.playMode===1||chordQueueOwned());
+        """    // Native ownership decides whether there is a queue to retain; the
+    // UI preference or a delayed display snapshot cannot decide this safely.
     endChordStepEntry();releaseChordTouches();resetBank();resetKnobLedCache();
     if(!value&&bankKnobs){for(let knob=0;knob<8;knob++){cachedSetAnimLED(knob,0,0,0);cachedSetAnimLED(71+knob,0,0,0,true);}bankKnobs=false;}
-    if(!value&&!preserving)send('chord_select','off');
+    if(!value)send('chord_select','leave');
     enabled=value;activeSlot=-1;route='';
     if(value&&[setup.conductor,setup.comp,setup.bass].includes(appState.activeTrack.index))
-        selectTrack(Array.from({length:16},(_,index)=>(index+3)%16).find(track=>![setup.conductor,setup.comp,setup.bass].includes(track))!);
-    if(!value&&!preserving)send('chord_route','off');""")
+        selectTrack(Array.from({length:16},(_,index)=>(index+3)%16).find(track=>![setup.conductor,setup.comp,setup.bass].includes(track))!);""")
     source = replace_once(source,
         "            releaseChordTouches();send('chord_select','off');activeSlot=-1;",
         '''            releaseChordTouches();
-            // Reassigning a melody or staging another conductor does not
-            // itself start a competing loop. The native queue bridge switches
-            // owners on the new conductor's first accepted chord.
-            if(setup.playMode!==1&&!chordQueueOwned())send('chord_select','off');
+            // Release an unqueued audition, but retain a native queue.
+            send('chord_select','leave');
             activeSlot=-1;''')
     source = replace_once(source, "'Hold ':'Fill '", "'Hold ':'Queue '")
     path.write_text(source)
 
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
     source = path.read_text()
+    source = replace_once(source,
+        '''            "chord_select" => {
+                if val=="off" {self.clear_chord_queue();self.release_chord_selection();}''',
+        '''            "chord_select" => {
+                if val=="leave" {
+                    // Process navigation after preceding chord commands, using
+                    // the actual owner rather than an asynchronous UI snapshot.
+                    if self.chord_queue.is_none(){
+                        self.release_chord_selection();self.set_param("chord_route","off");
+                    }
+                }
+                else if val=="off" {self.clear_chord_queue();self.release_chord_selection();}''')
     source = replace_once(source,
         'if next!=self.chord_joint {self.clear_chord_queue();self.release_chord_selection();self.chord_joint=next;}',
         '''if next!=self.chord_joint {

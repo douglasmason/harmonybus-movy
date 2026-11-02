@@ -699,6 +699,12 @@ def main() -> int:
     patch_queue_report_access(root)
     from patch_scale_finding import patch_scale_finding
     patch_scale_finding(root)
+    from patch_mode_buttons import patch_mode_buttons
+    patch_mode_buttons(root)
+    from patch_session_loop import patch_session_loop
+    patch_session_loop(root)
+    from patch_external_mode_actions import patch_external_mode_actions
+    patch_external_mode_actions(root)
     from patch_chord_queue_ownership import patch_chord_queue_ownership
     patch_chord_queue_ownership(root)
     print("HarmonyBus clean integration applied")

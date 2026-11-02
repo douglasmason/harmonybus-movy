@@ -19,6 +19,7 @@ import {jointPage} from 'movy/seq/joint-panels.ts';
 import {createSongActions} from './song-actions.mjs';
 import {jointSnapshot,jointPanelSet} from 'movy/seq/joint-play.ts';
 import {chordEnabled,browserChordStepLabels} from 'movy/seq/chord-play.ts';
+import {modeActionDescriptors} from 'movy/seq/mode-buttons.ts';
 import {decodeBulk,encodeBulk} from 'movy/track/bulk.ts';
 import {resetBrowserUserParts} from 'movy/seq/part-storage.ts';
 import {resetBrowserUsage} from 'movy/app/interface-usage.ts';
@@ -291,6 +292,6 @@ export function createMoveRuntime({request:engineRequest,metadata}){
    if(outputs.length)lastOutput={serial:++outputSerial,outputs};
   },tick:runTick,input,release,capture,restore,validate,fresh,setCompSource,selectPanel,selectMode,songAction,isHeld:()=>held.size>0,
   diagnostic:()=>({ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0,held:held.size,track:appState.activeTrack.index,view:appState.currentView,mode:sessionPlayMode()}),
-  snapshot:()=>({song:{building:song.building,count:song.count},screen:Array.from(screen),...drawing.snapshot(),knobLabels,panels:panels(),stepLabels:inputModeSelectorOpen()?null:browserChordStepLabels(),surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),modes:inputModeNames,view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),padLabels:padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0),lastPlayed,lastOutput,playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
+  snapshot:()=>({song:{building:song.building,count:song.count},screen:Array.from(screen),...drawing.snapshot(),knobLabels,panels:panels(),stepLabels:inputModeSelectorOpen()?null:browserChordStepLabels(),surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),modes:inputModeNames,modeActions:modeActionDescriptors(),view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),padLabels:padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0),lastPlayed,lastOutput,playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
   dispose:()=>{release(false);closed=true;}};
 }

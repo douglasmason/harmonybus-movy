@@ -29,7 +29,7 @@ assert(port.setParam('midi_fx1:cp_play_mode','Queued'));
 const find=key=>{const index=page.ctl.pages.findIndex(entry=>entry.keys?.includes(key));assert(index>=0,key);page.goToPage(index);};
 find('cp_slot_0');chord.chordMidi([144,0,100]);chord.chordMidi([128,0,0]);
 assert(commands.some(([key,value])=>key==='chord_queue'&&value.startsWith('0,')));
-assert(!commands.some(([key,value])=>key==='chord_select'&&value!=='off'));
+assert(!commands.some(([key,value])=>key==='chord_select'&&value!=='off'&&value!=='leave'));
 assert.equal(chord.chordSnapshot().playMode,1);
 const saved=chord.chordSnapshot();chord.restoreChord(saved);assert.equal(chord.chordSnapshot().playMode,1);
 chord.setChordEnabled(true);assert(port.setParam('midi_fx1:cp_play_mode','Immediate'));
@@ -96,9 +96,44 @@ assert(!commands.some(([key,value])=>key==='chord_select'&&value==='off'),
     'switching Joint conductor knobs on the same owner preserves the queue');
 assert(commands.some(([key,value])=>key==='chord_joint'&&value==='0'),
     'Joint knob surface still identifies the conductor');
+// Exercise the real Session picker, including the newer Loop Edit owner.
+const router=await import('../dist/esm/seq/router-buttons.js');
+const {seqHandleMidi}=await import('../dist/esm/seq/router.js');
+const buttons=await import('../dist/esm/seq/mode-buttons.js');
+const chooseMode=mode=>{
+ clock+=500;
+ seqHandleMidi([176,50,127],false);seqHandleMidi([176,50,0],false);
+ assert(router.inputModeSelectorOpen());
+ const delta=mode-router.inputModeSelectorChoice();
+ if(delta)seqHandleMidi([176,14,delta>0?delta:128+delta],false);
+ seqHandleMidi([176,3,127],false);seqHandleMidi([176,3,0],false);
+ assert.equal(router.sessionPlayMode(),mode);
+};
+const originalBankRead=conductorControls.getParam;
+const queuedBank='cb1|2741|0,145,2741,1,0,0|'+Array.from({length:21},()=> '0,145,2741,1,0,0,1,0,C,1').join('|');
+conductorControls.getParam=key=>key==='midi_fx1:hb_chord_bank_snapshot'?queuedBank:originalBankRead(key);
+for(const playing of [false,true])for(const mode of [0,1,3,4,5,7,8,9]){
+ seqState.playing=playing;commands.length=0;
+ chooseMode(mode);chooseMode(6);clock+=300;chord.tickChord();
+ assert(!commands.some(([key,value])=>['chord_select','chord_queue','chord_route'].includes(key)&&value==='off'),
+     `mode ${mode} roundtrip cannot clear the ${playing?'playing':'paused'} queue`);
+ assert.equal(chord.chordContextTrail(),'Loop 1/2 [C] G');
+ assert(chord.chordSlotQueued(0),'returning to Chord Play restores queued LED membership');
+ assert.equal(appState.activeTrack.index,3,'mode roundtrip keeps melody focus');
+}
+conductorControls.getParam=originalBankRead;
+seqState.playing=false;commands.length=0;
+assert(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,127,false));
+assert(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,0,false));
+assert(commands.some(([key,value])=>key==='chord_select'&&value==='off'),'X still explicitly clears the retained queue');
 commands.length=0;chord.harmonyOff();
 assert(commands.some(([key,value])=>key==='chord_select'&&value==='off'),'K8 Off remains the explicit cancel action');
 conductorControls.setParam('midi_fx1:hb_chord_queue_status','--');
+// An ordinary immediate audition still ends when its input mode closes.
+port.setParam('midi_fx1:cp_play_mode','Immediate');chord.selectChordSlot(0);
+commands.length=0;chord.setChordEnabled(false);
+assert(commands.some(([key,value])=>key==='chord_select'&&value==='leave'));
+chord.setChordEnabled(true);port.setParam('midi_fx1:cp_play_mode','Queued');
 
 // The shared motif loader gets an explicit conductor owner, while melody pads
 // retain their track. Confirm through the real Chord Play MIDI dispatcher.
