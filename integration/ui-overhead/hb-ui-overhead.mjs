@@ -43,7 +43,7 @@ try{
         assert.equal(bankSerializations,0,'no parsed-bank serialization comparisons');
         assert.equal(metrics.snapshotReads,playing?20:4,'live snapshot cadence is preserved');
         assert.equal(metrics.routingReads,4,'routing retains external-change discovery');
-        assert.equal(metrics.queueReads,queued?10:0,'queue feedback retains its cadence');
+        assert.equal(metrics.queueReads,10,'stored queue is polled at 10Hz even during Immediate entry; footer must persist');
         for(const key of ['hb_chord_active','next_harmony','final_harmony','sounding_key'])assert.equal(reads['midi_fx1:'+key]??0,0,'hidden overview does not read '+key);
         assert(!writes.some(([,key])=>key==='midi_fx1:hb_chord_bank'));
         console.log('UI overhead: '+originalStringify(metrics));
