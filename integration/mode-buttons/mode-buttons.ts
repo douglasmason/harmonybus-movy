@@ -11,7 +11,7 @@ import {WHITE_BRIGHT, WHITE_DIM, WHITE_OFF} from './colors.js';
 import {sessionPlayMode, inputModeSelectorOpen, returnPreviousInputView} from './router-buttons.js';
 import {loopEditResizeHold} from './loop-mode.js';
 import {gridActive,gridEraseActive,gridFollowActive,setGridEraseHeld,toggleGridFollow} from './grid.js';
-import {scaleFindingActive,scaleFindingCanApply,scaleFindingCanClear,clearScaleFindingPreview,commitScaleFindingPreview} from './scale-finding.js';
+import {scaleFindingActive,scaleFindingCanApply,scaleFindingCanClear,clearScaleFindingPreview,commitScaleFindingPreview,scaleMicrophoneListening,scaleMicrophoneAvailable,setScaleMicrophoneListening} from './scale-finding.js';
 import {seqToast} from './render.js';
 import {fieldEraseAvailable,fieldEraseActive,setFieldEraseHeld} from './field-play.js';
 import {motifEditing,motifAction,motifPage,motifFinish} from '../renderer/hb-motif.js';
@@ -58,10 +58,10 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
         'Copy: normal clipboard',
         'K8: range / Off']},
     8:{name:'Scale Finding',lines:[
-        'X: clear preview',
-        'Copy: apply key/scale',
-        'K7: arm then press pad',
-        'K8: reference tonic']},
+        'Sample: listen / stop mic',
+        'K5: layout K6: window',
+        'K7: tonic K8: tune',
+        'Copy: key+scale X: clear']},
     9:{name:'Loop Edit',lines:[
         'Step buttons: bar choice',
         'Two held: loop range',
@@ -130,7 +130,9 @@ export function modeButtonColor(cc:number,fallback:number):number {
     if(scaleFindingActive()){
         if(cc===CC_MODE_CLEAR)return scaleFindingCanClear()?WHITE_DIM:WHITE_OFF;
         if(cc===CC_MODE_COPY)return scaleFindingCanApply()?WHITE_DIM:WHITE_OFF;
-        if(cc===CC_MODE_LOOP)return WHITE_OFF; // mic evidence hold comes later
+        if(cc===CC_MODE_SAMPLE)return !scaleMicrophoneAvailable()?WHITE_OFF:
+            scaleMicrophoneListening()?WHITE_BRIGHT:WHITE_DIM;
+        if(cc===CC_MODE_LOOP)return WHITE_OFF; // Evidence looping remains unimplemented.
     }
     if(sessionPlayMode()===2){
         if(cc===CC_MODE_COPY)return motifActionPage()&&!motifEditing()?WHITE_DIM:WHITE_OFF;
@@ -178,6 +180,7 @@ export function modeButtonMidi(cc:number,value:number,shiftHeld:boolean):boolean
             if(chordQueuedMode()){dismissModeHelp();chordLoopButton();}
             return true;
         }
+        if(scaleFindingActive()){seqToast('Use Sample to listen');return true;}
         if(gridActive()){dismissModeHelp();toggleGridFollow();return true;}
         // Other modes have no verified Loop operation. They cannot enter the
         // old bar editor accidentally. The Session selector owns that view.
@@ -185,6 +188,17 @@ export function modeButtonMidi(cc:number,value:number,shiftHeld:boolean):boolean
         return true;
     }
     if(shiftHeld||inputModeSelectorOpen())return false;
+    if(cc===CC_MODE_SAMPLE&&scaleFindingActive()){
+        // Scale Finding owns Sample, including the release. Never open the
+        // stock sampler or record audio while entering this input mode.
+        if(down){
+            capturedReleases.add(cc);dismissModeHelp();
+            if(setScaleMicrophoneListening(!scaleMicrophoneListening())){
+                seqToast(scaleMicrophoneListening()?'Mic listening':'Mic stopped');
+            }
+        }
+        return true;
+    }
     if(cc===CC_MODE_CLEAR){
         if(chordButtonContext()){
             if(down){capturedReleases.add(cc);dismissModeHelp();harmonyOff();}
@@ -266,9 +280,10 @@ export function modeActionDescriptors():ModeActionDescriptor[]{
     }else if(mode===5){
         set(CC_MODE_CLEAR,'Erase output','Hold X then press a Field output lane',fieldEraseAvailable(),fieldEraseActive(),'hold+pad');
     }else if(mode===8){
-        set(CC_MODE_COPY,'Apply key','Apply the selected scale to the shared parent key',scaleFindingCanApply());
+        set(CC_MODE_COPY,'Apply key','Apply the selected tonic and scale together to the shared parent key',scaleFindingCanApply());
         set(CC_MODE_CLEAR,'Clear preview','Discard uncommitted key/scale selection only',scaleFindingCanClear());
-        set(CC_MODE_LOOP,'Freeze evidence','Available with a future evidence accumulator',false);
+        set(CC_MODE_SAMPLE,'Listen / stop','Start or stop pitch-class data collection without recording audio',scaleMicrophoneAvailable(),scaleMicrophoneListening());
+        set(CC_MODE_LOOP,'Evidence loop','Reserved for bounded evidence looping or replay; not yet implemented',false);
     }else if(mode===9){
         set(CC_MODE_LOOP,'Resize loop','Hold Loop and turn Jog to resize the bar loop',true,false,'hold');
     }
