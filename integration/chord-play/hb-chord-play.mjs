@@ -114,7 +114,14 @@ rows[1].push(1);bankFrame=frame(rows[3].slice(0,6));now+=300;chord.tickChord();
 assert(chord.chordSlotQueued(1));assert(!chord.chordSlotQueued(0));
 page=chord.chordPage();find('cp_slot_0');const {seqLedsInvalidate}=await import('../dist/esm/seq/led-cache.js');seqLedsInvalidate();ledPackets.length=0;for(let frame=0;frame<3;frame++){ledFrameReset();chord.paintChordSteps();}
 for(const address of [17,1,72])assert(ledPackets.some(packet=>packet[2]===address&&packet[3]===0&&(packet[1]&15)!==0),'queued step and both knob LED addresses pulse');
-for(const address of [19,3,74])assert(ledPackets.some(packet=>packet[2]===address&&packet[3]===120&&(packet[1]&15)!==0),'sounding chord steps and both knob LEDs pulse white even after its queue entry is consumed');
+// Native Move animation sends the lit BASE on channel 0 first, then the
+// dark pulse target on the animation channel on a later LED frame.
+for(const address of [19,3,74]){
+ assert(ledPackets.some(packet=>packet[2]===address&&packet[3]===120&&(packet[1]&15)===0),
+   'sounding chord base is white at address '+address);
+ assert(ledPackets.some(packet=>packet[2]===address&&packet[3]===0&&(packet[1]&15)!==0),
+   'sounding chord pulses white-to-dark at address '+address);
+}
 chord.harmonyOff();assert(!chord.chordSlotQueued(1));
 
 // A regular step painter must recover after Chord Play's animated-address writer.
