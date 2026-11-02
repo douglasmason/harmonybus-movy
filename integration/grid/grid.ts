@@ -20,7 +20,8 @@ import { fontPrint } from '../font/index.js';
 import { resetKnobLedCache } from '../renderer/knob-leds.js';
 import { drawHeader, drawBankBar } from '../renderer/header.js';
 import { cachedSetAnimLED, sendPadLedFrame } from './led-cache.js';
-import { C_BLACK,C_DARKGREY,C_WHITE,trackColor } from './colors.js';
+import { C_BLACK,C_DARKGREY,C_WHITE,C_REC_RED,trackColor } from './colors.js';
+import {seqToast} from './render.js';
 
 export type GridViewport={lane:number;page:number;division:number;follow:boolean};
 export type GridEvent={tick:number;duration:number;assignment:number};
@@ -30,6 +31,7 @@ const names=Array.from({length:144},(_,index)=>index<128?['C','C#','D','Eb','E',
 const freshRows=():number[]=>[60,62,64,65,67,69,71,72,...Array.from({length:16},(_,index)=>128+index),36,38,42,46,48,50,52,55];
 let rows=Array.from({length:16},freshRows);
 let enabled=false,overview=true;
+let gridEraseHeld=false;
 let timeline:number[]=[];
 let occupied:number[]=[];
 let lastWindow='';
@@ -49,12 +51,27 @@ let lastPaint:number[]=new Array(32).fill(-1);
 let wasActive=false;
 const pages=new Map<number,SchwungPage>();
 const touched=new Map<number,SchwungPage>();
-const held=new Map<string,{track:number;assignment:number;tick:number;duration:number;velocity:number;at:number;focus:boolean}>();
+const held=new Map<string,{track:number;assignment:number;tick:number;duration:number;velocity:number;at:number;focus:boolean;erase:boolean}>();
+/** The currently visible Grid surface owns these input gestures. */
+export function gridEraseActive():boolean{return gridActive()&&gridEraseHeld;}
+export function setGridEraseHeld(value:boolean):void {
+    if(gridEraseHeld===value)return;
+    gridEraseHeld=value;lastPaint.fill(-1);appState.dirty=true;
+}
+export function gridFollowActive():boolean{return gridActive()&&gridViews.move.follow;}
+/** Follow the playhead in Grid, or hold the currently displayed page. */
+export function toggleGridFollow():boolean {
+    if(!gridActive())return false;
+    const view=gridViews.move;
+    view.follow=!view.follow;
+    seqToast(view.follow?'Grid follow on':'Grid page held');
+    appState.dirty=true;return true;
+}
 export function gridEnabled():boolean{return enabled;}
 export function gridActive():boolean{return enabled&&!seqState.sessionMode;}
 export function setGridEnabled(value:boolean):void {
     if(enabled===value)return;
-    clearNoteFocus();resetKnobLedCache();
+    clearNoteFocus();resetKnobLedCache();gridEraseHeld=false;
     for(const [slot,page] of touched)page.knobTouch(slot,false);
     touched.clear();held.clear();enabled=value;lastPaint.fill(-1);queries.clear();appState.initLedsDone=false;appState.initLedIndex=0;seqCmd('gview '+Number(value));appState.dirty=true;
 }
@@ -97,7 +114,7 @@ export function gridColors(surface:string,height:number,width:number):number[] {
         if(assignment===undefined||tick<seqState.loopStart*24||tick>=(seqState.loopStart+Math.max(16,seqState.lenSteps))*24)return C_BLACK;
         const present=eventTrack===watchedTrack()&&events[surfaceId].some(event=>event.assignment===assignment&&(assignment<128?event.tick>=tick&&event.tick<tick+duration:event.tick<tick+duration&&event.tick+event.duration>tick));
         const playhead=seqState.playing&&seqState.posTick>=tick&&seqState.posTick<tick+duration;
-        return present?(playhead?C_WHITE:trackColor(watchedTrack())):playhead?C_DARKGREY:C_BLACK;
+        return present?(gridEraseActive()&&surface==='move'?C_REC_RED:playhead?C_WHITE:trackColor(watchedTrack())):playhead?C_DARKGREY:C_BLACK;
     });
 }
 export function gridPad(surface:string,index:number,down:boolean,velocity:number,height=4,width=8,focus=false):boolean {
@@ -105,6 +122,16 @@ export function gridPad(surface:string,index:number,down:boolean,velocity:number
     if(!down){
         const owner=held.get(key);if(!owner)return gridActive();held.delete(key);
         if(!gridActive()||owner.track!==watchedTrack())return true;
+        if(owner.erase){
+            // A toggle on an empty cell would ADD a note. Never send gtog unless
+            // the acknowledged native window snapshot proves this cell exists.
+            const surfaceId=surface==='launchpad'?1:0;
+            const present=eventTrack===owner.track&&events[surfaceId].some(event=>
+                event.assignment===owner.assignment&&event.tick===owner.tick&&event.duration===owner.duration);
+            if(present)undoableEdit('ERASE GRID',trackLabel(owner.track),
+                ()=>seqCmd(`gtog ${owner.track} ${owner.tick} ${owner.duration} ${owner.assignment} ${owner.velocity}`));
+            return true; // including long touches: never switch into note focus
+        }
         if(owner.focus||Date.now()-owner.at>=350){focusRow(owner.assignment,owner.tick,owner.duration);return true;}
         undoableEdit('GRID EVENT',trackLabel(owner.track),()=>seqCmd(`gtog ${owner.track} ${owner.tick} ${owner.duration} ${owner.assignment} ${owner.velocity}`));
         return true;
@@ -112,7 +139,7 @@ export function gridPad(surface:string,index:number,down:boolean,velocity:number
     if(!gridActive())return false;
     const view=gridWindow(surface,width),row=Math.floor(index/width),assignment=rows[watchedTrack()][view.lane+row];
     if(index<0||row>=height||assignment===undefined)return true;
-    held.set(key,{track:watchedTrack(),assignment,tick:(view.page*width+index%width)*divisions[view.division],duration:divisions[view.division],velocity:Math.max(1,velocity),at:Date.now(),focus});return true;
+    held.set(key,{track:watchedTrack(),assignment,tick:(view.page*width+index%width)*divisions[view.division],duration:divisions[view.division],velocity:Math.max(1,velocity),at:Date.now(),focus,erase:gridEraseHeld});return true;
 }
 function gridDestination(surface:string,horizontal:number,vertical:number,height=4,width=8):[number,number] {
     const view=gridWindow(surface,width),last=Math.ceil((seqState.loopStart+Math.max(16,seqState.lenSteps))*24/(width*divisions[view.division]))-1;
