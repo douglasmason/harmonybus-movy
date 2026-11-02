@@ -147,13 +147,15 @@ try{
  const traceEncoder=async action=>encoderTrace.push({action,...await page.evaluate(async()=>({value:await __wasmRead('ch3:midi_fx1:travel_map'),display:document.querySelector('[aria-label="Knob 2"] .knob-value').textContent,shift:document.querySelector('#shift').checked,selected:document.querySelector('#encoder').value,held:[...document.querySelectorAll('[data-held=true]')].map(element=>element.getAttribute('aria-label'))}))});
  await traceEncoder('before');
  for(let detent=0;detent<4;detent++){await button('Knob 2 turn right').click();await traceEncoder('right '+detent);}
- // A nonempty intermediate label may precede the final engine value by a
- // display frame. Wait for convergence before comparing the two surfaces.
- await page.waitForFunction(async()=>{
+ // Compare the same observation that satisfied the poll. Separate DOM and
+ // Worker reads after it can straddle another asynchronous feedback frame.
+ const matchedTravel=await page.waitForFunction(async()=>{
   const value=await __wasmRead('ch3:midi_fx1:travel_map');
-  return value&&value!=='None'&&document.querySelector('[aria-label="Knob 2"] .knob-value').textContent===value;
+  const display=document.querySelector('[aria-label="Knob 2"] .knob-value').textContent;
+  return value&&value!=='None'&&display===value?{value,display}:false;
  });
- assert.equal(await button('Knob 2').locator('.knob-value').textContent(),await page.evaluate(()=>__wasmRead('ch3:midi_fx1:travel_map')));
+ const travelSnapshot=await matchedTravel.jsonValue();await matchedTravel.dispose();
+ assert.equal(travelSnapshot.display,travelSnapshot.value);
  // The last action sets its gesture label immediately; the next engine frame
  // restores the parameter description, even if the value was already nonzero.
  await page.waitForFunction(()=>document.querySelector('#control-status').textContent.includes('Follower Travel'));
