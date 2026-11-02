@@ -260,7 +260,7 @@ const finding=buttons.modeActionDescriptors();
 assert.equal(finding.find(action=>action.cc===119)?.label,'Clear preview');
 assert.equal(finding.find(action=>action.cc===60)?.label,'Apply key');
 assert.equal(finding.find(action=>action.cc===118)?.label,'Listen: tap / hold');
-assert.match(finding.find(action=>action.cc===118)?.detail??'',/pitch-class data collection/);
+assert.match(finding.find(action=>action.cc===118)?.detail??'',/Short tap latches/);
 assert.equal(finding.find(action=>action.cc===118)?.available,false,
     'on-device microphones cannot be advertised without an input provider');
 assert.equal(finding.find(action=>action.cc===58)?.available,false,
