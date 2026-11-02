@@ -47,6 +47,34 @@ scale.setScaleEvidenceWindowMs(1800);
 assert.equal(padsPlayNotes(),false,'Scale Finding replaces instrumental pad notes');
 assert.deepEqual(scale.scaleFindingColors().filter((color,index)=>index%8===0),
     [120,120,120,120],'white tonic appears in all four rows continuously');
+
+// Five actual Schwung Move colors in strictly increasing relative luminance.
+// Importantly, the most energetic pad is the brightest *red*, not bright
+// yellow, whose luminance exceeds the red LED's available sRGB palette value.
+const paletteHexByIndex=new Map([[78,'#201C07'],[77,'#645817'],
+    [28,'#995628'],[3,'#C93C00'],[1,'#FF4032']]);
+const srgbRelativeLuminance=(hex)=>{
+    const channels=[1,3,5].map(index=>parseInt(hex.slice(index,index+2),16)/255)
+        .map(channel=>channel<=0.04045?channel/12.92:
+            ((channel+0.055)/1.055)**2.4);
+    return channels[0]*0.2126+channels[1]*0.7152+channels[2]*0.0722;
+};
+assert.deepEqual(scale.SCALE_EVIDENCE_PALETTE,[78,77,28,3,1],
+    'dim yellow to brightest red, never full bright yellow');
+const heatLuminances=scale.SCALE_EVIDENCE_PALETTE.map(color=>
+    srgbRelativeLuminance(paletteHexByIndex.get(color)));
+assert(heatLuminances.every((value,index)=>
+    index===0||value>heatLuminances[index-1]),
+    'each pitch-energy tier must be physically more luminous in nominal sRGB');
+assert.equal(scale.scaleEvidenceColor(0),0,'no mic energy is black');
+assert.equal(scale.scaleEvidenceColor(0.06),0,'noise floor stays black');
+for(const [strength,index] of [[0.07,78],[0.21,77],[0.42,28],[0.65,3],[0.81,1],[1,1]])
+    assert.equal(scale.scaleEvidenceColor(strength),index,
+        'luminance-ordered detector tier for '+strength);
+assert.equal(scale.scaleEvidenceColor(Number.NaN),0);
+assert.equal(scale.scaleFindingColors()[1],0,
+    'family mode with no pitch energy is black outside tonic column');
+
 const fifthPad=24+4; // top Major row, fifth degree G
 let choice=scale.scalePadSelection(fifthPad);
 assert.equal(choice.tonic,7);
@@ -94,6 +122,7 @@ assert.equal(scale.finderPadPitch(16),0,'piano C');
 assert.equal(scale.finderPadPitch(18),4,'piano E');
 assert.equal(scale.finderPadPitch(20),7,'piano G');
 assert.equal(scale.finderPadPitch(26),null,'unoccupied upper black-key slot');
+assert.equal(scale.scaleFindingColors()[1],0,'piano notes with no detected energy are black');
 const beforeEvidence=writes.length;
 for(const pad of [16,18,20])assert(scale.scaleFindingMidi([144,68+pad,100]));
 assert.equal(writes.length,beforeEvidence,'selecting evidence has no key or clip writes');
@@ -116,6 +145,16 @@ const chroma=Array(12).fill(0);chroma[1]=1;chroma[3]=0.4;
 assert(scale.ingestScaleChroma(chroma,10000));
 assert(scale.scaleFindingEvidenceSnapshot().chroma[1]>0.6,'time-window EMA accumulates chroma');
 assert(scale.scaleFindingColors()[25]>0,'audio pitch evidence is visualized');
+assert.equal(scale.scaleFindingColors()[24],3,
+    'first strong observation starts orange under the existing EMA smoother');
+assert(scale.ingestScaleChroma(chroma,10500));
+assert(scale.ingestScaleChroma(chroma,11000));
+assert.equal(scale.scaleFindingColors()[24],1,
+    'sustained peak C# evidence reaches the brightest red LED');
+assert.equal(scale.scaleFindingColors()[0],120,
+    'tonic remains white despite microphone heatmap');
+assert.equal(scale.scaleFindingColors()[18],11,
+    'manually latched E remains green and takes precedence over microphone heat');
 const retained=scale.scaleFindingEvidenceSnapshot().chroma[1];
 assert(scale.setScaleMicrophoneListening(false));
 assert.equal(scale.ingestScaleChroma(Array(12).fill(0),10200),false,
