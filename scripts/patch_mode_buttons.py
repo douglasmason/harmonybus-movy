@@ -41,12 +41,13 @@ export function chordMuteButton():void {
 /** Sample chooses Immediate (lit) or Queued (dim) chord entry. Neither
  * direction deletes or retriggers the conductor's stored progression. */
 export function chordSampleButton():void {
-    const next=setup.playMode?'Immediate':'Queued';
-    if(!chordPanelPort(appState.activeTrack.index).setParam('midi_fx1:cp_play_mode',next)){
-        seqToast('Mode unavailable');return;
-    }
-    queueCache=null;statusCache=null;appState.dirty=true;
-    seqToast('Chord entry: '+next);
+    // The virtual parameter port can be uninitialized on a newly entered
+    // surface. Update the single controller state directly (same underlying
+    // preference as the native-backed panel), never send a queue-clear command.
+    setup.playMode=setup.playMode?0:1;
+    queueCache=null;statusCache=null;
+    markUiStateDirty();appState.dirty=true;
+    seqToast('Chord entry: '+(setup.playMode?'Queued':'Immediate'));
 }
 /** Loop chooses the end policy. It does not change queue ownership or phase. */
 export function chordLoopButton():void {
