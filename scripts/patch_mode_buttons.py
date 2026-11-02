@@ -27,7 +27,7 @@ export function chordMuteButton():void {
     if(!chordLoopSelected()){seqToast('Enable Loop first');return;}
     const conductor=conductorTrack(),next=!buttonQueueMuted;
     send('chord_mute',conductor+','+(next?'on':'off'));
-    buttonQueueMuted=next;statusCache=null;appState.dirty=true;
+    buttonQueueMuted=next;queueCache=null;statusCache=null;appState.dirty=true;
     seqToast(next?'Chord output muted':'Chord output enabled');
 }
 /** Loop switches queue authority, never its ending policy or stored content. */
@@ -45,7 +45,7 @@ export function chordLoopButton():void {
     buttonQueuePresent=true;buttonQueueOverride=enabled;
     // Mute is subordinate to Loop authority. Bypass always resets it.
     if(!enabled)buttonQueueMuted=false;
-    statusCache=null;appState.dirty=true;
+    queueCache=null;statusCache=null;appState.dirty=true;
     seqToast(enabled?'Queue override on':'Conductor clip restored');
 }''')
     path.write_text(source)
