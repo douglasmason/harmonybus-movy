@@ -89,3 +89,10 @@ export function chordLoopButton():void {
     source = replace_once(source, '    resetInputModeSelector();',
                           '    resetInputModeSelector();\n    resetModeHelp();')
     path.write_text(source)
+
+    # This project uses esbuild's explicit entry list for Node ESM test imports.
+    # A TypeScript dependency alone does not emit dist/esm/seq/mode-buttons.js.
+    path = root / 'build/browser.mjs'
+    source = replace_once(path.read_text(), '    entryPoints: [',
+                          "    entryPoints: [\\n        resolve(root, 'src/seq/mode-buttons.ts'),")
+    path.write_text(source)
