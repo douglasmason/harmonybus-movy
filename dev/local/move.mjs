@@ -43,6 +43,7 @@ try{
    for(const selector of ['.accompaniment','.played-readout','#sessions','#audio-settings'])document.querySelector(selector).hidden=!local;
    document.querySelector('.screen-hint').textContent=local?'Drag a displayed parameter to adjust it; tap to touch its knob.':'Live device pixels. Rich labels and remote gestures are unavailable in this protocol.';
    if(!local){
+    surface.setSemanticAvailable(false);
     playMode.disabled=true;playMode.replaceChildren(new Option('Read on Move display',''));
     currentMode=null;modeNames='';lastTrack=-1;
     feedback.textContent=state==='connected'?'Use physical controls for pads, knobs and recording · audio plays on Move':message;
