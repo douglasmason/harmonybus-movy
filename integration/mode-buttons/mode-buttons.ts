@@ -130,7 +130,7 @@ export function modeButtonColor(cc:number,fallback:number):number {
         if(cc===CC_MODE_CLEAR)return WHITE_DIM;
         if(cc===CC_MODE_LOOP)return chordLoopSelected()?WHITE_BRIGHT:WHITE_DIM;
         if(cc===CC_MODE_SAMPLE)return chordQueuedMode()?WHITE_DIM:WHITE_BRIGHT;
-        if(cc===CC_MODE_MUTE)return chordMuteSelected()?WHITE_DIM:WHITE_BRIGHT;
+        if(cc===CC_MODE_MUTE)return chordMuteSelected()?WHITE_BRIGHT:WHITE_DIM;
         return fallback;
     }
     if(scaleFindingActive()){
@@ -301,7 +301,7 @@ export function modeActionDescriptors():ModeActionDescriptor[]{
             true,!chordQueuedMode());
         set(CC_MODE_MUTE,'Queue active',
             'Activate or bypass the stored progression without deleting it',
-            true,!chordMuteSelected());
+            true,chordMuteSelected());
     }else if(mode===4){
         set(CC_MODE_CLEAR,'Erase cell','Hold X then press an occupied Grid cell',true,gridEraseActive(),'hold+pad');
         set(CC_MODE_LOOP,'Follow grid','Toggle moving playhead page vs fixed page',true,gridFollowActive());
