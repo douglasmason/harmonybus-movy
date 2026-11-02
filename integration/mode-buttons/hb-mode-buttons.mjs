@@ -19,6 +19,13 @@ chord.setChordEnabled(true);
 assert.equal(router.sessionPlayMode(),6);
 const conductor=portFor(0),page=chord.chordPanelPort(3);
 page.getParam('midi_fx1:chain_params'); // initialize real panel metadata before virtual parameter edits
+conductor.setParam('midi_fx1:hb_chord_queue_status','--');
+chord.tickChord();
+for(const cc of [buttons.CC_MODE_LOOP,buttons.CC_MODE_MUTE,buttons.CC_MODE_CLEAR,buttons.CC_MODE_COPY])
+    assert.equal(buttons.modeButtonColor(cc,WHITE_DIM),WHITE_OFF,
+        'no stored progression means unavailable queue controls are dark');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_BRIGHT),WHITE_DIM,
+    'Sample indicates Queued mode even when no queue exists');
 assert(page.setParam('midi_fx1:cp_play_mode','Queued'));
 assert(chord.chordQueuedMode(),'queued mode is owned by the Chord Play controller');
 conductor.setParam('midi_fx1:chord_queue_end','Loop');
@@ -31,6 +38,8 @@ assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_DIM),WHITE_BRIGH
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_BRIGHT),WHITE_DIM,
     'Sample dim indicates Queued entry');
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_CLEAR,0),WHITE_DIM);
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_COPY,WHITE_OFF),WHITE_DIM,
+    'Copy becomes dim only when a queue exists');
 const queueBeforeMode=conductor.getParam('midi_fx1:hb_chord_queue_status');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true);
 assert(!chord.chordQueuedMode(),'Sample switches to Immediate');
