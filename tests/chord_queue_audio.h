@@ -128,7 +128,14 @@ static void test_chord_queue(void){
     set("cmd","stop");render(16);
     if(sent_on!=sent_off)fprintf(stderr,"queue MIDI on=%d off=%d\n",sent_on,sent_off);
     assert(sent_on>0&&sent_on==sent_off);
-    char status[256];api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",status,sizeof(status));assert(!strcmp(status,"--"));
+    char status[256];api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",status,sizeof(status));
+    assert(!strncmp(status,"cq1|",4)); /* Stop keeps the queue, even in Hold. */
+    set("cmd","play");render(20);
+    api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",status,sizeof(status));
+    assert(!strncmp(status,"cq1|",4));
+    set("cmd","stop");render(8);set("chord_select","off");render(8);
+    api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",status,sizeof(status));
+    assert(!strcmp(status,"--")); /* Explicit X/Off, not transport, cancels. */
     /* Queueing does not write ahead into the clip: Record captures activations. */
     set("ch0:midi_fx1:render_channel","Off");set("cmd","jrec 1 1");render(800);
     set("chord_queue","0,0,1,0,1,0,1,12");
