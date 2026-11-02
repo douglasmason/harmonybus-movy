@@ -85,9 +85,9 @@ export function setScaleOverridePanel(open:boolean):boolean{
     if(!scaleFindingActive())return false;
     overridePanel=!!open;appState.dirty=true;return true;
 }
-const manualRequiredMask=():number=>noteOverrides.reduce(
+const manualRequiredMask=():number=>noteOverrides.reduce<number>(
     (mask,value,note)=>value===1?mask|(1<<note):mask,0);
-const manualExcludedMask=():number=>noteOverrides.reduce(
+const manualExcludedMask=():number=>noteOverrides.reduce<number>(
     (mask,value,note)=>value===-1?mask|(1<<note):mask,0);
 const livePads=new Set<number>();
 /** Return a pitch class for the two playing rows and two latching rows. */
