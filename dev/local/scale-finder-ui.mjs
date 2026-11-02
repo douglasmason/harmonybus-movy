@@ -15,6 +15,8 @@ export function mountScaleFinderUI({send,isBrowser}){
  const status=document.querySelector('#finder-mic-status');
  const chroma=document.querySelector('#finder-chroma');
  const candidates=document.querySelector('#finder-candidates');
+ const overrides=document.querySelector('#finder-overrides');
+ const resetOverrides=document.querySelector('#finder-reset-overrides');
  const apply=document.querySelector('#finder-apply');
  const clear=document.querySelector('#finder-clear');
  let active=false,started=false,requestedListening=false,listenPending=false,stopPending=false,lastCandidates='',lastChroma='';
@@ -32,6 +34,19 @@ export function mountScaleFinderUI({send,isBrowser}){
   const option=new Option(names[index],String(index));tonic.append(option);
  }
  const meters=[...chroma.querySelectorAll('meter')];
+ const overrideSelects=[];
+ for(let note=0;note<12;note++){
+  const label=document.createElement('label');
+  const name=document.createElement('span');name.textContent=names[note];
+  const select=document.createElement('select');
+  select.setAttribute('aria-label',names[note]+' override');
+  for(const [value,text] of [['-1','Exclude'],['0','Auto'],['1','Require']])
+   select.append(new Option(text,value));
+  select.value='0';
+  select.onchange=()=>request('override',{note,mode:Number(select.value)});
+  label.append(name,select);overrides.append(label);overrideSelects.push(select);
+ }
+ resetOverrides.onclick=()=>request('resetOverrides',null);
  const stop=()=>{
    const wasListening=analyzer.active||requestedListening;
    active=false;requestedListening=false;listenPending=false;stopPending=false;started=false;lastCandidates='';lastChroma='';
@@ -97,6 +112,12 @@ export function mountScaleFinderUI({send,isBrowser}){
     lastChroma=chromaKey;
     finder.chroma.forEach((value,index)=>{meters[index].value=value;});
    }
+   if(Array.isArray(finder.noteOverrides)&&finder.noteOverrides.length===12){
+    for(let note=0;note<12;note++){
+     const desired=String(finder.noteOverrides[note]);
+     if(overrideSelects[note].value!==desired)overrideSelects[note].value=desired;
+    }
+   }
    const options=JSON.stringify([finder.candidates,finder.candidateIndex]);
    if(options!==lastCandidates){
     lastCandidates=options;candidates.replaceChildren();
@@ -112,7 +133,9 @@ export function mountScaleFinderUI({send,isBrowser}){
     }
    }
    apply.disabled=!finder.candidates[finder.candidateIndex]?.compatible||
-     !finder.candidates.length||(!(finder.latchedNotes||finder.heldNotes||finder.chroma.some(value=>value>0))&&finder.layout!=='family');
+     !finder.candidates.length||
+     (!(finder.latchedNotes||finder.heldNotes||finder.chroma.some(value=>value>0)||
+        finder.manualRequired||finder.manualExcluded)&&finder.layout!=='family');
    if(finder.layout==='family')apply.disabled=finder.selectedPad<0;
  }
  document.addEventListener('visibilitychange',()=>{if(document.hidden&&analyzer.active){
