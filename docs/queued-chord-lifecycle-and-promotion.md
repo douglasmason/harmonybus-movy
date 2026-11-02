@@ -6,13 +6,37 @@ screen and not to the selected melody track. Switching tracks, returning to
 Clips, moving to Normal/Joint/Scale Finding, and returning to Chord Play must
 never send a native `chord_select=off` or `chord_route=off` for that cycle.
 
-**Harmony Off (X or K8)**, changing Queued/Immediate selection mode, starting a
-new conductor's chord-entry gesture, and Set unload/reset remain explicit ways
-to retire the shared queue. Hold mode still ends on Stop; Loop mode retains
-the phrase while paused and starts at chord one on Play. The existing native
-`chord_queue` handler enforces one conductor owner. Selecting another screen
-or Joint knob owner alone cannot replace it. No per-view or per-melody queue
-is added.
+**Harmony Off (X or K8)** explicitly clears the native queue. Transport
+Stop/Play, changing Chord Play screens, changing Queued/Immediate input
+preference, and selecting another melody track do not clear it. Stop silences
+rendered notes while preserving even an unfinished phrase; Play restarts a
+complete queue at chord one. Queue End defaults to Loop but an explicit Hold
+setting can change playback at the end without changing queue ownership.
+Set unload/reset or intentionally replacing the conductor are separate hard
+lifetime boundaries. No per-view or per-melody queue is added.
+
+**Chord entry defaults to Queued** for a new Set, legacy state without a
+saved choice, and Reset Chords; a saved explicit Immediate preference survives
+reload. The physical **Sample** button in Chord Play toggles Queued (dim)
+versus Immediate (bright), without clearing the stored progression. In Scale
+Finding, Sample retains its separate microphone tap-to-latch/hold-to-listen
+behavior; elsewhere it keeps stock sampling semantics.
+
+The physical **Loop** button changes the saved queue's ending: Loop (bright)
+or Hold (dim), never entry mode or musical authority. **Mute** bypasses the
+queue (bright) or enables it (dim). Both buttons are unlit without a queue,
+as are X and Copy; those latter two become dim only when a queue exists.
+Sample alone shows the entry preference even with no queue. Queue bypass
+preserves the stored progression, its cursor, and ongoing timing; adopting it
+again resumes the current chord instead of chord one. These gestures do not
+reset audio, mute the melody track, or erase other clips.
+
+Only **X / K8 Harmony Off** explicitly cancels a queue. The existing **Copy
+Queue to Conductor Clip** transaction is still a *design proposal*, not a
+released writer: never silently duplicate the current melody clip as a
+substitute. The current native queue buffers are bounded at sixteen events;
+unlimited-duration Hold appending still requires a separate safe streaming
+design and is not implemented by this control remapping.
 
 In the UI `Queue 0/2` means zero accepted choices toward Queue Depth 2. The
 word `Fill` was confusing with our actual musical drum/motif fill operations.

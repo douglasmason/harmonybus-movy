@@ -1,10 +1,12 @@
 import {notationGlyph} from '../font/notation.js';
 import {drawNativeText,nativeTextWidth} from '../vendor/schwung/shared/param_pages/hb_large_font.mjs';
 import {drawGlyphRun, glyphRunWidth} from '../font/blit.js';
+import {fontPrint5x3,fontWidth5x3} from '../vendor/schwung/shared/param_pages/font5x3.mjs';
 import {registerWidget,isWidgetAvailable} from '../renderer/schwung-widgets.js';
 import {chordDegrees,intentLabel,type ChordStatus} from './chord-colors.js';
 
-// Both chord spelling and Roman quality benefit from contrasting letter heights.
+// Music-only typography: compact chord spellings, prominent Roman numerals.
+// All non-musical labels remain the shared Schwung renderer's responsibility.
 export const chordTextWidth=(text:string):number=>nativeTextWidth(text,'regular');
 
 /** Display notation only: quality and spelling come from the native chord name. */
@@ -41,23 +43,35 @@ export function registerChordLabels():void {
         const key=group.keys[0],meta=metaIndex.getOrGuess(key);
         const width=ctx.width,height=ctx.height,active=!!group.movyTouched;
         ctx.fillRect(1,0,width-2,height,active?1:0);
-        const names=[String(meta.chordName??'--'),String(meta.chordRoman??'')].filter(Boolean);
-        const native=height>=17;
-        const textHeight=native?8:5,gap=native?1:2;
-        const measure=native?chordTextWidth:(value:string)=>glyphRunWidth(value,notationGlyph,5,0);
-        const firstY=Math.floor((height-(names.length*textHeight+(names.length-1)*gap))/2);
+        const chordName=String(meta.chordName??'--');
+        const roman=String(meta.chordRoman??'');
+        const showRoman=!!roman;
+        // The stock compact 5x3 name font allows a real three-pixel top
+        // clearance; leave the larger musical Roman below with its own gap.
+        const nameHeight=5,gap=showRoman?1:0;
+        const largeRoman=showRoman&&height>=19;
+        const romanHeight=largeRoman?8:5;
+        const usedHeight=nameHeight+(showRoman?gap+romanHeight:0);
+        const top=Math.max(3,Math.min(height-usedHeight-2,Math.floor((height-usedHeight)/2)));
         ctx.fillRect(1,0,width-2,1,1);ctx.fillRect(1,height-1,width-2,1,1);
         ctx.fillRect(1,0,1,height,1);ctx.fillRect(width-2,0,1,height,1);
-        names.forEach((name,index)=>{
-            const text=fitChordText(name,width-6,measure);
-            const top=firstY+index*(textHeight+gap);
-            const left=Math.floor((width-measure(text))/2);
-            if(native){
-                drawNativeText(ctx,left,top,text,'regular',active?0:1);
-            }else{
-                drawGlyphRun(left,0,text,active?0:1,notationGlyph,5,0,
-                    (x,y,w,h,color)=>ctx.fillRect(x,top+y,w,h,color));
-            }
-        });
+        const compactMeasure=(value:string)=>glyphRunWidth(value,notationGlyph,5,0);
+        const drawCompact=(value:string,y:number):void=>{
+            const text=fitChordText(value,width-6,compactMeasure);
+            const left=Math.floor((width-compactMeasure(text))/2);
+            drawGlyphRun(left,0,text,active?0:1,notationGlyph,5,0,
+                (x,dy,w,h,color)=>ctx.fillRect(x,y+dy,w,h,color));
+        };
+        const compactName=fitChordText(chordName,width-6,fontWidth5x3);
+        fontPrint5x3({fillRect:(x:number,y:number,w:number,h:number,color:number)=>ctx.fillRect(x,top+y,w,h,color)},
+            Math.floor((width-fontWidth5x3(compactName))/2),0,compactName,active?0:1);
+        if(showRoman){
+            const romanTop=top+nameHeight+gap;
+            if(largeRoman){
+                const text=fitChordText(roman,width-6,chordTextWidth);
+                const left=Math.floor((width-chordTextWidth(text))/2);
+                drawNativeText(ctx,left,romanTop,text,'regular',active?0:1);
+            }else drawCompact(roman,romanTop);
+        }
     }});
 }

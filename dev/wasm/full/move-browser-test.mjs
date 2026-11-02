@@ -297,6 +297,10 @@ try{
  assert.match(await button('Step 2').getAttribute('aria-description'),/Home · Dm · ii/);
  assert.equal(await button('Step 8').locator('.step-name').textContent(),'Off');
  assert.equal(await button('Step 16').locator('.step-name').textContent(),'Off');
+ // Live-chord recording below deliberately selects Immediate; new sessions
+ // still start Queued. Exercise the real browser mode-button control.
+ await page.locator('#functions [data-index="118"]').click();
+ await page.waitForFunction(()=>document.querySelector('#functions [data-index="118"] .mode-action')?.textContent==='Chord entry: Immediate');
  for(const viewport of [{width:390,height:844},{width:768,height:1024},{width:1180,height:820}]){
   await page.setViewportSize(viewport);
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'chord banks fit '+viewport.width);

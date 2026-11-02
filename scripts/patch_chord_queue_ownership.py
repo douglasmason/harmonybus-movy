@@ -36,6 +36,52 @@ def patch_chord_queue_ownership(root: Path) -> None:
             send('chord_select','leave');
             activeSlot=-1;''')
     source = replace_once(source, "'Hold ':'Fill '", "'Hold ':'Queue '")
+    # Chord Play's canonical source owns this guarantee. Do not silently
+    # reintroduce a destructive mode switch through composition patches.
+    if "send('chord_queue','off');setup.playMode=selected;" in source:
+        raise RuntimeError("Chord entry-mode switch must preserve the queue")
+    # Queue status caching was extracted by the UI overhead patch; update the
+    # canonical raw snapshot rather than the earlier inline parse.
+    source = replace_once(source,
+        "    if(setup.playMode)queueStatus();",
+        "    queueStatus();")
+    source = replace_once(source,
+        "const raw=setup.playMode?(conductor.getParam('midi_fx1:hb_chord_queue_status')??''):'';",
+        """const raw=conductor.getParam('midi_fx1:hb_chord_queue_status')??'';
+        const present=raw.startsWith('cq1|');
+        const override=present&&conductor.getParam('midi_fx1:hb_chord_queue_override')==='On';
+        const loop=conductor.getParam('midi_fx1:chord_queue_end')==='Loop';
+        if(buttonQueuePresent!==present||buttonQueueOverride!==override||buttonQueueLoop!==loop)
+            appState.dirty=true;
+        buttonQueuePresent=present;buttonQueueOverride=override;buttonQueueLoop=loop;""")
+    source = replace_once(source,
+        "export function harmonyOff():void{",
+        """export function harmonyOff():void{
+    buttonQueuePresent=false;buttonQueueOverride=false;buttonQueueLoop=true;""")
+    source = replace_once(source,
+        "    const current=chordPage();if(!contextVisible(current))return null;",
+        """    const current=chordPage();
+    // The native stored progression is musical context, never a transient
+    // hint. It stays on the footer through knob touch and page navigation.
+    if(buttonQueuePresent){
+        const status=performanceStatus('queue_count');
+        return queueFooterText(performanceStatus('queue_next'),
+            buttonQueueOverride?status:'Muted '+status,
+            performanceStatus('queue_snapshot'));
+    }
+    if(!contextVisible(current))return null;""")
+    # Apply after Joint's composed step and knob painter, not to the base
+    # render assets. Only chord slots pulse white; clip/motif launch controls
+    # retain their own separate feedback.
+    source = replace_once(source,
+        "cachedSetAnimLED(16+index,color,chordSlotQueued(slot)?0:color,chordSlotQueued(slot)?ANIM_PULSE_SLOW:0);",
+        "cachedSetAnimLED(16+index,color,(!contentKey&&color===120||chordSlotQueued(slot))?0:color,(!contentKey&&color===120||chordSlotQueued(slot))?ANIM_PULSE_SLOW:0);")
+    source = replace_once(source,
+        "cachedSetAnimLED(knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0);",
+        "cachedSetAnimLED(knob,color,(/^cp_slot_/.test(keys[knob]??'')&&color===120||chordSlotQueued(index))?0:color,(/^cp_slot_/.test(keys[knob]??'')&&color===120||chordSlotQueued(index))?ANIM_PULSE_SLOW:0);")
+    source = replace_once(source,
+        "cachedSetAnimLED(71+knob,color,chordSlotQueued(index)?0:color,chordSlotQueued(index)?ANIM_PULSE_SLOW:0,true);",
+        "cachedSetAnimLED(71+knob,color,(/^cp_slot_/.test(keys[knob]??'')&&color===120||chordSlotQueued(index))?0:color,(/^cp_slot_/.test(keys[knob]??'')&&color===120||chordSlotQueued(index))?ANIM_PULSE_SLOW:0,true);")
     path.write_text(source)
 
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
@@ -52,6 +98,76 @@ def patch_chord_queue_ownership(root: Path) -> None:
                     }
                 }
                 else if val=="off" {self.clear_chord_queue();self.release_chord_selection();}''')
+    # Immediate audition must not silently delete the previous queued cycle.
+    # Switching entry modes is a UI decision; only an explicit Off clears it.
+    source = replace_once(source,
+        'self.clear_chord_queue();self.abort_idle_input();',
+        '''if let Some(owner)=self.chord_queue {
+                        if owner==selection.track {
+                            self.chains.set_param(owner,"midi_fx1:hb_chord_queue_override","Off");
+                            self.release_chord_selection();
+                        } else {
+                            self.clear_chord_queue();self.release_chord_selection();
+                        }
+                    }
+                    self.abort_idle_input();''')
+    # Mute changes queue authority, not lifetime. Only the currently owned
+    # virtual selection may need a note-off at handoff; audio is never reset.
+    source = replace_once(source,
+        '            "chord_queue" => {',
+        '''            "chord_override" => {
+                if let Some((owner,action))=val.split_once(',') {
+                    if let Ok(track)=owner.parse::<usize>() {
+                        if self.chord_queue==Some(track) {
+                            if action=="off" {
+                                // Loop bypass clears the subordinate output mute.
+                                self.chains.set_param(track,"midi_fx1:hb_chord_queue_mute","Off");
+                                self.chains.set_param(track,"midi_fx1:hb_chord_queue_override","Off");
+                                self.release_chord_selection();
+                            } else if action=="on" {
+                                self.chains.set_param(track,"midi_fx1:hb_chord_queue_mute","Off");
+                                self.chains.set_param(track,"midi_fx1:hb_chord_queue_override","On");
+                                // Adopt the current queued chord, not chord one.
+                                // A targeted note-off is not an audio-engine reset.
+                                self.release_chord_selection();
+                                self.chord_queue_tick=None;
+                            }
+                        }
+                    }
+                }
+            }
+            "chord_mute" => {
+                if let Some((owner,action))=val.split_once(',') {
+                    if let Ok(track)=owner.parse::<usize>() {
+                        if self.chord_queue==Some(track) {
+                            match action {
+                                "on" => {
+                                    if self.chains.get_param(track,"midi_fx1:hb_chord_queue_override").as_deref()==Some("On") {
+                                        self.chains.set_param(track,"midi_fx1:hb_chord_queue_mute","On");
+                                        self.release_chord_selection();
+                                    }
+                                },
+                                "off" => {
+                                    self.chains.set_param(track,"midi_fx1:hb_chord_queue_mute","Off");
+                                    // Recovery adopts the current native chord without
+                                    // restarting or advancing the queue.
+                                    self.tick_chord_queue();
+                                },
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
+            "chord_queue" => {
+                if val=="retrigger" {
+                    if let Some(track)=self.chord_queue {
+                        self.release_chord_selection();
+                        self.chains.set_param(track,"midi_fx1:hb_chord_queue","retrigger");
+                        self.chord_queue_tick=None;
+                        self.tick_chord_queue();
+                    }
+                } else''')
     source = replace_once(source,
         'if next!=self.chord_joint {self.clear_chord_queue();self.release_chord_selection();self.chord_joint=next;}',
         '''if next!=self.chord_joint {

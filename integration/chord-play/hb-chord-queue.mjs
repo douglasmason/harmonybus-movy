@@ -8,10 +8,11 @@ const {appState}=await import('../dist/esm/app/state.js');
 const {seqCmdFlush}=await import('../dist/esm/seq/engine.js');
 const loader=await import('../dist/esm/renderer/hb-motif-loader.js');
 selectTrack(3);seqState.sessionMode=false;chord.restoreChord(null);chord.setChordEnabled(true);
+assert.equal(chord.chordSnapshot().playMode,1,'new and reset Chord Play defaults to queued');
 const page=chord.chordPage(),port=chord.chordPanelPort(3);port.getParam('midi_fx1:chain_params');
 page.goToPage(0);assert.deepEqual(Array.from({length:8},(_,index)=>page.keyAt(index)),['cp_play_mode','cp_track_0_chord_timing','cp_track_0_anticipation','cp_track_0_chord_queue_end','cp_queue_next','cp_queue_count','cp_track_0_chord_queue_depth','cp_off']);
 assert.equal(page.ctl.metaAt(1).name,'Queue Time');
-const conductorControls=portFor(0);let clock=Date.now();Date.now=()=>clock;const flush=()=>{clock+=100;page.tick();};flush();page.knobTurn(1,4);page.knobTurn(6,4);page.knobTurn(3,4);flush();
+const conductorControls=portFor(0);let clock=Date.now();Date.now=()=>clock;const flush=()=>{clock+=100;page.tick();};flush();page.knobTurn(1,4);page.knobTurn(6,4);flush();
 assert.equal(conductorControls.getParam('midi_fx1:chord_timing'),'1/16');
 assert.equal(conductorControls.getParam('midi_fx1:chord_queue_depth'),'3');
 assert.equal(conductorControls.getParam('midi_fx1:chord_queue_end'),'Loop');
@@ -23,8 +24,11 @@ assert(core.includes('cp_Conductor_follower_touch'));assert(core.includes('cp_Co
 assert(!core.includes('cp_Conductor_motif_load'),'motif loading remains in Conductor settings');
 assert(!core.includes('cp_bass_library')&&!core.includes('cp_comp_library')&&!core.includes('cp_setup'));
 assert(!page.ctl.pages.some(entry=>/^cp_(Comp|Melody)_motif_load/.test(entry.level)),'Chord Play fill is conductor-only');
-const commands=[],oldSet=globalThis.host_module_set_param_blocking;
-globalThis.host_module_set_param_blocking=(key,value)=>{commands.push([key,value]);return oldSet?.(key,value);};
+const commands=[],clearingStacks=[],oldSet=globalThis.host_module_set_param_blocking;
+globalThis.host_module_set_param_blocking=(key,value)=>{
+ if(key==='chord_queue'&&value==='off')clearingStacks.push(new Error('queue cleared').stack);
+ commands.push([key,value]);return oldSet?.(key,value);
+};
 assert(port.setParam('midi_fx1:cp_play_mode','Queued'));
 const find=key=>{const index=page.ctl.pages.findIndex(entry=>entry.keys?.includes(key));assert(index>=0,key);page.goToPage(index);};
 find('cp_slot_0');chord.chordMidi([144,0,100]);chord.chordMidi([128,0,0]);
@@ -32,8 +36,12 @@ assert(commands.some(([key,value])=>key==='chord_queue'&&value.startsWith('0,'))
 assert(!commands.some(([key,value])=>key==='chord_select'&&value!=='off'&&value!=='leave'));
 assert.equal(chord.chordSnapshot().playMode,1);
 const saved=chord.chordSnapshot();chord.restoreChord(saved);assert.equal(chord.chordSnapshot().playMode,1);
-chord.setChordEnabled(true);assert(port.setParam('midi_fx1:cp_play_mode','Immediate'));
-assert(commands.some(([key,value])=>key==='chord_queue'&&value==='off'));
+chord.setChordEnabled(true);
+// Flush old restoration commands before attributing writes to this mode change.
+seqCmdFlush();commands.length=0;
+assert(port.setParam('midi_fx1:cp_play_mode','Immediate'));
+assert(!commands.some(([key,value])=>key==='chord_queue'&&value==='off'),
+    'switching to Immediate preserves the stored progression: '+JSON.stringify(commands)+'\n'+clearingStacks.at(-1));
 
 // Off clears the current harmony/queue without changing the selection mode.
 port.setParam('midi_fx1:cp_play_mode','Queued');seqState.playing=true;chord.harmonyOff();assert.equal(chord.chordSnapshot().playMode,1);
@@ -50,6 +58,7 @@ for(const playing of [false,true])for(const control of [7,23,31]){
 }
 seqState.playing=false;
 port.setParam('midi_fx1:cp_play_mode','Queued');
+conductorControls.setParam('midi_fx1:hb_chord_queue_override','On');
 conductorControls.setParam('midi_fx1:hb_chord_queue_status','cq1|1|-1|C|G7|1|1|3|0|0|2|C|G7');
 const queuePage=chord.chordPage();queuePage.goToPage(0);
 assert.match(chord.chordContextTrail(),/Hold 1\/3 \[C\] G7/);

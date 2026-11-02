@@ -16,7 +16,7 @@ import {seqToast} from './render.js';
 import {fieldEraseAvailable,fieldEraseActive,setFieldEraseHeld} from './field-play.js';
 import {motifEditing,motifAction,motifPage,motifFinish} from '../renderer/hb-motif.js';
 import {schwungActiveFor} from '../renderer/schwung-grid.js';
-import {chordActive, chordQueuedMode, chordLoopSelected, chordLoopButton, chordPadModalActive, harmonyOff} from './chord-play.js';
+import {chordActive, chordQueuedMode, chordQueuePresent, chordLoopSelected, chordLoopButton, chordSampleButton, chordRetrigger, chordMuteSelected, chordMuteButton, chordPadModalActive, harmonyOff} from './chord-play.js';
 import {jointActive, jointChordKnobs} from './joint-play.js';
 import {settingsActive} from './hb-settings.js';
 import {fontPrint} from '../font/index.js';
@@ -39,8 +39,8 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
     3:{name:'Joint Play',lines:[
         'Pads: selected actors',
         'X: Off with chord knobs',
-        'Loop: chord cycle / Hold',
-        'Copy: clipboard (for now)']},
+        'Loop: repeat / hold',
+        'Mute: queue active/off']},
     4:{name:'Grid Sequencer',lines:[
         'Pads: time / pitch cells',
         'Arrows: time and rows',
@@ -53,12 +53,12 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
         'Only in Outputs view',
         'Jog: settings/routing']},
     6:{name:'Chord Play',lines:[
-        'X: harmony Off',
-        'Loop: cycle / Hold',
-        'Copy: normal clipboard',
-        'K8: range / Off']},
+        'X: cancel chord queue',
+        'Sample: Immediate / Queued',
+        'Loop: repeat / hold',
+        'Mute: queue active/off']},
     8:{name:'Scale Finding',lines:[
-        'Sample: listen / stop mic',
+        'Sample: tap latch, hold listen',
         'K5: layout K6: window',
         'K7: tonic K8: tune',
         'Copy: key+scale X: clear']},
@@ -105,6 +105,8 @@ export function renderModeHelp(now=Date.now()):boolean{
 export function resetModeHelp():void{
     // Track switches and held-input resets do not make first-entry help repeat.
     dismissModeHelp();helpCopyHeld=false;
+    if(samplePressedAt>=0)setScaleMicrophoneListening(false);
+    samplePressedAt=-1;
 }
 function chordButtonContext():boolean{
     return !settingsActive()&&!inputModeSelectorOpen()&&
@@ -113,6 +115,9 @@ function chordButtonContext():boolean{
 }
 /** A consumed press keeps ownership until its release even across a mode change. */
 const capturedReleases=new Set<number>();
+const SAMPLE_HOLD_MS=350;
+let samplePressedAt=-1;
+let sampleWasListening=false;
 function motifActionPage(){
     if(sessionPlayMode()!==2||inputModeSelectorOpen())return null;
     const page=schwungActiveFor(appState.activeTrack.index,'midi_fx1');
@@ -122,14 +127,16 @@ function motifActionPage(){
 export function modeButtonColor(cc:number,fallback:number):number {
     if(inputModeSelectorOpen())return cc===CC_MODE_LOOP?WHITE_OFF:fallback;
     if(chordButtonContext()){
-        if(cc===CC_MODE_CLEAR)return WHITE_DIM;
-        if(cc===CC_MODE_LOOP&&chordQueuedMode())return chordLoopSelected()?WHITE_BRIGHT:WHITE_DIM;
-        if(cc===CC_MODE_LOOP)return WHITE_OFF;
+        if(cc===CC_MODE_CLEAR)return chordQueuePresent()?WHITE_DIM:WHITE_OFF;
+        if(cc===CC_MODE_COPY)return chordQueuePresent()?WHITE_DIM:WHITE_OFF;
+        if(cc===CC_MODE_LOOP)return !chordQueuePresent()?WHITE_OFF:chordLoopSelected()?WHITE_BRIGHT:WHITE_DIM;
+        if(cc===CC_MODE_SAMPLE)return chordQueuedMode()?WHITE_DIM:WHITE_BRIGHT;
+        if(cc===CC_MODE_MUTE)return !chordQueuePresent()?WHITE_OFF:chordMuteSelected()?WHITE_BRIGHT:WHITE_DIM;
         return fallback;
     }
     if(scaleFindingActive()){
         if(cc===CC_MODE_CLEAR)return scaleFindingCanClear()?WHITE_DIM:WHITE_OFF;
-        if(cc===CC_MODE_COPY)return scaleFindingCanApply()?WHITE_DIM:WHITE_OFF;
+        if(cc===CC_MODE_COPY)return scaleFindingCanApply()?WHITE_BRIGHT:WHITE_DIM;
         if(cc===CC_MODE_SAMPLE)return !scaleMicrophoneAvailable()?WHITE_OFF:
             scaleMicrophoneListening()?WHITE_BRIGHT:WHITE_DIM;
         if(cc===CC_MODE_LOOP)return WHITE_OFF; // Evidence looping remains unimplemented.
@@ -157,6 +164,12 @@ export function modeButtonMidi(cc:number,value:number,shiftHeld:boolean):boolean
     if(!down&&capturedReleases.delete(cc)){
         if(cc===CC_MODE_CLEAR){setGridEraseHeld(false);setFieldEraseHeld(false);}
         if(cc===CC_MODE_LOOP)loopEditResizeHold(false);
+        if(cc===CC_MODE_SAMPLE&&samplePressedAt>=0){
+            // A short press latches; holding samples only until release.
+            const held=Date.now()-samplePressedAt>=SAMPLE_HOLD_MS;
+            if(held||!scaleFindingActive())setScaleMicrophoneListening(false);
+            samplePressedAt=-1;
+        }
         return true;
     }
     if(cc===CC_MODE_COPY&&shiftHeld&&MODE_GUIDES[sessionPlayMode()]&&!inputModeSelectorOpen()){
@@ -175,11 +188,12 @@ export function modeButtonMidi(cc:number,value:number,shiftHeld:boolean):boolean
         capturedReleases.add(cc);
         if(inputModeSelectorOpen())return true;
         if(seqState.loopMode){loopEditResizeHold(true);return true;}
-        if(shiftHeld)return true;
         if(chordButtonContext()){
-            if(chordQueuedMode()){dismissModeHelp();chordLoopButton();}
+            dismissModeHelp();
+            if(shiftHeld)chordRetrigger();else chordLoopButton();
             return true;
         }
+        if(shiftHeld)return true;
         if(scaleFindingActive()){seqToast('Use Sample to listen');return true;}
         if(gridActive()){dismissModeHelp();toggleGridFollow();return true;}
         // Other modes have no verified Loop operation. They cannot enter the
@@ -188,14 +202,23 @@ export function modeButtonMidi(cc:number,value:number,shiftHeld:boolean):boolean
         return true;
     }
     if(shiftHeld||inputModeSelectorOpen())return false;
+    if(cc===CC_MODE_MUTE&&chordButtonContext()){
+        if(down){capturedReleases.add(cc);dismissModeHelp();chordMuteButton();}
+        return true;
+    }
+    if(cc===CC_MODE_SAMPLE&&chordButtonContext()){
+        if(down){capturedReleases.add(cc);dismissModeHelp();chordSampleButton();}
+        return true;
+    }
     if(cc===CC_MODE_SAMPLE&&scaleFindingActive()){
-        // Scale Finding owns Sample, including the release. Never open the
-        // stock sampler or record audio while entering this input mode.
-        if(down){
+        // Same short-tap latch / hold-to-momentarily-listen semantics as
+        // operation touches. Ownership of the matching release is captured.
+        if(down&&samplePressedAt<0){
             capturedReleases.add(cc);dismissModeHelp();
-            if(setScaleMicrophoneListening(!scaleMicrophoneListening())){
-                seqToast(scaleMicrophoneListening()?'Mic listening':'Mic stopped');
-            }
+            samplePressedAt=Date.now();sampleWasListening=scaleMicrophoneListening();
+            if(setScaleMicrophoneListening(!sampleWasListening))
+                seqToast(sampleWasListening?'Mic stopped':'Mic listening');
+            else samplePressedAt=-1;
         }
         return true;
     }
@@ -270,10 +293,17 @@ export function modeActionDescriptors():ModeActionDescriptor[]{
             motifEditing()?'Cancel the current uncommitted motif draft':'Normal step-delete gesture',true,false,'tap');
     }
     if(chord){
-        set(CC_MODE_CLEAR,'Harmony Off','Clear the live harmonic override / queued chord',true);
-        set(CC_MODE_LOOP,chordQueuedMode()?'Repeat queue':'Loop Edit in Session',
-            chordQueuedMode()?'Toggle queued chord ending between Loop and Hold':'Chord queue not enabled',
-            chordQueuedMode(),chordQueuedMode()&&chordLoopSelected());
+        set(CC_MODE_CLEAR,'Harmony Off','Explicitly cancel the live harmonic override / queued chord',chordQueuePresent());
+        set(CC_MODE_COPY,'Copy queue','Saved progression is available as a copy source; direct queue-to-clip writing is not yet implemented',chordQueuePresent());
+        set(CC_MODE_LOOP,'Queue end: '+(chordLoopSelected()?'Loop':'Hold'),
+            'Loop repeats the saved progression; Hold sustains the final chord',
+            chordQueuePresent(),chordQueuePresent()&&chordLoopSelected());
+        set(CC_MODE_SAMPLE,'Chord entry: '+(chordQueuedMode()?'Queued':'Immediate'),
+            'Sample lit: Immediate; dim: Queued, without clearing the stored progression',
+            true,!chordQueuedMode());
+        set(CC_MODE_MUTE,'Mute queue',
+            'Bright only while the stored progression is bypassed; it is never deleted',
+            chordQueuePresent(),chordMuteSelected());
     }else if(mode===4){
         set(CC_MODE_CLEAR,'Erase cell','Hold X then press an occupied Grid cell',true,gridEraseActive(),'hold+pad');
         set(CC_MODE_LOOP,'Follow grid','Toggle moving playhead page vs fixed page',true,gridFollowActive());
@@ -282,7 +312,7 @@ export function modeActionDescriptors():ModeActionDescriptor[]{
     }else if(mode===8){
         set(CC_MODE_COPY,'Apply key','Apply the selected tonic and scale together to the shared parent key',scaleFindingCanApply());
         set(CC_MODE_CLEAR,'Clear preview','Discard uncommitted key/scale selection only',scaleFindingCanClear());
-        set(CC_MODE_SAMPLE,'Listen / stop','Start or stop pitch-class data collection without recording audio',scaleMicrophoneAvailable(),scaleMicrophoneListening());
+        set(CC_MODE_SAMPLE,'Listen: tap / hold','Short tap latches on or off; hold listens until release without recording audio',scaleMicrophoneAvailable(),scaleMicrophoneListening());
         set(CC_MODE_LOOP,'Evidence loop','Reserved for bounded evidence looping or replay; not yet implemented',false);
     }else if(mode===9){
         set(CC_MODE_LOOP,'Resize loop','Hold Loop and turn Jog to resize the bar loop',true,false,'hold');

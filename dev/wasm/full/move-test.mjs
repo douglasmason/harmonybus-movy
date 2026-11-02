@@ -105,6 +105,7 @@ test('Chord Play step labels follow native banks, edits and input ownership',asy
   await send({type:'subscribe_tool'});await until(()=>frame?.ready);
   assert.equal(frame.stepLabels,null);
   await send({type:'move_mode',previous:1,mode:6});await until(()=>frame.stepLabels?.[0].name==='C');
+  await cc(118); // This live-step test deliberately selects Immediate; new sessions default Queued.
   assert.deepEqual(frame.stepLabels.slice(0,7).map(label=>[label.name,label.roman]),[['C','I'],['Dm','ii'],['Em','iii'],['F','IV'],['G','V'],['Am','vi'],['Bdim','viio']]);
   for(const [title,first,second] of [['Home Chords',0,7],['Parallel Chords',7,14],['Blues Dominants',14,0]]){
    await panel(title);
@@ -117,10 +118,11 @@ test('Chord Play step labels follow native banks, edits and input ownership',asy
    await midi([144,31,100]);await midi([128,31,0]);await until(()=>bank()[2].startsWith('-1,'));
   }
   await panel('Home Chords');
-  for(const index of [49,88]){
-   await midi([176,index,127]);assert.equal(frame.stepLabels,null,'modifier owns the steps: '+index);
-   await midi([176,index,0]);await until(()=>frame.stepLabels!==null);
-  }
+  await midi([176,49,127]);assert.equal(frame.stepLabels,null,'Shift modifier owns the steps');
+  await midi([176,49,0]);await until(()=>frame.stepLabels!==null);
+  // Chord Mute changes queue authority, not the step-label display owner.
+  await midi([176,88,127]);assert.notEqual(frame.stepLabels,null,'Chord Mute retains bank labels');
+  await midi([176,88,0]);
   const beforeLoop=frame.stepLabels;
   await cc(58);
   assert.deepEqual(frame.stepLabels,beforeLoop,'Chord Play Loop never enters the bar editor or hides chord steps');
@@ -324,6 +326,7 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   assert.equal(service.stats().move.mode,1);
   await cc(50);await midi([176,14,5]);await cc(3);
   assert.equal(service.stats().move.mode,6);
+  await cc(118); // The legacy live-chord recording test explicitly selects Immediate.
   await wait(100);assert.equal(updates.at(-1).move.padLabels.rows[0].owner,'T4 Melody');
   await note(16);await cc(86);await until(()=>/rec=1/.test(service.read('status')));
   await note(17);await midi([144,70,100]);await wait(300);await midi([128,70,0]);

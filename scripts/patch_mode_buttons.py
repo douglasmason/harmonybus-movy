@@ -17,25 +17,49 @@ def patch_mode_buttons(root: Path) -> None:
     source = replace_once(source,
         'export const chordActive=():boolean=>enabled&&!seqState.sessionMode;',
         '''export const chordActive=():boolean=>enabled&&!seqState.sessionMode;
-let buttonQueueLoop=false;
-/** Read-only LED snapshot. Never query a native parameter from LED painting. */
+let buttonQueuePresent=false,buttonQueueOverride=false,buttonQueueLoop=true;
+/** A single native queue is stored independently of its active output. */
 export function chordQueuedMode():boolean{return setup.playMode===1;}
-export function chordLoopSelected():boolean {
-    if(!setup.playMode)return false;
-    const queue=statusCache?.values.queue_snapshot;
-    if(queue?.startsWith('cq1|'))return queue.split('|')[8]==='1';
-    return buttonQueueLoop;
+export function chordQueuePresent():boolean{return buttonQueuePresent;}
+export function chordLoopSelected():boolean{return buttonQueueLoop;}
+/** Shift+Loop replays the same native cycle, including after Hold ends. */
+export function chordRetrigger():void {
+    if(!buttonQueuePresent){seqToast('No saved progression');return;}
+    send('chord_queue','retrigger');
+    queueCache=null;statusCache=null;appState.dirty=true;
+    seqToast('Queue retriggered');
 }
-/** Loop toggles native Queue End, not the unrelated step/bar Loop overlay. */
+export function chordMuteSelected():boolean{return buttonQueuePresent&&!buttonQueueOverride;}
+/** Mute activates/deactivates the stored progression; it never discards it. */
+export function chordMuteButton():void {
+    if(!buttonQueuePresent){seqToast('No chord queue');return;}
+    const conductor=conductorTrack(),enabled=!buttonQueueOverride;
+    send('chord_override',conductor+','+(enabled?'on':'off'));
+    buttonQueueOverride=enabled;queueCache=null;statusCache=null;appState.dirty=true;
+    seqToast(enabled?'Queue active':'Queue muted');
+}
+/** Sample chooses Immediate (lit) or Queued (dim) chord entry. Neither
+ * direction deletes or retriggers the conductor's stored progression. */
+export function chordSampleButton():void {
+    // The virtual parameter port can be uninitialized on a newly entered
+    // surface. Update the single controller state directly (same underlying
+    // preference as the native-backed panel), never send a queue-clear command.
+    setup.playMode=setup.playMode?0:1;
+    queueCache=null;statusCache=null;
+    markUiStateDirty();appState.dirty=true;
+    seqToast('Chord entry: '+(setup.playMode?'Queued':'Immediate'));
+}
+/** Loop chooses the end policy. It does not change queue ownership or phase. */
 export function chordLoopButton():void {
-    if(!setup.playMode)return;
-    const native=portFor(conductorTrack()),current=native.getParam('midi_fx1:chord_queue_end');
-    if(current!=='Loop'&&current!=='Hold'){seqToast('Queue unavailable');return;}
-    const next=current==='Loop'?'Hold':'Loop';
-    if(native.setParam('midi_fx1:chord_queue_end',next)===false){seqToast('Queue update failed');return;}
+    if(!buttonQueuePresent){seqToast('No chord queue');return;}
+    const conductor=conductorTrack(),native=portFor(conductor);
+    const old=native.getParam('midi_fx1:chord_queue_end');
+    if(old!=='Loop'&&old!=='Hold'){seqToast('Queue end unavailable');return;}
+    const next=old==='Loop'?'Hold':'Loop';
+    native.setParam('midi_fx1:chord_queue_end',next);
     buttonQueueLoop=next==='Loop';
-    statusCache=null;appState.dirty=true;
-    seqToast(next==='Loop'?'Queue repeats':'Queue holds at end');
+    queueCache=null;statusCache=null;appState.dirty=true;
+    seqToast('Queue end: '+next);
 }''')
     path.write_text(source)
 

@@ -19,33 +19,93 @@ chord.setChordEnabled(true);
 assert.equal(router.sessionPlayMode(),6);
 const conductor=portFor(0),page=chord.chordPanelPort(3);
 page.getParam('midi_fx1:chain_params'); // initialize real panel metadata before virtual parameter edits
+conductor.setParam('midi_fx1:hb_chord_queue_status','--');
+chord.tickChord();
+for(const cc of [buttons.CC_MODE_LOOP,buttons.CC_MODE_MUTE,buttons.CC_MODE_CLEAR,buttons.CC_MODE_COPY])
+    assert.equal(buttons.modeButtonColor(cc,WHITE_DIM),WHITE_OFF,
+        'no stored progression means unavailable queue controls are dark');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_BRIGHT),WHITE_DIM,
+    'Sample indicates Queued mode even when no queue exists');
 assert(page.setParam('midi_fx1:cp_play_mode','Queued'));
 assert(chord.chordQueuedMode(),'queued mode is owned by the Chord Play controller');
-conductor.setParam('midi_fx1:chord_queue_end','Hold');
+conductor.setParam('midi_fx1:chord_queue_end','Loop');
+conductor.setParam('midi_fx1:hb_chord_queue_status','cq1|2|4|C|G7|1|0|2|1|0|2|C|G7');
+conductor.setParam('midi_fx1:hb_chord_queue_override','On');
 const before=chord.chordSnapshot();
-assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_BRIGHT),WHITE_DIM,
-    'queued Hold is dim even if generic bar Loop would be bright');
-assert.equal(buttons.modeButtonColor(buttons.CC_MODE_CLEAR,0),WHITE_DIM,
-    'X is available in Chord Play');
+// Native status is sampled at a bounded 100ms cadence. Emulate a real tick
+// after the queue appears rather than expecting a synchronous LED read.
+const queueClock=Date.now;
+Date.now=()=>queueClock()+200;
+chord.tickChord();
+Date.now=queueClock;
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_DIM),WHITE_BRIGHT,
+    'Loop lit indicates repeating rather than holding the final chord');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_BRIGHT),WHITE_DIM,
+    'Sample dim indicates Queued entry');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_CLEAR,0),WHITE_DIM);
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_COPY,WHITE_OFF),WHITE_DIM,
+    'Copy becomes dim only when a queue exists');
+const queueBeforeMode=conductor.getParam('midi_fx1:hb_chord_queue_status');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true);
+assert(!chord.chordQueuedMode(),'Sample switches to Immediate');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_DIM),WHITE_BRIGHT,
+    'Immediate lights the Sample button');
+assert.equal(conductor.getParam('midi_fx1:hb_chord_queue_status'),queueBeforeMode,
+    'entry changes do not delete the existing native queue');
+assert.equal(conductor.getParam('midi_fx1:chord_queue_end'),'Loop');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),true,
+    'Sample release never opens the stock sampler in Chord Play');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true);
+assert(chord.chordQueuedMode(),'Sample returns to queued entry');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),true);
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_BRIGHT),WHITE_DIM);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false),true);
-assert.equal(conductor.getParam('midi_fx1:chord_queue_end'),'Loop',
-    'Loop press edits native conductor queue end, not the clip bar overlay');
-assert(chord.chordLoopSelected());
-assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_DIM),WHITE_BRIGHT);
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true,
-    'Loop release is swallowed');
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false),true);
-assert.equal(conductor.getParam('midi_fx1:chord_queue_end'),'Hold');
+assert.equal(conductor.getParam('midi_fx1:chord_queue_end'),'Hold',
+    'Loop toggles only the queue-end policy');
 assert(!chord.chordLoopSelected());
-assert.equal(chord.chordSnapshot().selected,before.selected,'Loop does not select a chord');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_BRIGHT),WHITE_DIM);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false),true);
+assert.equal(conductor.getParam('midi_fx1:chord_queue_end'),'Loop');
+assert(chord.chordLoopSelected());
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true);
+assert.equal(chord.chordSnapshot().selected,before.selected,'Loop never selects a chord');
+assert.equal(conductor.getParam('midi_fx1:hb_chord_queue_status'),queueBeforeMode);
+const loopAction=buttons.modeActionDescriptors().find(action=>action.cc===buttons.CC_MODE_LOOP);
+assert.equal(loopAction?.label,'Queue end: Loop');
+assert.equal(loopAction?.active,true);
+const sampleAction=buttons.modeActionDescriptors().find(action=>action.cc===buttons.CC_MODE_SAMPLE);
+assert.equal(sampleAction?.label,'Chord entry: Queued');
+assert.equal(sampleAction?.active,false);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,true),true,
+    'Shift+Loop retriggers the stored chord cycle without erasing it');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_COPY,127,false),false,
+    'plain Copy remains reserved for real abstract clip copying');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true,
+    'Chord Play owns Sample entry mode rather than the stock sampler');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),true);
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_MUTE,WHITE_OFF),WHITE_DIM,
+    'an active queue keeps Mute dim');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_MUTE,127,false),true);
+assert(chord.chordMuteSelected(),'Mute bypasses but retains saved progression');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_MUTE,WHITE_DIM),WHITE_BRIGHT,
+    'Mute is full brightness only when the stored queue is bypassed');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_MUTE,0,false),true);
+const muteAction=buttons.modeActionDescriptors().find(action=>action.cc===buttons.CC_MODE_MUTE);
+assert.equal(muteAction?.label,'Mute queue');
+assert.equal(muteAction?.active,true,'Remote UI active state means actually muted');
+conductor.setParam('midi_fx1:hb_chord_queue_override','Off');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_MUTE,127,false),true);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_MUTE,0,false),true);
+assert(!chord.chordMuteSelected(),'Unmute restores same stored queue');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_MUTE,WHITE_DIM),WHITE_DIM);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,127,false),true,'X is owned');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,0,false),true,'X release is owned');
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_COPY,127,false),false,
-    'plain Copy keeps its stock duplicate behavior until atomic queue export exists');
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),false,
-    'Sampling keeps its original meaning outside a finished microphone route');
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_MUTE,127,false),false,
-    'Mute retains track mute until an isolated accompaniment-bypass owner exists');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_COPY,WHITE_DIM),WHITE_OFF,
+    'X cleared the queue so Copy becomes unavailable');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_DIM),WHITE_OFF,
+    'X cleared the queue so Loop becomes unavailable');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,127,true),false,
     'Shift+X passes through to the original modifier behavior');
 assert.equal(buttons.modeButtonMidi(52,127,false),false,'Capture is never stolen');
@@ -56,7 +116,8 @@ assert(buttons.showModeHelp(6,true,1000));
 const first=buttons.modeHelpSnapshot(1005);
 assert.equal(first.mode,6);
 assert.equal(first.visible,true);
-assert(first.lines.some(line=>line.includes('X: harmony Off')));
+assert(first.lines.some(line=>line.includes('X: cancel chord queue')));
+assert(first.lines.some(line=>line.includes('Mute: queue active')));
 assert.equal(buttons.showModeHelp(6,false,1005),false,
     'first entry guide is not repeatedly forced');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_COPY,127,true),true,
@@ -69,6 +130,8 @@ assert(buttons.showModeHelp(6,true,1000));
 buttons.tickModeHelp(4000);
 assert.equal(buttons.modeHelpSnapshot(4001).visible,false,'expiry clears overlay');
 chord.setChordEnabled(false);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),false,
+    'outside Chord Play, Sample keeps its stock behavior');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,127,false),false);
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,44),WHITE_OFF,
     'plain Loop no longer unexpectedly enters the bar editor');
@@ -83,7 +146,7 @@ assert.equal(buttons.modeButtonColor(buttons.CC_MODE_CLEAR,44),WHITE_OFF,
     'Scale Finding X is dark before a preview exists');
 scale.selectScaleFindingPad(28); // G Mixolydian, from the existing Inline layout
 assert(scale.scaleFindingCanApply());
-assert.equal(buttons.modeButtonColor(buttons.CC_MODE_COPY,WHITE_OFF),WHITE_DIM);
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_COPY,WHITE_OFF),WHITE_BRIGHT);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_COPY,127,false),true);
 assert.equal(conductor.getParam('midi_fx1:key_center_tonic'),'G');
 assert.equal(conductor.getParam('midi_fx1:key_center_explicit_scale'),'Mixolydian');
@@ -95,7 +158,7 @@ assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,0,false),true);
 assert.equal(scale.scaleFindingSnapshot().selectedPad,-1);
 assert.equal(conductor.getParam('midi_fx1:key_center_explicit_scale'),appliedScale,
     'X clears only the transient Scale Finding preview, not the committed parent key');
-assert.equal(buttons.modeButtonColor(buttons.CC_MODE_COPY,WHITE_DIM),WHITE_OFF,
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_COPY,WHITE_DIM),WHITE_DIM,
     'Copy cannot apply without a selected candidate');
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_DIM),WHITE_OFF,
     'Sample LED is off without an available microphone provider');
@@ -107,21 +170,34 @@ assert.equal(scale.scaleMicrophoneListening(),false);
 scale.setScaleMicrophoneAvailable(true);
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_OFF),WHITE_DIM,
     'available but idle Sample LED is dim');
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true);
-assert(scale.scaleMicrophoneListening(),'Sample starts evidence collection');
-assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_OFF),WHITE_BRIGHT,
-    'Sample LED illuminates while listening');
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),true);
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false),true);
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true);
-assert(scale.scaleMicrophoneListening(),'reserved Loop cannot toggle microphone listening');
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true);
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),true);
-assert(!scale.scaleMicrophoneListening(),'Sample stops listening without changing key');
+const clockNow=Date.now;
+try {
+ Date.now=()=>1000;
+ assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true);
+ assert(scale.scaleMicrophoneListening(),'press starts listening immediately');
+ assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_OFF),WHITE_BRIGHT);
+ Date.now=()=>1100;
+ assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),true);
+ assert(scale.scaleMicrophoneListening(),'short tap latches listening on');
+ assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false),true);
+ assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true);
+ assert(scale.scaleMicrophoneListening(),'reserved Loop cannot toggle listening');
+ Date.now=()=>1200;
+ assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true);
+ Date.now=()=>1300;
+ assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),true);
+ assert(!scale.scaleMicrophoneListening(),'short tap toggles latched listening off');
+ Date.now=()=>2000;
+ assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true);
+ assert(scale.scaleMicrophoneListening(),'held Sample starts listening immediately');
+ Date.now=()=>2500;
+ assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),true);
+ assert(!scale.scaleMicrophoneListening(),'long hold is momentary on release');
+} finally { Date.now=clockNow; }
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_BRIGHT),WHITE_OFF,
     'Loop remains reserved and dark in Scale Finding');
 const scaleActions=buttons.modeActionDescriptors();
-assert.equal(scaleActions.find(action=>action.cc===buttons.CC_MODE_SAMPLE)?.label,'Listen / stop');
+assert.equal(scaleActions.find(action=>action.cc===buttons.CC_MODE_SAMPLE)?.label,'Listen: tap / hold');
 assert.equal(scaleActions.find(action=>action.cc===buttons.CC_MODE_LOOP)?.available,false);
 scale.setScaleFindingEnabled(false);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),false,
@@ -183,8 +259,8 @@ scale.setScaleFindingEnabled(true);
 const finding=buttons.modeActionDescriptors();
 assert.equal(finding.find(action=>action.cc===119)?.label,'Clear preview');
 assert.equal(finding.find(action=>action.cc===60)?.label,'Apply key');
-assert.equal(finding.find(action=>action.cc===118)?.label,'Listen / stop');
-assert.match(finding.find(action=>action.cc===118)?.detail??'',/pitch-class data collection/);
+assert.equal(finding.find(action=>action.cc===118)?.label,'Listen: tap / hold');
+assert.match(finding.find(action=>action.cc===118)?.detail??'',/Short tap latches/);
 assert.equal(finding.find(action=>action.cc===118)?.available,false,
     'on-device microphones cannot be advertised without an input provider');
 assert.equal(finding.find(action=>action.cc===58)?.available,false,

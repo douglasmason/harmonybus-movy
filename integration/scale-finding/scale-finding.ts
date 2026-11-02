@@ -9,7 +9,7 @@ import { keyboardState } from '../keyboard/state.js';
 import { SCALES, FOLLOWER_SCALE_NAMES } from '../scale-catalog.js';
 import { portFor } from '../track/registry.js';
 import { returnPreviousInputView } from './router-buttons.js';
-import { sendPadLedFrame, cachedSetAnimLED, invalidateInputModeLeds } from './led-cache.js';
+import { sendPadLedFrame, cachedSetAnimLED, cachedSetButtonLED, invalidateInputModeLeds } from './led-cache.js';
 import { drawHeader } from '../renderer/header.js';
 import { fontPrint, fontWidth } from '../font/index.js';
 import { setPadPosition } from './pad-position.js';
@@ -390,6 +390,10 @@ export function paintScaleFindingSteps():boolean{
         cachedSetAnimLED(knob,color,color,0);
         cachedSetAnimLED(71+knob,color,color,0,true);
     }
+    // Finder's pad/knob painter returns before the ordinary button pass.
+    // Keep the real Copy/Apply arm illuminated using the shared LED cache:
+    // dim when awaiting a selection, bright when Copy can commit tonic+scale.
+    cachedSetButtonLED(60,scaleFindingCanApply()?120:123);
     return true;
 }
 const shorten=(value:string):string=>{

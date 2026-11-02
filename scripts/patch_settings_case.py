@@ -60,7 +60,9 @@ def tamzen_lowercase(schwung_root: Path) -> list[list[int]]:
         rows = map_letter_to_rows[letter]
         occupied: list[int] = [index for index, row in enumerate(rows) if row]
         rows = rows[occupied[0]:occupied[-1] + 1]
-        height: int = 7 if letter in 'bdfhklt' else 6
+        # Dotted i/j require the full cap-height band for their dot; the other
+        # normalized lowercase bodies remain shorter than capitals.
+        height: int = 7 if letter in 'bdfhijklt' else 6
         normalized.append([6, 0, 5, 7, *([0] * (7 - height)),
                            *(rows[index * len(rows) // height] for index in range(height))])
     return normalized
@@ -91,6 +93,10 @@ def patch_settings_case(root: Path) -> None:
     # Install one pixel-native large-font implementation for both the shared
     # settings renderer and Movy's custom chord widgets.
     shutil.copy2(assets / 'hb_large_font.mjs', pages / 'hb_large_font.mjs')
+    (pages / 'font5x3.d.mts').write_text(
+        """export function fontWidth5x3(text: string): number;
+export function fontPrint5x3(ctx: {fillRect(x: number, y: number, width: number, height: number, color: number): void}, x: number, y: number, text: string, color?: number): void;
+""")
     (pages / 'hb_large_font.d.mts').write_text(
         "export type NativeFace = 'upper' | 'regular' | 'smooth';\n"
         "export const NATIVE_FONT_HEIGHT: number;\n"

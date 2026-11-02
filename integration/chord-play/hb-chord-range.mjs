@@ -8,6 +8,9 @@ const {seqState}=await import('../dist/esm/seq/state.js');
 const {setSettingsOpen}=await import('../dist/esm/seq/hb-settings.js');
 setSettingsOpen(false);selectTrack(3);seqState.sessionMode=false;seqState.playing=false;appState.currentView=VIEW_KNOBS;
 chord.restoreChord(null);chord.setChordEnabled(true);
+// Range auditions predate the queued default: choose Immediate deliberately.
+const entry=chord.chordPanelPort(3);entry.getParam('midi_fx1:chain_params');
+assert(entry.setParam('midi_fx1:cp_play_mode','Immediate'));
 const conductor=portFor(0),comp=portFor(2);
 conductor.setParam('midi_fx1:render_channel','3');conductor.setParam('midi_fx1:chord_register','0');comp.setParam('midi_fx1:chord_register','Conductor');
 conductor.setParam('midi_fx1:hb_chord_range_top','67');comp.setParam('midi_fx1:hb_chord_range_top','67');conductor.setParam('midi_fx1:hb_chord_range_mask','145');comp.setParam('midi_fx1:hb_chord_range_mask','145');
