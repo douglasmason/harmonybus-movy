@@ -7,8 +7,12 @@
  */
 import {appState} from '../app/state.js';
 import {seqState} from './state.js';
-import {WHITE_BRIGHT, WHITE_DIM} from './colors.js';
-import {sessionPlayMode, inputModeSelectorOpen} from './router-buttons.js';
+import {WHITE_BRIGHT, WHITE_DIM, WHITE_OFF} from './colors.js';
+import {sessionPlayMode, inputModeSelectorOpen, returnPreviousInputView} from './router-buttons.js';
+import {loopEditResizeHold} from './loop-mode.js';
+import {gridActive,gridEraseActive,gridFollowActive,setGridEraseHeld,toggleGridFollow} from './grid.js';
+import {scaleFindingActive,scaleFindingCanApply,scaleFindingCanClear,clearScaleFindingPreview,commitScaleFindingPreview} from './scale-finding.js';
+import {seqToast} from './render.js';
 import {chordActive, chordQueuedMode, chordLoopSelected, chordLoopButton, chordPadModalActive, harmonyOff} from './chord-play.js';
 import {jointActive, jointChordKnobs} from './joint-play.js';
 import {settingsActive} from './hb-settings.js';
@@ -26,7 +30,7 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
     2:{name:'Motif Play',lines:[
         'Pads: melody / harmony',
         'Touch: relative operations',
-        'Loop: step/bar view',
+        'Loop Edit: Session mode',
         'Copy: normal clipboard']},
     3:{name:'Joint Play',lines:[
         'Pads: selected actors',
@@ -36,8 +40,9 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
     4:{name:'Grid Sequencer',lines:[
         'Pads: time / pitch cells',
         'Arrows: time and rows',
-        'Loop: clip bars',
-        'Copy: steps or bars']},
+        'Hold X: erase occupied',
+        'Loop: follow / hold page',
+        'Copy: normal clipboard']},
     5:{name:'Field Play',lines:[
         'Pads: speed / shape',
         'Shift+pad: clear output',
@@ -49,10 +54,15 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
         'Copy: normal clipboard',
         'K8: range / Off']},
     8:{name:'Scale Finding',lines:[
-        'K1-4: scale families',
-        'K7: arm key selection',
-        'K8: reference tonic',
-        'White: tonic Green: key']}
+        'X: clear preview',
+        'Copy: apply key/scale',
+        'K7: arm then press pad',
+        'K8: reference tonic']},
+    9:{name:'Loop Edit',lines:[
+        'Step buttons: bar choice',
+        'Two held: loop range',
+        'Double tap: one bar',
+        'Loop+wheel: resize']}
 };
 export interface ModeHelpSnapshot{mode:number;visible:boolean;reopenable:boolean;lines:readonly string[];}
 let shown=new Set<number>();
@@ -97,32 +107,92 @@ function chordButtonContext():boolean{
         (chordActive()||jointActive()&&jointChordKnobs())&&
         !chordPadModalActive();
 }
-/** Use the single cached button painter, not a second LED writer. */
-export function modeButtonColor(cc:number,fallback:number):number{
-    if(!chordButtonContext())return fallback;
-    if(cc===CC_MODE_CLEAR)return WHITE_DIM; // press lights automatically
-    if(cc===CC_MODE_LOOP&&chordQueuedMode())return chordLoopSelected()?WHITE_BRIGHT:WHITE_DIM;
+/** A consumed press keeps ownership until its release even across a mode change. */
+const capturedReleases=new Set<number>();
+/** Read-only LED state: never poll the engine from this painter. */
+export function modeButtonColor(cc:number,fallback:number):number {
+    if(inputModeSelectorOpen())return cc===CC_MODE_LOOP?WHITE_OFF:fallback;
+    if(chordButtonContext()){
+        if(cc===CC_MODE_CLEAR)return WHITE_DIM;
+        if(cc===CC_MODE_LOOP&&chordQueuedMode())return chordLoopSelected()?WHITE_BRIGHT:WHITE_DIM;
+        if(cc===CC_MODE_LOOP)return WHITE_OFF;
+        return fallback;
+    }
+    if(scaleFindingActive()){
+        if(cc===CC_MODE_CLEAR)return scaleFindingCanClear()?WHITE_DIM:WHITE_OFF;
+        if(cc===CC_MODE_COPY)return scaleFindingCanApply()?WHITE_DIM:WHITE_OFF;
+        if(cc===CC_MODE_LOOP)return WHITE_OFF; // mic evidence hold comes later
+    }
+    if(gridActive()){
+        if(cc===CC_MODE_CLEAR)return gridEraseActive()?WHITE_BRIGHT:WHITE_DIM;
+        if(cc===CC_MODE_LOOP)return gridFollowActive()?WHITE_BRIGHT:WHITE_DIM;
+    }
+    if(seqState.loopMode&&cc===CC_MODE_LOOP)return WHITE_DIM;
+    if(cc===CC_MODE_LOOP&&!seqState.sessionMode)return WHITE_OFF;
     return fallback;
 }
-/** Take only buttons with fully implemented mode-specific actions. */
-export function modeButtonMidi(cc:number,value:number,shiftHeld:boolean):boolean{
+/** An explicit, narrow mode dispatch; unmatched buttons keep stock behavior. */
+export function modeButtonMidi(cc:number,value:number,shiftHeld:boolean):boolean {
     const down=value>0;
     if(cc===CC_MODE_COPY&&helpCopyHeld){
         if(!down)helpCopyHeld=false;
+        return true;
+    }
+    if(!down&&capturedReleases.delete(cc)){
+        if(cc===CC_MODE_CLEAR)setGridEraseHeld(false);
+        if(cc===CC_MODE_LOOP)loopEditResizeHold(false);
         return true;
     }
     if(cc===CC_MODE_COPY&&shiftHeld&&MODE_GUIDES[sessionPlayMode()]&&!inputModeSelectorOpen()){
         if(down){helpCopyHeld=true;showModeHelp(sessionPlayMode(),true);}
         return true;
     }
-    if(!chordButtonContext()||shiftHeld)return false;
-    if(cc===CC_MODE_CLEAR){
-        if(down){dismissModeHelp();harmonyOff();}
-        return true; // A release cannot also delete a clip.
+    if(cc===51&&seqState.loopMode&&!inputModeSelectorOpen()){
+        if(down){capturedReleases.add(cc);loopEditResizeHold(false);returnPreviousInputView();}
+        return true; // Back leaves Loop Edit; never exits Movy
     }
-    if(cc===CC_MODE_LOOP&&chordQueuedMode()){
-        if(down){dismissModeHelp();chordLoopButton();}
-        return true; // An explicit chord-cycle button never enters bar Loop.
+    if(cc===CC_MODE_LOOP){
+        // Clips' held Loop is an existing scene-row modifier, not the Loop
+        // editor. Keep its on/off gesture and do not intercept its release.
+        if(seqState.sessionMode&&!inputModeSelectorOpen())return false;
+        if(!down)return true;
+        capturedReleases.add(cc);
+        if(inputModeSelectorOpen())return true;
+        if(seqState.loopMode){loopEditResizeHold(true);return true;}
+        if(shiftHeld)return true;
+        if(chordButtonContext()){
+            if(chordQueuedMode()){dismissModeHelp();chordLoopButton();}
+            return true;
+        }
+        if(gridActive()){dismissModeHelp();toggleGridFollow();return true;}
+        // Other modes have no verified Loop operation. They cannot enter the
+        // old bar editor accidentally. The Session selector owns that view.
+        seqToast('Loop Edit: Session');
+        return true;
+    }
+    if(shiftHeld||inputModeSelectorOpen())return false;
+    if(cc===CC_MODE_CLEAR){
+        if(chordButtonContext()){
+            if(down){capturedReleases.add(cc);dismissModeHelp();harmonyOff();}
+            return true;
+        }
+        if(scaleFindingActive()){
+            if(down){
+                capturedReleases.add(cc);
+                dismissModeHelp();
+                if(clearScaleFindingPreview())seqToast('Preview cleared');
+            }
+            return true;
+        }
+        if(gridActive()){
+            if(down){capturedReleases.add(cc);dismissModeHelp();setGridEraseHeld(true);}
+            else setGridEraseHeld(false);
+            return true;
+        }
+    }
+    if(cc===CC_MODE_COPY&&scaleFindingActive()){
+        if(down){capturedReleases.add(cc);dismissModeHelp();commitScaleFindingPreview();}
+        return true;
     }
     return false;
 }
