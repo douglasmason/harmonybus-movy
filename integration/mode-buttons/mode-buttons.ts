@@ -89,7 +89,8 @@ export function renderModeHelp(now=Date.now()):boolean{
     return true;
 }
 export function resetModeHelp():void{
-    dismissModeHelp();shown=new Set();helpCopyHeld=false;
+    // Track switches and held-input resets do not make first-entry help repeat.
+    dismissModeHelp();helpCopyHeld=false;
 }
 function chordButtonContext():boolean{
     return !settingsActive()&&!inputModeSelectorOpen()&&
