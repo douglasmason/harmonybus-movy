@@ -170,8 +170,8 @@ const PITCH_BINS: usize = HIGHEST_MIDI_EXCLUSIVE - LOWEST_MIDI;
 // Subtract from the raw spectrum (not the residual) to avoid cascades.
 const THIRD_PARTIAL_SEMITONES: usize = 19;
 const FIFTH_PARTIAL_SEMITONES: usize = 28;
-const THIRD_PARTIAL_LEAKAGE: f32 = 0.45;
-const FIFTH_PARTIAL_LEAKAGE: f32 = 0.30;
+const THIRD_PARTIAL_LEAKAGE: f32 = 0.28;
+const FIFTH_PARTIAL_LEAKAGE: f32 = 0.20;
 
 fn measured_pitch_spectrum(
     samples: &[f32; WINDOW], window: &[f32; WINDOW], sample_rate: f32,
@@ -289,6 +289,25 @@ mod tests {
         let corrected = analyze(&audio, &test_window(), 44100.0/8.0);
         assert!(corrected[7]>=32, "genuine G4 must remain visible: {corrected:?}");
         assert_eq!(corrected[0],127);
+    }
+    #[test] fn a_quiet_real_g4_survives_a_loud_c3() {
+        let audio = synth(&[(48,1.0),(67,0.3)]);
+        let corrected = analyze(&audio, &test_window(), 44100.0/8.0);
+        assert!(corrected[7]>=25, "quiet but independent G4 must not be erased: {corrected:?}");
+    }
+    #[test] fn a_bright_c3_does_not_become_a_false_fifth() {
+        let sample_rate = 44100.0 / DECIMATION as f32;
+        let samples: [f32; WINDOW] = std::array::from_fn(|frame_index| {
+            (1..=8).map(|partial| {
+                let frequency=440.0*2.0f32.powf((48.0-69.0)/12.0)*partial as f32;
+                if frequency>=sample_rate*0.5 { return 0.0; }
+                (0.2 / (partial as f32).powf(0.7))
+                    * (std::f32::consts::TAU*frequency*frame_index as f32/sample_rate
+                       + 0.06*partial as f32).sin()
+            }).sum::<f32>()
+        });
+        let corrected=analyze(&samples,&test_window(),sample_rate);
+        assert!(corrected[7]<26,"bright C harmonic must not look like G: {corrected:?}");
     }
     #[test] #[ignore] fn chroma_cpu_comparison_benchmark() {
         use std::time::Instant;
