@@ -21,6 +21,13 @@ let buttonQueuePresent=false,buttonQueueOverride=false,buttonQueueLoop=true;
 /** A single native queue is stored independently of its active output. */
 export function chordQueuedMode():boolean{return setup.playMode===1;}
 export function chordLoopSelected():boolean{return buttonQueueLoop;}
+/** Shift+Loop replays the same native cycle, including after Hold ends. */
+export function chordRetrigger():void {
+    if(!buttonQueuePresent){seqToast('No saved progression');return;}
+    send('chord_queue','retrigger');
+    queueCache=null;statusCache=null;appState.dirty=true;
+    seqToast('Queue retriggered');
+}
 export function chordMuteSelected():boolean{return buttonQueuePresent&&!buttonQueueOverride;}
 /** Mute activates/deactivates the stored progression; it never discards it. */
 export function chordMuteButton():void {
