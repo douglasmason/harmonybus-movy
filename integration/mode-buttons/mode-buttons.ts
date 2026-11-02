@@ -39,7 +39,7 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
     3:{name:'Joint Play',lines:[
         'Pads: selected actors',
         'X: Off with chord knobs',
-        'Loop: Repeat / Hold',
+        'Loop: Queued / Immediate',
         'Mute: queue active/off']},
     4:{name:'Grid Sequencer',lines:[
         'Pads: time / pitch cells',
@@ -54,7 +54,7 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
         'Jog: settings/routing']},
     6:{name:'Chord Play',lines:[
         'X: cancel chord queue',
-        'Loop: Repeat / Hold',
+        'Loop: Queued / Immediate',
         'Mute: queue active/off',
         'K8: range / Off']},
     8:{name:'Scale Finding',lines:[
@@ -128,7 +128,7 @@ export function modeButtonColor(cc:number,fallback:number):number {
     if(inputModeSelectorOpen())return cc===CC_MODE_LOOP?WHITE_OFF:fallback;
     if(chordButtonContext()){
         if(cc===CC_MODE_CLEAR)return WHITE_DIM;
-        if(cc===CC_MODE_LOOP)return chordLoopSelected()?WHITE_BRIGHT:WHITE_DIM;
+        if(cc===CC_MODE_LOOP)return chordQueuedMode()?WHITE_BRIGHT:WHITE_DIM;
         if(cc===CC_MODE_MUTE)return chordMuteSelected()?WHITE_DIM:WHITE_BRIGHT;
         return fallback;
     }
@@ -288,9 +288,9 @@ export function modeActionDescriptors():ModeActionDescriptor[]{
     }
     if(chord){
         set(CC_MODE_CLEAR,'Harmony Off','Clear the live harmonic override / queued chord',true);
-        set(CC_MODE_LOOP,'Queue end: '+(chordLoopSelected()?'Loop':'Hold'),
-            'Repeat the queue or sustain its last chord without changing storage',
-            true,chordLoopSelected());
+        set(CC_MODE_LOOP,'Chord entry: '+(chordQueuedMode()?'Queued':'Immediate'),
+            'Choose queued or immediate chord input; do not delete the stored progression',
+            true,chordQueuedMode());
         set(CC_MODE_MUTE,'Queue active',
             'Activate or bypass the stored progression without deleting it',
             true,!chordMuteSelected());
