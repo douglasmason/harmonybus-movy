@@ -20,7 +20,7 @@ def patch_mode_buttons(root: Path) -> None:
 let buttonQueuePresent=false,buttonQueueOverride=false,buttonQueueLoop=true;
 /** A single native queue is stored independently of its active output. */
 export function chordQueuedMode():boolean{return setup.playMode===1;}
-export function chordLoopSelected():boolean{return chordQueuedMode();}
+export function chordLoopSelected():boolean{return buttonQueueLoop;}
 /** Shift+Loop replays the same native cycle, including after Hold ends. */
 export function chordRetrigger():void {
     if(!buttonQueuePresent){seqToast('No saved progression');return;}
@@ -37,15 +37,26 @@ export function chordMuteButton():void {
     buttonQueueOverride=enabled;queueCache=null;statusCache=null;appState.dirty=true;
     seqToast(enabled?'Queue active':'Queue muted');
 }
-/** Loop changes the selected chord-entry mode; Queue End is a separate
- * setting whose native default is Loop. Never erase or reset the queue. */
-export function chordLoopButton():void {
+/** Sample chooses Immediate (lit) or Queued (dim) chord entry. Neither
+ * direction deletes or retriggers the conductor's stored progression. */
+export function chordSampleButton():void {
     const next=setup.playMode?'Immediate':'Queued';
     if(!chordPanelPort(appState.activeTrack.index).setParam('midi_fx1:cp_play_mode',next)){
         seqToast('Mode unavailable');return;
     }
     queueCache=null;statusCache=null;appState.dirty=true;
     seqToast('Chord entry: '+next);
+}
+/** Loop chooses the end policy. It does not change queue ownership or phase. */
+export function chordLoopButton():void {
+    const conductor=conductorTrack(),native=portFor(conductor);
+    const old=native.getParam('midi_fx1:chord_queue_end');
+    if(old!=='Loop'&&old!=='Hold'){seqToast('Queue end unavailable');return;}
+    const next=old==='Loop'?'Hold':'Loop';
+    native.setParam('midi_fx1:chord_queue_end',next);
+    buttonQueueLoop=next==='Loop';
+    queueCache=null;statusCache=null;appState.dirty=true;
+    seqToast('Queue end: '+next);
 }''')
     path.write_text(source)
 
