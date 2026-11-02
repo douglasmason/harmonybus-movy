@@ -131,7 +131,15 @@ def patch_chord_queue_ownership(root: Path) -> None:
                     }
                 }
             }
-            "chord_queue" => {''')
+            "chord_queue" => {
+                if val=="retrigger" {
+                    if let Some(track)=self.chord_queue {
+                        self.release_chord_selection();
+                        self.chains.set_param(track,"midi_fx1:hb_chord_queue","retrigger");
+                        self.chord_queue_tick=None;
+                        self.tick_chord_queue();
+                    }
+                } else''')
     source = replace_once(source,
         'if next!=self.chord_joint {self.clear_chord_queue();self.release_chord_selection();self.chord_joint=next;}',
         '''if next!=self.chord_joint {
