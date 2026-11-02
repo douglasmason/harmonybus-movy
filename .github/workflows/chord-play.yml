@@ -1,4 +1,4 @@
-name: Scale Finding verification and release
+name: Native Scale Finding microphone verification and release
 on:
   push:
     branches: [main]
@@ -84,6 +84,7 @@ on:
       - docs/mode-button-guides.md
       - integration/scale-finding/**
       - scripts/patch_scale_finding.py
+      - scripts/patch_native_scale_microphone.py
       - docs/scale-finding.md
       - integration/chord-play/**
       - integration/schwung-host/**
@@ -281,7 +282,7 @@ concurrency:
   group: chord-play-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 env:
-  SOURCE_VERSION: 0.34.1-hbclean.309
+  SOURCE_VERSION: 0.34.1-hbclean.310
   HARMONYBUS_ROOT: ${{ github.workspace }}/harmonybus
   SCHWUNG_ROOT: ${{ github.workspace }}/schwung
   SCHWUNG: ${{ github.workspace }}/schwung
@@ -372,7 +373,7 @@ jobs:
           sha256sum harmonybus-movy-module.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: scale-finding-309
+          name: native-scale-microphone-310
           path: |
             harmonybus-movy-module.tar.gz
             SHA256SUMS
@@ -393,10 +394,10 @@ jobs:
           import json
           from pathlib import Path
           metadata: dict = json.loads(Path('release.json').read_text())
-          if metadata['version'] != '0.34.1-hbclean.308':
-              raise SystemExit('Expected Movy 308 before Scale Finding release; installer unchanged')
+          if metadata['version'] != '0.34.1-hbclean.309':
+              raise SystemExit('Expected Movy 309 before native microphone release; installer unchanged')
           PY
-          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Scale Finding input layouts and evidence" --notes-file docs/scale-finding.md
+          gh release create "v$SOURCE_VERSION" harmonybus-movy-module.tar.gz SHA256SUMS source-benchmark.txt context-benchmark.txt --target "$GITHUB_SHA" --title "Movy $SOURCE_VERSION — Native Scale Finding microphone" --notes-file docs/move-scale-microphone.md
           mkdir verified-upload
           gh release download "v$SOURCE_VERSION" --dir verified-upload --pattern harmonybus-movy-module.tar.gz
           (cd verified-upload && sha256sum -c ../SHA256SUMS)
@@ -409,7 +410,7 @@ jobs:
           from pathlib import Path
           path: Path = Path('release.json')
           metadata: dict = json.loads(path.read_text())
-          if metadata['version'] != '0.34.1-hbclean.308':
+          if metadata['version'] != '0.34.1-hbclean.309':
               raise SystemExit('Installer moved concurrently; leave it unchanged')
           version: str = os.environ['SOURCE_VERSION']
           path.write_text(json.dumps({'version': version, 'download_url': f'https://github.com/douglasmason/harmonybus-movy/releases/download/v{version}/harmonybus-movy-module.tar.gz'}, indent=2) + '\n')
@@ -417,5 +418,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add release.json
-          git commit -m "Publish verified Scale Finding $SOURCE_VERSION [skip ci]"
+          git commit -m "Publish verified native Scale Finding microphone $SOURCE_VERSION [skip ci]"
           git push origin HEAD:main

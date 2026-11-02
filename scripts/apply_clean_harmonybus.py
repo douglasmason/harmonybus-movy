@@ -707,6 +707,8 @@ def main() -> int:
     patch_external_mode_actions(root)
     from patch_chord_queue_ownership import patch_chord_queue_ownership
     patch_chord_queue_ownership(root)
+    from patch_native_scale_microphone import patch_native_scale_microphone
+    patch_native_scale_microphone(root)
     print("HarmonyBus clean integration applied")
     return 0
 
