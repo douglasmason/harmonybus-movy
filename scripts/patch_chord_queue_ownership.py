@@ -50,14 +50,14 @@ def patch_chord_queue_ownership(root: Path) -> None:
         """const raw=conductor.getParam('midi_fx1:hb_chord_queue_status')??'';
         const present=raw.startsWith('cq1|');
         const override=present&&conductor.getParam('midi_fx1:hb_chord_queue_override')==='On';
-        const muted=override&&conductor.getParam('midi_fx1:hb_chord_queue_mute')==='On';
-        if(buttonQueuePresent!==present||buttonQueueOverride!==override||buttonQueueMuted!==muted)
+        const loop=conductor.getParam('midi_fx1:chord_queue_end')==='Loop';
+        if(buttonQueuePresent!==present||buttonQueueOverride!==override||buttonQueueLoop!==loop)
             appState.dirty=true;
-        buttonQueuePresent=present;buttonQueueOverride=override;buttonQueueMuted=muted;""")
+        buttonQueuePresent=present;buttonQueueOverride=override;buttonQueueLoop=loop;""")
     source = replace_once(source,
         "export function harmonyOff():void{",
         """export function harmonyOff():void{
-    buttonQueuePresent=false;buttonQueueOverride=false;buttonQueueMuted=false;""")
+    buttonQueuePresent=false;buttonQueueOverride=false;buttonQueueLoop=true;""")
     # Apply after Joint's composed step and knob painter, not to the base
     # render assets. Only chord slots pulse white; clip/motif launch controls
     # retain their own separate feedback.
