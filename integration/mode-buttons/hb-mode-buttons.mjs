@@ -21,23 +21,29 @@ const conductor=portFor(0),page=chord.chordPanelPort(3);
 page.getParam('midi_fx1:chain_params'); // initialize real panel metadata before virtual parameter edits
 assert(page.setParam('midi_fx1:cp_play_mode','Queued'));
 assert(chord.chordQueuedMode(),'queued mode is owned by the Chord Play controller');
-conductor.setParam('midi_fx1:chord_queue_end','Hold');
+conductor.setParam('midi_fx1:chord_queue_end','Loop');
+conductor.setParam('midi_fx1:hb_chord_queue_status','cq1|2|4|C|G7|1|0|2|1|0|2|C|G7');
+conductor.setParam('midi_fx1:hb_chord_queue_override','On');
 const before=chord.chordSnapshot();
-assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_BRIGHT),WHITE_DIM,
-    'queued Hold is dim even if generic bar Loop would be bright');
+chord.tickChord();
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_DIM),WHITE_BRIGHT,
+    'lit Loop means the native queue override is active, not queue ending');
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_CLEAR,0),WHITE_DIM,
-    'X is available in Chord Play');
+    'X is available to explicitly cancel the queue');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false),true);
 assert.equal(conductor.getParam('midi_fx1:chord_queue_end'),'Loop',
-    'Loop press edits native conductor queue end, not the clip bar overlay');
-assert(chord.chordLoopSelected());
-assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_DIM),WHITE_BRIGHT);
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true,
-    'Loop release is swallowed');
+    'Loop button does not edit the default queue ending');
+assert(!chord.chordLoopSelected(),'bypassed queue is still stored, with Loop lamp off');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_BRIGHT),WHITE_OFF);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true,'Loop release is swallowed');
+conductor.setParam('midi_fx1:hb_chord_queue_override','Off');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false),true);
-assert.equal(conductor.getParam('midi_fx1:chord_queue_end'),'Hold');
-assert(!chord.chordLoopSelected());
-assert.equal(chord.chordSnapshot().selected,before.selected,'Loop does not select a chord');
+assert(chord.chordLoopSelected(),'same queue can be re-enabled with Loop');
+assert.equal(conductor.getParam('midi_fx1:chord_queue_end'),'Loop');
+assert.equal(chord.chordSnapshot().selected,before.selected,'Loop never selects a chord');
+const chordOverrideAction=buttons.modeActionDescriptors().find(action=>action.cc===buttons.CC_MODE_LOOP);
+assert.equal(chordOverrideAction?.label,'Harmony override');
+assert.equal(chordOverrideAction?.active,true,'Remote UI shares Loop authority state');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,127,false),true,'X is owned');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,0,false),true,'X release is owned');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_COPY,127,false),false,
