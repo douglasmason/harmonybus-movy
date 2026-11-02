@@ -34,7 +34,7 @@ harmonic. The new chroma projection subtracts bounded contributions from
 those lower fundamentals **before** folding into twelve pitch classes:
 
 ```text
-residual(m) = max(0, raw(m) - .45*raw(m-19) - .30*raw(m-28))
+residual(m) = max(0, raw(m) - .28*raw(m-19) - .20*raw(m-28))
 chroma(pc) = max(residual(m) for m % 12 == pc)
 ```
 
@@ -68,7 +68,7 @@ the release. Host runner times are **not** hardware timings.
 
 ## Limitations and acceptance
 
-The coefficients 0.45 and 0.30 are deliberately conservative static
+The coefficients 0.28 and 0.20 are conservative static
 estimates. When a genuine quiet G plays on top of a strong C, the
 algorithm may undercount G if its fundamental cannot be distinguished
 from C's third partial. Percussive inharmonic instruments, dense
