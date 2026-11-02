@@ -50,5 +50,7 @@ export function parseChordBank(text:string|null):ChordBankStatus|null{
     return {reference,active,slots};
 }
 export function matchesHarmony(status:ChordStatus|undefined,active:number[]):boolean{
-    return !!status&&status.root>=0&&[status.root,status.mask,status.scale,status.kind,status.target,status.bass].every((value,index)=>value===active[index]);
+    return !!status&&status.root>=0&&status.root===active[0]&&
+        status.mask===active[1]&&status.scale===active[2]&&
+        status.kind===active[3]&&status.target===active[4]&&status.bass===active[5];
 }
