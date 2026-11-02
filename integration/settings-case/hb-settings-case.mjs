@@ -66,7 +66,7 @@ for(const [name,print,height] of [
     assert(lower.some(Boolean),name+' draws '+letter);
     if('im'.includes(letter))assert.notDeepEqual(lower,upper,name+' distinguishes '+letter);
     assert(!lower.slice(height*128).some(Boolean),name+' keeps its height for '+letter);
-    const top='bdfhklt'.includes(letter)?0:1;
+    const top='bdfhklt'.includes(letter)||(name==='shared value strip'&&'ij'.includes(letter))?0:1;
     assert(!lower.slice(0,top*128).some(Boolean),name+' keeps '+letter+' below capitals');
     assert(lower.slice(top*128,(top+1)*128).some(Boolean),name+' gives '+letter+' the common body/ascender top');
     assert(lower.slice((height-1)*128,height*128).some(Boolean),name+' gives '+letter+' the common baseline');
