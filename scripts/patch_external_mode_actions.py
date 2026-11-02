@@ -93,4 +93,15 @@ function releaseRightActions():void{
         "assert.equal((miniFrame.length-8)/5,80,'Mini paints the same full grid, top operations and right actions');")
     source = replace_once(source, "Array.from({length:73},(_,index)=>miniFrame[8+index*5])",
         "Array.from({length:80},(_,index)=>miniFrame[8+index*5])")
+    source = replace_once(source,
+        '        89,91,92,93,94,95,96,97,98].sort((a,b)=>a-b));',
+        '        19,29,39,49,59,69,79,89,91,92,93,94,95,96,97,98].sort((a,b)=>a-b));')
+    source = replace_once(source,
+        "onMidiMessageExternal([176,89,0]);\nconst miniNotes=midi.length;",
+        """onMidiMessageExternal([176,89,0]);
+const sideLoopBefore=seqState.loopMode;
+onMidiMessageExternal([176,59,127]);onMidiMessageExternal([176,59,0]);
+assert.equal(seqState.loopMode,sideLoopBefore,
+    'Mini right Loop routes through Move mode actions, without global bar-editor latching');
+const miniNotes=midi.length;""")
     path.write_text(source)
