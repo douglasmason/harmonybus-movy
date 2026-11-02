@@ -66,6 +66,17 @@ test('genuine upper fifth remains when separately played',()=>{
  assert(result[7]>.3,'true G4 should remain independently visible: '+result);
 });
 
+test('low-level actual upper fifth survives residual removal',()=>{
+ const fftSize=8192,sampleRate=44100;
+ const spectrum=new Float32Array(fftSize/2).fill(-105);
+ for(const [midi,level] of [[48,-24],[67,-29]]){
+  const frequency=440*Math.pow(2,(midi-69)/12);
+  spectrum[Math.round(frequency*fftSize/sampleRate)]=level;
+ }
+ const result=spectrumToChroma(spectrum,sampleRate,fftSize);
+ assert(result[7]>.2,'independently played quieter fifth must remain: '+result);
+});
+
 test('microphone fails closed without browser audio APIs',async()=>{
  const status=[];
  const mic=createScaleMicrophone({onChroma:()=>{},onStatus:value=>status.push(value)});
