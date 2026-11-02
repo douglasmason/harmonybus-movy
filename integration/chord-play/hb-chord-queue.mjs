@@ -24,8 +24,11 @@ assert(core.includes('cp_Conductor_follower_touch'));assert(core.includes('cp_Co
 assert(!core.includes('cp_Conductor_motif_load'),'motif loading remains in Conductor settings');
 assert(!core.includes('cp_bass_library')&&!core.includes('cp_comp_library')&&!core.includes('cp_setup'));
 assert(!page.ctl.pages.some(entry=>/^cp_(Comp|Melody)_motif_load/.test(entry.level)),'Chord Play fill is conductor-only');
-const commands=[],oldSet=globalThis.host_module_set_param_blocking;
-globalThis.host_module_set_param_blocking=(key,value)=>{commands.push([key,value]);return oldSet?.(key,value);};
+const commands=[],clearingStacks=[],oldSet=globalThis.host_module_set_param_blocking;
+globalThis.host_module_set_param_blocking=(key,value)=>{
+ if(key==='chord_queue'&&value==='off')clearingStacks.push(new Error('queue cleared').stack);
+ commands.push([key,value]);return oldSet?.(key,value);
+};
 assert(port.setParam('midi_fx1:cp_play_mode','Queued'));
 const find=key=>{const index=page.ctl.pages.findIndex(entry=>entry.keys?.includes(key));assert(index>=0,key);page.goToPage(index);};
 find('cp_slot_0');chord.chordMidi([144,0,100]);chord.chordMidi([128,0,0]);
@@ -38,7 +41,7 @@ chord.setChordEnabled(true);
 seqCmdFlush();commands.length=0;
 assert(port.setParam('midi_fx1:cp_play_mode','Immediate'));
 assert(!commands.some(([key,value])=>key==='chord_queue'&&value==='off'),
-    'switching to Immediate preserves the stored progression: '+JSON.stringify(commands));
+    'switching to Immediate preserves the stored progression: '+JSON.stringify(commands)+'\n'+clearingStacks.at(-1));
 
 // Off clears the current harmony/queue without changing the selection mode.
 port.setParam('midi_fx1:cp_play_mode','Queued');seqState.playing=true;chord.harmonyOff();assert.equal(chord.chordSnapshot().playMode,1);
