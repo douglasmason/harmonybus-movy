@@ -50,8 +50,27 @@ assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_COPY,127,false),false,
     'plain Copy keeps its stock duplicate behavior until atomic queue export exists');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),false,
     'Sampling keeps its original meaning outside a finished microphone route');
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_MUTE,127,false),false,
-    'Mute retains track mute until an isolated accompaniment-bypass owner exists');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_MUTE,WHITE_OFF),WHITE_DIM,
+    'an active unmuted queue exposes Mute in dim white');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_MUTE,127,false),true);
+assert(chord.chordMuteSelected(),'Mute suppresses chord MIDI but retains override');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_MUTE,WHITE_DIM),WHITE_BRIGHT);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_MUTE,0,false),true,'Mute release is consumed');
+const muteAction=buttons.modeActionDescriptors().find(action=>action.cc===buttons.CC_MODE_MUTE);
+assert.equal(muteAction?.label,'Mute queue MIDI');
+assert(muteAction?.active,'Remote UI exposes the queue MIDI mute state');
+conductor.setParam('midi_fx1:hb_chord_queue_override','On');
+assert(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false));
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true);
+assert(!chord.chordLoopSelected()&&!chord.chordMuteSelected(),
+    'Loop off bypasses stored queue AND clears its subordinate Mute');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_MUTE,WHITE_DIM),WHITE_OFF);
+assert.equal(buttons.modeActionDescriptors().find(action=>action.cc===buttons.CC_MODE_MUTE)?.available,false);
+conductor.setParam('midi_fx1:hb_chord_queue_override','Off');
+assert(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false));
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true);
+assert(chord.chordLoopSelected()&&!chord.chordMuteSelected(),
+    'Loop on resumes the same queue with generated MIDI unmuted');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,127,true),false,
     'Shift+X passes through to the original modifier behavior');
 assert.equal(buttons.modeButtonMidi(52,127,false),false,'Capture is never stolen');
@@ -62,7 +81,8 @@ assert(buttons.showModeHelp(6,true,1000));
 const first=buttons.modeHelpSnapshot(1005);
 assert.equal(first.mode,6);
 assert.equal(first.visible,true);
-assert(first.lines.some(line=>line.includes('X: harmony Off')));
+assert(first.lines.some(line=>line.includes('X: cancel chord queue')));
+assert(first.lines.some(line=>line.includes('Mute: queue MIDI')));
 assert.equal(buttons.showModeHelp(6,false,1005),false,
     'first entry guide is not repeatedly forced');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_COPY,127,true),true,
