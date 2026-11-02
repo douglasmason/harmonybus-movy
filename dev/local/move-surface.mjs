@@ -65,11 +65,12 @@ export function mountMoveSurface(inputs){
    }
    if(control.group==='functions'){
     const action=frame.modeActions?.find(item=>item.cc===control.index);
+    const known=Array.isArray(frame.modeActions);
     const secondary=actionLabels.get(control.index);
     const caption=action&&action.label!==control.name&&
       !(control.name==='Delete'&&action.label==='Delete')?action.label:'';
     text(secondary,caption);
-    button.dataset.actionAvailable=String(action?.available??true);
+    button.dataset.actionAvailable=known?String(action?.available??true):'unknown';
     button.dataset.actionActive=String(action?.active??false);
     button.dataset.actionGesture=action?.gesture??'tap';
     const description=action?action.detail+(action.available?'':' · Unavailable'):'';
@@ -98,10 +99,14 @@ export function mountMoveSurface(inputs){
   }
    if(modeGuide){
     const active=(frame.modeActions??[]).filter(action=>action.available&&action.label!==action.physical);
+    if(!Array.isArray(frame.modeActions)){
+     text(modeGuide,'Read-only Move mirror · contextual button labels unavailable without semantic state');
+    }else{
     const mode=frame.modes?.[frame.mode]??'Input';
     text(modeGuide,mode+' · '+(active.length?
       active.map(action=>action.physical+': '+action.label).join('  ·  '):
       'Standard buttons')+' · Launchpad right: Copy, X, Loop, Mute, Sample, Back, Session; top-right: Latch');
+    }
    }
    inputs.refreshSelected();lastFrame=frame;
   }
@@ -126,5 +131,19 @@ export function mountMoveSurface(inputs){
   if(animating)animation=requestAnimationFrame(paint);
  }
  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&frame&&animation===null)animation=requestAnimationFrame(paint);});
- return {update(next,bpm){frame=next;if(Number.isFinite(bpm)&&bpm>0)tempo=bpm;if(animation===null)animation=requestAnimationFrame(paint);}};
+ return {setSemanticAvailable(available){
+   if(!available){
+    for(const {control,button}of buttons){
+     if(control.group!=='functions')continue;
+     text(actionLabels.get(control.index),'');
+     button.dataset.actionAvailable='unknown';
+     button.dataset.actionActive='false';
+     button.title=control.name;
+     button.removeAttribute('aria-description');
+    }
+    if(modeGuide)text(modeGuide,'Read-only Move mirror · contextual actions not available');
+    lastFrame=null;
+   }
+  },
+  update(next,bpm){frame=next;if(Number.isFinite(bpm)&&bpm>0)tempo=bpm;if(animation===null)animation=requestAnimationFrame(paint);}};
 }
