@@ -63,9 +63,10 @@ const defaultSlots=():Slot[]=>Array.from({length:21},(_,index)=>({root:0,quality
 const fresh=():Setup=>({playMode:0,directRender:null,conductor:0,comp:2,bass:1,bassClip:false,source:0,selected:0,colorView:0,slots:defaultSlots()});
 let setup=fresh(),enabled=false,page:SchwungPage|null=null,pageTrack=-1,activeSlot=-1,route='';
 let conductorRenders=false,conductorOutput='Off';
-let bankStatus:ChordBankStatus|null=null,bankWire='',bankOwner=-1,bankPollAt=-Infinity,bankKnobs=false,bankPageDirty=false,bankUrgentUntil=-Infinity;
+let bankStatus:ChordBankStatus|null=null,bankWire='',bankSnapshotWire='',bankOwner=-1,bankPollAt=-Infinity,bankKnobs=false,bankPageDirty=false,bankUrgentUntil=-Infinity;
+const previousPageValues:unknown[]=new Array(8);
 const slotPayload=(slot:Slot):string=>[slot.root,slot.quality,slot.form,slot.policy,slot.tonic,slot.scale,slot.bass,slot.intent,slot.target].join(',');
-function resetBank():void{statusCache=null;conductorRenders=false;conductorOutput='Off';bankStatus=null;bankWire='';bankOwner=-1;bankPollAt=-Infinity;bankUrgentUntil=-Infinity;bankPageDirty=false;}
+function resetBank():void{statusCache=null;conductorRenders=false;conductorOutput='Off';bankStatus=null;bankWire='';bankSnapshotWire='';bankOwner=-1;bankPollAt=-Infinity;bankUrgentUntil=-Infinity;bankPageDirty=false;}
 function refreshBank():void{
     const now=Date.now(),wire=setup.slots.map(slotPayload).join(';'),owner=setup.conductor;
     const changed=wire!==bankWire||owner!==bankOwner;
@@ -74,23 +75,36 @@ function refreshBank():void{
     const previousRender=conductorRenders,output=port.getParam('midi_fx1:render_channel');conductorRenders=!!output&&output!=='Off'&&output!=='--';conductorOutput=conductorRenders?output!:'Off';
     if(previousRender!==conductorRenders)bankPageDirty=true;
     if(changed){port.setParam('midi_fx1:hb_chord_bank',wire);bankWire=wire;bankOwner=owner;}
-    const raw=port.getParam('midi_fx1:hb_chord_bank_snapshot');if(raw==='--'){bankStatus=null;activeSlot=-1;return;}
+    const raw=port.getParam('midi_fx1:hb_chord_bank_snapshot');
+    if(raw==='--'){bankSnapshotWire='';bankStatus=null;activeSlot=-1;return;}
+    // The native wire snapshot is already the canonical identity. Do not
+    // parse 21 chords and serialize two objects again for an unchanged frame.
+    if(raw===bankSnapshotWire)return;
     const next=parseChordBank(raw);
-    if(next&&JSON.stringify(next)!==JSON.stringify(bankStatus)){bankStatus=next;appState.dirty=true;}
+    if(next){bankSnapshotWire=raw;bankStatus=next;appState.dirty=true;}
 }
-export function chordSlotColor(index:number):number{
-    const slot=setup.slots[index],status=bankStatus?.slots[index];
-    const matching=bankStatus?setup.slots.findIndex((candidate,other)=>candidate.enabled&&matchesHarmony(bankStatus!.slots[other],bankStatus!.active)):-1;
-    const selected=bankStatus?(setup.slots[activeSlot]?.enabled&&matchesHarmony(bankStatus.slots[activeSlot],bankStatus.active)?activeSlot:matching):-1;
-    return chordColor(status,slot.intent,setup.colorView,index===selected,!!slot.enabled);
+/** Resolve sounding chord once per paint, not once per LED address. */
+function soundingChordSlot():number {
+    if(!bankStatus)return -1;
+    const active=bankStatus.active;
+    if(activeSlot>=0&&setup.slots[activeSlot]?.enabled&&matchesHarmony(bankStatus.slots[activeSlot],active))return activeSlot;
+    for(let index=0;index<setup.slots.length;index++)
+        if(setup.slots[index].enabled&&matchesHarmony(bankStatus.slots[index],active))return index;
+    return -1;
 }
+function slotColor(index:number,sounding:number):number {
+    if(index<0)return 123;
+    const slot=setup.slots[index];
+    return slot?chordColor(bankStatus?.slots[index],slot.intent,setup.colorView,index===sounding,!!slot.enabled):0;
+}
+export function chordSlotColor(index:number):number{return slotColor(index,soundingChordSlot());}
 export function chordSlotQueued(index:number):boolean{return !!setup.playMode&&!!setup.slots[index]?.enabled&&!!bankStatus?.slots[index]?.queued;}
-/** The sounding harmony breathes white even when already consumed by Hold.
- * All other queued harmonies breathe in their implied-quality color. */
-function chordLedState(index:number):readonly [number,number,number] {
-    const color=index<0?123:chordSlotColor(index);
-    const pulse=index>=0&&(color===120||chordSlotQueued(index));
-    return [color,pulse?0:color,pulse?ANIM_PULSE_SLOW:0];
+/** No per-frame arrays; sounding harmony pulses white, remaining queue pulses
+ * with its own harmonic hue. LEDs never determine audio-thread ownership. */
+function paintChordLED(address:number,index:number,sounding:number,knob=false):void {
+    const color=slotColor(index,sounding);
+    const pulsing=index>=0&&(index===sounding||chordSlotQueued(index));
+    cachedSetAnimLED(address,color,pulsing?0:color,pulsing?ANIM_PULSE_SLOW:0,knob);
 }
 /** Shared defaults are native; slot overrides travel with each selected chord. */
 const rangeTouches=new Map<number,{shift:boolean;moved:boolean}>();
@@ -345,9 +359,11 @@ export function tickChord():void{
     if(bankPageDirty&&!touches.size&&!controls.size&&!steps.size&&!rangeTouches.size&&!queuePhrase.active){const current=chordPage(),level=current.ctl.page?.level,index=current.pageIndex,navigation=current.ctl.hbNavigation?.state();current.reload();const next=current.ctl.pages.findIndex((entry:any)=>entry.level===level);current.goToPage(next<0?index:next);current.ctl.hbNavigation?.restore(navigation);bankPageDirty=false;}
     if(page&&bankStatus)for(let index=0;index<setup.slots.length;index++){const meta=page.ctl.state.metaIndex.get('cp_slot_'+index);if(meta&&bankStatus.slots[index]){meta.label=meta.name=(index+1)+' '+bankStatus.slots[index].name;meta.short_name=meta.name;}}
     if(!settingsActive()){
-        const current=chordPage(),values=()=>JSON.stringify((current.ctl.page?.keys??[]).map((key:string)=>current.ctl.state.values[key]));
-        const before=values();if(current.needsTouchPaint)appState.dirty=true;
-        current.tick();if(values()!==before)appState.dirty=true;
+        const current=chordPage(),keys=current.ctl.page?.keys??[],values=current.ctl.state.values;
+        for(let index=0;index<keys.length;index++)previousPageValues[index]=values[keys[index]];
+        if(current.needsTouchPaint)appState.dirty=true;
+        current.tick();
+        for(let index=0;index<keys.length;index++)if(values[keys[index]]!==previousPageValues[index]){appState.dirty=true;break;}
     }
 }
 export function chordRecordCommand():string|null{return chordActive()?'jrec '+((1<<setup.conductor)|(1<<appState.activeTrack.index))+' '+(1<<setup.conductor):null;}
@@ -414,13 +430,22 @@ export function chordKnobLEDMask():number{
 }
 export function paintChordSteps():boolean{
     if(!chordActive())return false;
-    for(let index=0;index<16;index++){const [color,base,animation]=chordLedState(stepSlot(index));cachedSetAnimLED(16+index,color,base,animation);}
+    const sounding=soundingChordSlot();
+    for(let index=0;index<16;index++)paintChordLED(16+index,stepSlot(index),sounding);
     const current=!settingsActive()?page:null;
     const keys=Array.from({length:8},(_,knob)=>current?.keyAt(knob)??null),onBank=keys.some(key=>/^cp_slot_/.test(key??''));
     if(onBank){
-        for(let knob=0;knob<8;knob++){const index=knob===7?-1:Number(keys[knob]!.slice(8)),[color,base,animation]=chordLedState(index);cachedSetAnimLED(knob,color,base,animation);cachedSetAnimLED(71+knob,color,base,animation,true);}
+        for(let knob=0;knob<8;knob++){
+            const index=knob===7?-1:Number(keys[knob]!.slice(8));
+            paintChordLED(knob,index,sounding);
+            paintChordLED(71+knob,index,sounding,true);
+        }
     }else if(bankKnobs){
-        for(let knob=0;knob<8;knob++)if(!current||!(current.knobLEDMask&(1<<knob))){const color=keys[knob]?123:0;cachedSetAnimLED(knob,color,color,0);cachedSetAnimLED(71+knob,color,color,0,true);}
+        for(let knob=0;knob<8;knob++)if(!current||!(current.knobLEDMask&(1<<knob))){
+            const color=keys[knob]?123:0;
+            cachedSetAnimLED(knob,color,color,0);
+            cachedSetAnimLED(71+knob,color,color,0,true);
+        }
     }
     cachedSetAnimLED(7,123,123,0);cachedSetAnimLED(78,123,123,0,true);
     bankKnobs=onBank;
