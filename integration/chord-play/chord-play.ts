@@ -249,7 +249,7 @@ export function chordPanelPort(track:number):TrackPort{
         if(bare==='cp_off'){setChordRegister(null,Number(value));return true;}
         if(!meta.options)return false;
         const selected=meta.options.indexOf(value);if(selected<0)return false;
-        if(bare==='cp_play_mode'){if(selected!==setup.playMode){send('chord_queue','off');setup.playMode=selected;statusCache=null;markUiStateDirty();appState.dirty=true;}return true;}
+        if(bare==='cp_play_mode'){if(selected!==setup.playMode){setup.playMode=selected;statusCache=null;markUiStateDirty();appState.dirty=true;}return true;}
         if(['cp_melody','cp_comp','cp_conductor','cp_bass_track'].includes(bare)){
             const assignments={cp_melody:appState.activeTrack.index,cp_comp:setup.comp,cp_conductor:setup.conductor,cp_bass_track:setup.bass};
             const others=Object.entries(assignments).filter(([key])=>key!==bare).map(([,track])=>track);
