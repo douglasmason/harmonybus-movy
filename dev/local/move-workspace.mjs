@@ -4,8 +4,8 @@ import {mountLighting} from './lighting-ui.mjs';
 import {mountSong} from './song-ui.mjs';
 const names=['controls','pads','field','choices','song','lights'];
 const fieldReads=['field_outputs_view2','field_output_labels','field_placement_view','motion_operation'];
-/** @param {{connection: import('./workspace-contract.d.ts').ConnectionOwner, inputs: {isHeld():boolean}}} options */
-export function mountMoveWorkspace({connection,inputs}){
+/** @param {{connection: import('./workspace-contract.d.ts').ConnectionOwner, inputs: {isHeld():boolean}, openComponent(panel:HTMLElement,trigger:HTMLButtonElement):void}} options */
+export function mountMoveWorkspace({connection,inputs,openComponent}){
  const cache=new Map(),demand=new Map(),workspace=document.querySelector('#workspace');
  const components=new Map(),panels=new Map(names.map(name=>[name,workspace.querySelector(`[data-workspace="${name}"]`)]));
  const pickers=[...document.querySelectorAll('[data-show-component]')],trackPicker=document.querySelector('#component-track');
@@ -61,6 +61,9 @@ export function mountMoveWorkspace({connection,inputs}){
  for(const [name,panel] of panels){
   const header=document.createElement('div');header.className='component-heading';
   const title=document.createElement('strong');title.textContent={controls:'Display & controls',pads:'Playing pads & steps',field:'Field outputs',choices:'Motif probabilities',song:'Scenes & Song',lights:'Lighting preview'}[name];header.append(title);
+  const enlarge=document.createElement('button');enlarge.type='button';enlarge.className='component-enlarge';enlarge.textContent='Enlarge';
+  enlarge.setAttribute('aria-label',`Enlarge · ${title.textContent}`);
+  enlarge.onclick=()=>openComponent(panel,enlarge);header.append(enlarge);
   for(const [direction,label] of [[-1,'Move up'],[1,'Move down']]){
    const button=document.createElement('button');button.textContent=direction<0?'↑':'↓';button.setAttribute('aria-label',`${label} · ${title.textContent}`);
    button.onclick=()=>{

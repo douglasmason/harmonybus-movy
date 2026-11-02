@@ -65,6 +65,8 @@ try{
  await slider.focus();await page.keyboard.down('ArrowRight');
  await page.locator('#workspace-layout').selectOption('columns');
  assert.equal(await page.locator('#workspace-layout').inputValue(),'stack','held editor blocks recomposition');
+ await page.getByRole('button',{name:'Enlarge · Field outputs',exact:true}).evaluate(node=>node.click());
+ assert(!(await page.locator('#display-dialog').evaluate(node=>node.open)),'held editor blocks reparenting into the enlarged workspace');
  await page.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
  await page.locator('#workspace-layout').selectOption('columns');
  assert.equal(await page.locator('#workspace-layout').inputValue(),'columns','global Escape releases the editor owner');
@@ -81,6 +83,28 @@ try{
  await page.locator('[data-workspace=field] #field_randomness').fill('42');await page.locator('[data-workspace=field] #field_randomness').press('Enter');await page.locator('[data-workspace=field] #field_randomness').press('Tab');
  await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:field_randomness')==='42');
  assert.equal(await page.evaluate(()=>__wasmRead('ch0:midi_fx1:field_randomness')),'42','Field placement is engine-global, as declared by HarmonyBus');
+ // Every component can enter the same enlarged workspace even with the Move display hidden.
+ await page.locator('[data-show-component=controls]').uncheck();
+ const labels={field:'Field outputs',choices:'Motif probabilities',song:'Scenes & Song',lights:'Lighting preview'};
+ await page.locator('[data-workspace=field] .component-content').evaluate(node=>{window.testFieldRoot=node.shadowRoot;});
+ for(const [name,label] of Object.entries(labels)){
+  const entry=page.getByRole('button',{name:`Enlarge · ${label}`,exact:true});
+  await entry.click();
+  assert(await page.locator('#display-dialog').evaluate(node=>node.open));
+  assert(await page.locator(`#display-dialog [data-workspace=${name}]`).evaluate(node=>document.activeElement===node));
+  assert.equal(await page.locator('#display-dialog [data-workspace=field] .component-content').evaluate(node=>node.shadowRoot===window.testFieldRoot),true,'canonical editor root is retained');
+  assert.equal(await page.locator('#workspace').getAttribute('data-layout'),'columns','enlargement never overwrites the saved layout');
+  if(name==='field'){
+   await page.locator('[data-workspace=field] #field_randomness').fill('43');await page.locator('[data-workspace=field] #field_randomness').press('Tab');
+   await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:field_randomness')==='43');
+  }
+  for(const width of [390,768,1440]){await page.setViewportSize({width,height:850});assert(await page.locator('#display-dialog').evaluate(node=>node.scrollWidth<=node.clientWidth+1));}
+  await page.getByRole('button',{name:'Close large display',exact:true}).click();
+  await page.waitForFunction(label=>document.activeElement?.getAttribute('aria-label')===`Enlarge · ${label}`,label);
+ }
+ await page.setViewportSize({width:1024,height:768});
+ assert.equal(await page.locator('body > main [data-workspace=field]').getAttribute('data-identity'),'retained');
+ await page.locator('[data-show-component=controls]').check();
  await page.locator('#song-build').click();await page.waitForFunction(()=>document.querySelector('#song-build').getAttribute('aria-pressed')==='true');
  await page.getByRole('button',{name:'Scene 1',exact:true}).click();await page.getByRole('button',{name:'Scene 2',exact:true}).click();
  await page.getByRole('button',{name:'Loop',exact:true}).click();

@@ -6,6 +6,13 @@ reordered or enlarged. Layout, visible components, editor track and lighting
 preferences belong to the same browser session. Earlier Joint browser saves
 remain available explicitly in Previous sessions; they are never auto-imported.
 
+Each component's Enlarge button opens the same modal workspace directly at that
+component, even when the Move display is hidden. Existing DOM/shadow roots,
+parameter bridges, editor track and engine ownership are retained. The enlarged
+layout uses full-width components without changing the saved stack/columns
+preference. Held gestures block reparenting, closing cancels pending holds, and
+keyboard focus returns to the initiating component button.
+
 ## Inventory and authority
 
 | Function | Authoritative implementation | Composition |

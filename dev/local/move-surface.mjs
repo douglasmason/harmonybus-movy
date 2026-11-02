@@ -131,7 +131,7 @@ export function mountMoveSurface(inputs){
   if(animating)animation=requestAnimationFrame(paint);
  }
  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&frame&&animation===null)animation=requestAnimationFrame(paint);});
- return {setSemanticAvailable(available){
+ return {openComponent:display.openComponent,setSemanticAvailable(available){
    if(!available){
     for(const {control,button}of buttons){
      if(control.group!=='functions')continue;
