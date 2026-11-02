@@ -40,6 +40,10 @@ keyboardState.columnOffset=0;
 scale.setScaleFindingEnabled(true);
 assert(scale.scaleFindingActive());
 assert.equal(buttons.sessionPlayMode(),8);
+assert.equal(scale.scaleEvidenceWindowMs(),1800);
+assert(scale.scaleFindingMidi([176,76,1]),'K6 window encoder is consumed in Family layout');
+assert(scale.scaleEvidenceWindowMs()>1800,'K6 tunes aggregation in Family as well as Piano');
+scale.setScaleEvidenceWindowMs(1800);
 assert.equal(padsPlayNotes(),false,'Scale Finding replaces instrumental pad notes');
 assert.deepEqual(scale.scaleFindingColors().filter((color,index)=>index%8===0),
     [120,120,120,120],'white tonic appears in all four rows continuously');
