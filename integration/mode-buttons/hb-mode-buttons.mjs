@@ -73,20 +73,21 @@ assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_COPY,127,false),false,
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true,
     'Chord Play owns Sample entry mode rather than the stock sampler');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),true);
-assert.equal(buttons.modeButtonColor(buttons.CC_MODE_MUTE,WHITE_OFF),WHITE_BRIGHT,
-    'unmuted queue has a bright Mute/active indicator');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_MUTE,WHITE_OFF),WHITE_DIM,
+    'an active queue keeps Mute dim');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_MUTE,127,false),true);
 assert(chord.chordMuteSelected(),'Mute bypasses but retains saved progression');
-assert.equal(buttons.modeButtonColor(buttons.CC_MODE_MUTE,WHITE_DIM),WHITE_DIM);
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_MUTE,WHITE_DIM),WHITE_BRIGHT,
+    'Mute is full brightness only when the stored queue is bypassed');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_MUTE,0,false),true);
 const muteAction=buttons.modeActionDescriptors().find(action=>action.cc===buttons.CC_MODE_MUTE);
 assert.equal(muteAction?.label,'Queue active');
-assert.equal(muteAction?.active,false);
+assert.equal(muteAction?.active,true,'Remote UI active state means actually muted');
 conductor.setParam('midi_fx1:hb_chord_queue_override','Off');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_MUTE,127,false),true);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_MUTE,0,false),true);
 assert(!chord.chordMuteSelected(),'Unmute restores same stored queue');
-assert.equal(buttons.modeButtonColor(buttons.CC_MODE_MUTE,WHITE_DIM),WHITE_BRIGHT);
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_MUTE,WHITE_DIM),WHITE_DIM);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,127,true),false,
     'Shift+X passes through to the original modifier behavior');
 assert.equal(buttons.modeButtonMidi(52,127,false),false,'Capture is never stolen');
