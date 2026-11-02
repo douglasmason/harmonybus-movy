@@ -214,11 +214,13 @@ export function modeButtonMidi(cc:number,value:number,shiftHeld:boolean):boolean
         }
     }
     if(cc===CC_MODE_COPY&&sessionPlayMode()===2){
-        const owner=motifActionPage();
-        if(owner&&!motifEditing()){
-            if(down){capturedReleases.add(cc);dismissModeHelp();motifAction(owner,'motif_copy');}
-            return true;
+        if(down){
+            capturedReleases.add(cc);dismissModeHelp();
+            const owner=motifActionPage();
+            if(owner&&!motifEditing())motifAction(owner,'motif_copy');
+            else seqToast('Choose a motif slot');
         }
+        return true; // No surprise clip duplication when the motif page is absent.
     }
     if(cc===CC_MODE_COPY&&scaleFindingActive()){
         if(down){capturedReleases.add(cc);dismissModeHelp();commitScaleFindingPreview();}
