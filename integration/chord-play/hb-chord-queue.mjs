@@ -37,7 +37,7 @@ chord.setChordEnabled(true);
 commands.length=0; // Snapshot creation/mode restoration may include earlier explicit Off.
 assert(port.setParam('midi_fx1:cp_play_mode','Immediate'));
 assert(!commands.some(([key,value])=>key==='chord_queue'&&value==='off'),
-    'switching to Immediate preserves the stored progression');
+    'switching to Immediate preserves the stored progression: '+JSON.stringify(commands));
 
 // Off clears the current harmony/queue without changing the selection mode.
 port.setParam('midi_fx1:cp_play_mode','Queued');seqState.playing=true;chord.harmonyOff();assert.equal(chord.chordSnapshot().playMode,1);
