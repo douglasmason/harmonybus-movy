@@ -50,11 +50,12 @@ def patch_chord_queue_ownership(root: Path) -> None:
         "const queued=queue[0]==='cq1',count=queued?Number(queue[1]):0;",
         """const queued=queue[0]==='cq1',count=queued?Number(queue[1]):0;
         buttonQueuePresent=queued;
-        buttonQueueOverride=queued&&conductor.getParam('midi_fx1:hb_chord_queue_override')==='On';""")
+        buttonQueueOverride=queued&&conductor.getParam('midi_fx1:hb_chord_queue_override')==='On';
+        buttonQueueMute=buttonQueueOverride&&conductor.getParam('midi_fx1:hb_chord_queue_mute')==='On';""")
     source = replace_once(source,
         "export function harmonyOff():void{",
         """export function harmonyOff():void{
-    buttonQueuePresent=false;buttonQueueOverride=false;""")
+    buttonQueuePresent=false;buttonQueueOverride=false;buttonQueueMute=false;""")
     path.write_text(source)
 
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
@@ -85,6 +86,27 @@ def patch_chord_queue_ownership(root: Path) -> None:
                             } else if action=="on" {
                                 self.chains.set_param(track,"midi_fx1:hb_chord_queue_override","On");
                                 self.chord_queue_tick=None;
+                            }
+                        }
+                    }
+                }
+            }
+            "chord_mute" => {
+                if let Some((owner,action))=val.split_once(',') {
+                    if let Ok(track)=owner.parse::<usize>() {
+                        if self.chord_queue==Some(track) {
+                            match action {
+                                "on" => {
+                                    self.chains.set_param(track,"midi_fx1:hb_chord_queue_mute","On");
+                                    self.release_chord_selection();
+                                },
+                                "off" => {
+                                    self.chains.set_param(track,"midi_fx1:hb_chord_queue_mute","Off");
+                                    // Recovery adopts the current native chord without
+                                    // restarting or advancing the queue.
+                                    self.tick_chord_queue();
+                                },
+                                _ => {}
                             }
                         }
                     }
