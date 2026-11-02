@@ -20,6 +20,10 @@ import {createSongActions} from './song-actions.mjs';
 import {jointSnapshot,jointPanelSet} from 'movy/seq/joint-play.ts';
 import {chordEnabled,browserChordStepLabels} from 'movy/seq/chord-play.ts';
 import {modeActionDescriptors} from 'movy/seq/mode-buttons.ts';
+import {scaleFindingActive,scaleFindingSnapshot,finderPadPitch,setScaleMicrophoneAvailable,
+    scaleMicrophoneAvailable,scaleMicrophoneIntent,setScaleMicrophoneListening,
+    ingestScaleChroma,setScaleEvidenceWindowMs,setFinderLayout,setFinderTonic,
+    selectScaleCandidate,commitScaleFindingPreview,clearScaleFindingPreview} from 'movy/seq/scale-finding.ts';
 import {decodeBulk,encodeBulk} from 'movy/track/bulk.ts';
 import {resetBrowserUserParts} from 'movy/seq/part-storage.ts';
 import {resetBrowserUsage} from 'movy/app/interface-usage.ts';
@@ -53,6 +57,7 @@ export function createMoveRuntime({request:engineRequest,metadata}){
  surface.fill(255,152,280);surface.fill(255,408,536);
  const held=new Map(),files=new Map();
  let ticks=0,maxTickMs=0,totalTickMs=0,closed=false;
+ let microphoneSupported=true;
  let lastPlayed=null,lastOutput=null,pressSerial=0,outputSerial=0;
  const request=engineRequest;
  const get=key=>request('get',key).value;
@@ -137,7 +142,11 @@ export function createMoveRuntime({request:engineRequest,metadata}){
  for(let count=0;count<32;count++)runTick();
  seqCmdFlush();
  function runTick(){
-  if(closed)return;const start=performance.now();tick();ticks++;
+  if(closed)return;
+   if(!scaleFindingActive()&&scaleMicrophoneIntent())setScaleMicrophoneListening(false);
+   if(scaleFindingActive()&&scaleMicrophoneAvailable()!==microphoneSupported)
+    setScaleMicrophoneAvailable(microphoneSupported);
+   const start=performance.now();tick();ticks++;
   const duration=performance.now()-start;maxTickMs=Math.max(maxTickMs,duration);totalTickMs+=duration;
  }
  function panels(){
@@ -168,7 +177,33 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   if(held.size||previous!==sessionPlayMode()||!Number.isInteger(mode)||mode<0||mode>=inputModeNames.length)return false;
   selectInputMode(mode);appState.dirty=true;runTick();seqCmdFlush();return sessionPlayMode()===mode;
  }
- function input(data){
+ /** Web page owns browser mic permission and analysis, not the Move DSP. */
+  function scaleMic(action,value){
+   if(!scaleFindingActive()||closed)return false;
+   let result=false;
+   if(action==='available'&&typeof value==='boolean'){
+    microphoneSupported=value;setScaleMicrophoneAvailable(value);result=true;
+   }else if(action==='listen'&&typeof value==='boolean'){
+    result=setScaleMicrophoneListening(value);
+   }else if(action==='chroma'&&Array.isArray(value)&&value.length===12){
+    result=ingestScaleChroma(value);
+   }else if(action==='window'&&Number.isFinite(value)){
+    result=setScaleEvidenceWindowMs(value);
+   }else if(action==='layout'&&['family','piano','inline'].includes(value)){
+    result=setFinderLayout(value);
+   }else if(action==='tonic'&&Number.isInteger(value)&&value>=0&&value<12){
+    result=setFinderTonic(value);
+   }else if(action==='candidate'&&Number.isInteger(value)){
+    result=selectScaleCandidate(value);
+   }else if(action==='apply'){
+    result=commitScaleFindingPreview();
+   }else if(action==='clear'){
+    result=clearScaleFindingPreview();
+   }
+   if(result){runTick();seqCmdFlush();}
+   return result;
+  }
+  function input(data){
   if(!Array.isArray(data)||data.length!==3||![128,144,160,176].includes(data[0])||data.slice(1).some(value=>!Number.isInteger(value)||value<0||value>127))throw new Error('Invalid Move input');
   const [status,index,value]=data,kind=status&240;
   if(kind!==176&&!(index<=9||index>=16&&index<=31||index>=68&&index<=99))throw new Error('Unavailable Move note');
@@ -196,7 +231,7 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   // the workspace toggle armed after that gesture resets its append sequence.
   if(kind===176&&index===58&&song.building)song.hold(false);
   onMidiMessageInternal(kind===128&&index<10?[144,index,0]:data);runTick();
-  if(index>=68&&index<=99&&kind!==176&&kind!==160)request('midi',data.join(','));
+  if(index>=68&&index<=99&&kind!==176&&kind!==160&&!scaleFindingActive())request('midi',data.join(','));
   seqCmdFlush();
   if(padPress)lastPlayed=label?{serial:++pressSerial,pad:index-68,label:{...label}}:null;
  }
@@ -210,6 +245,7 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   selectTrack(value.track);
  }
  function release(preserveContext=true){
+   if(scaleFindingActive())setScaleMicrophoneListening(false);
   // Cancellation is not a tap: a synthetic step/button release could toggle a
   // note or launch recording. Drop gesture latches and release musical gates.
   const previous=preserveContext?context():null;
@@ -225,7 +261,24 @@ export function createMoveRuntime({request:engineRequest,metadata}){
   seqCmdFlush();surface.fill(0,1560,1944);
  }
  function capture(){return {state:serializeUiState(),files:Object.fromEntries(files),context:context()};}
- function accompaniment(){
+ function semanticPadLabels(){
+   const fallback=padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0);
+   if(!scaleFindingActive())return fallback;
+   const snapshot=scaleFindingSnapshot();
+   if(snapshot.layout==='family')return fallback;
+   const names=['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+   const pads=Array.from({length:32},(_,pad)=>{
+    const pitch=finderPadPitch(pad);
+    if(pitch===null)return {primary:'',secondary:'',description:'Unused piano key'};
+    const heard=!!((snapshot.latchedNotes|snapshot.heldNotes)&(1<<pitch));
+    const name=names[pitch];
+    return {primary:name,secondary:pitch===snapshot.tonic?'Tonic':heard?'Heard':'',
+      description:name+' · '+(pad>=16?'latch evidence':'momentary evidence')};
+   });
+   const rows=Array.from({length:4},(_,row)=>({owner:'Scale',kind:row>=2?'Latch notes':'Hear notes',operation:snapshot.layout}));
+   return {...fallback,pads,rows};
+  }
+  function accompaniment(){
   const group=Math.floor(appState.activeTrack.index/4),base=group*4;
   return {group,melody:base+3,comp:base+2,source:jointSnapshot()[group].comp,overridden:chordEnabled()};
  }
@@ -290,8 +343,8 @@ export function createMoveRuntime({request:engineRequest,metadata}){
  return {observeOutput(packets){
    const outputs=padLabels.outputs(packets);
    if(outputs.length)lastOutput={serial:++outputSerial,outputs};
-  },tick:runTick,input,release,capture,restore,validate,fresh,setCompSource,selectPanel,selectMode,songAction,isHeld:()=>held.size>0,
+  },tick:runTick,input,release,capture,restore,validate,fresh,setCompSource,selectPanel,selectMode,scaleMic,songAction,isHeld:()=>held.size>0,
   diagnostic:()=>({ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0,held:held.size,track:appState.activeTrack.index,view:appState.currentView,mode:sessionPlayMode()}),
-  snapshot:()=>({song:{building:song.building,count:song.count},screen:Array.from(screen),...drawing.snapshot(),knobLabels,panels:panels(),stepLabels:inputModeSelectorOpen()?null:browserChordStepLabels(),surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),modes:inputModeNames,modeActions:modeActionDescriptors(),view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),padLabels:padLabels.describe(sessionPlayMode(),appState.activeTrack.index,seqState.holdStep>=0),lastPlayed,lastOutput,playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
+  snapshot:()=>({song:{building:song.building,count:song.count},screen:Array.from(screen),...drawing.snapshot(),knobLabels,panels:panels(),stepLabels:inputModeSelectorOpen()?null:browserChordStepLabels(),surface:Array.from(surface),track:appState.activeTrack.index,mode:sessionPlayMode(),modes:inputModeNames,modeActions:modeActionDescriptors(),scaleFinding:scaleFindingActive()?scaleFindingSnapshot():null,view:appState.currentView,ready:engineReady(),held:held.size,accompaniment:accompaniment(),padLabels:semanticPadLabels(),lastPlayed,lastOutput,playing:seqState.playing,recording:seqState.recording,ticks,maxTickMs,meanTickMs:ticks?totalTickMs/ticks:0}),
   dispose:()=>{release(false);closed=true;}};
 }
