@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {files as packagedRoutes} from '../wasm/serve.mjs';
 import {functionalTemplates,analyzeHarmonicFunction,createHarmonicFunctionTracker}
  from './harmonic-function.mjs';
 
@@ -87,4 +88,10 @@ test('invalid audio is ignored and cannot poison the timeline',()=>{
  tracker.observe([NaN,...new Array(11).fill(0)],1000);
  assert.equal(tracker.snapshot().segments.length,0);
  assert.equal(tracker.snapshot().current,null);
+});
+
+test('packaged site includes Scale Finder and its harmonic function dependency',()=>{
+ assert(packagedRoutes.has('/local/scale-finder-ui.mjs'));
+ assert(packagedRoutes.has('/local/harmonic-function.mjs'),
+  'direct ES module import must be copied into offline browser package');
 });
