@@ -40,12 +40,8 @@ def patch_chord_queue_ownership(root: Path) -> None:
     source = replace_once(source,
         "send('chord_queue','off');setup.playMode=selected;",
         "setup.playMode=selected;")
-    # A queued progression outlives the Queued/Immediate preference.
-    # The queueStatus() helper was introduced by patch_ui_overhead, so
-    # patch that canonical raw/status cache rather than a removed inline read.
-    source = replace_once(source,
-        "send('chord_queue','off');setup.playMode=selected;",
-        "setup.playMode=selected;")
+    # Queue status caching was extracted by the UI overhead patch; update the
+    # canonical raw snapshot rather than the earlier inline parse.
     source = replace_once(source,
         "const raw=setup.playMode?(conductor.getParam('midi_fx1:hb_chord_queue_status')??''):'';",
         """const raw=conductor.getParam('midi_fx1:hb_chord_queue_status')??'';
