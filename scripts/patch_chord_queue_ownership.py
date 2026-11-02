@@ -98,8 +98,21 @@ def patch_chord_queue_ownership(root: Path) -> None:
                     }
                 }
                 else if val=="off" {self.clear_chord_queue();self.release_chord_selection();}''')
-    # The physical Loop button changes authority, not queue ownership.
-    # Disabling releases the one live chord through the existing MIDI path.
+    # Immediate audition must not silently delete the previous queued cycle.
+    # Switching entry modes is a UI decision; only an explicit Off clears it.
+    source = replace_once(source,
+        'self.clear_chord_queue();self.abort_idle_input();',
+        '''if let Some(owner)=self.chord_queue {
+                        if owner==selection.track {
+                            self.chains.set_param(owner,"midi_fx1:hb_chord_queue_override","Off");
+                            self.release_chord_selection();
+                        } else {
+                            self.clear_chord_queue();self.release_chord_selection();
+                        }
+                    }
+                    self.abort_idle_input();''')
+    # Mute changes queue authority, not lifetime. Only the currently owned
+    # virtual selection may need a note-off at handoff; audio is never reset.
     source = replace_once(source,
         '            "chord_queue" => {',
         '''            "chord_override" => {
@@ -114,6 +127,9 @@ def patch_chord_queue_ownership(root: Path) -> None:
                             } else if action=="on" {
                                 self.chains.set_param(track,"midi_fx1:hb_chord_queue_mute","Off");
                                 self.chains.set_param(track,"midi_fx1:hb_chord_queue_override","On");
+                                // Adopt the current queued chord, not chord one.
+                                // A targeted note-off is not an audio-engine reset.
+                                self.release_chord_selection();
                                 self.chord_queue_tick=None;
                             }
                         }
