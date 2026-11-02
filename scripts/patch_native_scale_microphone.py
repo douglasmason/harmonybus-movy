@@ -45,12 +45,11 @@ pub fn audio_input_block(frames: usize) -> Option<&'static [i16]> {
         ("    pads: PadRoute,", "    pads: PadRoute,\n    mic: mic_monitor::MicMonitor,"),
         ("            pads: PadRoute::new(),",
          "            pads: PadRoute::new(),\n            mic: mic_monitor::MicMonitor::new(),"),
-        ("    fn set_param(&mut self, key: &str, val: &str) {\n        match key {",
+        ("    fn set_param(&mut self, key: &str, val: &str) {",
          """    fn set_param(&mut self, key: &str, val: &str) {
         if key == "mic_listen" {
             self.mic.set_listening(val == "1"); return;
-        }
-        match key {"""),
+        }"""),
         ("    fn render(&mut self, out_audio: &mut [i16]) {\n        self.blocks += 1;",
          """    fn render(&mut self, out_audio: &mut [i16]) {
         self.mic.capture(out_audio.len()/2);
