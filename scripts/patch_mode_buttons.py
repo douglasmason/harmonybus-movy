@@ -94,5 +94,5 @@ export function chordLoopButton():void {
     # A TypeScript dependency alone does not emit dist/esm/seq/mode-buttons.js.
     path = root / 'build/browser.mjs'
     source = replace_once(path.read_text(), '    entryPoints: [',
-                          "    entryPoints: [\\n        resolve(root, 'src/seq/mode-buttons.ts'),")
+                          "    entryPoints: [\n        resolve(root, 'src/seq/mode-buttons.ts'),")
     path.write_text(source)
