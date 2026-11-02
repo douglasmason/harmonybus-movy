@@ -17,25 +17,25 @@ def patch_mode_buttons(root: Path) -> None:
     source = replace_once(source,
         'export const chordActive=():boolean=>enabled&&!seqState.sessionMode;',
         '''export const chordActive=():boolean=>enabled&&!seqState.sessionMode;
-let buttonQueueLoop=false;
-/** Read-only LED snapshot. Never query a native parameter from LED painting. */
+let buttonQueuePresent=false,buttonQueueOverride=false;
+/** LED and Remote UI share this native-backed, nonpolling projection. */
 export function chordQueuedMode():boolean{return setup.playMode===1;}
-export function chordLoopSelected():boolean {
-    if(!setup.playMode)return false;
-    const queue=statusCache?.values.queue_snapshot;
-    if(queue?.startsWith('cq1|'))return queue.split('|')[8]==='1';
-    return buttonQueueLoop;
-}
-/** Loop toggles native Queue End, not the unrelated step/bar Loop overlay. */
+export function chordLoopSelected():boolean{return buttonQueuePresent&&buttonQueueOverride;}
+/** Loop switches queue authority, never its ending policy or stored content. */
 export function chordLoopButton():void {
-    if(!setup.playMode)return;
-    const native=portFor(conductorTrack()),current=native.getParam('midi_fx1:chord_queue_end');
-    if(current!=='Loop'&&current!=='Hold'){seqToast('Queue unavailable');return;}
-    const next=current==='Loop'?'Hold':'Loop';
-    if(native.setParam('midi_fx1:chord_queue_end',next)===false){seqToast('Queue update failed');return;}
-    buttonQueueLoop=next==='Loop';
+    const conductor=conductorTrack(),native=portFor(conductor);
+    const snapshot=native.getParam('midi_fx1:hb_chord_queue_status')??'';
+    if(!snapshot.startsWith('cq1|')){
+        buttonQueuePresent=false;buttonQueueOverride=false;appState.dirty=true;
+        seqToast('No chord queue');return;
+    }
+    const state=native.getParam('midi_fx1:hb_chord_queue_override');
+    if(state!=='On'&&state!=='Off'){seqToast('Queue override unavailable');return;}
+    const enabled=state!=='On';
+    send('chord_override',conductor+','+(enabled?'on':'off'));
+    buttonQueuePresent=true;buttonQueueOverride=enabled;
     statusCache=null;appState.dirty=true;
-    seqToast(next==='Loop'?'Queue repeats':'Queue holds at end');
+    seqToast(enabled?'Queue override on':'Conductor clip restored');
 }''')
     path.write_text(source)
 
