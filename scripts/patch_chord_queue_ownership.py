@@ -81,9 +81,12 @@ def patch_chord_queue_ownership(root: Path) -> None:
                     if let Ok(track)=owner.parse::<usize>() {
                         if self.chord_queue==Some(track) {
                             if action=="off" {
+                                // Loop bypass clears the subordinate output mute.
+                                self.chains.set_param(track,"midi_fx1:hb_chord_queue_mute","Off");
                                 self.chains.set_param(track,"midi_fx1:hb_chord_queue_override","Off");
                                 self.release_chord_selection();
                             } else if action=="on" {
+                                self.chains.set_param(track,"midi_fx1:hb_chord_queue_mute","Off");
                                 self.chains.set_param(track,"midi_fx1:hb_chord_queue_override","On");
                                 self.chord_queue_tick=None;
                             }
@@ -97,8 +100,10 @@ def patch_chord_queue_ownership(root: Path) -> None:
                         if self.chord_queue==Some(track) {
                             match action {
                                 "on" => {
-                                    self.chains.set_param(track,"midi_fx1:hb_chord_queue_mute","On");
-                                    self.release_chord_selection();
+                                    if self.chains.get_param(track,"midi_fx1:hb_chord_queue_override").as_deref()==Some("On") {
+                                        self.chains.set_param(track,"midi_fx1:hb_chord_queue_mute","On");
+                                        self.release_chord_selection();
+                                    }
                                 },
                                 "off" => {
                                     self.chains.set_param(track,"midi_fx1:hb_chord_queue_mute","Off");
