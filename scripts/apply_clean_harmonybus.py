@@ -703,6 +703,8 @@ def main() -> int:
     patch_mode_buttons(root)
     from patch_session_loop import patch_session_loop
     patch_session_loop(root)
+    from patch_external_mode_actions import patch_external_mode_actions
+    patch_external_mode_actions(root)
     print("HarmonyBus clean integration applied")
     return 0
 
