@@ -97,7 +97,31 @@ impl Drop for MicMonitor {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn demote_worker() {
+    // A child thread inherits Move's SCHED_FIFO 70 from the SPI callback.
+    // The first action MUST be SCHED_OTHER, before any DSP or allocations.
+    #[repr(C)]
+    struct SchedParam { sched_priority: i32 }
+    unsafe extern "C" {
+        fn sched_setscheduler(pid: i32, policy: i32, param: *const SchedParam) -> i32;
+        fn sched_setaffinity(pid: i32, len: usize, mask: *const u8) -> i32;
+        fn nice(increment: i32) -> i32;
+    }
+    unsafe {
+        let parameter = SchedParam { sched_priority: 0 };
+        let _ = sched_setscheduler(0, 0, &parameter); // SCHED_OTHER = 0
+        let mut cpuset = [0u8; 128];
+        cpuset[0] = 0b0000_0111; // cores 0-2; leave core 3 for SPI
+        let _ = sched_setaffinity(0, cpuset.len(), cpuset.as_ptr());
+        let _ = nice(10);
+    }
+}
+#[cfg(not(target_os = "linux"))]
+fn demote_worker() {}
+
 fn worker_loop(shared: Arc<Shared>) {
+    demote_worker();
     let mut samples = [0f32; WINDOW];
     let mut window = [0f32; WINDOW];
     for (index, coefficient) in window.iter_mut().enumerate() {
