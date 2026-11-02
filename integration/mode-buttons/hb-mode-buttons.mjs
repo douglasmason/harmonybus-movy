@@ -32,7 +32,12 @@ conductor.setParam('midi_fx1:chord_queue_end','Loop');
 conductor.setParam('midi_fx1:hb_chord_queue_status','cq1|2|4|C|G7|1|0|2|1|0|2|C|G7');
 conductor.setParam('midi_fx1:hb_chord_queue_override','On');
 const before=chord.chordSnapshot();
+// Native status is sampled at a bounded 100ms cadence. Emulate a real tick
+// after the queue appears rather than expecting a synchronous LED read.
+const queueClock=Date.now;
+Date.now=()=>queueClock()+200;
 chord.tickChord();
+Date.now=queueClock;
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_DIM),WHITE_BRIGHT,
     'Loop lit indicates repeating rather than holding the final chord');
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,WHITE_BRIGHT),WHITE_DIM,
