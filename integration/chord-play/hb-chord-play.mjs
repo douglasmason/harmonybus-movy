@@ -34,6 +34,11 @@ for(let track=0;track<16;track++){
 setFlag('chtracks',1);selectTrack(3);seqState.sessionMode=false;chord.restoreChord(null);chord.setChordEnabled(true);
 assert(padsPlayNotes(),'main pads remain the selected melody instrument');
 let page=chord.chordPage();assert(page.ready);
+assert.equal(chord.chordSnapshot().playMode,1,'new Chord Play sessions default to Queued');
+const entryMode=chord.chordPanelPort(3);
+entryMode.getParam('midi_fx1:chain_params');
+assert(entryMode.setParam('midi_fx1:cp_play_mode','Immediate'),
+    'an explicit Immediate choice remains available for ordinary auditions');
 assert(!page.ctl.pages.some(item=>item.keys?.includes('monitor_status')),'Chord Play excludes diagnostics');
 assert(!page.ctl.pages.some(item=>item.keys?.includes('render_channel')),'Chord Play excludes global routing');
 const flush=()=>{for(let tick=0;tick<4;tick++){now+=100;page.tick();}};
@@ -150,6 +155,9 @@ console.log('Conductor output route avoids duplicate comp attacks; explicit extr
 
 // A single shared bank survives track changes; reset restores dynamic definitions.
 chord.restoreChord(null);selectTrack(3);seqState.sessionMode=false;chord.setChordEnabled(true);
+assert.equal(chord.chordSnapshot().playMode,1,'reset defaults back to Queued');
+const resetEntry=chord.chordPanelPort(3);resetEntry.getParam('midi_fx1:chain_params');
+resetEntry.setParam('midi_fx1:cp_play_mode','Immediate');
 page=chord.chordPage();find('cp_slot_14');
 assert.equal(page.keyAt(7),'cp_off');chord.chordMidi([144,0,100]);chord.chordMidi([128,0,0]);
 assert.equal(engine.params.chord_select,'0,0,0,0,1,0,1,12,13,0');
