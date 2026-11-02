@@ -1,59 +1,55 @@
-# Native large-font faces for Move (128×64)
+# Chord Play typography and stock Schwung text
 
-The photograph of Chord Play showed stretched 5-row bitmap glyphs in its expanded
-two-line cells. The earlier repair preserved lowercase musical notation, but its
-enlargement repeated source rows and produced uneven stroke weight. Operation-only
-cells used the same scaling technique.
+The Move has a 128×64 monochrome screen. Ordinary settings text should use
+Schwung's native mixed-case font when the existing row geometry permits it.
+The pinned shared controller remains the only settings controller and uses its
+own compact fonts for dense cells; there is no new global font engine.
 
-## Three deliberately rasterized 8-row faces
+## Chord-specific musical notation
 
-- **Upper**: full-height seven-row capitals (plus a blank row for consistent
-  line metrics), digits and notation punctuation. Explicit all-uppercase text
-  preserves its existing meaning and never depends on a lowercase substitution.
-- **Regular**: seven-row capitals and distinctly shorter four-row lowercase
-  bodies. Chord spellings and quality-aware Roman numerals use this face:
-  `Dm`, `ii`, `G7`, `viio`, `Bdim`.
-- **Smooth**: the same capital glyphs but separately drawn six-row lowercase
-  bodies beginning just one pixel below capitals. Ordinary full-size operation
-  labels and other expanded text use this face. Unlike the compact glyphs,
-  `c`, `o`, `e`, `s` share common x-height geometry.
+- **Chord spellings** (for example, `Dm` and `G7`) use Movy's existing
+  compact 5-row musical notation atlas, not the oversized font.
+- **Roman numerals** (for example, `ii`, `V7`, and `viio`) use the
+  music-only native 8-row face, with deliberately short lowercase letters
+  against taller capitals. When a cell is smaller than 17 pixels, it falls
+  back to the same compact notation atlas.
+- Both lines are independently measured and centered; an inset of at least
+  two pixels separates the upper glyphs from the top cell border. They keep
+  their individual case and musical meaning, and the redundant slot number
+  is still absent.
+- The custom faces in `integration/settings-case/hb_large_font.mjs` are
+  restricted to music-only typography. The surrounding operation names now
+  prefer the host's stock `ctx.print`/`ctx.textWidth` font. They fall back
+  to the existing Schwung 4×5 or 5×3 compact fonts where two full lines
+  will not fit. Other settings retain the shared controller's typography.
 
-All glyphs are authored as final-size 1-bit bitmap rows. The atlas compiles
-horizontal lit-pixel runs once at module import. Drawing emits one-pixel-high
-rectangles; **no glyph pixels or rows are stretched, duplicated or scaled**.
-The 8-row line box includes a descender row for `g`, `p`, `q`, `j` and `y`.
+There is no bitmap upscaling: each glyph is rendered at its authored pixel
+height. Text layout and music rendering are separate from the chord-selection
+and queue-scheduling engine.
 
-The existing small 4×5, condensed 5×3, Tamzen and Movy glyph atlases remain in
-place for tight controls. This is an additive larger-size family, not a
-replacement for the previous small-font behavior.
+## Chord color and queue feedback
 
-## Usage
+Chord function is resolved by HarmonyBus, not inferred from the displayed
+chord spelling. Red distinguishes implied dominant function (including sus
+and power voicings), violet identifies chromatic relations and
+diminished/augmented or intrinsically dissonant implied triads. The native Move
+palette indices are 65/126 for darker/bright red and 110/23 for
+darker/bright violet. The currently sounding chord uses white and pulses,
+including when its queued entry has already been consumed. Remaining queued
+chords pulse in their harmonic colors.
 
-The font lives in `integration/settings-case/hb_large_font.mjs`. The pinned
-shared-UI packaging copies it to
-`src/vendor/schwung/shared/param_pages/hb_large_font.mjs` alongside a TS
-declaration. Movy Chord Play, Joint chord tiles, and shared settings action
-labels import this exact module; no second font implementation or renderer is
-created.
-
-Chord tiles use two native-height eight-row lines with a one-pixel gap when
-the actual widget is at least 17 px tall. Smaller cells retain an unscaled
-compact glyph draw. Spelled chord names and Roman numerals keep their original
-case and chord-resolution logic. Text fitting uses native advances, and only
-abbreviates a chord when the physical cell really cannot accommodate it.
-
-Operation-only cells prefer the smooth large font if their wrapped lines fit
-the native line height. Longer actions fall back to the compact fonts, without
-resampling, using the existing cached 128-entry layout pool. Normal editable
-controls are not modified.
+The paint path resolves the active chord once per frame rather than once
+per LED; identical snapshot text is not reparsed or JSON-serialized on
+every controller tick. Value-change detection no longer serializes a
+full parameter page twice per tick. These are UI-path reductions, not
+evidence that the physical Move's missed chord changes, crackles, or
+accumulating blue note trails have been fixed.
 
 ## Verification
 
-The installed shared-UI framebuffer tests check every letter in all three
-faces, eight-row clipping, one-pixel draw heights, x-height differences, the
-uppercase-only mode, musical `Dm` / `DM`, `ii` / `II`, and native label width.
-Chord Play tests verify that no slot number returns and the expanded frame
-still responds to touch. The existing full build covers browser/device
-bundling, mixed-case rendering, the actual shared controller, and QuickJS
-startup. Physical readability and LED/audio performance require testing on
-Move; a source-level validation is not a hardware display validation.
+The Chord Play regression covers large-versus-compact musical glyphs,
+a clear top inset, touch feedback, red/violet resolved-harmony colors,
+and simultaneous white current-chord/colored queued-chord pulse across
+step and knob LED addresses. Playback correctness and audio crackles
+still need measured physical-device validation using the Audio diagnostic
+check described in `docs/queue-diagnostics.md`.

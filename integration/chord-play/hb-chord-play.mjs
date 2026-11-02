@@ -75,24 +75,24 @@ rows[1]=[10,1060,1717,7,0,10,1,1,'Bb'];
 rows[2]=[9,657,2773,8,7,9,2,0,'Am7'];rows[3]=[2,581,2773,2,7,2,3,1,'D7'];
 const frame=active=>'cb1|2741|'+active.join(',')+'|'+rows.map(row=>row.join(',')).join('|');
 bankFrame=frame([-1,0,0,0,0,0]);chord.restoreChord(saved);chord.setChordEnabled(true);chord.tickChord();
-assert.equal(chord.chordSlotColor(0),77);assert.equal(chord.chordSlotColor(1),7,'chromatic major uses the stronger same-hue color');
-assert.equal(chord.chordSlotColor(2),97);assert.equal(chord.chordSlotColor(3),1,'dominant uses coral independently of scale membership');
+assert.equal(chord.chordSlotColor(0),77);assert.equal(chord.chordSlotColor(1),23,'chromatic major is bright violet');
+assert.equal(chord.chordSlotColor(2),97);assert.equal(chord.chordSlotColor(3),126,'chromatic dominant stays red rather than violet');
 // The ordinary name/mask may omit defining tones; native context still owns hue.
 rows[4]=[7,132,2741,7,0,7,3,0,'G5'];
 rows[5]=[11,2084,2741,7,0,11,4,0,'Bdim'];
 rows[6]=[0,273,2869,7,0,0,5,1,'Caug'];
 now+=250;bankFrame=frame([-1,0,0,0,0,0]);chord.tickChord();
 assert.equal(chord.chordSlotColor(4),65,'diatonic power chord retains its dominant context');
-assert.equal(chord.chordSlotColor(5),115,'diminished uses moderate magenta');
-assert.equal(chord.chordSlotColor(6),26,'augmented shares magenta with binary chromatic brightness');
+assert.equal(chord.chordSlotColor(5),110,'diminished uses violet');
+assert.equal(chord.chordSlotColor(6),23,'chromatic augmented uses bright violet');
 rows[4][6]=6;now+=250;bankFrame=frame([-1,0,0,0,0,0]);chord.tickChord();
-assert.equal(chord.chordSlotColor(4),115,'other dissonant implied 1-3-5 foundations share magenta');
+assert.equal(chord.chordSlotColor(4),110,'other dissonant implied 1-3-5 foundations use violet');
 rows[4][2]=2773;rows[4][6]=1;now+=250;bankFrame=frame([-1,0,0,0,0,0]);chord.tickChord();
 assert.equal(chord.chordSlotColor(4),77,'changed native context updates hue without changing the voicing');
 rows[4][2]=4095;rows[4][6]=0;now+=250;bankFrame=frame([-1,0,0,0,0,0]);chord.tickChord();
 assert.equal(chord.chordSlotColor(4),123,'unresolved context stays neutral');
 let colorPort=chord.chordPanelPort(3);colorPort.getParam('midi_fx1:chain_params');colorPort.setParam('midi_fx1:cp_colorView','Intent + Scale');
-assert.equal(chord.chordSlotColor(2),109);assert.equal(chord.chordSlotColor(3),23,'ii/V and V/V share an intent hue, with binary scale brightness');
+assert.equal(chord.chordSlotColor(2),109);assert.equal(chord.chordSlotColor(3),126,'intent color retains ii/V but red identifies implied dominant V/V');
 now+=250;bankFrame=frame(rows[3].slice(0,6));chord.tickChord();assert.equal(chord.chordSlotColor(3),120,'actual current harmony is white, never recording red');
 page=chord.chordPage();find('cp_slot_0');chord.tickChord();
 const readsBefore=bankReads,writesBefore=writes.length;ledPackets.length=0;ledFrameReset();chord.paintChordSteps();
@@ -106,7 +106,7 @@ chord.selectChordSlot(3);assert(engine.params.chord_select.endsWith(',3,4'));
 const persistence=chord.chordSnapshot();chord.restoreChord(persistence);assert.deepEqual(chord.chordSnapshot(),persistence);
 const legacy=structuredClone(persistence);delete legacy.colorView;for(const slot of legacy.slots){delete slot.intent;delete slot.target;delete slot.enabled;}
 chord.restoreChord(legacy);assert.equal(chord.chordSnapshot().colorView,0);assert(chord.chordSnapshot().slots.every(slot=>slot.enabled===1));
-console.log('Chord colors: native quality/intent families, binary chromatic brightness, actual harmony, matching knobs, bounded reads, disabled slots and legacy migration pass');
+console.log('Chord colors: violet dissonance, red dominant function, white active harmony, matching knobs, bounded reads and legacy migration pass');
 
 // Queue membership comes from the same bank snapshot; both physical surfaces pulse.
 chord.setChordEnabled(true);colorPort=chord.chordPanelPort(3);colorPort.getParam('midi_fx1:chain_params');colorPort.setParam('midi_fx1:cp_play_mode','Queued');
@@ -114,6 +114,7 @@ rows[1].push(1);bankFrame=frame(rows[3].slice(0,6));now+=300;chord.tickChord();
 assert(chord.chordSlotQueued(1));assert(!chord.chordSlotQueued(0));
 page=chord.chordPage();find('cp_slot_0');const {seqLedsInvalidate}=await import('../dist/esm/seq/led-cache.js');seqLedsInvalidate();ledPackets.length=0;for(let frame=0;frame<3;frame++){ledFrameReset();chord.paintChordSteps();}
 for(const address of [17,1,72])assert(ledPackets.some(packet=>packet[2]===address&&packet[3]===0&&(packet[1]&15)!==0),'queued step and both knob LED addresses pulse');
+for(const address of [19,3,74])assert(ledPackets.some(packet=>packet[2]===address&&packet[3]===120&&(packet[1]&15)!==0),'sounding chord steps and both knob LEDs pulse white even after its queue entry is consumed');
 chord.harmonyOff();assert(!chord.chordSlotQueued(1));
 
 // A regular step painter must recover after Chord Play's animated-address writer.
@@ -238,6 +239,7 @@ try {
  assert.equal(chordMeta.chordName,'Dm');assert.equal(chordMeta.chordRoman,'ii');
  assert(chordMeta.movy_full_cell,'chord action owns its label band');
  page.ctl.state.touched=-1;page.ctl.state.peek=null;chord.renderChord();
+ for(const row of [10,11])assert(!labelPixels.slice(row*128+34,row*128+62).some(Boolean),'the chord glyphs do not touch the upper cell border');
  const region=(startY,endY)=>Array.from({length:endY-startY},(_,row)=>Array.from(labelPixels.slice((startY+row)*128+32,(startY+row)*128+64))).flat();
  const whole=region(9,29);chordMeta.short_name='999';chord.renderChord();
  assert.deepEqual(region(9,29),whole,'redundant slot label is not drawn');
@@ -251,10 +253,10 @@ try {
  assert.notDeepEqual(region(20,27),lowerRoman,'ii uses distinct lowercase glyphs in the shared grid');
  chordMeta.chordName='m';chordMeta.chordRoman='v';chord.renderChord();
  const occupiedRows=(start,end)=>Array.from({length:end-start},(_,row)=>labelPixels.slice((start+row)*128+40,(start+row)*128+56).some(Boolean)).filter(Boolean).length;
- assert.equal(occupiedRows(11,18),4,'musical suffix has native four-row x-height under seven-row capitals');
+ assert.equal(occupiedRows(11,18),4,'compact chord-name lowercase preserves short musical x-height');
  assert.equal(occupiedRows(20,27),4,'Roman quality uses intentionally shorter native lowercase');
  chordMeta.chordName='Dm';chordMeta.chordRoman='ii';
  const beforeRender=writes.length;chord.renderChord();assert.equal(writes.length,beforeRender,'drawing chord notation never writes parameters');
  if(process.env.CHORD_PIXELS)writeFileSync(process.env.CHORD_PIXELS,JSON.stringify([...labelPixels]));
 }finally{globalThis.clear_screen=oldClear;globalThis.fill_rect=oldFill;}
-console.log('Chord text: native spelled names, quality-aware Roman numerals and distinct lowercase pixels pass');
+console.log('Chord text: compact spelled names, large Roman numerals, safe insets and distinct lowercase pixels pass');
