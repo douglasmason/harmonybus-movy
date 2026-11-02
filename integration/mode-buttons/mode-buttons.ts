@@ -16,7 +16,7 @@ import {seqToast} from './render.js';
 import {fieldEraseAvailable,fieldEraseActive,setFieldEraseHeld} from './field-play.js';
 import {motifEditing,motifAction,motifPage,motifFinish} from '../renderer/hb-motif.js';
 import {schwungActiveFor} from '../renderer/schwung-grid.js';
-import {chordActive, chordQueuedMode, chordLoopSelected, chordLoopButton, chordMuteSelected, chordMuteButton, chordPadModalActive, harmonyOff} from './chord-play.js';
+import {chordActive, chordQueuedMode, chordLoopSelected, chordLoopButton, chordRetrigger, chordMuteSelected, chordMuteButton, chordPadModalActive, harmonyOff} from './chord-play.js';
 import {jointActive, jointChordKnobs} from './joint-play.js';
 import {settingsActive} from './hb-settings.js';
 import {fontPrint} from '../font/index.js';
@@ -186,10 +186,12 @@ export function modeButtonMidi(cc:number,value:number,shiftHeld:boolean):boolean
         capturedReleases.add(cc);
         if(inputModeSelectorOpen())return true;
         if(seqState.loopMode){loopEditResizeHold(true);return true;}
-        if(shiftHeld)return true;
         if(chordButtonContext()){
-            dismissModeHelp();chordLoopButton();return true;
+            dismissModeHelp();
+            if(shiftHeld)chordRetrigger();else chordLoopButton();
+            return true;
         }
+        if(shiftHeld)return true;
         if(scaleFindingActive()){seqToast('Use Sample to listen');return true;}
         if(gridActive()){dismissModeHelp();toggleGridFollow();return true;}
         // Other modes have no verified Loop operation. They cannot enter the
