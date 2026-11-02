@@ -335,9 +335,9 @@ export function paintScaleFindingSteps():boolean{
     // The reserved 5/6 controls are dark; K7 is arm green, K8 tonic white.
     for(let knob=0;knob<8;knob++){
         const color=finderLayout!=='family'?
-            (knob===4?SCALE_FINDING_GREEN:knob===5?79:knob===6?(armed?SCALE_FINDING_GREEN:123):knob===7?SCALE_FINDING_WHITE:0):
-            knob<4?ROW_COLORS[knob]:knob===6?(armed?SCALE_FINDING_GREEN:123):
-            knob===7?SCALE_FINDING_WHITE:0;
+            (knob===4?SCALE_FINDING_GREEN:knob===5?123:knob===6?(armed?SCALE_FINDING_GREEN:123):knob===7?SCALE_FINDING_WHITE:0):
+            knob<4?ROW_COLORS[knob]:knob===4?SCALE_FINDING_GREEN:knob===5?123:
+            knob===6?(armed?SCALE_FINDING_GREEN:123):knob===7?SCALE_FINDING_WHITE:0;
         cachedSetAnimLED(knob,color,color,0);
         cachedSetAnimLED(71+knob,color,color,0,true);
     }
@@ -398,10 +398,13 @@ export function scaleFindingMidi(data:number[]):boolean{
         if(direction)setFinderLayout(FINDER_LAYOUTS[clampMod(FINDER_LAYOUTS.indexOf(finderLayout)+Math.sign(direction),FINDER_LAYOUTS.length)]);
         return true;
     }
-    if(key===76&&finderLayout!=='family'){
+    if(key===76){
         const direction=value<64?value:value-128;
-        if(direction)setScaleEvidenceWindowMs(evidenceWindowMs*
-            (direction>0?Math.pow(1.25,Math.abs(direction)):Math.pow(0.8,Math.abs(direction))));
+        if(direction){
+            setScaleEvidenceWindowMs(evidenceWindowMs*
+                (direction>0?Math.pow(1.25,Math.abs(direction)):Math.pow(0.8,Math.abs(direction))));
+            seqToast('Window '+(evidenceWindowMs/1000).toFixed(1)+'s');
+        }
         return true;
     }
     if(key===77&&finderLayout!=='family'){
