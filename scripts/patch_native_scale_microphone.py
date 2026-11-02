@@ -113,7 +113,8 @@ export function scaleMicNativeFrame():NativeScaleMicFrame|null {
     scale_source = replace_once(scale_source,
         "import { appState } from '../app/state.js';",
         """import { appState } from '../app/state.js';
-import { scaleMicNativeFrame } from './engine.js';""")
+import { scaleMicNativeFrame } from './engine.js';
+declare const host_browser_engine_ready: (()=>boolean)|undefined;""")
     scale_source = replace_once(scale_source,
         "let lastEvidenceAt=0;",
         """let lastEvidenceAt=0;
