@@ -49,6 +49,25 @@ Previously, overlapping ±1-bin candidate searches could report a single
 C3 peak as neighboring B2 as well. The browser still uses Web Audio's
 built-in FFT, while Move remains Goertzel-based.
 
+## Manual override knobs (Move and Remote UI)
+
+Scale Finding's settings also expose twelve explicit pitch-class constraints:
+**Auto**, **Require**, or **Exclude**. These are separate from microphone
+observations and latched playing notes. Manual exclusion wins over observed
+microphone evidence; a candidate scale is incompatible if it contains any
+excluded note or omits any required note. A manual-only selection can be
+previewed and applied with Copy.
+
+On Move, **K5 touch** opens or closes the override settings panel. K1–K6
+cycle six pitch classes on the current page; K7 turn switches between
+C–F and F#–B. K8 still shifts the reference tonic. The specialized browser
+Remote UI offers a collapsible twelve-note override section and an explicit
+Reset Overrides button.
+
+**X clears captured/latched evidence, not intentional override settings.**
+Reset Overrides explicitly returns all twelve settings to Auto.
+Neither action writes the parent key; Copy is the only commit.
+
 ## Reproducible evidence
 
 Rust unit tests synthesize harmonic-rich C3, simultaneous C major and
