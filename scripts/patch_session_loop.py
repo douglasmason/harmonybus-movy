@@ -33,3 +33,37 @@ def patch_session_loop(root: Path) -> None:
 export function loopEditResizeHold(down:boolean):void { held=down; }
 export function loopHeld(): boolean {''')
     path.write_text(source)
+
+    # The old logic suite assumes that a physical Loop tap globally enters
+    # bar-edit mode. Keep its musical window/gesture checks, but enter that
+    # editor through Session's mode state and test non-latching presses.
+    path = root / 'browser-test/logic/seq-edit.mjs'
+    source = path.read_text()
+    source = replace_once(source,
+        '''    // Loop button tap (down then up with no gesture) latches Loop Mode on.
+    seqHandleMidi([0xB0, 58, 127], false);
+    seqHandleMidi([0xB0, 58, 0], false);
+    eq('Loop tap enters Loop Mode', seqState.loopMode, true);''',
+        '''    // Loop Edit is now selected in the Session chooser.
+    seqState.loopMode = true;
+    eq('Session-selected Loop Edit exposes bars', seqState.loopMode, true);''')
+    start: int = source.index('    // Clean tap from Note → latches Loop on.')
+    end: int = source.index('    uninstallMockEngine(); resetSeqEngine();', start)
+    source = source[:start] + '''    // Physical Loop is a held resize modifier in Loop Edit. It never
+    // toggles the Session-selected input mode.
+    seqState.loopMode = true;
+    seqHandleMidi([0xB0,58,127],false);
+    seqHandleMidi([0xB0,58,0],false);
+    eq('Loop tap keeps selected Loop Edit',seqState.loopMode,true);
+    seqState.loopMode = false;
+    seqHandleMidi([0xB0,58,127],false);
+    seqHandleMidi([0xB0,58,0],false);
+    eq('Loop tap outside editor cannot enter it',seqState.loopMode,false);
+
+''' + source[end:]
+    path.write_text(source)
+    path = root / 'browser-test/logic/session-shift.mjs'
+    source = replace_once(path.read_text(),
+        "eq('a Loop tap in Track view still latches Loop Mode', seqState.loopMode, true);",
+        "eq('a Loop tap in Track view leaves bar editing to Session', seqState.loopMode, false);")
+    path.write_text(source)
