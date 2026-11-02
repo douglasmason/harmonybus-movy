@@ -8,7 +8,9 @@ const {portFor}=await import('../dist/esm/track/registry.js');
 const {selectTrack}=await import('../dist/esm/track/focus.js');
 const {seqState}=await import('../dist/esm/seq/state.js');
 const scale=await import('../dist/esm/seq/scale-finding.js');
-const {WHITE_DIM,WHITE_BRIGHT}=await import('../dist/esm/seq/colors.js');
+const {WHITE_DIM,WHITE_BRIGHT,WHITE_OFF}=await import('../dist/esm/seq/colors.js');
+const grid=await import('../dist/esm/seq/grid.js');
+const {loopHeld}=await import('../dist/esm/seq/loop-mode.js');
 selectTrack(3);
 seqState.sessionMode=false;
 scale.setScaleFindingEnabled(false);
@@ -68,14 +70,100 @@ buttons.tickModeHelp(4000);
 assert.equal(buttons.modeHelpSnapshot(4001).visible,false,'expiry clears overlay');
 chord.setChordEnabled(false);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,127,false),false);
-assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,44),44,
-    'normal mode restores original LED color owner');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,44),WHITE_OFF,
+    'plain Loop no longer unexpectedly enters the bar editor');
+buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false);
+buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false);
+assert(!seqState.loopMode,'normal Loop press cannot change input mode');
 scale.setScaleFindingEnabled(true);
 assert.equal(router.sessionPlayMode(),8);
 assert(buttons.showModeHelp(8,true,1000));
 assert(buttons.modeHelpSnapshot(1001).lines.some(line=>line.includes('tonic')));
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,127,false),false,
-    'Scale Finding Delete stays stock until piano-note latch has its own owner');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_CLEAR,44),WHITE_OFF,
+    'Scale Finding X is dark before a preview exists');
+scale.selectScaleFindingPad(28); // G Mixolydian, from the existing Inline layout
+assert(scale.scaleFindingCanApply());
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_COPY,WHITE_OFF),WHITE_DIM);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_COPY,127,false),true);
+assert.equal(conductor.getParam('midi_fx1:key_center_tonic'),'G');
+assert.equal(conductor.getParam('midi_fx1:key_center_explicit_scale'),'Mixolydian');
+assert.equal(conductor.getParam('midi_fx1:key_center_apply'),'Apply');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_COPY,0,false),true);
+const appliedScale=conductor.getParam('midi_fx1:key_center_explicit_scale');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,127,false),true);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,0,false),true);
+assert.equal(scale.scaleFindingSnapshot().selectedPad,-1);
+assert.equal(conductor.getParam('midi_fx1:key_center_explicit_scale'),appliedScale,
+    'X clears only the transient Scale Finding preview, not the committed parent key');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_COPY,WHITE_DIM),WHITE_OFF,
+    'Copy cannot apply without a selected candidate');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),false,
+    'Sampling retains its original mapping until microphone capture is verified');
+scale.setScaleFindingEnabled(false);
+
+grid.restoreGrid(null);grid.setGridEnabled(true);
+assert.equal(router.sessionPlayMode(),4);
+grid.gridViews.move.follow=true;
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_DIM),WHITE_BRIGHT);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false),true);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true);
+assert.equal(grid.gridViews.move.follow,false,'Grid Loop holds the page');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_LOOP,WHITE_BRIGHT),WHITE_DIM);
+buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false);
+buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false);
+assert.equal(grid.gridViews.move.follow,true,'Grid Loop resumes following');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,127,false),true);
+assert(grid.gridEraseActive(),'X held enters guarded erase-only Grid editing');
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_CLEAR,WHITE_DIM),WHITE_BRIGHT);
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_CLEAR,0,false),true);
+assert(!grid.gridEraseActive(),'X release leaves erasure and cannot delete a clip');
+grid.setGridEnabled(false);
+
+seqState.loopMode=false;seqState.sessionMode=false;
+assert.equal(router.sessionPlayMode(),1);
+seqHandleMidi([176,50,127],false);seqHandleMidi([176,50,0],false);
+assert(router.inputModeSelectorOpen(),'Session opens input-mode chooser');
+seqHandleMidi([176,14,8],false); // Normal Play index 1 -> Loop Edit index 9
+assert.equal(router.inputModeSelectorChoice(),9);
+seqHandleMidi([176,3,127],false);seqHandleMidi([176,3,0],false);
+assert(!router.inputModeSelectorOpen());
+assert.equal(router.sessionPlayMode(),9);
+assert(seqState.loopMode,'Loop Edit reuses the original bar-step painter');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,false),true);
+assert(loopHeld(),'Loop+wheel resize remains available inside Loop Edit');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true);
+assert(!loopHeld());
+assert(seqState.loopMode,'Loop release no longer silently exits selected Loop Edit');
+assert.equal(buttons.modeButtonMidi(51,127,false),true,'Back leaves Loop Edit');
+assert.equal(buttons.modeButtonMidi(51,0,false),true);
+assert.equal(router.sessionPlayMode(),1);
+assert(!seqState.loopMode);
 buttons.resetModeHelp();
 assert(!buttons.modeHelpSnapshot().visible);
-console.log('Mode buttons: cached LED policy, Chord X and Loop, global pass-through, guide lifecycle and Scale Finding coverage pass');
+console.log('Mode buttons: Chord Loop/X, Scale Finding Apply/Clear, Grid Follow/Erase, Loop Edit Session transitions and global pass-through pass');
+
+const {setFlag}=await import('../dist/esm/seq/flags.js');
+setFlag('hbsteprow',2);
+assert.equal(router.sessionPlayMode(),2,'Motif Play owns its own action strip');
+const motifActions=buttons.modeActionDescriptors();
+assert.equal(motifActions.find(action=>action.cc===60)?.label,'Copy motif');
+assert.equal(motifActions.find(action=>action.cc===58)?.available,false,
+    'no false promise of motif repetition without a real repeat owner');
+assert.equal(buttons.modeButtonMidi(60,127,false),true,'Motif Copy cannot silently duplicate a clip');
+assert.equal(buttons.modeButtonMidi(60,0,false),true,'Motif Copy release never edits a clip');
+
+setFlag('hbsteprow',0);
+scale.setScaleFindingEnabled(true);
+const finding=buttons.modeActionDescriptors();
+assert.equal(finding.find(action=>action.cc===119)?.label,'Clear preview');
+assert.equal(finding.find(action=>action.cc===60)?.label,'Apply key');
+assert.equal(finding.find(action=>action.cc===118)?.label,'Sample');
+assert.match(finding.find(action=>action.cc===118)?.detail??'',/not yet connected/);
+scale.setScaleFindingEnabled(false);
+grid.setGridEnabled(true);
+const gridActions=buttons.modeActionDescriptors();
+assert.equal(gridActions.find(action=>action.cc===58)?.label,'Follow grid');
+assert.equal(gridActions.find(action=>action.cc===119)?.gesture,'hold+pad');
+grid.setGridEnabled(false);
+buttons.resetModeHelp();
+console.log('Mode action descriptors: Motif/Scale/Grid labels, physically available gestures and unimplemented actions remain truthful');

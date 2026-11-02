@@ -17,14 +17,14 @@ test('direct play-mode choices retain device Back history, playback and saved pe
  const choose=async mode=>{await send({type:'move_mode',previous:frame.mode,mode});await until(()=>frame.mode===mode);};
  try{
   await send({type:'subscribe_tool'});await until(()=>frame?.ready);
-  assert.deepEqual(frame.modes,['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings','Scale Finding']);
+  assert.deepEqual(frame.modes,['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings','Scale Finding','Loop Edit']);
   const clips=service.read('state');
-  for(const mode of [6,7,0,2,4,5,3,8,1]){
+  for(const mode of [6,7,0,2,4,5,3,8,9,1]){
    const previous=frame.mode;await choose(mode);
    assert.equal(service.read('state'),clips,'view selection must not edit clips');
-   await send({type:'move_mode',previous,mode:(mode+1)%9});assert.equal(frame.mode,mode,'stale selection cannot override current mode');
+   await send({type:'move_mode',previous,mode:(mode+1)%10});assert.equal(frame.mode,mode,'stale selection cannot override current mode');
   }
-  for(const mode of [-1,9,1.5,'3',null]){await send({type:'move_mode',previous:1,mode});assert.equal(frame.mode,1,'invalid choice ignored');}
+  for(const mode of [-1,10,1.5,'3',null]){await send({type:'move_mode',previous:1,mode});assert.equal(frame.mode,1,'invalid choice ignored');}
   for(const data of [[144,68,100],[144,0,127],[176,49,127]]){
    await midi(data);await send({type:'move_mode',previous:1,mode:5});assert.equal(frame.mode,1,'held pad, touch or modifier owns input');
    await midi([data[0],data[1],0]);
@@ -121,8 +121,9 @@ test('Chord Play step labels follow native banks, edits and input ownership',asy
    await midi([176,index,127]);assert.equal(frame.stepLabels,null,'modifier owns the steps: '+index);
    await midi([176,index,0]);await until(()=>frame.stepLabels!==null);
   }
-  await cc(58);assert.equal(frame.stepLabels,null,'Loop latches its bar selector');
-  await cc(58);await until(()=>frame.stepLabels!==null);
+  const beforeLoop=frame.stepLabels;
+  await cc(58);
+  assert.deepEqual(frame.stepLabels,beforeLoop,'Chord Play Loop never enters the bar editor or hides chord steps');
   await cc(50);assert.equal(frame.stepLabels,null,'mode chooser hides chord meanings');
   await cc(51);await until(()=>frame.stepLabels!==null);
   for(const title of ['Conductor Clips','Conductor Motifs','Next Chord Preview','Voicing Preview','Discovery Actions','Conductor Ops 1-8']){

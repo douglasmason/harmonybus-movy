@@ -21,7 +21,21 @@ try{
  assert.equal(await page.locator('#steps .control').count(),16);
  assert.equal(await page.locator('#encoder option[value="14"]').count(),0,'Jog has dedicated controls');
  assert.equal(await page.locator('#enter').count(),0,'no duplicate Jog click');
- assert.deepEqual(await page.locator('#play-mode option').allTextContents(),['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings','Scale Finding']);
+ assert.deepEqual(await page.locator('#play-mode option').allTextContents(),['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings','Scale Finding','Loop Edit']);
+ assert.equal(await page.locator('#functions [data-index="58"] .mode-action').textContent(),'Loop Edit in Session');
+ assert.equal(await page.locator('#functions [data-index="58"]').getAttribute('data-action-available'),'false');
+ assert.match(await page.locator('#mode-actions-guide').textContent(),/Launchpad right: Copy, X, Loop, Mute, Sample, Back, Session/);
+ await page.locator('#play-mode').selectOption('8');
+ await page.waitForFunction(()=>document.querySelector('#functions [data-index="60"] .mode-action').textContent==='Apply key');
+ assert.equal(await page.locator('#functions [data-index="60"]').getAttribute('data-action-available'),'false',
+   'Apply key is unavailable until a scale candidate is selected');
+ assert.equal(await page.locator('#functions [data-index="119"] .mode-action').textContent(),'Clear preview');
+ await page.locator('#play-mode').selectOption('4');
+ await page.waitForFunction(()=>document.querySelector('#functions [data-index="119"] .mode-action').textContent==='Erase cell');
+ assert.equal(await page.locator('#functions [data-index="119"]').getAttribute('data-action-gesture'),'hold+pad');
+ assert.equal(await page.locator('#functions [data-index="58"] .mode-action').textContent(),'Follow grid');
+ await page.locator('#play-mode').selectOption('1');
+ await page.waitForFunction(()=>document.querySelector('#functions [data-index="58"] .mode-action').textContent==='Loop Edit in Session');
  assert.equal(await page.locator('#play-mode').inputValue(),'1');
  await page.locator('#shift').check();
  await page.waitForFunction(()=>document.querySelector('#play-mode').disabled);

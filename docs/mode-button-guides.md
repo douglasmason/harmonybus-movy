@@ -1,5 +1,9 @@
 # Mode-specific Move button ownership and first-entry guides
 
+> Historical baseline: this page documents the .306 first increment. For
+> the revised Session Loop Edit mode, Scale Finding Apply/Clear, and Grid
+> Follow/Erase mappings in .307, see [Contextual Loop / Session](contextual-loop-session.md).
+
 This is the **first implemented increment** of context-sensitive hardware
 buttons. It uses Movy's existing `seq/led-cache.ts`, button-held color
 promotion, and 40-packet budget. There are no competing LED writers or
