@@ -127,7 +127,8 @@ function motifActionPage(){
 export function modeButtonColor(cc:number,fallback:number):number {
     if(inputModeSelectorOpen())return cc===CC_MODE_LOOP?WHITE_OFF:fallback;
     if(chordButtonContext()){
-        if(cc===CC_MODE_CLEAR)return WHITE_DIM;
+        if(cc===CC_MODE_CLEAR)return chordQueuePresent()?WHITE_DIM:WHITE_OFF;
+        if(cc===CC_MODE_COPY)return chordQueuePresent()?WHITE_DIM:WHITE_OFF;
         if(cc===CC_MODE_LOOP)return !chordQueuePresent()?WHITE_OFF:chordLoopSelected()?WHITE_BRIGHT:WHITE_DIM;
         if(cc===CC_MODE_SAMPLE)return chordQueuedMode()?WHITE_DIM:WHITE_BRIGHT;
         if(cc===CC_MODE_MUTE)return !chordQueuePresent()?WHITE_OFF:chordMuteSelected()?WHITE_BRIGHT:WHITE_DIM;
@@ -292,7 +293,8 @@ export function modeActionDescriptors():ModeActionDescriptor[]{
             motifEditing()?'Cancel the current uncommitted motif draft':'Normal step-delete gesture',true,false,'tap');
     }
     if(chord){
-        set(CC_MODE_CLEAR,'Harmony Off','Clear the live harmonic override / queued chord',true);
+        set(CC_MODE_CLEAR,'Harmony Off','Explicitly cancel the live harmonic override / queued chord',chordQueuePresent());
+        set(CC_MODE_COPY,'Copy queue','Saved progression is available as a copy source; direct queue-to-clip writing is not yet implemented',chordQueuePresent());
         set(CC_MODE_LOOP,'Queue end: '+(chordLoopSelected()?'Loop':'Hold'),
             'Loop repeats the saved progression; Hold sustains the final chord',
             chordQueuePresent(),chordQueuePresent()&&chordLoopSelected());
