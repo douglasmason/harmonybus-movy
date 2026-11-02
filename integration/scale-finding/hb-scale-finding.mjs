@@ -128,6 +128,31 @@ assert.equal(scale.scaleFindingEvidenceSnapshot().chroma[1],0);
 scale.setFinderLayout('inline');
 assert.equal(scale.finderPadPitch(0),0);
 assert.equal(scale.finderPadPitch(9),9);
+// Settings overrides are hard constraints, independent of audio evidence.
+// Each page uses K1..K6 for six pitch classes and K7 to turn pages.
+assert(scale.setScaleNoteOverride(7,-1),'exclude the G pitch class');
+assert.equal(scale.scaleNoteOverride(7),-1);
+assert(!scale.scaleFindingCandidates().find(candidate=>candidate.name==='Major').compatible,
+    'explicitly excluding G forbids C Major even when the mic heard G');
+assert(scale.setScaleNoteOverride(7,0));
+assert(scale.setScaleNoteOverride(4,1),'require E manually');
+assert(scale.scaleFindingCandidates().find(candidate=>candidate.name==='Major').compatible);
+scale.clearScaleEvidence();
+assert.equal(scale.scaleNoteOverride(4),1,'X clears evidence, never intentional settings');
+assert(scale.scaleFindingCanApply(),'manual-only scale constraints can be applied');
+assert(scale.scaleFindingMidi([144,4,127]),'K5 touch opens Scale Finder note settings');
+assert(scale.scaleFindingSnapshot().overridePanel);
+assert(scale.scaleFindingMidi([176,71,1]),'K1 on page one turns C from Auto to Require');
+assert.equal(scale.scaleNoteOverride(0),1);
+assert(scale.scaleFindingMidi([176,77,1]),'K7 moves to the second note page');
+assert.equal(scale.scaleFindingSnapshot().overridePage,1);
+assert(scale.scaleFindingMidi([176,71,127]),'K1 on page two excludes F#');
+assert.equal(scale.scaleNoteOverride(6),-1);
+assert(scale.scaleFindingMidi([144,4,127]),'K5 touch closes the override settings');
+assert.equal(scale.scaleFindingSnapshot().overridePanel,false);
+assert(scale.resetScaleNoteOverrides());
+assert.deepEqual(scale.scaleFindingSnapshot().noteOverrides,Array(12).fill(0));
+assert(!scale.scaleFindingCanApply(),'resetting all overrides restores empty-evidence safeguards');
 scale.setScaleFindingEnabled(false);
 assert(!scale.scaleFindingActive());
 assert(padsPlayNotes(),'normal note ownership resumes after leaving');

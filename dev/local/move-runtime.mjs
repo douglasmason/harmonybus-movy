@@ -23,7 +23,8 @@ import {modeActionDescriptors} from 'movy/seq/mode-buttons.ts';
 import {scaleFindingActive,scaleFindingSnapshot,finderPadPitch,setScaleMicrophoneAvailable,
     scaleMicrophoneAvailable,scaleMicrophoneIntent,setScaleMicrophoneListening,
     ingestScaleChroma,setScaleEvidenceWindowMs,setFinderLayout,setFinderTonic,
-    selectScaleCandidate,commitScaleFindingPreview,clearScaleFindingPreview} from 'movy/seq/scale-finding.ts';
+    selectScaleCandidate,commitScaleFindingPreview,clearScaleFindingPreview,
+    setScaleNoteOverride,resetScaleNoteOverrides} from 'movy/seq/scale-finding.ts';
 import {decodeBulk,encodeBulk} from 'movy/track/bulk.ts';
 import {resetBrowserUserParts} from 'movy/seq/part-storage.ts';
 import {resetBrowserUsage} from 'movy/app/interface-usage.ts';
@@ -195,6 +196,12 @@ export function createMoveRuntime({request:engineRequest,metadata}){
     result=setFinderTonic(value);
    }else if(action==='candidate'&&Number.isInteger(value)){
     result=selectScaleCandidate(value);
+   }else if(action==='override'&&value&&typeof value==='object'&&
+       Number.isInteger(value.note)&&value.note>=0&&value.note<12&&
+       [-1,0,1].includes(value.mode)){
+    result=setScaleNoteOverride(value.note,value.mode);
+   }else if(action==='resetOverrides'){
+    result=resetScaleNoteOverrides();
    }else if(action==='apply'){
     result=commitScaleFindingPreview();
    }else if(action==='clear'){

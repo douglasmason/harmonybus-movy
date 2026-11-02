@@ -22,6 +22,12 @@
   <div class="toolbar"><button id="finder-listen" type="button" aria-pressed="false">Start listening (Sample)</button><label>Aggregation window <input id="finder-window" type="range" min="120" max="16000" step="40" value="1800"><output id="finder-window-value">1.8 s</output></label><button id="finder-clear" type="button">Clear evidence (X)</button></div>
   <p id="finder-mic-status" role="status">Microphone off. Browser permission is requested only when you start listening.</p>
   <div id="finder-chroma" class="finder-chroma" aria-label="Pitch-class intensity"></div>
+  <details id="finder-manual-settings" class="finder-settings">
+   <summary>Manual note overrides · 12 note knobs</summary>
+   <p>Auto follows observed evidence. Require forces a pitch class into every matching scale; Exclude rules out any scale containing it. Neither changes the live key until Copy.</p>
+   <div id="finder-overrides" class="finder-overrides" role="group" aria-label="Note override knobs"></div>
+   <button id="finder-reset-overrides" type="button">Reset note overrides</button>
+  </details>
   <div class="toolbar"><strong>Matching scales</strong><button id="finder-apply" type="button">Apply tonic + scale (Copy)</button></div>
   <div id="finder-candidates" class="finder-candidates" role="group" aria-label="Select candidate scale"></div>
   <p class="hint">Selected tonic is a separate musical choice. Candidate scales come from the shared HarmonyBus catalog; none is applied until Copy. On-device Move microphone capture is not provided by this browser-only input.</p>

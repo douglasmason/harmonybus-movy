@@ -61,6 +61,34 @@ let microphoneAvailable=false;
 let evidenceWindowMs=1800;
 let microphoneChroma:number[]=Array(12).fill(0);
 let lastEvidenceAt=0;
+// Explicit per-note constraints survive microphone evidence clear.
+// 0=Auto, 1=Require, -1=Exclude; only Copy changes the parent key.
+export type NoteOverride=-1|0|1;
+let noteOverrides:NoteOverride[]=Array(12).fill(0);
+let overridePanel=false;
+let overridePage=0;
+export function scaleNoteOverride(pitchClass:number):NoteOverride{
+    return Number.isInteger(pitchClass)&&pitchClass>=0&&pitchClass<12?
+        noteOverrides[pitchClass]:0;
+}
+export function setScaleNoteOverride(pitchClass:number,value:NoteOverride):boolean{
+    if(!scaleFindingActive()||!Number.isInteger(pitchClass)||pitchClass<0||
+       pitchClass>=12||![0,1,-1].includes(value))return false;
+    if(noteOverrides[pitchClass]===value)return true;
+    noteOverrides[pitchClass]=value;selectedCandidate=0;appState.dirty=true;return true;
+}
+export function resetScaleNoteOverrides():boolean{
+    if(!scaleFindingActive())return false;
+    noteOverrides.fill(0);selectedCandidate=0;appState.dirty=true;return true;
+}
+export function setScaleOverridePanel(open:boolean):boolean{
+    if(!scaleFindingActive())return false;
+    overridePanel=!!open;appState.dirty=true;return true;
+}
+const manualRequiredMask=():number=>noteOverrides.reduce<number>(
+    (mask,value,note)=>value===1?mask|(1<<note):mask,0);
+const manualExcludedMask=():number=>noteOverrides.reduce<number>(
+    (mask,value,note)=>value===-1?mask|(1<<note):mask,0);
 const livePads=new Set<number>();
 /** Return a pitch class for the two playing rows and two latching rows. */
 export function finderPadPitch(pad:number,layout:FinderLayout=finderLayout):number|null{
@@ -126,7 +154,8 @@ export function clearScaleEvidence():void{
     selectedCandidate=0;appState.dirty=true;
 }
 function evidenceWeight(note:number):number{
-    const manual=((latchedNotes|heldNotes)&(1<<note))!==0?1:0;
+    if(noteOverrides[note]===-1)return 0;
+    const manual=((latchedNotes|heldNotes|manualRequiredMask())&(1<<note))!==0?1:0;
     return Math.max(manual,microphoneChroma[note]>=0.2?microphoneChroma[note]:0);
 }
 /** Rank existing catalog definitions. Never invent a mode or apply it
@@ -148,9 +177,12 @@ export function scaleFindingCandidates():ScaleCandidate[]{
             // Manual selections are hard musical constraints. FFT peaks are
             // softer ranking evidence: room noise and harmonics must not make
             // every candidate impossible to apply.
-            const manualNotes=latchedNotes|heldNotes;
+            const manualNotes=(latchedNotes|heldNotes|manualRequiredMask())&
+                ~manualExcludedMask();
+            const excluded=manualExcludedMask();
             const compatible=Array.from({length:12},(_,note)=>note)
-                .every(note=>!(manualNotes&(1<<note))||inSet.has(note));
+                .every(note=>(!(manualNotes&(1<<note))||inSet.has(note))&&
+                    (!(excluded&(1<<note))||!inSet.has(note)));
             const tonicEvidence=evidence[referenceTonic]||0;
             const score=Math.round(100*(covered-4*conflicts+tonicEvidence*.04
                 -(total>0?missing*.025:0)))/100;
@@ -168,6 +200,8 @@ export function selectScaleCandidate(index:number):boolean{
 }
 export function scaleFindingEvidenceSnapshot(){
     return {layout:finderLayout,latchedNotes,heldNotes,tonic:referenceTonic,
+        noteOverrides:[...noteOverrides],manualRequired:manualRequiredMask(),
+        manualExcluded:manualExcludedMask(),overridePanel,overridePage,
         listening:microphoneListening,available:microphoneAvailable,
         windowMs:evidenceWindowMs,chroma:[...microphoneChroma],
         candidateIndex:selectedCandidate,candidates:scaleFindingCandidates()};
@@ -179,7 +213,7 @@ export function scaleFindingActive():boolean{return enabled&&!seqState.sessionMo
 export function setScaleFindingEnabled(next:boolean):void{
     if(enabled===next)return;
     enabled=next;
-    armed=false;livePads.clear();heldNotes=0;
+    armed=false;livePads.clear();heldNotes=0;overridePanel=false;overridePage=0;
     microphoneChroma.fill(0);microphoneListening=false;microphoneAvailable=false;lastEvidenceAt=0;
     sentColors.fill(-1);
     invalidateInputModeLeds();
@@ -224,7 +258,8 @@ export function scaleFindingCanApply():boolean {
     if(finderLayout==='family')return !!scalePadSelection(selectedPad)?.supported;
     const candidate=scaleFindingCandidates()[selectedCandidate];
     return !!candidate?.compatible&&(latchedNotes!==0||heldNotes!==0||
-        microphoneChroma.some(value=>value>0));
+        microphoneChroma.some(value=>value>0)||manualRequiredMask()!==0||
+        manualExcludedMask()!==0);
 }
 export function scaleFindingCanClear():boolean {
     return scaleFindingActive()&&(selectedPad>=0||armed||lastError!==''||
@@ -302,6 +337,8 @@ export function scaleFindingColors():number[]{
         const pitch=finderPadPitch(pad);
         if(pitch===null)return 0;
         if(pitch===referenceTonic)return SCALE_FINDING_WHITE;
+        if(noteOverrides[pitch]===1)return SCALE_FINDING_GREEN;
+        if(noteOverrides[pitch]===-1)return 97;
         if((latchedNotes|heldNotes)&(1<<pitch))return SCALE_FINDING_GREEN;
         // Audio evidence is advisory; use existing palette instead of per-frame
         // high-frequency custom RGB packets and preserve the tonic priority.
@@ -332,7 +369,19 @@ export function paintScaleFinding(force=false):boolean{
 }
 export function paintScaleFindingSteps():boolean{
     if(!scaleFindingActive())return false;
-    // The reserved 5/6 controls are dark; K7 is arm green, K8 tonic white.
+    // A touch of K5 opens a two-page, six-knob manual override editor.
+    if(overridePanel){
+        for(let knob=0;knob<8;knob++){
+            const note=overridePage*6+knob;
+            const color=knob<6?(noteOverrides[note]===1?SCALE_FINDING_GREEN:
+                noteOverrides[note]===-1?97:79):
+                knob===6?123:SCALE_FINDING_WHITE;
+            cachedSetAnimLED(knob,color,color,0);
+            cachedSetAnimLED(71+knob,color,color,0,true);
+        }
+        return true;
+    }
+    // K5 touch opens settings; K6 window, K7 select, K8 tonic.
     for(let knob=0;knob<8;knob++){
         const color=finderLayout!=='family'?
             (knob===4?SCALE_FINDING_GREEN:knob===5?123:knob===6?(armed?SCALE_FINDING_GREEN:123):knob===7?SCALE_FINDING_WHITE:0):
@@ -352,6 +401,17 @@ export function renderScaleFinding():void{
     if(!scaleFindingActive())return;
     clear_screen();
     drawHeader('Scale Finding',NOTE_NAMES[referenceTonic]);
+    if(overridePanel){
+        fontPrint(2,12,shorten('Note overrides '+(overridePage+1)+'/2'),1);
+        for(let knob=0;knob<6;knob++){
+            const note=overridePage*6+knob;
+            const label=noteOverrides[note]===1?'Require':
+                noteOverrides[note]===-1?'Exclude':'Auto';
+            fontPrint(2,20+knob*6,shorten('K'+(knob+1)+' '+NOTE_NAMES[note]+': '+label),1);
+        }
+        fontPrint(2,57,shorten('K7 Page  K5 touch Back'),1);
+        return;
+    }
     if(finderLayout!=='family'){
         const candidates=scaleFindingCandidates();
         const selected=candidates[selectedCandidate];
@@ -389,10 +449,31 @@ export function scaleFindingMidi(data:number[]):boolean{
         return true; // No instrument MIDI or clip edits in any layout.
     }
     if((type===144||type===128)&&key<8){
+        if(type===144&&value>0&&key===4){
+            overridePanel=!overridePanel;armed=false;appState.dirty=true;
+            return true;
+        }
+        if(overridePanel)return true;
         if(type===144&&value>0&&key===6){armed=!armed;lastError='';appState.dirty=true;}
         return true;
     }
     if(type!==176)return false;
+    if(overridePanel){
+        const direction=value<64?value:value-128;
+        if(key>=71&&key<=76&&direction){
+            const note=overridePage*6+(key-71);
+            const options:NoteOverride[]=[-1,0,1];
+            const index=options.indexOf(noteOverrides[note]);
+            setScaleNoteOverride(note,options[Math.max(0,Math.min(2,index+Math.sign(direction)))]);
+            return true;
+        }
+        if(key===77&&direction){
+            overridePage=Math.max(0,Math.min(1,overridePage+Math.sign(direction)));
+            appState.dirty=true;return true;
+        }
+        if(key===78&&direction){setFinderTonic(referenceTonic+direction);return true;}
+        if((key>=71&&key<=78)||key===14)return true;
+    }
     if(key===75){
         const direction=value<64?value:value-128;
         if(direction)setFinderLayout(FINDER_LAYOUTS[clampMod(FINDER_LAYOUTS.indexOf(finderLayout)+Math.sign(direction),FINDER_LAYOUTS.length)]);

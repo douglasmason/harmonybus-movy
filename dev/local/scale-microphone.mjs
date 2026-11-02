@@ -7,31 +7,42 @@ export function frequencyToPitchClass(frequency){
  return ((Math.round(69+12*Math.log2(frequency/440))%12)+12)%12;
 }
 
-/** FFT magnitude -> conservative chroma. This is evidence, NOT a definitive
- * polyphonic transcription: harmonics of loud notes can cause false positives.
- * The ranker therefore never applies a key automatically.
+/** Local FFT peaks -> harmonic-residual pitch-class evidence.
+ * Never turn this into automatic chord transcription or key changes.
+ * Low notes remain limited by the FFT's ~5.4 Hz bin resolution at 44.1 kHz.
  */
 export function spectrumToChroma(decibels,sampleRate,fftSize){
  const result=new Array(12).fill(0);
  if(!Number.isFinite(sampleRate)||sampleRate<8000||!Number.isInteger(fftSize)||fftSize<256||
     !decibels||decibels.length<fftSize/2)return result;
  const hertzPerBin=sampleRate/fftSize;
- // Keep high-frequency noise and sub-bass movement out of the pitch estimator.
- const binAt=frequency=>Math.round(frequency/hertzPerBin);
- const strength=frequency=>{
-   const index=binAt(frequency);
-   if(index<2||index+2>=decibels.length)return 0;
-   let maxDb=-120;
-   for(let offset=-1;offset<=1;offset++)
-    maxDb=Math.max(maxDb,decibels[index+offset]);
-   if(maxDb<-72)return 0;
-   return Math.pow(10,(Math.min(-12,maxDb)+72)/32);
- };
- for(let midi=42;midi<=88;midi++){
-   const fundamental=440*Math.pow(2,(midi-69)/12);
-   const energy=strength(fundamental)+.3*strength(fundamental*2)+.13*strength(fundamental*3);
-   const note=midi%12;
-   result[note]=Math.max(result[note],energy);
+ const lowestMidi=42,highestMidi=88;
+ const spectrum=new Array(highestMidi-lowestMidi+1).fill(0);
+ // A single low FFT bin often falls inside several candidate ±1-bin
+ // searches; that created adjacent-note ghosts even for a pure C. Attribute
+ // each *local spectral peak* exactly once to its nearest semitone.
+ const lowestFrequency=440*Math.pow(2,(lowestMidi-69)/12);
+ const highestFrequency=440*Math.pow(2,(highestMidi-69)/12);
+ const startBin=Math.max(2,Math.floor(lowestFrequency/hertzPerBin)-2);
+ const endBin=Math.min(decibels.length-2,Math.ceil(highestFrequency/hertzPerBin)+2);
+ for(let bin=startBin;bin<=endBin;bin++){
+   const level=decibels[bin];
+   if(level<-72||level<decibels[bin-1]||level<=decibels[bin+1])continue;
+   const exactMidi=69+12*Math.log2((bin*hertzPerBin)/440);
+   const midi=Math.round(exactMidi);
+   if(midi<lowestMidi||midi>highestMidi||Math.abs(exactMidi-midi)>.5)continue;
+   // Web Audio reports power in dB; invert with /20 to get linear
+   // amplitude like the Move Goertzel worker (not compressed /32).
+   const energy=Math.pow(10,(Math.min(-12,level)+72)/20);
+   const index=midi-lowestMidi;
+   spectrum[index]=Math.max(spectrum[index],energy);
+ }
+ for(let index=0;index<spectrum.length;index++){
+   const third=index>=19?.28*spectrum[index-19]:0;
+   const fifth=index>=28?.20*spectrum[index-28]:0;
+   const energy=Math.max(0,spectrum[index]-third-fifth);
+   const pitchClass=(lowestMidi+index)%12;
+   result[pitchClass]=Math.max(result[pitchClass],energy);
  }
  const peak=Math.max(...result);
  if(peak<.001)return result;
@@ -85,7 +96,7 @@ export function createScaleMicrophone({onChroma,onStatus=()=>{}}){
        analyser.getFloatFrequencyData(decibels);
        onChroma(spectrumToChroma(decibels,audioContext.sampleRate,analyser.fftSize));
      },90);
-     onStatus('Listening · Loop stops and retains evidence');
+     onStatus('Listening · Sample stops and retains evidence');
      return true;
     }catch(error){
      for(const track of obtained?.getTracks()??[])track.stop();
