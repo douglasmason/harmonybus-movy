@@ -141,6 +141,30 @@ assert(scale.setScaleEvidenceWindowMs(1000));
 assert.equal(scale.scaleEvidenceWindowMs(),1000);
 scale.setScaleMicrophoneAvailable(true);
 assert(scale.setScaleMicrophoneListening(true));
+const chroma=Array(12).fill(0);chroma[1]=1;chroma[3]=0.4;
+assert(scale.ingestScaleChroma(chroma,10000));
+assert(scale.scaleFindingEvidenceSnapshot().chroma[1]>0.6,'time-window EMA accumulates chroma');
+assert(scale.scaleFindingColors()[25]>0,'audio pitch evidence is visualized');
+assert.equal(scale.scaleFindingColors()[24],3,
+    'first strong observation starts orange under the existing EMA smoother');
+assert(scale.ingestScaleChroma(chroma,10500));
+assert(scale.ingestScaleChroma(chroma,11000));
+assert.equal(scale.scaleFindingColors()[24],1,
+    'sustained peak C# evidence reaches the brightest red LED');
+assert.equal(scale.scaleFindingColors()[0],120,
+    'tonic remains white despite microphone heatmap');
+assert.equal(scale.scaleFindingColors()[18],11,
+    'manually latched E remains green and takes precedence over microphone heat');
+const retained=scale.scaleFindingEvidenceSnapshot().chroma[1];
+assert(scale.setScaleMicrophoneListening(false));
+assert.equal(scale.ingestScaleChroma(Array(12).fill(0),10200),false,
+    'no evidence ingress after Sample stops microphone capture');
+assert.equal(scale.scaleFindingEvidenceSnapshot().chroma[1],retained,
+    'stopping listening freezes evidence until X');
+assert(scale.clearScaleFindingPreview(),'X clears manual and audio evidence');
+assert.equal(scale.scaleFindingEvidenceSnapshot().latchedNotes,0);
+assert.equal(scale.scaleFindingEvidenceSnapshot().chroma[1],0);
+assert(scale.setScaleMicrophoneListening(true));
 // Native DSP level codes are dBFS+96; 0 means no measurable signal. It
 // rides the same existing status GET as mcv, not a new blocking IPC call.
 const statusChroma=new Array(12).fill('00');statusChroma[9]='7f';
@@ -167,29 +191,9 @@ assert.equal(scale.scaleNativeMicDiagnostic().stalled,false,
     'fresh native analysis clears stale signal warning');
 assert.equal(scale.scaleNativeMicDiagnostic().rmsDbfs,null,
     'genuinely silent input must not be mislabeled as a routing fault');
-const chroma=Array(12).fill(0);chroma[1]=1;chroma[3]=0.4;
-assert(scale.ingestScaleChroma(chroma,10000));
-assert(scale.scaleFindingEvidenceSnapshot().chroma[1]>0.6,'time-window EMA accumulates chroma');
-assert(scale.scaleFindingColors()[25]>0,'audio pitch evidence is visualized');
-assert.equal(scale.scaleFindingColors()[24],3,
-    'first strong observation starts orange under the existing EMA smoother');
-assert(scale.ingestScaleChroma(chroma,10500));
-assert(scale.ingestScaleChroma(chroma,11000));
-assert.equal(scale.scaleFindingColors()[24],1,
-    'sustained peak C# evidence reaches the brightest red LED');
-assert.equal(scale.scaleFindingColors()[0],120,
-    'tonic remains white despite microphone heatmap');
-assert.equal(scale.scaleFindingColors()[18],11,
-    'manually latched E remains green and takes precedence over microphone heat');
-const retained=scale.scaleFindingEvidenceSnapshot().chroma[1];
 assert(scale.setScaleMicrophoneListening(false));
-assert.equal(scale.ingestScaleChroma(Array(12).fill(0),10200),false,
-    'no evidence ingress after Sample stops microphone capture');
-assert.equal(scale.scaleFindingEvidenceSnapshot().chroma[1],retained,
-    'stopping listening freezes evidence until X');
-assert(scale.clearScaleFindingPreview(),'X clears manual and audio evidence');
-assert.equal(scale.scaleFindingEvidenceSnapshot().latchedNotes,0);
-assert.equal(scale.scaleFindingEvidenceSnapshot().chroma[1],0);
+scale.clearScaleEvidence();
+
 scale.setFinderLayout('inline');
 assert.equal(scale.finderPadPitch(0),0);
 assert.equal(scale.finderPadPitch(9),9);
