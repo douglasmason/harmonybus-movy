@@ -1,3 +1,26 @@
+static void queue_reply_contract(void){
+    const char *keys[]={"ch0:midi_fx1:hb_chord_queue_status","ch15:midi_fx1:role","ch0:mix","ping"};
+    for(unsigned index=0;index<sizeof(keys)/sizeof(keys[0]);index++){
+        char expected[2048],guarded[2050];
+        int length=api->get_param(instance,keys[index],expected,sizeof(expected));
+        assert(length>0&&length<(int)sizeof(expected)&&expected[length]==0);
+        memset(guarded,0x5a,sizeof(guarded));
+        assert(api->get_param(instance,keys[index],guarded+1,length+1)==length);
+        assert(!memcmp(guarded+1,expected,length+1));
+        assert(guarded[0]==0x5a&&guarded[length+2]==0x5a);
+        for(int capacity=-1;capacity<=length;capacity++){
+            memset(guarded,0x5a,sizeof(guarded));
+            assert(api->get_param(instance,keys[index],guarded+1,capacity)==-1);
+            for(unsigned offset=0;offset<sizeof(guarded);offset++)assert(guarded[offset]==0x5a);
+        }
+        assert(api->get_param(instance,keys[index],NULL,2048)==-1);
+    }
+    char output[64];memset(output,0x5a,sizeof(output));
+    assert(api->get_param(instance,"ch16:midi_fx1:role",output,sizeof(output))==-1);
+    assert(api->get_param(instance,"ch0:midi_fx1:missing_parameter_317",output,sizeof(output))==-1);
+    for(unsigned offset=0;offset<sizeof(output);offset++)assert(output[offset]==0x5a);
+}
+
 static void queue_status(int count,const char *current,const char *next){
     char text[256],expected[128];
     assert(api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",text,sizeof(text))>0);
@@ -43,7 +66,7 @@ static void test_chord_queue_sustained(void){
     for(int index=0;index<4;index++){
         snprintf(command,sizeof(command),"0,%d,1,2,1,0,1,12",roots[index]);set("chord_queue",command);
     }
-    render(8);queue_status(3,"C","G");queue_surface_roundtrip();
+    render(8);queue_status(3,"C","G");queue_surface_roundtrip();queue_reply_contract();
     sent_on=sent_off=0;set("cmd","play");
     int blocks=0,previous_attacks=0,feedback_reads=0;
     set("cmd","aprof_on");
@@ -125,6 +148,7 @@ static void test_chord_queue_long(void){
     set("chord_queue","commit");render(8);
     api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",status,sizeof(status));
     assert(!strncmp(status,"cq2|63|",7));
+    queue_reply_contract();
     set("cmd","play");render(2800);
     api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",status,sizeof(status));
     assert(!strncmp(status,"cq2|0|",6)&&strstr(status,"|63|64|"));

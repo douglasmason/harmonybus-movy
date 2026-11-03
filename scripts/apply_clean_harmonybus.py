@@ -709,6 +709,8 @@ def main() -> int:
     patch_chord_queue_ownership(root)
     from patch_native_scale_microphone import patch_native_scale_microphone
     patch_native_scale_microphone(root)
+    from patch_param_replies import patch_param_replies
+    patch_param_replies(root)
     print("HarmonyBus clean integration applied")
     return 0
 
