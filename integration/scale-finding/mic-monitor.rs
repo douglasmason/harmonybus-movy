@@ -192,7 +192,18 @@ fn measure_input_levels(samples: &[f32; WINDOW]) -> (u8, u8) {
     let rms = (sum_squares / WINDOW as f32).sqrt();
     fn dbfs_code(amplitude: f32) -> u8 {
         if !amplitude.is_finite() || amplitude <= 0.0 { return 0; }
-        (96.0 + 20.0 * amplitude.log10()).clamp(1.0, 96.0).round() as u8
+        // One-dB reference ladder, rounded to the nearest integer dB.
+        // No log10f: the ARM cross linker's recent libm exports a GLIBC_2.43
+        // symbol, whereas the physical Move is on glibc 2.35.
+        // Run only on the background analysis worker (~6 Hz).
+        const HALF_DB_BELOW_FULL_SCALE: f32 = 0.94406086;
+        const ONE_DB_RATIO: f32 = 0.89125094;
+        let mut threshold = HALF_DB_BELOW_FULL_SCALE;
+        for code in (1u8..=96u8).rev() {
+            if amplitude >= threshold { return code; }
+            threshold *= ONE_DB_RATIO;
+        }
+        1
     }
     (dbfs_code(rms), dbfs_code(peak))
 }
