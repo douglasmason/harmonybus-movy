@@ -134,7 +134,7 @@ fn demote_worker() -> bool {
     struct SchedParam { sched_priority: i32 }
     unsafe extern "C" {
         fn sched_setscheduler(pid: i32, policy: i32, param: *const SchedParam) -> i32;
-        fn sched_setaffinity(pid: i32, len: usize, mask: *const u8) -> i32;
+        fn sched_setaffinity(pid: i32, len: usize, mask: *const u64) -> i32;
         fn nice(increment: i32) -> i32;
     }
     unsafe {
@@ -143,9 +143,9 @@ fn demote_worker() -> bool {
             // Fail CLOSED: inherited SCHED_FIFO workers starve Move audio.
             return false;
         } // SCHED_OTHER = 0
-        let mut cpuset = [0u8; 128];
+        let mut cpuset = [0u64; 16];
         cpuset[0] = 0b0000_0111; // cores 0-2; leave core 3 for SPI
-        let _ = sched_setaffinity(0, cpuset.len(), cpuset.as_ptr());
+        let _ = sched_setaffinity(0, std::mem::size_of_val(&cpuset), cpuset.as_ptr());
         let _ = nice(10);
     }
     true
