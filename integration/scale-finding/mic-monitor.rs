@@ -20,6 +20,10 @@ struct Shared {
     shutdown: AtomicBool,
     worker_ready: AtomicBool,
     result_seq: AtomicU64,
+    // Quantized dBFS: 0=undetectable, 1..96 => -95..0 dBFS.
+    // Published by the demoted analysis worker, never computed on SPI RT.
+    raw_rms: AtomicU8,
+    raw_peak: AtomicU8,
     result: [AtomicU8; BINS],
 }
 impl Shared {
@@ -28,6 +32,7 @@ impl Shared {
             write_pos: AtomicU64::new(0), active: AtomicBool::new(false),
             shutdown: AtomicBool::new(false), worker_ready: AtomicBool::new(false),
             result_seq: AtomicU64::new(0),
+            raw_rms: AtomicU8::new(0), raw_peak: AtomicU8::new(0),
             result: std::array::from_fn(|_| AtomicU8::new(0)) }
     }
 }
@@ -58,6 +63,8 @@ impl MicMonitor {
         if enabled && !self.listening() {
             self.shared.write_pos.store(0, Ordering::Release);
             for value in &self.shared.result { value.store(0, Ordering::Relaxed); }
+            self.shared.raw_rms.store(0, Ordering::Relaxed);
+            self.shared.raw_peak.store(0, Ordering::Relaxed);
             self.shared.result_seq.fetch_add(1, Ordering::Release);
         }
         self.shared.active.store(enabled, Ordering::Release);
@@ -89,6 +96,12 @@ impl MicMonitor {
             use std::fmt::Write;
             let _ = write!(out, "{:02x}", value.load(Ordering::Relaxed));
         }
+        use std::fmt::Write;
+        // Four hexadecimal digits appended to the EXISTING status poll:
+        // microphone level can be distinguished from detector silence.
+        let _ = write!(out, " mcg={:02x}{:02x}",
+            self.shared.raw_rms.load(Ordering::Relaxed),
+            self.shared.raw_peak.load(Ordering::Relaxed));
         out
     }
 }
@@ -153,14 +166,48 @@ fn worker_loop(shared: Arc<Shared>) {
         if shared.write_pos.load(Ordering::Acquire).saturating_sub(position) > (RING-WINDOW) as u64 {
             continue;
         }
+        let (rms_level, peak_level) = measure_input_levels(&samples);
         let result = analyze(&samples, &window, crate::host::sample_rate() as f32 / DECIMATION as f32);
         if !shared.active.load(Ordering::Acquire) { continue; }
+        shared.raw_rms.store(rms_level, Ordering::Relaxed);
+        shared.raw_peak.store(peak_level, Ordering::Relaxed);
         for (index, value) in result.iter().enumerate() {
             shared.result[index].store(*value, Ordering::Relaxed);
         }
         shared.result_seq.fetch_add(1, Ordering::Release);
     }
 }
+/// Estimate actual input RMS and peak independently of pitch classification.
+/// This is on the SCHED_OTHER worker; no log, float operations or extra
+/// iteration is added to the Move SPI callback.
+fn measure_input_levels(samples: &[f32; WINDOW]) -> (u8, u8) {
+    let mut sum_squares = 0.0f32;
+    let mut peak = 0.0f32;
+    for sample in samples {
+        let magnitude = sample.abs();
+        if !magnitude.is_finite() { return (0, 0); }
+        sum_squares += magnitude * magnitude;
+        peak = peak.max(magnitude);
+    }
+    let rms = (sum_squares / WINDOW as f32).sqrt();
+    fn dbfs_code(amplitude: f32) -> u8 {
+        if !amplitude.is_finite() || amplitude <= 0.0 { return 0; }
+        // One-dB reference ladder, rounded to the nearest integer dB.
+        // No log10f: the ARM cross linker's recent libm exports a GLIBC_2.43
+        // symbol, whereas the physical Move is on glibc 2.35.
+        // Run only on the background analysis worker (~6 Hz).
+        const HALF_DB_BELOW_FULL_SCALE: f32 = 0.94406086;
+        const ONE_DB_RATIO: f32 = 0.89125094;
+        let mut threshold = HALF_DB_BELOW_FULL_SCALE;
+        for code in (1u8..=96u8).rev() {
+            if amplitude >= threshold { return code; }
+            threshold *= ONE_DB_RATIO;
+        }
+        1
+    }
+    (dbfs_code(rms), dbfs_code(peak))
+}
+
 const LOWEST_MIDI: usize = 48;
 const HIGHEST_MIDI_EXCLUSIVE: usize = 84;
 const PITCH_BINS: usize = HIGHEST_MIDI_EXCLUSIVE - LOWEST_MIDI;
@@ -233,6 +280,20 @@ mod tests {
     fn test_window() -> [f32; WINDOW] {
         std::array::from_fn(|index| 0.5 - 0.5 * (std::f32::consts::TAU * index as f32 / (WINDOW-1) as f32).cos())
     }
+    #[test] fn raw_input_level_has_independent_rms_and_peak() {
+        assert_eq!(measure_input_levels(&[0.0; WINDOW]), (0, 0));
+        let constant = [0.1; WINDOW];
+        let (rms, peak) = measure_input_levels(&constant);
+        assert!((75..=77).contains(&rms), "-20dBFS RMS should encode near 76");
+        assert_eq!(rms, peak, "DC constant has equal RMS and peak");
+        let impulse = std::array::from_fn(|index| if index == 0 { 0.8 } else { 0.0 });
+        let (rms, peak) = measure_input_levels(&impulse);
+        assert!(peak > rms + 30, "peak must distinguish a transient from its RMS");
+        let noise = [0.001; WINDOW];
+        assert!(measure_input_levels(&noise).0 > 0,
+            "weak input remains measurable even when pitch detector gates it");
+    }
+
     #[test] fn silence_is_zero() {
         assert_eq!(analyze(&[0.0; WINDOW], &test_window(), 44100.0/8.0), [0; BINS]);
     }

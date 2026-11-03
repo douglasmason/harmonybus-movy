@@ -69,6 +69,28 @@ let microphoneAvailable=false;
 let evidenceWindowMs=1800;
 let microphoneChroma:number[]=Array(12).fill(0);
 let lastEvidenceAt=0;
+let nativeMicDiagnosticsOpen=false;
+export type NativeMicDiagnostic={seq:number;rmsDbfs:number|null;peakDbfs:number|null;stalled:boolean};
+let nativeMicDiagnostic:NativeMicDiagnostic={seq:-1,rmsDbfs:null,peakDbfs:null,stalled:false};
+/** This is INPUT signal measurement, not chroma energy or detected key.
+ * The native DSP worker publishes it through Movy's existing status poll. */
+export function scaleNativeMicDiagnostic():NativeMicDiagnostic{
+    return {...nativeMicDiagnostic};
+}
+export function noteScaleNativeMicDiagnostic(reading:NativeMicDiagnostic):void{
+    if(!scaleFindingActive()||!Number.isSafeInteger(reading.seq)||reading.seq<0)return;
+    if(reading.rmsDbfs!==null&&(!Number.isFinite(reading.rmsDbfs)||
+        reading.rmsDbfs>0||reading.rmsDbfs< -95))return;
+    if(reading.peakDbfs!==null&&(!Number.isFinite(reading.peakDbfs)||
+        reading.peakDbfs>0||reading.peakDbfs< -95))return;
+    nativeMicDiagnostic={...reading};
+    if(nativeMicDiagnosticsOpen)appState.dirty=true;
+}
+export function setScaleNativeMicStalled():void{
+    if(nativeMicDiagnostic.stalled)return;
+    nativeMicDiagnostic.stalled=true;
+    if(nativeMicDiagnosticsOpen)appState.dirty=true;
+}
 // Explicit per-note constraints survive microphone evidence clear.
 // 0=Auto, 1=Require, -1=Exclude; only Copy changes the parent key.
 export type NoteOverride=-1|0|1;
@@ -208,6 +230,7 @@ export function selectScaleCandidate(index:number):boolean{
 }
 export function scaleFindingEvidenceSnapshot(){
     return {layout:finderLayout,latchedNotes,heldNotes,tonic:referenceTonic,
+        nativeMicDiagnosticsOpen,nativeMicDiagnostic:scaleNativeMicDiagnostic(),
         noteOverrides:[...noteOverrides],manualRequired:manualRequiredMask(),
         manualExcluded:manualExcludedMask(),overridePanel,overridePage,
         listening:microphoneListening,available:microphoneAvailable,
@@ -222,6 +245,8 @@ export function setScaleFindingEnabled(next:boolean):void{
     if(enabled===next)return;
     enabled=next;
     armed=false;livePads.clear();heldNotes=0;overridePanel=false;overridePage=0;
+    nativeMicDiagnosticsOpen=false;
+    nativeMicDiagnostic={seq:-1,rmsDbfs:null,peakDbfs:null,stalled:false};
     microphoneChroma.fill(0);microphoneListening=false;microphoneAvailable=false;lastEvidenceAt=0;
     sentColors.fill(-1);
     invalidateInputModeLeds();
@@ -376,7 +401,7 @@ export function paintScaleFinding(force=false):boolean{
 }
 export function paintScaleFindingSteps():boolean{
     if(!scaleFindingActive())return false;
-    // A touch of K5 opens a two-page, six-knob manual override editor.
+    // A touch of K5 opens manual overrides; K6 opens input diagnostics.
     if(overridePanel){
         for(let knob=0;knob<8;knob++){
             const note=overridePage*6+knob;
@@ -388,11 +413,11 @@ export function paintScaleFindingSteps():boolean{
         }
         return true;
     }
-    // K5 touch opens settings; K6 window, K7 select, K8 tonic.
+    // K5 touch opens overrides; K6 touch opens diagnostics / turns window.
     for(let knob=0;knob<8;knob++){
         const color=finderLayout!=='family'?
-            (knob===4?SCALE_FINDING_GREEN:knob===5?123:knob===6?(armed?SCALE_FINDING_GREEN:123):knob===7?SCALE_FINDING_WHITE:0):
-            knob<4?ROW_COLORS[knob]:knob===4?SCALE_FINDING_GREEN:knob===5?123:
+            (knob===4?SCALE_FINDING_GREEN:knob===5?(nativeMicDiagnosticsOpen?SCALE_FINDING_WHITE:123):knob===6?(armed?SCALE_FINDING_GREEN:123):knob===7?SCALE_FINDING_WHITE:0):
+            knob<4?ROW_COLORS[knob]:knob===4?SCALE_FINDING_GREEN:knob===5?(nativeMicDiagnosticsOpen?SCALE_FINDING_WHITE:123):
             knob===6?(armed?SCALE_FINDING_GREEN:123):knob===7?SCALE_FINDING_WHITE:0;
         cachedSetAnimLED(knob,color,color,0);
         cachedSetAnimLED(71+knob,color,color,0,true);
@@ -412,6 +437,26 @@ export function renderScaleFinding():void{
     if(!scaleFindingActive())return;
     clear_screen();
     drawHeader('Scale Finding',NOTE_NAMES[referenceTonic]);
+    if(nativeMicDiagnosticsOpen){
+        const mic=nativeMicDiagnostic;
+        const levelText=(level:number|null):string=>
+            level===null?'No reading':String(Math.round(level))+' dBFS';
+        const available=microphoneAvailable?'Host audio ready':'Host audio unavailable';
+        const listening=microphoneListening?'Sample ON':'Sample OFF';
+        let inputStatus:string;
+        if(!microphoneListening)inputStatus='Input: stopped';
+        else if(mic.stalled)inputStatus='Input: stale / no analysis';
+        else if(mic.seq<0)inputStatus='Input: collecting...';
+        else if(mic.rmsDbfs===null||mic.rmsDbfs< -54)inputStatus='Input: quiet / below gate';
+        else if(microphoneChroma.every(value=>value<0.15))inputStatus='Input: audio, no pitch';
+        else inputStatus='Input: pitch evidence';
+        fontPrint(2,12,shorten(available),1);
+        fontPrint(2,22,shorten(listening+' / frame '+Math.max(0,mic.seq)),1);
+        fontPrint(2,32,shorten('RMS '+levelText(mic.rmsDbfs)),1);
+        fontPrint(2,42,shorten('Peak '+levelText(mic.peakDbfs)),1);
+        fontPrint(2,52,shorten(inputStatus),1);
+        return;
+    }
     if(overridePanel){
         fontPrint(2,12,shorten('Note overrides '+(overridePage+1)+'/2'),1);
         for(let knob=0;knob<6;knob++){
@@ -461,14 +506,23 @@ export function scaleFindingMidi(data:number[]):boolean{
     }
     if((type===144||type===128)&&key<8){
         if(type===144&&value>0&&key===4){
-            overridePanel=!overridePanel;armed=false;appState.dirty=true;
-            return true;
+            overridePanel=!overridePanel;nativeMicDiagnosticsOpen=false;
+            armed=false;appState.dirty=true;return true;
         }
-        if(overridePanel)return true;
+        if(type===144&&value>0&&key===5){
+            nativeMicDiagnosticsOpen=!nativeMicDiagnosticsOpen;
+            overridePanel=false;armed=false;appState.dirty=true;return true;
+        }
+        if(overridePanel||nativeMicDiagnosticsOpen)return true;
         if(type===144&&value>0&&key===6){armed=!armed;lastError='';appState.dirty=true;}
         return true;
     }
     if(type!==176)return false;
+    if(nativeMicDiagnosticsOpen){
+        // The diagnostic is observational: no encoder turns edit, record,
+        // apply, or reconfigure the Move's microphone routing.
+        if((key>=71&&key<=78)||key===14)return true;
+    }
     if(overridePanel){
         const direction=value<64?value:value-128;
         if(key>=71&&key<=76&&direction){

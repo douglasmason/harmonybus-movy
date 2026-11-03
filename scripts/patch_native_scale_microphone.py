@@ -68,6 +68,7 @@ pub fn audio_input_block(frames: usize) -> Option<&'static [i16]> {
     mic_interface: str = """
 export type NativeScaleMicFrame={
     available:boolean; listening:boolean; seq:number; values:number[];
+    rmsDbfs:number|null; peakDbfs:number|null;
 };
 let nativeScaleMicFrame:NativeScaleMicFrame|null=null;
 export function scaleMicNativeFrame():NativeScaleMicFrame|null {
@@ -81,12 +82,18 @@ export function scaleMicNativeFrame():NativeScaleMicFrame|null {
         "function parseStatus(s: string): void {",
         """function parseStatus(s: string): void {
     let micAvailable:boolean|null=null, micListening:boolean|null=null;
-    let micData:{seq:number;values:number[]}|null=null;""")
+    let micData:{seq:number;values:number[]}|null=null;
+    let micInput:{rmsDbfs:number|null;peakDbfs:number|null}|null=null;""")
     engine_source = replace_once(engine_source,
         "        const val = kv.slice(eq + 1);",
         """        const val = kv.slice(eq + 1);
         if(key==='mca')micAvailable=val==='1';
         if(key==='mcs')micListening=val==='1';
+        if(key==='mcg'&&/^[0-9a-f]{4}$/.test(val)){
+            const rms=parseInt(val.slice(0,2),16),peak=parseInt(val.slice(2),16);
+            micInput={rmsDbfs:rms===0?null:rms-96,
+                peakDbfs:peak===0?null:peak-96};
+        }
         if(key==='mcv'){
             const [sequence,hex]=val.split('.');
             if(/^\\d+$/.test(sequence)&&/^[0-9a-f]{24}$/.test(hex)){
@@ -98,7 +105,9 @@ export function scaleMicNativeFrame():NativeScaleMicFrame|null {
         "    adoptLoopWindow();",
         """    if(micAvailable!==null&&micListening!==null&&micData){
         nativeScaleMicFrame={available:micAvailable,listening:micListening,
-            seq:micData.seq,values:micData.values};
+            seq:micData.seq,values:micData.values,
+            rmsDbfs:micInput?.rmsDbfs??null,
+            peakDbfs:micInput?.peakDbfs??null};
     }else nativeScaleMicFrame=null;
     adoptLoopWindow();""")
     engine_source = replace_once(engine_source,
@@ -117,6 +126,8 @@ declare const host_browser_engine_ready: (()=>boolean)|undefined;""")
         "let lastEvidenceAt=0;",
         """let lastEvidenceAt=0;
 let lastNativeMicSeq=-1;
+let nativeMicTickCount=0;
+let nativeMicLastFrameTick=0;
 function nativeMicWrite(enabled:boolean):void {
     // Browser Studio owns getUserMedia; never touch its fake host DSP.
     if(typeof host_browser_engine_ready==='function')return;
@@ -127,18 +138,36 @@ function nativeMicWrite(enabled:boolean):void {
 }
 export function scaleFindingMicrophoneTick():void {
     if(typeof host_browser_engine_ready==='function')return;
+    nativeMicTickCount++;
     if(!scaleFindingActive()){
         if(microphoneListening)setScaleMicrophoneListening(false);
+        lastNativeMicSeq=-1;nativeMicLastFrameTick=nativeMicTickCount;
         return;
     }
-    const frame=scaleMicNativeFrame();
-    if(!frame)return;
-    if(microphoneAvailable!==frame.available)setScaleMicrophoneAvailable(frame.available);
-    if(!frame.available&&microphoneListening)setScaleMicrophoneListening(false);
-    if(microphoneListening&&frame.seq!==lastNativeMicSeq){
-        lastNativeMicSeq=frame.seq;
-        if(frame.listening)ingestScaleChroma(frame.values);
+    // Reset the stale timer while listening is OFF. A user can browse
+    // Scale Finder for minutes before turning Sample ON.
+    if(!microphoneListening){
+        lastNativeMicSeq=-1;nativeMicLastFrameTick=nativeMicTickCount;
     }
+    const frame=scaleMicNativeFrame();
+    if(!frame){
+        if(microphoneListening&&nativeMicTickCount-nativeMicLastFrameTick>450)
+            setScaleNativeMicStalled();
+        return;
+    }
+    // Stop capture while it is still marked listening; setting available
+    // false first would clear the UI flag without sending the native OFF.
+    if(!frame.available&&microphoneListening)setScaleMicrophoneListening(false);
+    if(microphoneAvailable!==frame.available)setScaleMicrophoneAvailable(frame.available);
+    if(microphoneListening&&frame.listening&&frame.seq!==lastNativeMicSeq){
+        lastNativeMicSeq=frame.seq;
+        nativeMicLastFrameTick=nativeMicTickCount;
+        noteScaleNativeMicDiagnostic({seq:frame.seq,rmsDbfs:frame.rmsDbfs,
+            peakDbfs:frame.peakDbfs,stalled:false});
+        ingestScaleChroma(frame.values);
+    }
+    if(microphoneListening&&nativeMicTickCount-nativeMicLastFrameTick>450)
+        setScaleNativeMicStalled();
 }
 """)
     scale_source = replace_once(scale_source,
@@ -169,7 +198,7 @@ export function scaleFindingMicrophoneTick():void {
     ui_match = re.search(r"export const ENGINE_VERSION = '([^']+)';", ui_text)
     if not rust_match or not ui_match or rust_match.group(1)!=ui_match.group(1):
         raise RuntimeError("Native/UI engine version diverged before mic update")
-    version: str = "0.97.0-scale-mic1"
+    version: str = "0.98.0-mic-diagnostics1"
     dsp_path.write_text(rust_text.replace(rust_match.group(0),
         f'const ENGINE_VERSION: &str = "{version}";'))
     ui_version.write_text(ui_text.replace(ui_match.group(0),
