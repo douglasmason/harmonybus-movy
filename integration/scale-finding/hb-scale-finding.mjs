@@ -5,7 +5,7 @@ installEnv();
 await import('../dist/esm/app/globals.js');
 const {installMockEngine}=await import('./mock-engine.mjs');
 installMockEngine();
-const {seqEngineTick}=await import('../dist/esm/seq/engine.js');
+const {seqEngineTick,parseStatusForTest,scaleMicNativeFrame}=await import('../dist/esm/seq/engine.js');
 seqEngineTick();
 const {appState,VIEW_KNOBS}=await import('../dist/esm/app/state.js');
 const {seqState}=await import('../dist/esm/seq/state.js');
@@ -141,6 +141,32 @@ assert(scale.setScaleEvidenceWindowMs(1000));
 assert.equal(scale.scaleEvidenceWindowMs(),1000);
 scale.setScaleMicrophoneAvailable(true);
 assert(scale.setScaleMicrophoneListening(true));
+// Native DSP level codes are dBFS+96; 0 means no measurable signal. It
+// rides the same existing status GET as mcv, not a new blocking IPC call.
+const statusChroma=new Array(12).fill('00');statusChroma[9]='7f';
+parseStatusForTest('play=0 mca=1 mcs=1 mcv=4.'+statusChroma.join('')+' mcg=4254');
+const rawFrame=scaleMicNativeFrame();
+assert(rawFrame,'native microphone frame parsed from existing sequencer status');
+assert.equal(rawFrame.seq,4);
+assert.equal(rawFrame.rmsDbfs,-30);
+assert.equal(rawFrame.peakDbfs,-12);
+scale.scaleFindingMicrophoneTick();
+assert.deepEqual(scale.scaleNativeMicDiagnostic(),
+    {seq:4,rmsDbfs:-30,peakDbfs:-12,stalled:false});
+assert(scale.scaleFindingMidi([144,5,127]),'K6 touch opens native microphone diagnostics');
+assert.equal(scale.scaleFindingSnapshot().nativeMicDiagnosticsOpen,true);
+assert(scale.renderScaleFinding()===undefined,'native diagnostics render on stock screen');
+assert(scale.scaleFindingMidi([176,75,1]),'diagnostic pane safely consumes knob turns');
+assert(scale.scaleFindingMidi([144,5,127]),'K6 touch closes diagnostics');
+for(let staleTick=0;staleTick<455;staleTick++)scale.scaleFindingMicrophoneTick();
+assert.equal(scale.scaleNativeMicDiagnostic().stalled,true,
+    'missing native analysis frames are shown as stalled instead of silent');
+parseStatusForTest('play=0 mca=1 mcs=1 mcv=5.'+statusChroma.join('')+' mcg=0000');
+scale.scaleFindingMicrophoneTick();
+assert.equal(scale.scaleNativeMicDiagnostic().stalled,false,
+    'fresh native analysis clears stale signal warning');
+assert.equal(scale.scaleNativeMicDiagnostic().rmsDbfs,null,
+    'genuinely silent input must not be mislabeled as a routing fault');
 const chroma=Array(12).fill(0);chroma[1]=1;chroma[3]=0.4;
 assert(scale.ingestScaleChroma(chroma,10000));
 assert(scale.scaleFindingEvidenceSnapshot().chroma[1]>0.6,'time-window EMA accumulates chroma');
