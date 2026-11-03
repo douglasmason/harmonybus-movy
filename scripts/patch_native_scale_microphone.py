@@ -150,8 +150,10 @@ export function scaleFindingMicrophoneTick():void {
             setScaleNativeMicStalled();
         return;
     }
-    if(microphoneAvailable!==frame.available)setScaleMicrophoneAvailable(frame.available);
+    // Stop capture while it is still marked listening; setting available
+    // false first would clear the UI flag without sending the native OFF.
     if(!frame.available&&microphoneListening)setScaleMicrophoneListening(false);
+    if(microphoneAvailable!==frame.available)setScaleMicrophoneAvailable(frame.available);
     if(microphoneListening&&frame.listening&&frame.seq!==lastNativeMicSeq){
         lastNativeMicSeq=frame.seq;
         nativeMicLastFrameTick=nativeMicTickCount;
