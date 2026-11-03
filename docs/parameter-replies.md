@@ -45,8 +45,8 @@ median of seven trials, alternating which implementation ran first:
 
 | Reply | Reads | Bridge allocations before → after | ns/read before → after |
 | --- | ---: | ---: | ---: |
-| Short queue | 100,000 per trial | 300,000 → 0 | 102 → 19 |
-| 64-pad-sized payload | 100,000 per trial | 300,000 → 0 | 1,342 → 196 |
+| Short queue | 100,000 per trial | 300,000 → 0 | 109 → 20 |
+| 64-pad-sized payload | 100,000 per trial | 300,000 → 0 | 857 → 225 |
 
 Timing is runner-dependent and excludes real native getter work, audio,
 USB traffic, and device scheduling. The release includes its own benchmark

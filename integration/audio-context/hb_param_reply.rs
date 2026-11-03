@@ -1,18 +1,24 @@
 //! Copy parameter replies through existing buffers without temporary strings.
 use std::ffi::CStr;
 
+/// Movy's owned strings already guarantee UTF-8; only check C-string bounds.
+pub fn copy_text_reply(source: &str, output: &mut [u8]) -> i32 {
+    if source.len() >= output.len() || source.len() > i32::MAX as usize
+        || source.as_bytes().contains(&0) { return -1; }
+    output[..source.len()].copy_from_slice(source.as_bytes());
+    output[source.len()] = 0;
+    source.len() as i32
+}
+
 /// Match the existing lossy UTF-8 conversion and CString rejection of embedded
 /// NULs. Validate the whole reply before writing, so errors leave output intact.
 pub fn copy_reply(source: &[u8], output: &mut [u8]) -> i32 {
-    if source.contains(&0) { return -1; }
     // Native replies are normally valid UTF-8. Validate and copy once instead
     // of walking UTF-8 chunks twice; retain the lossy path for malformed data.
-    if std::str::from_utf8(source).is_ok() {
-        if source.len() >= output.len() || source.len() > i32::MAX as usize { return -1; }
-        output[..source.len()].copy_from_slice(source);
-        output[source.len()] = 0;
-        return source.len() as i32;
+    if let Ok(text) = std::str::from_utf8(source) {
+        return copy_text_reply(text, output);
     }
+    if source.contains(&0) { return -1; }
     let required: usize = source.utf8_chunks().map(|chunk| {
         chunk.valid().len() + if chunk.invalid().is_empty() { 0 } else { 3 }
     }).sum();

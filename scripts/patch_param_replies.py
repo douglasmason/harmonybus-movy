@@ -84,7 +84,7 @@ def patch_param_replies(root: Path) -> None:
             }
         }
         let Some(value) = i.get_param(key_text) else { return -1 };
-        hb_param_reply::copy_reply(value.as_bytes(), output)''')
+        hb_param_reply::copy_text_reply(&value, output)''')
 
     ui_path: Path = root / "src/seq/constants.ts"
     ui_source: str = ui_path.read_text()
