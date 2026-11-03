@@ -144,6 +144,11 @@ export function scaleFindingMicrophoneTick():void {
         lastNativeMicSeq=-1;nativeMicLastFrameTick=nativeMicTickCount;
         return;
     }
+    // Reset the stale timer while listening is OFF. A user can browse
+    // Scale Finder for minutes before turning Sample ON.
+    if(!microphoneListening){
+        lastNativeMicSeq=-1;nativeMicLastFrameTick=nativeMicTickCount;
+    }
     const frame=scaleMicNativeFrame();
     if(!frame){
         if(microphoneListening&&nativeMicTickCount-nativeMicLastFrameTick>450)
