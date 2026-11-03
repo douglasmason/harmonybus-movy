@@ -17,6 +17,9 @@ struct Shared {
     pcm: [AtomicI16; RING],
     write_pos: AtomicU64,
     active: AtomicBool,
+    // Incremented whenever Sample toggles, invalidating analysis calculated
+    // from a prior listening session without blocking the SPI callback.
+    capture_epoch: AtomicU64,
     shutdown: AtomicBool,
     worker_ready: AtomicBool,
     result_seq: AtomicU64,
@@ -30,6 +33,7 @@ impl Shared {
     fn new() -> Self {
         Self { pcm: std::array::from_fn(|_| AtomicI16::new(0)),
             write_pos: AtomicU64::new(0), active: AtomicBool::new(false),
+            capture_epoch: AtomicU64::new(0),
             shutdown: AtomicBool::new(false), worker_ready: AtomicBool::new(false),
             result_seq: AtomicU64::new(0),
             raw_rms: AtomicU8::new(0), raw_peak: AtomicU8::new(0),
@@ -58,16 +62,21 @@ impl MicMonitor {
     }
     pub fn set_listening(&self, next: bool) {
         let enabled = next && self.available();
-        // Invalidate the old history on each START, but not on STOP, where
-        // the UI must retain its existing accumulated chroma.
-        if enabled && !self.listening() {
+        if self.listening() == enabled { return; }
+        // No locks/joins/memory clearing on the SPI callback. First disarm
+        // capture, then invalidate any worker analysis from an older session.
+        self.shared.active.store(false, Ordering::Release);
+        self.shared.capture_epoch.fetch_add(1, Ordering::AcqRel);
+        if enabled {
+            // Reset input history only on START. On STOP the UI retains
+            // its accumulated chroma evidence until an explicit X.
             self.shared.write_pos.store(0, Ordering::Release);
             for value in &self.shared.result { value.store(0, Ordering::Relaxed); }
             self.shared.raw_rms.store(0, Ordering::Relaxed);
             self.shared.raw_peak.store(0, Ordering::Relaxed);
             self.shared.result_seq.fetch_add(1, Ordering::Release);
+            self.shared.active.store(true, Ordering::Release);
         }
-        self.shared.active.store(enabled, Ordering::Release);
     }
     /// No alloc, no I/O, no locks, no FFT, no host parameter reads.
     pub fn capture(&self, frames: usize) {
@@ -87,27 +96,28 @@ impl MicMonitor {
         }
         self.shared.write_pos.store(pos + count as u64, Ordering::Release);
     }
-    /// Called only by normal status GET, which already runs outside render.
-    pub fn report(&self) -> String {
-        let mut out = format!(" mca={} mcs={} mcv={}.",
+    /// Schwung's get_param/status ALSO runs on its SPI realtime callback.
+    /// Append to the already-created engine status string instead of
+    /// allocating a second String and formatting it on every UI poll.
+    /// This removes our redundant allocation; the upstream status
+    /// serialization itself remains a separate realtime-safety concern.
+    pub fn append_status(&self, status: &mut String) {
+        use std::fmt::Write;
+        let _ = write!(status, " mca={} mcs={} mcv={}.",
             self.available() as u8, self.listening() as u8,
             self.shared.result_seq.load(Ordering::Acquire));
         for value in &self.shared.result {
-            use std::fmt::Write;
-            let _ = write!(out, "{:02x}", value.load(Ordering::Relaxed));
+            let _ = write!(status, "{:02x}", value.load(Ordering::Relaxed));
         }
-        use std::fmt::Write;
-        // Four hexadecimal digits appended to the EXISTING status poll:
-        // microphone level can be distinguished from detector silence.
-        let _ = write!(out, " mcg={:02x}{:02x}",
+        let _ = write!(status, " mcg={:02x}{:02x}",
             self.shared.raw_rms.load(Ordering::Relaxed),
             self.shared.raw_peak.load(Ordering::Relaxed));
-        out
     }
 }
 impl Drop for MicMonitor {
     fn drop(&mut self) {
         self.shared.active.store(false, Ordering::Release);
+        self.shared.capture_epoch.fetch_add(1, Ordering::AcqRel);
         self.shared.shutdown.store(true, Ordering::Release);
         // The plugin's destroy_instance may run on Schwung's SPI RT thread.
         // Never join a worker from that callback. Its Arc owns the ring until
@@ -124,7 +134,7 @@ fn demote_worker() -> bool {
     struct SchedParam { sched_priority: i32 }
     unsafe extern "C" {
         fn sched_setscheduler(pid: i32, policy: i32, param: *const SchedParam) -> i32;
-        fn sched_setaffinity(pid: i32, len: usize, mask: *const u8) -> i32;
+        fn sched_setaffinity(pid: i32, len: usize, mask: *const u64) -> i32;
         fn nice(increment: i32) -> i32;
     }
     unsafe {
@@ -133,9 +143,9 @@ fn demote_worker() -> bool {
             // Fail CLOSED: inherited SCHED_FIFO workers starve Move audio.
             return false;
         } // SCHED_OTHER = 0
-        let mut cpuset = [0u8; 128];
+        let mut cpuset = [0u64; 16];
         cpuset[0] = 0b0000_0111; // cores 0-2; leave core 3 for SPI
-        let _ = sched_setaffinity(0, cpuset.len(), cpuset.as_ptr());
+        let _ = sched_setaffinity(0, std::mem::size_of_val(&cpuset), cpuset.as_ptr());
         let _ = nice(10);
     }
     true
@@ -156,6 +166,7 @@ fn worker_loop(shared: Arc<Shared>) {
         thread::park_timeout(Duration::from_millis(160));
         if shared.shutdown.load(Ordering::Acquire) { break; }
         if !shared.active.load(Ordering::Acquire) { continue; }
+        let session_epoch = shared.capture_epoch.load(Ordering::Acquire);
         let position = shared.write_pos.load(Ordering::Acquire);
         if position < WINDOW as u64 { continue; }
         for (index, sample) in samples.iter_mut().enumerate() {
@@ -168,13 +179,21 @@ fn worker_loop(shared: Arc<Shared>) {
         }
         let (rms_level, peak_level) = measure_input_levels(&samples);
         let result = analyze(&samples, &window, crate::host::sample_rate() as f32 / DECIMATION as f32);
-        if !shared.active.load(Ordering::Acquire) { continue; }
+        if !shared.active.load(Ordering::Acquire) ||
+            shared.capture_epoch.load(Ordering::Acquire) != session_epoch {
+            continue;
+        }
         shared.raw_rms.store(rms_level, Ordering::Relaxed);
         shared.raw_peak.store(peak_level, Ordering::Relaxed);
         for (index, value) in result.iter().enumerate() {
             shared.result[index].store(*value, Ordering::Relaxed);
         }
-        shared.result_seq.fetch_add(1, Ordering::Release);
+        // The explicit epoch guard also covers a rapid STOP→START while the
+        // background worker was processing the previous session's window.
+        if shared.active.load(Ordering::Acquire) &&
+            shared.capture_epoch.load(Ordering::Acquire) == session_epoch {
+            shared.result_seq.fetch_add(1, Ordering::Release);
+        }
     }
 }
 /// Estimate actual input RMS and peak independently of pitch classification.
@@ -395,6 +414,33 @@ mod tests {
         println!("chroma_projection_legacy_us={legacy_us:.3} harmonic_us={residual_us:.3} checksum={checksum}");
     }
 
+    #[test] fn status_appends_without_allocating_a_second_string() {
+        let monitor = MicMonitor::new();
+        let mut status = String::with_capacity(256);
+        status.push_str("play=0");
+        let original_ptr = status.as_ptr();
+        monitor.append_status(&mut status);
+        assert_eq!(status.as_ptr(), original_ptr,
+            "mic append must use existing capacity, not allocate a second String");
+        assert!(status.contains(" mca="));
+        assert!(status.contains(" mcs=0"));
+        assert!(status.contains(" mcv=0.000000000000000000000000"));
+        assert!(status.ends_with(" mcg=0000"));
+    }
+    #[test] fn session_epoch_invalidates_old_worker_snapshots() {
+        let monitor = MicMonitor::new();
+        let previous_epoch = monitor.shared.capture_epoch.load(Ordering::Acquire);
+        // A STOP from the disabled state is a no-op, not a false restart.
+        monitor.set_listening(false);
+        assert_eq!(monitor.shared.capture_epoch.load(Ordering::Acquire), previous_epoch);
+        // A worker that sampled before an explicit session transition has a
+        // different epoch, even if active toggles back on.
+        monitor.shared.active.store(true, Ordering::Release);
+        monitor.shared.capture_epoch.fetch_add(1, Ordering::AcqRel);
+        assert_ne!(monitor.shared.capture_epoch.load(Ordering::Acquire), previous_epoch);
+        monitor.set_listening(false);
+        assert!(!monitor.listening());
+    }
     #[test] fn disabled_has_no_capture() {
         let monitor=MicMonitor::new();
         monitor.capture(128);

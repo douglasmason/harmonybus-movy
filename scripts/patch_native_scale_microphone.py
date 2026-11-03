@@ -60,7 +60,7 @@ pub fn audio_input_block(frames: usize) -> Option<&'static [i16]> {
     status_anchor: str = '                Some(s)\n            }\n            "capinfo"'
     dsp_source = replace_once(
         dsp_source, status_anchor,
-        '                s.push_str(&self.mic.report());\n' + status_anchor)
+        '                self.mic.append_status(&mut s);\n' + status_anchor)
     dsp_path.write_text(dsp_source)
 
     engine_path: Path = root / "src/seq/engine.ts"
@@ -198,7 +198,7 @@ export function scaleFindingMicrophoneTick():void {
     ui_match = re.search(r"export const ENGINE_VERSION = '([^']+)';", ui_text)
     if not rust_match or not ui_match or rust_match.group(1)!=ui_match.group(1):
         raise RuntimeError("Native/UI engine version diverged before mic update")
-    version: str = "0.98.0-mic-diagnostics1"
+    version: str = "0.99.0-mic-rt-safety1"
     dsp_path.write_text(rust_text.replace(rust_match.group(0),
         f'const ENGINE_VERSION: &str = "{version}";'))
     ui_version.write_text(ui_text.replace(ui_match.group(0),
