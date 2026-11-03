@@ -130,17 +130,37 @@ fn param_reply_benchmark() {
     let long = b"0,60,1,0,0,1,12,0,0;".repeat(64);
     for (name, source) in [("queue", short), ("pad64", long)] {
         let iterations = 100_000;
-        let (before_ns, before_allocations) = context_bench::measured(|| {
-            for _ in 0..iterations {
-                black_box(legacy(black_box(&mut scratch), black_box(&mut output), black_box(&source), source.len() as i32));
+        let mut before_samples = Vec::with_capacity(7);
+        let mut after_samples = Vec::with_capacity(7);
+        let mut before_allocations = 0;
+        let mut after_allocations = 0;
+        for _ in 0..1000 {
+            black_box(legacy(&mut scratch, &mut output, &source, source.len() as i32));
+            black_box(borrowed(&mut scratch, &mut output, &source, source.len() as i32));
+        }
+        for trial in 0..7 {
+            for before in [trial % 2 == 0, trial % 2 != 0] {
+                let (elapsed, allocations) = context_bench::measured(|| {
+                    for _ in 0..iterations {
+                        if before {
+                            black_box(legacy(black_box(&mut scratch), black_box(&mut output), black_box(&source), source.len() as i32));
+                        } else {
+                            black_box(borrowed(black_box(&mut scratch), black_box(&mut output), black_box(&source), source.len() as i32));
+                        }
+                    }
+                });
+                if before {
+                    before_samples.push(elapsed);
+                    before_allocations = allocations;
+                } else {
+                    after_samples.push(elapsed);
+                    after_allocations = allocations;
+                    assert_eq!(allocations, 0);
+                }
             }
-        });
-        let (after_ns, after_allocations) = context_bench::measured(|| {
-            for _ in 0..iterations {
-                black_box(borrowed(black_box(&mut scratch), black_box(&mut output), black_box(&source), source.len() as i32));
-            }
-        });
-        assert_eq!(after_allocations, 0);
-        println!("{name}: {iterations} reads, bridge allocations {before_allocations} -> {after_allocations}; ns/read {:.1} -> {:.1} (desktop mock getter, not device audio)", before_ns as f64 / iterations as f64, after_ns as f64 / iterations as f64);
+        }
+        before_samples.sort_unstable();
+        after_samples.sort_unstable();
+        println!("{name}: {iterations} reads/trial, bridge allocations {before_allocations} -> {after_allocations}; median ns/read {:.1} -> {:.1} (7 alternating trials, desktop mock getter, not device audio)", before_samples[3] as f64 / iterations as f64, after_samples[3] as f64 / iterations as f64);
     }
 }

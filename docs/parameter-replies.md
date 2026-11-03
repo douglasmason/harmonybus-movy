@@ -40,12 +40,13 @@ tests cover exact-sized replies, invalid buffers, both queue formats,
 128 bars of four-chord playback with repeated feedback reads, 64-chord
 playback, Hold refill, replay, and balanced MIDI releases.
 
-One local optimized desktop run with a mock native getter measured:
+One local optimized desktop run with a mock native getter measured the
+median of seven trials, alternating which implementation ran first:
 
 | Reply | Reads | Bridge allocations before → after | ns/read before → after |
 | --- | ---: | ---: | ---: |
-| Short queue | 100,000 | 300,000 → 0 | 381 → 207 |
-| 64-pad-sized payload | 100,000 | 300,000 → 0 | 3,979 → 1,887 |
+| Short queue | 100,000 per trial | 300,000 → 0 | 102 → 19 |
+| 64-pad-sized payload | 100,000 per trial | 300,000 → 0 | 1,342 → 196 |
 
 Timing is runner-dependent and excludes real native getter work, audio,
 USB traffic, and device scheduling. The release includes its own benchmark

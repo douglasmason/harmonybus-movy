@@ -5,6 +5,14 @@ use std::ffi::CStr;
 /// NULs. Validate the whole reply before writing, so errors leave output intact.
 pub fn copy_reply(source: &[u8], output: &mut [u8]) -> i32 {
     if source.contains(&0) { return -1; }
+    // Native replies are normally valid UTF-8. Validate and copy once instead
+    // of walking UTF-8 chunks twice; retain the lossy path for malformed data.
+    if std::str::from_utf8(source).is_ok() {
+        if source.len() >= output.len() || source.len() > i32::MAX as usize { return -1; }
+        output[..source.len()].copy_from_slice(source);
+        output[source.len()] = 0;
+        return source.len() as i32;
+    }
     let required: usize = source.utf8_chunks().map(|chunk| {
         chunk.valid().len() + if chunk.invalid().is_empty() { 0 } else { 3 }
     }).sum();
