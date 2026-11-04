@@ -711,6 +711,8 @@ def main() -> int:
     patch_native_scale_microphone(root)
     from patch_param_replies import patch_param_replies
     patch_param_replies(root)
+    from patch_queue_copy import patch_queue_copy
+    patch_queue_copy(root)
     print("HarmonyBus clean integration applied")
     return 0
 

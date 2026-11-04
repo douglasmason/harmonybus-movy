@@ -80,8 +80,9 @@ assert.equal(sampleAction?.active,false);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,127,true),true,
     'Shift+Loop retriggers the stored chord cycle without erasing it');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_LOOP,0,false),true);
-assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_COPY,127,false),false,
-    'plain Copy remains reserved for real abstract clip copying');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_COPY,127,false),true,
+    'plain Copy owns the native queue writer and cannot duplicate the melody clip');
+assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_COPY,0,false),true);
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false),true,
     'Chord Play owns Sample entry mode rather than the stock sampler');
 assert.equal(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),true);

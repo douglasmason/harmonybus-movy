@@ -98,7 +98,7 @@ export function renderModeHelp(now=Date.now()):boolean{
     const guide=MODE_GUIDES[snapshot.mode];
     clear_screen();
     drawHeader(guide.name,'Buttons');
-    guide.lines.forEach((label,index)=>fontPrint(2,13+index*10,label,1));
+    guide.lines.forEach((label,index)=>fontPrint(2,13+index*(guide.lines.length>4?8:10),label,1));
     fontPrint(2,55,'Shift+Copy: help',1);
     return true;
 }

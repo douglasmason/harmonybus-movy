@@ -45,10 +45,11 @@ physical button-held promotion turns it bright during the press. It is not
 permanently bright just because harmony exists: that would misleadingly
 suggest clearing is currently engaged.
 
-Copy remains a real clipboard button. **Queue-to-Clip is not implemented**
-by this patch; it must not light up as a fake commit target or write MIDI notes
-as a substitute for an abstract clip transaction. See
-`docs/queued-chord-lifecycle-and-promotion.md` on the queued-chord PR.
+In Chord Play and Joint's chord-bank surface, **Copy saves the native queue**
+to an empty conductor clip. It is dim when a queue exists and bright while the
+destination picker is open. Step keys 1–8 or Jog confirm an empty destination;
+Back/Copy cancels. The live queue keeps playing and X/K8 explicitly releases it.
+Other modes retain their contextual Copy actions. See [Copy Queue](queue-copy.md).
 
 ## Guide
 
