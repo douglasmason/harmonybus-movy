@@ -10,6 +10,7 @@ static void test_queue_copy(void){
     set("ch0:midi_fx1:anticipation","On Grid");
     set("chord_queue","begin,0");set("chord_queue","0,0,1,2,1,0,1,12,0,0,5");
     set("chord_queue","0,7,1,2,1,0,1,12,0,0,3");set("chord_queue","commit");
+    set("cmd","play");render(20);
     char info[256],token[17],command[128],before[2048],after[2048];
     assert(api->get_param(instance,"chord_copy_info_0",info,sizeof(info))>0);
     unsigned count=0,ticks=0,empty=0;
@@ -36,9 +37,13 @@ static void test_queue_copy(void){
     set("cmd","uswap 988 989");api->get_param(instance,"state",unchanged,sizeof(unchanged));assert(!strcmp(saved,unchanged));
     api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",after,sizeof(after));assert(!strcmp(before,after));
     /* Clear the live override explicitly, reload, then launch the saved clip. */
-    set("chord_select","off");render(8);set("state",saved);render(8);
-    set("cmd","clipsel 0 1");sent_on=sent_off=0;capture_register=1;register_low=128;register_high=-1;
-    set("cmd","play");render(8);assert(register_low==72&&register_high==79);
+    set("cmd","stop");set("chord_select","off");render(8);set("state",saved);render(8);
+    /* Isolate conductor output for range measurement. Prior chain suites can
+       leave the melody follower rendering accompaniment on the same channel. */
+    set("cmd","mute 3 1;clipsel 0 1");sent_on=sent_off=0;capture_register=1;register_low=128;register_high=-1;
+    set("cmd","play");render(8);
+    if(register_low!=72||register_high!=79)fprintf(stderr,"Copied first range %d..%d; saved: %s\n",register_low,register_high,saved);
+    assert(register_low==72&&register_high==79);
     register_low=128;register_high=-1;render(200);assert(register_low==55&&register_high==62);
     set("cmd","stop");render(8);capture_register=0;assert(sent_on==sent_off);
     puts("Queue Copy: native descriptors, atomic rejection, retained queue, Undo/redo, save/reload and original chord ranges pass");
