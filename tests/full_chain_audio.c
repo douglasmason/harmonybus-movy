@@ -656,6 +656,9 @@ int main(int argc,char **argv){
 #endif
 #ifdef HB_TEST_CHORD_QUEUE
     if(getenv("HB_QUEUE_ONLY")){test_chord_queue();api->destroy_instance(instance);return 0;}
+#ifdef HB_TEST_QUEUE_COPY
+    if(getenv("HB_QUEUE_COPY_ONLY")){test_queue_copy();api->destroy_instance(instance);return 0;}
+#endif
 #endif
 #ifdef HB_TEST_PAD_PARENT_KEY
     if(getenv("HB_PAD_PARENT_ONLY")){test_pad_parent_key();api->destroy_instance(instance);return 0;}

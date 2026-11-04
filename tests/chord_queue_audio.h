@@ -1,3 +1,6 @@
+#ifdef HB_TEST_QUEUE_COPY
+#include "queue_copy_audio.h"
+#endif
 static void queue_reply_contract(void){
     const char *keys[]={"ch0:midi_fx1:hb_chord_queue_status","ch15:midi_fx1:role","ch0:mix","ping"};
     for(unsigned index=0;index<sizeof(keys)/sizeof(keys[0]);index++){
@@ -280,6 +283,9 @@ static void test_chord_queue(void){
     set("ch0:midi_fx1:chord_queue_depth","2");
     test_chord_queue_sustained();
     test_chord_queue_long();
+#ifdef HB_TEST_QUEUE_COPY
+    test_queue_copy();
+#endif
     set("ch0:midi_fx1:chord_queue_depth","2");set("ch0:midi_fx1:chord_queue_end","Hold");
     set("ch0:midi_fx1:chord_timing","1/4");
     /* A view exit also closes an immediate audition after selecting Queued

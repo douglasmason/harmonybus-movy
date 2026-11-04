@@ -29,8 +29,10 @@ fn legacy(scratch: &mut [u8], output: &mut [u8], source: &[u8], length: i32) -> 
 }
 
 fn borrowed(scratch: &mut [u8], output: &mut [u8], source: &[u8], length: i32) -> i32 {
-    hb_param_reply::read(KEY, scratch, output, |key, buffer| {
-        assert_eq!(key.as_ptr(), KEY.as_ptr());
+    // Compare with this call's input; const literals need not share an address.
+    let input_key = KEY;
+    hb_param_reply::read(input_key, scratch, output, |key, buffer| {
+        assert_eq!(key.as_ptr(), input_key.as_ptr());
         native(key, buffer, source, length)
     })
 }

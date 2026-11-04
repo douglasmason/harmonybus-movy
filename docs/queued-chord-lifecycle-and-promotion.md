@@ -31,12 +31,11 @@ preserves the stored progression, its cursor, and ongoing timing; adopting it
 again resumes the current chord instead of chord one. These gestures do not
 reset audio, mute the melody track, or erase other clips.
 
-Only **X / K8 Harmony Off** explicitly cancels a queue. The existing **Copy
-Queue to Conductor Clip** transaction is still a *design proposal*, not a
-released writer: never silently duplicate the current melody clip as a
-substitute. The current native queue buffers are bounded at sixteen events;
-unlimited-duration Hold appending still requires a separate safe streaming
-design and is not implemented by this control remapping.
+Only **X / K8 Harmony Off** explicitly cancels a queue. **Copy Queue to
+Conductor Clip** now saves a snapshot while the live progression keeps playing.
+The retained queue grows as chords are appended; Copy is bounded by Movy's
+existing clip format (16 bars and 512 notes). An oversized queue remains intact
+and is rejected rather than truncated. See [Copy Queue](queue-copy.md).
 
 In the UI `Queue 0/2` means zero accepted choices toward Queue Depth 2. The
 word `Fill` was confusing with our actual musical drum/motif fill operations.
@@ -68,105 +67,29 @@ queue state and no new attacks/releases from navigation.
 Install using `douglasmason/harmonybus-movy`. This fixes cancellation during
 navigation; it does not claim a measured improvement in device audio crackles.
 
-## Queue -> Conductor Clip (planned transaction)
+## Copy Queue to Conductor Clip
 
-The presently implemented live recording captures *onsets* as they occur.
-That is not an instant save. An instant promotion must convert the completed
-abstract native cycle into a **new conductor clip** in one transaction.
+Movy **0.34.1-hbclean.318** with HarmonyBus **0.2.312** implements instant
+snapshot saving. In Chord Play or Joint's chord-bank surface, press **Copy**,
+then an empty step-row destination **1–8**, or browse and click **Jog**. Back
+or another Copy press cancels the picker. A created but empty clip counts as
+occupied; this operation never overwrites it.
 
-The intended operation is a previewed `Save Queue to Clip`, defaulting to the
-first empty conductor clip slot. It requires an armed/complete, unambiguous
-cycle; an unfinished Queue Depth or Touch Phrase is rejected.
+The native retained descriptors supply chord identity, scale, intent, register,
+order and durations. The copied clip uses ordinary abstract selection actions,
+not expanded MIDI voices. One Undo/Redo entry covers the edit. Melody focus,
+other clips, transport and the live queue remain unchanged.
 
-1. Read the actual native queue's immutable chord descriptors (pitch, exact
-   root/quality/parent scale/intent/register), cycle order, rhythmic boundaries
-   and current cycle phase. Avoid reconstructing descriptors from names or
-   the UI's 21 mutable bank slots.
-2. Build an abstract clip off the audio path, one event per queued selection
-   with onset/gate derived from Queue Time (and explicit irregular boundaries
-   when Observed timing is available). Do not sample MIDI or replay the queue
-   in realtime. Reuse the existing encoded selection actions, never expand
-   generated chord voices into clip notes.
-3. Validate the target empty clip, descriptor shape, capacity, Set identity,
-   clip signature and all lengths *before* editing. One Undo transaction,
-   no partially written clips.
-4. Arm a **same-phase handoff** for the next guaranteed cycle boundary. At that
-   boundary, release the live queue voice and activate the new clip's matching
-   descriptor atomically; no duplicate note-ons, missing chord or rhythmic
-   restart. Followers must see matching lookahead through handoff.
-5. Mark the new clip as playing on the conductor while leaving the other
-   actors and their clip positions alone. If validation/activation fails, keep
-   the original live loop intact.
-6. Confirm in the footer that the queued source was saved and transferred to
-   the conductor clip. Existing saved clip contents are never overwritten
-   without explicit confirmation.
+This supersedes the earlier proposed automatic **Commit & Play** default.
+Copy saves; **X/K8** remains the explicit release of the live queue. The saved
+clip can then be selected or launched with ordinary Clips controls. No automatic
+phase-matched handoff is included. Such a handoff would be a separate operation
+with its own timing/voice-ownership validation, not an implicit side effect of
+Copy.
 
-These steps are **not yet a shipped implementation**. They require a native
-queue-export protocol and a new atomic clip-write/phase-handoff command in
-Movy's Rust clip engine. Ordinary Record remains unchanged and should not be
-recommended as a substitute for instant promotion.
-
-
-## Right-side Move button design: Copy Queue -> Conductor Clip
-
-Reuse the **physical Copy button (CC 60)**, not Record or Sampling. Stock Move
-uses Copy for clip duplication and copying musical steps, while **Sampling /
-Resampling** records audio from the main output and is not an abstract
-conductor-track bounce. The appropriate in-Movy terminology is **Copy Queue**
-or **Commit to Clip**, not an audio bounce.
-
-This proposed queue-copy operation belongs only to Chord Play and Joint's
-chord-bank surface. Other input modes retain their existing contextual Copy
-actions (for example Scale Finding's Apply key and Motif Play's Copy motif).
-A new Copy owner must intercept both press and release before the generic
-duplicate handler; never leave a stuck Copy modifier or inadvertently copy the
-current melody clip. No special behavior if the queue isn't a complete,
-well-formed cycle: show `Queue 0/2 — choose two chords` (actual depth
-may vary) without opening a modal or altering anything.
-
-**Gesture:**
-1. Tap **Copy** with an active complete queued loop. The queue is the already
-   selected *source*. Open `COPY QUEUE -> CONDUCTOR CLIP` and leave audio/other
-   actors playing. Copy LED breathes. On a 128×64 display show the conductor
-   track, chord count/duration and chosen destination.
-2. Repurpose **step buttons 1–8** within that temporary destination picker to
-   select the conductor's eight clip slots; empty slots dim gray, occupied slots
-   in conductor color, selected destination green. Jog can browse the same slots
-   and click can confirm. Default to first empty slot.
-3. Tap an **empty** slot, or click Jog, to commit the abstract clip *immediately*.
-   This is not a realtime recording. On an occupied slot, require an explicit
-   second confirmation before destructive replace.
-4. Once a full abstract clip write succeeds, request **Commit & Play** by default.
-   The live queue continues until the first phase-matched loop boundary, at
-   which point the engine transfers authority to the new clip **atomically**.
-   Do not restart transport, displace melody focus, or create duplicate
-   conductor note-ons. If the handoff cannot be guaranteed, leave the
-   original queue in control and report a visible failure.
-5. **Back**, or Copy a second time while choosing a destination, cancels only
-   the picker. The queue keeps playing. **Undo** undoes the clip edit through
-   existing clip Undo, not the previously playing live queue. X/K8 **Harmony Off**
-   is still the explicit live-loop cancellation gesture.
-
-The picker is a modal input owner: while visible, it temporarily owns the
-step-row destination keys, Jog/Back and Copy. Track-select, Delete, held
-encoder touches, Loop, and transport must either be passed through safely or
-explicitly cancel the modal before doing their original jobs. Never let a
-destination key also trigger a queued chord or a clip launch.
-
-**Other right-hand controls** retain their printed base semantics unless
-that input mode owns them:
-- Capture: retrospective performed MIDI/automation (not an instant
-  interpretation of the deliberately assembled chord queue).
-- Sampling: microphone/line/resampling audio (unrelated to abstract clip data).
-- Loop: queued cycle/Hold in Chord Play/Joint; Session owns the separate Loop
-  Edit mode. It is not Copy/Commit.
-- Mute: mixer mute/solo.
-- Delete/X: Harmony Off in the chord surface; contextual actions elsewhere.
-- Undo/Redo: the existing Undo history.
-- Back: exit modal/panel; Copy picker cancel when open.
-- Record/Play: transport and real-time recording; leave unchanged.
-
-This is an **interaction specification only** until the native queue snapshot,
-transactional abstract clip writer, and same-phase handoff all exist. Do not
-install an apparently functioning Copy button that lacks a complete musical
-write path.
+The picker owns destination presses and their matching releases, Jog, Back and
+Copy. Transport, Undo, mode changes and encoder touches dismiss the picker
+before retaining their usual behavior; melody pads remain playable. Recording
+and count-in block Copy. Queue identity and empty destination are rechecked at
+commit. Read [implementation and verification](queue-copy.md) for the supported
+limits and tests.
