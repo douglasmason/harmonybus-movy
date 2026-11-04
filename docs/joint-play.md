@@ -6,7 +6,7 @@ Joint Play makes the Move pad grid an instrument for one selected four-track uni
 
 ## Entry and navigation
 
-Tap Session to cycle Clips → Normal Play → Motif Play → Joint Play → Clips. Hold Session from a play mode to peek at clips and release to return. Back exits Joint Play to Normal Play. Copy is reserved for copying. Operator Play is hidden, with its implementation and assignments retained. Turn the jog to navigate the existing HB settings panels. Jog click uses the existing picker/peek behavior. On Joint Setup, knob 1 selects the four-track unit. There is no actor or target selector: pad zones select their own role.
+Tap Session to open the input-mode selector, then turn and click the jog to enter a mode. Hold Session as an alternate Shift modifier; double-tap it to toggle Clips and the previous view. Physical Shift+Session opens Clips directly. Back returns to the previous view. See [Session controls](session-modifier.md). Copy is reserved for copying. Operator Play is hidden, with its implementation and assignments retained. Turn the jog to navigate the existing HB settings panels. Jog click uses the existing picker/peek behavior. On Joint Setup, knob 1 selects the four-track unit. There is no actor or target selector: pad zones select their own role.
 
 | Role | Track within unit | Default source | Recording | New-set travel | MIDI render channel |
 | --- | --- | --- | --- | --- | --- |

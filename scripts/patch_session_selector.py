@@ -9,12 +9,13 @@ def patch_session_selector(root: Path) -> None:
     (root / 'src/seq/shared-panel.ts').write_text((assets / 'shared-panel.ts').read_text())
     path: Path = root / 'src/seq/router-buttons.ts'
     source: str = path.read_text()
-    source = "import { invalidateInputModeLeds } from './led-cache.js';\nimport { beginTrackSwitch, followModulePanel, type TrackSnapshot } from '../track/switch.js';\nimport { renderBrowseView } from '../renderer/browse-view.js';\n" + source
+    source = "import { invalidateInputModeLeds } from './led-cache.js';\nimport { beginTrackSwitch, followModulePanel, type TrackSnapshot } from '../track/switch.js';\nimport { renderBrowseView } from '../renderer/browse-view.js';\nimport { paramPageState } from './param-page.js';\n" + source
     source = source.replace('return settingsOpen() ? 7 : seqState.sessionMode ? 0 :', 'return seqState.sessionMode ? 0 : settingsOpen() ? 7 :')
     source = source.replace("import { momentaryDown, momentaryUp } from './momentary.js';\n", '')
     start: int = source.index('function advanceSessionMode(')
     end: int = source.index('    if(next===7)', start)
     source = source[:start] + '''function selectInputMode(next: number, remember=true): void {
+    if(next===0&&sessionPlayMode()!==0&&!motifEditing())rememberClipsInputView();
     if(next===sessionPlayMode()){inputModeChoice=-1;return;}
     if(motifEditing()){seqToast('Finish motif edit first');return;}
     if(next===2&&schwungActiveFor(appState.activeTrack.index,'midi_fx1')?.moduleId!=='harmonybus'){seqToast('Motif Play requires HB');return;}
@@ -38,29 +39,25 @@ def patch_session_selector(root: Path) -> None:
     source = source.replace('let sessionPlayPrev = 0;\n', '').replace('let sessionPrev = false;\n', '').replace('let settingsShortcut = false;\n', '')
     start = source.index('    /* Note/Session: momentary.')
     end = source.index('    /* Copy/Delete:', start)
-    source = source[:start] + '''    // Open/close on the press edge; release never enters a mode.
-    if(d1===CC_NOTE_SESSION){
-        if(d2>0){
-            if(sessionSelectorHeld)return true;
-            sessionSelectorHeld=true;sessionPressAt=Date.now();
-            if(shiftHeld||(inputModeSelectorOpen()&&sessionPressAt-sessionTapReleased>=0&&sessionPressAt-sessionTapReleased<=350)){
-                sessionTapReleased=-Infinity;selectInputMode(0);appState.dirty=true;
-            }else toggleInputModeSelector();
-        }else{
-            if(sessionSelectorHeld)sessionTapReleased=inputModeSelectorOpen()&&Date.now()-sessionPressAt<=350?Date.now():-Infinity;
-            sessionSelectorHeld=false;sessionButtonDown(false);
-        }
-        return true;
-    }
+    source = source[:start] + '''    // A clean release selects; a held Session is the second Shift source.
+    if(d1===CC_NOTE_SESSION)return sessionSelectorButton(d2,shiftHeld);
 
 ''' + source[end:]
     source += '\n' + (assets / 'session-selector.ts').read_text()
     path.write_text(source)
     path = root / 'src/seq/router.ts'
-    source = path.read_text().replace("import { seqHandleButtonCc }", "import { inputModeSelectorMidi, seqHandleButtonCc }")
+    source = path.read_text().replace("import { seqHandleButtonCc }", "import { inputModeSelectorMidi, sessionModifierHeld, seqHandleButtonCc }")
     source = replace_once(source, '    if (settingsMidi(data))', '''    if(statusType===0xB0&&d1===50)return seqHandleButtonCc(d1,d2,shiftHeld);
     if(inputModeSelectorMidi(data))return true;
     if (settingsMidi(data))''')
+    source = replace_once(source, 'export function seqHandleMidi(data: number[], shiftHeld: boolean): boolean {',
+        'export function seqHandleMidi(data: number[], shiftHeld: boolean): boolean {\n    shiftHeld=shiftHeld||sessionModifierHeld();')
+    path.write_text(source)
+    path = root / 'src/midi/router.ts'
+    source = path.read_text() + "\nimport { sessionModifierMidi } from '../seq/router-buttons.js';\n"
+    source = replace_once(source, '    trackButtonPress(data);', '    trackButtonPress(data);\n    if(sessionModifierMidi(data))return;')
+    source = replace_once(source, '    if (d1 === MoveShift) { appState.shiftHeld = d2 > 0; return; }',
+        '    // Physical Shift and Session releases are handled before modal gates.')
     path.write_text(source)
     path = root / 'src/renderer/browse-view.ts'
     source = path.read_text().replace("title = 'Module'): void", "title = 'Module', footer = 'Back:cancel  Click:load'): void")
@@ -80,11 +77,17 @@ def patch_session_selector(root: Path) -> None:
     source = replace_once(source, 'followModulePanel(track, prev.modulePanel)', 'followModulePanel(track, prev.modulePanel ?? (prev.session ? clipsReturnPanel() : null))')
     source = replace_once(source, '    appState.trackView[prev.track] = prev.view;', '    if(prev.session)rememberClipsReturn(prev.view);\n    appState.trackView[prev.track] = prev.view;')
     path.write_text(source)
+    path = root / 'build/browser.mjs'
+    source = replace_once(path.read_text(), "        resolve(root, 'src/app/leave-modal.ts'),",
+        "        resolve(root, 'src/app/leave-modal.ts'),\n        resolve(root, 'src/app/input-reset.ts'),")
+    path.write_text(source)
     patch_selector_tests(root)
 
 
 def patch_selector_tests(root: Path) -> None:
     """Retain existing clip/mute tests while updating the deliberate mode-entry gesture."""
+    assets: Path = Path(__file__).resolve().parents[1] / 'integration/chord-play'
+    (root / 'browser-test/hb-session-modifier.mjs').write_text((assets / 'hb-session-modifier.mjs').read_text())
     path: Path = root / 'browser-test/hb-joint-panels.mjs'
     source: str = path.read_text()
     start: int = source.index('// Session owns navigation;')
@@ -96,5 +99,6 @@ def patch_selector_tests(root: Path) -> None:
     path.write_text(source)
     path = root / 'browser-test/logic/seq-router.mjs'
     source = path.read_text().replace("    eq('held Session shows the clip grid', seqState.sessionMode, true);", "    eq('Session opens selector without a clip peek', seqState.sessionMode, false);")
+    source = source.replace("    eq('track 6 muted from the peek', seqState.muted[5], true);", "    eq('Session+Mute+step uses the Shift solo action', isSoloed(5), true);")
     source = source.replace("    eq('the peek still reverts', seqState.sessionMode, false);", "    eq('Session release leaves the current mode unchanged', seqState.sessionMode, false);\n    seqHandleMidi([0xB0,51,127],false);seqHandleMidi([0xB0,51,0],false);")
     path.write_text(source)
