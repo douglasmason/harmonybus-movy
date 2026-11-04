@@ -32,6 +32,6 @@ Mode changes sweep all instrument pads, with rejected frames retried. Chord Play
 
 Clips keeps its special performance view and navigation. Setup uses the shared knob value boxes and clip-specific help. A filled slot number identifies the selected drum clip; a play triangle and Q identify playing and queued clips separately. Extended-settings selectors move left/right without wrapping and click enters. Left from the first item returns to the last non-list panel. The category-scoped bank bar remains stable during knob touches.
 
-Session single tap opens the mode selector; double tap within 350 ms opens Clips. Back retains previous-view navigation.
+Session single tap opens the mode selector on release; hold Session as an alternate Shift modifier. Double tap within 350 ms toggles Clips and the previous view. Physical Shift+Session still opens Clips directly. Back retains previous-view navigation. See [Session controls](session-modifier.md).
 
 Validation includes browser/controller and framebuffer checks, accepted/rejected pad delivery, parent-relative native bank tests, live/current/next and stopped/Off tests, native sequencer/DSP regressions, production-chain MIDI/audio checks, and ARM packaging. Hardware verification remains necessary after installation.
