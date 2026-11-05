@@ -1,0 +1,15 @@
+{
+  "version": "0.34.1-hbclean.319",
+  "previous_version": "0.34.1-hbclean.318",
+  "workflow": "chord-play.yml",
+  "title": "Movy 0.34.1-hbclean.319 \u2014 Session Modifier and Clips Return",
+  "notes": "docs/session-modifier.md",
+  "assets": [
+    "harmonybus-movy-module.tar.gz",
+    "SHA256SUMS",
+    "source-benchmark.txt",
+    "context-benchmark.txt",
+    "chroma-benchmark.txt",
+    "param-reply-benchmark.txt"
+  ]
+}
