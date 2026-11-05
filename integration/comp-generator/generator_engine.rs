@@ -328,8 +328,6 @@ impl Engine {
         let pos=if free {self.master_tick.saturating_sub(1) as u32%free_end} else {self.tracks[track].pos_tick};
         let clip=&self.tracks[track].clips[slot];
         let template=self.generator_library[track].as_ref();
-        let base=if let Some(part)=template{part.clip.generator.map(|config|config.at(&part.clip,&part.lanes.labels,(pos/TICKS_PER_STEP) as u16))}
-            else{clip.generator.map(|config|config.at(clip,&self.tracks[track].lane_label,(pos/TICKS_PER_STEP) as u16))};
         let loop_start=clip.loop_start_ticks();
         if let Some(state)=self.generator_explore[track].as_mut() {
             let mut accepted=state.current;
@@ -339,7 +337,16 @@ impl Engine {
             state.touched&=!released;state.restore_pending&=!released;
             if pos%TICKS_PER_STEP==0 {accepted.complexity=state.desired.complexity;accepted.intensity=state.desired.intensity;}
             if pos%crate::TICKS_PER_BAR==0||(state.source.is_some()&&pos==loop_start) {accepted.style=state.desired.style;accepted.seed=state.desired.seed;}
-            state.current=if state.source.is_some()||template.is_some(){Self::generator_override(base.unwrap(),accepted,state.touched)}else{accepted};
+            // Only an active saved-source preview consumes a base on each tick.
+            // Ordinary recipe playback reads its curves below at the swung
+            // attack, so resolving them here would scan the same locks unused.
+            state.current=if let Some(part)=template {
+                let base=part.clip.generator.unwrap().at(&part.clip,&part.lanes.labels,(pos/TICKS_PER_STEP) as u16);
+                Self::generator_override(base,accepted,state.touched)
+            }else if state.source.is_some() {
+                let base=clip.generator.unwrap().at(clip,&self.tracks[track].lane_label,(pos/TICKS_PER_STEP) as u16);
+                Self::generator_override(base,accepted,state.touched)
+            }else{accepted};
         }
         self.generator_capture_tick(track,slot,pos,out);
         // At most sixteen grid positions; only one can fire at this tick.
