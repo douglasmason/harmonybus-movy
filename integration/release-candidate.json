@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.319",
-  "previous_version": "0.34.1-hbclean.318",
+  "version": "0.34.1-hbclean.320",
+  "previous_version": "0.34.1-hbclean.319",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.319 \u2014 Session Modifier and Clips Return",
-  "notes": "docs/session-modifier.md",
+  "title": "Movy 0.34.1-hbclean.320 \u2014 Safe browser transport",
+  "notes": "docs/browser-safe-state.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

@@ -35,6 +35,7 @@ for component in registry host; do
 done
 MODULES="$OUT/modules"
 mkdir -p "$MODULES/chain" "$MODULES/movy" "$MODULES/midi_fx/harmonybus" "$MODULES/sound_generators/probe" "$MODULES/sound_generators/nusaw"
+cp "$MOVY_SOURCE/module.json" "$MODULES/movy/module.json"
 cp "$HB_SOURCE/modules/harmonybus/module.json" "$MODULES/midi_fx/harmonybus/module.json"
 printf '%s' '{"id":"probe","name":"PCM Probe","version":"1.0.0","api_version":2,"capabilities":{"chain_params":[],"component_type":"sound_generator"}}' > "$MODULES/sound_generators/probe/module.json"
 cp "$SYNTH/src/module.json" "$MODULES/sound_generators/nusaw/module.json"
