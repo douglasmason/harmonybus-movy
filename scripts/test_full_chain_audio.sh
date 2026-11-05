@@ -51,6 +51,7 @@ if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/clip_fill.rs"; then
 fi
 if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/generator.rs"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_COMP_GENERATOR); fi
 if test -f "$HB_SOURCE/src/chord_queue.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CHORD_QUEUE); fi
+if grep -q hb_cq_handoff_ready "$HB_SOURCE/src/chord_queue_export.h" && grep -q handoff_chord_clip "$MOVY_SOURCE/engine/crates/seq-core/src/engine.rs"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_QUEUE_HANDOFF); fi
 if test -f "$HB_SOURCE/src/chord_queue_export.h" && test -f "$MOVY_SOURCE/engine/crates/seq-core/src/queue_copy.rs"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_QUEUE_COPY); fi
 if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/chord_step.rs" && test -f "$HB_SOURCE/src/chord_queue.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_JOINT_CHORDS); fi
 if grep -q HB_PARENT_KEY_WITHOUT_CONDUCTOR "$HB_SOURCE/modules/harmonybus/dsp/harmonybus.c"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_PAD_PARENT_KEY); fi

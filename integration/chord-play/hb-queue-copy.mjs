@@ -43,3 +43,13 @@ assert(buttons.modeButtonMidi(60,127,false));assert(copy.queueCopyActive());
 assert(buttons.modeButtonMidi(60,0,false));copy.queueCopyMidi([0xb0,60,127]);
 assert(!copy.queueCopyActive());assert(copy.queueCopyMidi([0xb0,60,0]));
 console.log('Queue Copy: native identity, empty destinations, Undo grouping, modal releases, focus and live-pad preservation pass');
+
+seqState.playing=true;result='Copied - handoff at cycle start';
+copy.openQueueCopy(0);assert(copy.queueCopyMidi([0x90,24,100]));assert(copy.queueCopyMidi([0x80,24,0]));
+assert(copy.queueCopyActive(),'choosing handoff does not save or launch yet');
+copy.queueCopyMidi([0x90,17,100]);copy.queueCopyMidi([0x80,17,0]);
+assert(commands.includes('qhandoff 0 1 1234567890abcdef'));
+assert.equal(appState.activeTrack.index,3);
+copy.openQueueCopy(0);copy.queueCopyMidi([0x90,18,100]);copy.queueCopyMidi([0x80,18,0]);
+assert.equal(commands.filter(command=>command.startsWith('qhandoff')).length,1,'next Copy defaults to save-only');
+console.log('Explicit handoff choice: separate from plain Copy, guarded edit, focus and release ownership pass');
