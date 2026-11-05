@@ -23,7 +23,6 @@ def patch_queue_handoff(root: Path) -> None:
                 !chord_handoff_preserves_command(operation)))) {
             self.cancel_chord_handoff();
         }''')
-    source = source.replace('workerbuild=0.34.1-hbclean.319', 'workerbuild=0.34.1-hbclean.321')
     source = replace_once(source, "                    for operation in val.split(';').map(str::trim) {", """                    for operation in val.split(';').map(str::trim) {
                         if self.chord_handoff.is_some() && !chord_handoff_preserves_command(operation) {
                             self.cancel_chord_handoff();
