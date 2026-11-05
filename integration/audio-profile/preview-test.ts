@@ -1,13 +1,12 @@
 /** Guided preview isolation; uses the existing engine status poll only. */
 import { appState, VIEW_CPU } from '../app/state.js';
 import { seqState } from './state.js';
-import { seqCmd, statusSeq, engineReady } from './engine.js';
+import { seqCmd, statusSeq, engineReady, scaleMicNativeFrame } from './engine.js';
 import { currentSetUuid, sessionReady } from './set-session.js';
 import { flagValue } from './flags.js';
 import { portFor } from '../track/registry.js';
 import { TRACK_COUNT } from '../track/ref.js';
 import { keyboardState } from '../keyboard/state.js';
-import { scaleMicrophoneAvailable, scaleMicrophoneListening } from './scale-finding.js';
 import { safeWrite } from './persist-store.js';
 import { setMovePreviewFrozen, isMovePreviewFrozen } from '../keyboard/harmony-pads.js';
 import { launchpadAvailable, launchpadPreviewReady, launchpadPreviewFrozen, setLaunchpadPreviewFrozen, setLaunchpadIsolation, launchpadIsolationMetrics } from '../surfaces/launchpad.js';
@@ -75,12 +74,14 @@ type QueueSnapshot = { track: number; moduleVersion: string | null; status: stri
 let queueBefore: QueueSnapshot[] = [];
 /** Endpoint observations only; never poll extra state during measurement. */
 function quickSetup() {
+    const microphone = scaleMicNativeFrame();
     return { engineBuild: seqState.workerBuild || null, setUuid: currentSetUuid() || null,
         bpmX100: seqState.bpmX100, activeTrack: appState.activeTrack.index + 1,
         keyboardMode: keyboardState.mode, keyboardLayout: keyboardState.layout,
-        launchpadMode: flagValue('hblaunchpad'), launchpadConnected: launchpadAvailable(),
+        launchpadMode: flagValue('hblaunchpad'), launchpadActive: launchpadAvailable(),
         trackHosting: flagValue('chtracks'), setTrackHosting: flagValue('chtrackset'),
-        microphoneAvailable: scaleMicrophoneAvailable(), microphoneListening: scaleMicrophoneListening() };
+        nativeMicrophoneAvailable: microphone?.available ?? null,
+        nativeMicrophoneListening: microphone?.listening ?? null };
 }
 let setupBefore: ReturnType<typeof quickSetup> | null = null;
 function normalQuickCheck(): boolean {

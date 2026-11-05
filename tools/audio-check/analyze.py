@@ -34,7 +34,7 @@ SETUP_TEXT_FIELDS: tuple[str, ...] = ("engineBuild", "setUuid")
 SETUP_INTEGER_FIELDS: tuple[str, ...] = (
     "bpmX100", "activeTrack", "keyboardMode", "keyboardLayout", "launchpadMode", "trackHosting", "setTrackHosting",
 )
-SETUP_BOOLEAN_FIELDS: tuple[str, ...] = ("launchpadConnected", "microphoneAvailable", "microphoneListening")
+SETUP_BOOLEAN_FIELDS: tuple[str, ...] = ("launchpadActive", "nativeMicrophoneAvailable", "nativeMicrophoneListening")
 
 
 def setup_snapshot(value: Any) -> dict[str, Any] | None:
@@ -254,7 +254,7 @@ def render(summary: dict[str, Any]) -> str:
 
 
 def main() -> int:
-    """Read one local file and write a summary to stdout; never modify the input."""
+    """Read local captures and write a summary or comparison; never modify inputs."""
     parser: argparse.ArgumentParser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("report", type=Path)
     parser.add_argument("--json", action="store_true", help="emit structured JSON")

@@ -21,8 +21,8 @@ def contextual_report() -> dict[str, Any]:
     map_setup: dict[str, Any] = {
         "engineBuild": "synthetic-build", "setUuid": "synthetic-set", "bpmX100": 12000,
         "activeTrack": 4, "keyboardMode": 1, "keyboardLayout": 3,
-        "launchpadMode": 0, "launchpadConnected": False, "trackHosting": 1,
-        "setTrackHosting": 1, "microphoneAvailable": True, "microphoneListening": False,
+        "launchpadMode": 0, "launchpadActive": False, "trackHosting": 1,
+        "setTrackHosting": 1, "nativeMicrophoneAvailable": True, "nativeMicrophoneListening": False,
     }
     map_report.update(engineBuild="synthetic-build", setupBefore=copy.deepcopy(map_setup), setupAfter=copy.deepcopy(map_setup))
     endpoint: str
@@ -102,11 +102,11 @@ class ComparisonTests(unittest.TestCase):
         map_report: dict[str, Any] = contextual_report()
         map_report["setupBefore"]["launchpadMode"] = 2
         map_report["setupAfter"]["launchpadMode"] = 2
-        map_report["setupAfter"]["microphoneListening"] = True
+        map_report["setupAfter"]["nativeMicrophoneListening"] = True
         map_result: dict[str, Any] = compare(summarize(contextual_report()), summarize(map_report))
         map_field_to_context: dict[str, dict[str, Any]] = {entry["field"]: entry for entry in map_result["setupComparison"]}
         self.assertEqual(map_field_to_context["launchpadMode"]["status"], "different")
-        self.assertEqual(map_field_to_context["microphoneListening"]["status"], "changed_within_capture")
+        self.assertEqual(map_field_to_context["nativeMicrophoneListening"]["status"], "changed_within_capture")
         self.assertEqual(map_field_to_context["bpmX100"]["status"], "same_observed_endpoints")
         self.assertIn("do not prove", render_comparison(map_result))
 
@@ -129,7 +129,7 @@ class ComparisonTests(unittest.TestCase):
         field: str
         value: Any
         for field, value in (("bpmX100", 0), ("bpmX100", True), ("activeTrack", 17),
-                             ("launchpadConnected", 1), ("microphoneListening", "false"),
+                             ("launchpadActive", 1), ("nativeMicrophoneListening", "false"),
                              ("setUuid", {}), ("keyboardLayout", -1)):
             with self.subTest(field=field):
                 map_report: dict[str, Any] = contextual_report()

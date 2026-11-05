@@ -41,8 +41,8 @@ intentionally clears the queue, so that counter alone is not a fault.
 Compare the same Set and tempo, changing one workload at a time: Launchpad,
 microphone listening, or paired browser observation. Repeat a baseline to check
 for variation. From hbclean.322, reports include native build, Set UUID, tempo,
-active track, keyboard mode/layout, Launchpad configuration/connection,
-track-hosting flags and microphone state at both endpoints. HB versions accompany
+active track, keyboard mode/layout, Launchpad configuration/adapter activity,
+track-hosting flags and native microphone state at both endpoints. HB versions accompany
 the queue snapshots. Missing or differing context is flagged. Matching endpoints
 do not prove settings or workload stayed unchanged in between. Host version,
 browser subscription activity and audible symptoms still need separate notes.

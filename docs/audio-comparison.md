@@ -2,8 +2,8 @@
 
 Movy hbclean.322 makes the existing 35-second quick audio check easier to compare.
 Each saved report now records the native build, Set UUID, tempo, active track,
-keyboard mode/layout, Launchpad configuration/connection, track-hosting flags and
-microphone state at its two boundaries. HarmonyBus versions accompany the queue
+keyboard mode/layout, Launchpad configuration/adapter activity, track-hosting flags and
+native microphone state at its two boundaries. HarmonyBus versions accompany the queue
 snapshots. No extra polling or file writes occur during measurement.
 
 The existing offline reader accepts an experiment plus a baseline:
