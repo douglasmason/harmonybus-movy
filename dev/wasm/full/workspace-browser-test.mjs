@@ -10,9 +10,11 @@ import {createFullEngine} from './engine.mjs';
 const physicalFixture=await createFullEngine(),commands=[],pairingKey='b'.repeat(64);
 physicalFixture.request('set','joint_map',Array(32).fill('0,60,-1,0').join(';'));
 const fixture=JSON.parse(await readFile(new URL('../../local/fixtures/move-mirror-v1.json',import.meta.url)));
+const installedMetadata=JSON.parse(await readFile(new URL('../build/full/modules/movy/module.json',import.meta.url)));
+assert.equal(installedMetadata.browser_transport_v1?.state_read_preserves_dirty,true);
 const clients=new Set();let connections=0,persistenceSafe=false;
 const move=createServer((request,response)=>{
- if(request.url==='/api/remote-ui/module-assets/movy/module.json'){response.setHeader('Content-Type','application/json');response.end(JSON.stringify({id:'movy',version:'0.34.0',...(persistenceSafe?{browser_transport_v1:{state_read_preserves_dirty:true}}:{})}));return;}
+ if(request.url==='/api/remote-ui/module-assets/movy/module.json'){response.setHeader('Content-Type','application/json');response.end(JSON.stringify({...installedMetadata,...(persistenceSafe?{}:{browser_transport_v1:undefined})}));return;}
  assert.equal(request.url,'/stream-auto?v=2');assert.equal(request.method,'GET');connections++;
  response.writeHead(200,{'Content-Type':'text/event-stream','Access-Control-Allow-Origin':'*'});clients.add(response);
  response.write('data: '+JSON.stringify(fixture.screen)+'\n\nevent: surface\ndata: '+JSON.stringify(fixture.surface)+'\n\n');
@@ -25,8 +27,9 @@ moveWS.on('connection',(socket,request)=>{
  socket.on('message',data=>{
   const message=JSON.parse(data.toString());commands.push(message);
   if(message.type==='subscribe_tool'){
-   // Current Manager seeds state, which consumes the current DSP's save flag.
-   if(!persistenceSafe)physicalFixture.request('get','state');
+   // Stock Manager reads state on subscription and later polls it.
+   for(let index=0;index<5;index++)physicalFixture.request('get','state');
+   assert.match(physicalFixture.request('get','status').value,/dirty=1/,'real observer preserves autosave');
    socket.send(JSON.stringify({type:'tool_info',id:'movy'}));
   }
   else{assert.equal(message.type,'set_param');assert.equal(message.key,'overtake_dsp:cmd');physicalFixture.request('set','cmd',message.value);}
@@ -165,11 +168,11 @@ try{
  await page.locator('#move-transport-enabled').check();
  for(const width of [390,768,1440]){await page.setViewportSize({width,height:850});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Move connection controls fit the viewport');}
  await page.setViewportSize({width:1024,height:768});await page.locator('#move-pairing-key').fill(pairingKey);await page.locator('#move-connect').click();
- // Current installed metadata must fail BEFORE subscribe_tool can read state.
+ // Legacy metadata must fail BEFORE subscribe_tool can read state.
  await page.waitForFunction(()=>document.querySelector('#move-transport-status').textContent.includes('persistence-safe'));
  assert.equal(commands.length,0);assert.match(physicalFixture.request('get','status').value,/dirty=1/,'rejected subscription preserves pending autosave');assert(await page.locator('[data-move-transport=play]').isDisabled());
  await page.locator('#move-disconnect').click();
- // Future capability fixture only; production commands below still reach the real DSP.
+ // Use the actual composed module metadata and production DSP for the safe path.
  persistenceSafe=true;
  await page.locator('#move-check').click();await page.locator('#move-capabilities').filter({hasText:'Paired Play/Stop eligible'}).waitFor();
  assert.equal(commands.length,0,'eligible metadata does not open a subscription');
@@ -201,7 +204,7 @@ try{
  for(const name of ['field','choices','song','lights'])assert(await page.locator(`[data-workspace=${name}]`).isVisible());
  assert.equal(await page.locator('[data-workspace]').evaluateAll(nodes=>nodes.map(node=>node.dataset.workspace).indexOf('field')),1);
  for(const width of [390,768,1440]){await page.setViewportSize({width,height:850});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));}
- assert.deepEqual(errors,[]);console.log('Unified workspace: shared color wheel, contrast, persistence, enlarged theme, shared edits, composition, Song, persistence, live mirror, persistence capability refusal, authenticated future-capability fixture transport, real DSP record/replay, loss, reconnect and engine ownership pass');
+ assert.deepEqual(errors,[]);console.log('Unified workspace: shared color wheel, contrast, persistence, enlarged theme, shared edits, composition, Song, persistence, live mirror, persistence capability refusal, authenticated production-capability transport, real DSP record/replay, loss, reconnect and engine ownership pass');
  // Exercise the real Worker error -> transport close -> shared owner path.
  await page.evaluate(()=>window.testEngineWorker.dispatchEvent(new ErrorEvent('error',{message:'Fixture Worker failure'})));
  await page.waitForFunction(()=>document.querySelector('#engine-status').dataset.state==='error');

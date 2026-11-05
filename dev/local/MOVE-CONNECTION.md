@@ -108,26 +108,21 @@ state. The mirror reports only capabilities actually observed in valid frames.
 
 ## Paired transport readiness (Schwung 1.8.2)
 
-**Current Movy builds remain read-only.** Source inspection found that Manager's
-`subscribe_tool` seeds and polls `get_param("state")`. Movy's implementation
-clears its autosave dirty flag on that read. Merely subscribing can consume a
-pending save even without sending a control command. Do not connect current
-Movy to that subscription to obtain identity or infer safe support from a host
-upgrade. This companion rejects the unsafe path before opening the upstream
-WebSocket; its live screen mirror remains available.
+**Movy hbclean.320 and later advertise safe state observation.** Manager's
+`subscribe_tool` seeds and polls `get_param("state")`; those reads now preserve
+pending autosave. Only the local save owner consumes `save_state`, retaining
+its write verification and retry behavior. See [native integration](../../docs/browser-safe-state.md).
 
-The shared transport adapter is implemented and tested behind a device-owned
-capability gate. A future Movy integration must prove non-consuming state reads
-and advertise this exact module.json capability before it can be enabled:
+The companion still requires the device-owned capability before opening its
+upstream WebSocket:
 
 ```json
 {"browser_transport_v1":{"state_read_preserves_dirty":true}}
 ```
 
-This is an integration contract, **not a user override**. Do not hand-edit the
-installed metadata to enable it. The browser work does not modify on-device
-persistence or duplicate the separate host compatibility implementation. The
-current 0.34.0 / 0.34.1-hbclean metadata lacks this flag and is correctly refused.
+Legacy builds remain read-only. This is an integration contract, not a user
+override: do not hand-edit installed metadata. A host upgrade alone does not
+supply this Movy capability. Screen mirroring remains available independently.
 
 To check readiness without installing anything on Move, start the companion
 with its existing Node dependencies (`npm --prefix dev/local ci`) and add
@@ -135,7 +130,7 @@ with its existing Node dependencies (`npm --prefix dev/local ci`) and add
 address, or 127.0.0.1 for same-computer testing. It prints a random per-launch
 pairing key. In Engine → Move enter the companion address, select **Check paired
 Play/Stop**, paste the key and Connect. The key is cleared immediately and never
-saved in local storage; enter it again to reconnect. Current builds show the
+saved in local storage; enter it again to reconnect. Legacy builds show the
 persistence-safe subscription requirement and leave Play/Stop disabled.
 
 Plain HTTP/WS provides no confidentiality for the key or commands. Use only a
@@ -143,7 +138,7 @@ trusted LAN, or a trusted HTTPS companion for encrypted access. Hosted HTTPS
 continues to require HTTPS. No public tunnel, port forwarding, TLS bypass or
 loosening of the trial's audience is provided.
 
-### Transport contract after a persistence-safe device adapter exists
+### Paired transport contract
 
 The companion reads installed `movy/module.json` through Manager's module asset
 route, checks the supported release family and capability, then uses stock
@@ -190,12 +185,12 @@ Node fixtures cover exact protocol writes, keys/origins, read-only default,
 unsupported versions, absent persistence capability, wrong tools, loss, stale
 callbacks and reconnect. Browser CI runs the packaged UI through the real
 companion: current metadata must be rejected before any subscription and retain
-the compiled engine's pending-save flag. A separate **future-capability fixture**
-then verifies real production Stop/Play and recorded MIDI replay. It is a test
-harness, not evidence that current device metadata or state reads are safe.
+the compiled engine's pending-save flag. The capable path uses the actual composed module metadata and production DSP,
+performs Manager-like state reads, verifies pending-save preservation, then
+checks Stop/Play and recorded MIDI replay. It remains a repository fixture,
+not a physical network test.
 
-Physical Move/iPad testing remains required after the host integration satisfies
-the capability contract: identity, command delivery, Link response, recording
+Physical Move/iPad testing remains required with the safe Movy build: identity, command delivery, Link response, recording
 completion, Wi-Fi/lock loss, tool changes and trusted TLS/CORS permissions.
 Manager has no atomic identity-and-command operation, so changing tools during
 a request remains an upstream race. Nothing was installed or changed on Move.

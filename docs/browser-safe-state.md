@@ -1,0 +1,9 @@
+# Safe state observation and paired browser transport
+
+Movy hbclean.320 makes `get_param("state")` observational: repeated Manager subscriptions and polls preserve pending autosave dirtiness. Persisted `movy1` bytes and state loading are unchanged. The local save owner uses `save_state` for the original consuming snapshot, retains write/readback verification and retry-on-failure, and does not rewrite unchanged payloads. An edit after the snapshot sets dirty again. This avoids adding another revision counter or persistence implementation.
+
+The composed module advertises `browser_transport_v1.state_read_preserves_dirty = true`. The existing companion's opt-in pairing gate can now admit this build and send its already implemented Play/Stop commands. Legacy metadata remains rejected before subscription. Observation does not start playback or transfer browser sessions. This does not add remote pads, recording controls, rich semantic labels, or a new host protocol.
+
+Native regressions exercise repeated observation, save consumption, subsequent edits, and clean restore. The existing browser persistence suite covers successful saves, unchanged payloads, failed writes/retry and restart; an additional observer case verifies an edit still reaches disk. The real browser/companion fixture uses the composed module metadata and production DSP, performs Manager-like state reads on subscription, checks dirty preservation and exercises Stop/Play and recorded-note replay.
+
+No physical Move install is performed. On an explicitly installed build, test with Schwung 1.8.2 and the paired companion: create an unsaved edit, connect and allow polling, wait for autosave, reload the Set and confirm the edit. Then check Play/Stop, Stop finishing a take, loss/disconnect leaving device playback alone, reconnect requiring pairing, and rejected control after a tool change. Physical network/Link behavior remains to be measured.
