@@ -31,8 +31,10 @@ are experiment minus baseline, in percentage points for percentages. Zero
 baseline events do not produce an infinite ratio. Missing or zero exposure stays
 unavailable. Incomplete captures have no comparable timing rates.
 
-Peaks appear side by side without subtraction. Queue rates use each report's own
+Peaks appear side by side without subtraction. Queue counts use each report's own
 before/after changes, conditionally on the same loaded module within that capture.
+Queue snapshots have no measured duration of their own, so those counts are not
+normalized by the narrower engine timing window.
 Lifetime totals from separate files are never subtracted, and shared conductor
 counts are never summed. An observed HB version change disables queue subtraction;
 reloading the same version can still go undetected. A successful handoff

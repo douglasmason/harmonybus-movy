@@ -69,7 +69,7 @@ class ComparisonTests(unittest.TestCase):
         self.assertIsNone(map_result["metrics"][0]["baseline"])
         self.assertIsNone(map_result["metrics"][0]["change"])
         self.assertIsNone(map_result["metrics"][3]["baseline"])
-        self.assertTrue(all(metric["baseline"] is None for metric in map_result["metrics"][6:]))
+        self.assertEqual(map_result["metrics"][6]["baseline"], 8, 'queue changes do not borrow the audio duration')
 
     def test_peaks_and_cross_file_queue_totals_are_never_subtracted(self) -> None:
         """Different lifetimes can have identical within-capture queue changes."""

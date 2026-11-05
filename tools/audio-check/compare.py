@@ -53,9 +53,11 @@ def compare(map_baseline: dict[str, Any], map_experiment: dict[str, Any]) -> dic
     map_baseline_changes: dict[str, Any] = map_baseline["queue"]["counterChangesAssumingSameLifetime"] or {}
     map_experiment_changes: dict[str, Any] = map_experiment["queue"]["counterChangesAssumingSameLifetime"] or {}
     for field in ("activations", "recoveries", "lateChanges", "clears", "rearms"):
-        metrics.append({"name": "Queue " + field, "unit": "per minute; conditional on each capture's module lifetime",
-                        "baseline": rate(map_baseline_changes.get(field), map_baseline_timing.get("elapsedMs"), 60000.0),
-                        "experiment": rate(map_experiment_changes.get(field), map_experiment_timing.get("elapsedMs"), 60000.0),
+        # These reads bracket the audio window and have no measured duration of
+        # their own. Do not divide their counts by the narrower engine timer.
+        metrics.append({"name": "Queue " + field, "unit": "bracketed count; conditional on each capture's module lifetime",
+                        "baseline": map_baseline_changes.get(field),
+                        "experiment": map_experiment_changes.get(field),
                         "change": None})
     map_baseline_context: dict[str, tuple[Any, Any]] = observations(map_baseline)
     map_experiment_context: dict[str, tuple[Any, Any]] = observations(map_experiment)
@@ -86,8 +88,9 @@ def compare(map_baseline: dict[str, Any], map_experiment: dict[str, Any]) -> dic
         warnings.append("An incomplete capture has no comparable timing rates.")
     warnings.extend([
         "Changes are experiment minus baseline; percentage changes are percentage points, not relative percentages.",
-        "Counts are normalized by recorded exposure; no ratio is invented for a zero baseline.",
+        "Timing counts are normalized by recorded exposure; no ratio is invented for a zero baseline.",
         "Queue differences are calculated only within each capture, conditionally on that capture's module lifetime; never across files.",
+        "Queue snapshot duration is unmeasured; bracketed counts are not normalized by the engine's narrower timing window.",
         "A successful handoff intentionally clears the live queue; a clear alone does not establish a fault.",
         "No score, audible-crackle count, causal conclusion or claim of a fix is inferred.",
     ])
