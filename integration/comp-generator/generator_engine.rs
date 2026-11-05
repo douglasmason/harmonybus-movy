@@ -312,15 +312,17 @@ impl Engine {
         Ok(count>0)
     }
     /// Called by the existing per-track clock, sharing its gate countdown and
-    /// emit_clip_note ownership. No plan building or catalog parsing on ticks.
-    fn generator_tick(&mut self,track:usize,out:&mut Vec<OutEvent>) {
-        if !self.generator_owns(track)||self.tracks[track].muted {return;}
+    /// emit_clip_note ownership. Return accepted source rhythm before actor
+    /// rendering, so the clip clock can merge it with authored attacks once.
+    /// No plan building, second generator evaluation or catalog parsing on ticks.
+    fn generator_tick(&mut self,track:usize,out:&mut Vec<OutEvent>)->Option<u32> {
+        if !self.generator_owns(track)||self.tracks[track].muted {return None;}
         if self.generator_exploring(track)&&self.generator_settings(track).is_some_and(|settings|!settings.mapped()) {
-            self.generator_result="Actor needs Relative or Closest Split mapping".into();return;
+            self.generator_result="Actor needs Relative or Closest Split mapping".into();return None;
         }
         let slot=self.tracks[track].playing_slot.unwrap_or(self.tracks[track].active_clip);
         if self.generator_explore[track].is_some_and(|state|state.take.is_some_and(|take|take!=slot||self.tracks[track].clips[take].generator.is_none())) {
-            self.generator_cancel_track(track,out);self.generator_result="Recording ended: clip changed".into();return;
+            self.generator_cancel_track(track,out);self.generator_result="Recording ended: clip changed".into();return None;
         }
         let recording=self.recording&&self.records_track(track);
         let free=self.generator_free(track)&&!recording;
@@ -353,6 +355,7 @@ impl Engine {
         let clip=&self.tracks[track].clips[slot];
         let (start,end,snum,sden)=if free {(0,free_end,1,1)}else{(clip.loop_start_ticks(),clip.loop_end_ticks(),clip.scale_num,clip.scale_den)};
         let bar=pos/crate::TICKS_PER_BAR*16;
+        let mut source_duration:Option<u32>=None;
         for local in 0..16 {
             let step=(bar+local) as u16;
             let tick=step as u32*TICKS_PER_STEP;
@@ -362,6 +365,7 @@ impl Engine {
             let config=if let Some(state)=self.generator_explore[track] {state.current}
                 else {let clip=&self.tracks[track].clips[slot];clip.generator.unwrap().at(clip,&self.tracks[track].lane_label,step)};
             if let Some(mut note)=config.note(step) {
+                source_duration=Some(source_duration.map_or(note.gate.max(1),|previous|previous.max(note.gate.max(1))));
                 if let Some(part)=&self.generator_library[track]{if let Some(recipe)=&part.clip.recipe{note.gate=((note.gate as u64*recipe.gate as u64)/100).clamp(1,u32::MAX as u64) as u32;}}
                 if config.bass() {
                     let mut index=0;
@@ -376,6 +380,7 @@ impl Engine {
                 self.generator_emitting=false;
             }
         }
+        source_duration
     }
     pub fn generator_bake(&mut self,message:&str,out:&mut Vec<OutEvent>) {
         self.generator_result=match self.generator_bake_checked(message,out){Ok(())=>"Baked - Undo available".into(),Err(error)=>error.into()};

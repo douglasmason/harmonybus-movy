@@ -72,12 +72,18 @@ def patch_comp_generator(root: Path) -> None:
     start: int = source.index('        let mut gi = 0;',source.index('    fn step_tick('))
     end: int = source.index('        {\n            let drum_fill_lane',start)
     gate_body: str = source[start:end]
-    source = source[:start] + '''        if !self.generator_free(ti) {self.advance_note_gates(ti,out);self.generator_tick(ti,out);}
+    source = source[:start] + '''        let generated_rhythm=if !self.generator_free(ti) {
+            self.advance_note_gates(ti,out);self.generator_tick(ti,out)
+        }else{None};
 ''' + source[end:]
+    # One donation per accepted clip onset, including coincident authored notes.
+    # Free exploration has no stable clip identity and does not donate rhythm.
+    source = replace_once(source,'let mut source_duration: Option<u32> = None;',
+        'let mut source_duration: Option<u32> = generated_rhythm;')
     source += '\nimpl Engine {fn advance_note_gates(&mut self,ti:usize,out:&mut Vec<OutEvent>) {\n' + gate_body + '\n}}\n'
     source = replace_once(source,'            if serviced && clock_serviced &&', '            if (serviced||self.generator_exploring(t)) && (clock_serviced||self.generator_exploring(owner)) &&')
     source = replace_once(source,'            for ti in 0..NUM_TRACKS {\n                let Some(slot)', '''            for ti in 0..NUM_TRACKS {
-                if self.generator_free(ti) {self.advance_note_gates(ti,out);self.generator_tick(ti,out);if !(self.recording&&self.records_track(ti)) {continue;}}
+                if self.generator_free(ti) {self.advance_note_gates(ti,out);let _=self.generator_tick(ti,out);if !(self.recording&&self.records_track(ti)) {continue;}}
                 let Some(slot)''')
     source = replace_once(source,'            if !muted {\n                    let len', '            if !muted && !self.generator_free(ti) {\n                    let len')
     source = replace_once(source,'        self.shared_transport(out);','        self.generator_check_target(out);\n        self.shared_transport(out);')
@@ -91,6 +97,7 @@ def patch_comp_generator(root: Path) -> None:
     source += '\n' + (assets / 'generator_engine.rs').read_text()
     if (assets / 'generator_tests.rs').exists():
         source += '\n' + (assets / 'generator_tests.rs').read_text()
+    source += '\n' + (assets / 'generator_source_tests.rs').read_text()
     path.write_text(source)
     path = core / 'clip_recipe.rs'
     source = replace_once(path.read_text(),'let next=clip.recipe.as_ref().map(|recipe|recipe.settings).or(self.recipe_bases[track]);','let next=self.generator_settings(track).or_else(||clip.recipe.as_ref().map(|recipe|recipe.settings)).or(self.recipe_bases[track]);')
