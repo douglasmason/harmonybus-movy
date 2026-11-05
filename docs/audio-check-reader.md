@@ -16,6 +16,40 @@ second emits `movy-audio-check-summary-v1` JSON. Invalid or unsupported reports
 exit with status 2 and an error on stderr. Worker/isolation reports use separate
 formats and are not accepted as quick checks.
 
+## Compare a baseline with an experiment
+
+```sh
+python3 tools/audio-check/analyze.py "/path/to/launchpad-on.json" --baseline "/path/to/baseline.json"
+python3 tools/audio-check/analyze.py "/path/to/launchpad-on.json" --baseline "/path/to/baseline.json" --json
+```
+
+The positional file is the **experiment**; `--baseline` is the reference. Neither
+file changes. JSON uses `movy-audio-check-comparison-v1` and retains both summaries
+alongside the comparison. Late/short intervals and over-budget callbacks are
+normalized by their own counts; late groups use recorded elapsed time. Changes
+are experiment minus baseline, in percentage points for percentages. Zero
+baseline events do not produce an infinite ratio. Missing or zero exposure stays
+unavailable. Incomplete captures have no comparable timing rates.
+
+Peaks appear side by side without subtraction. Queue counts use each report's own
+before/after changes, conditionally on the same loaded module within that capture.
+Queue snapshots have no measured duration of their own, so those counts are not
+normalized by the narrower engine timing window.
+Lifetime totals from separate files are never subtracted, and shared conductor
+counts are never summed. An observed HB version change disables queue subtraction;
+reloading the same version can still go undetected. A successful handoff
+intentionally clears the queue, so that counter alone is not a fault.
+
+Compare the same Set and tempo, changing one workload at a time: Launchpad,
+microphone listening, or paired browser observation. Repeat a baseline to check
+for variation. From hbclean.322, reports include native build, Set UUID, tempo,
+active track, keyboard mode/layout, Launchpad configuration/adapter activity,
+track-hosting flags and native microphone state at both endpoints. HB versions accompany
+the queue snapshots. Missing or differing context is flagged. Matching endpoints
+do not prove settings or workload stayed unchanged in between. Host version,
+browser subscription activity and audible symptoms still need separate notes.
+The comparison does not assign an audio-quality score or infer the cause of a gap.
+
 ## Capture on the device
 
 Keep the affected set loaded and the queue playing. Open **Shift + Step 12** CPU,
@@ -32,9 +66,10 @@ in [queue diagnostics](queue-diagnostics.md).
 
 ## Read the result
 
-- **Build:** copied only if the report contains `engineBuild`. Existing quick
-  reports omit it, so `unknown` is expected. The reader cannot determine the
-  installed build from the checkout, counters, or timestamp.
+- **Build:** copied only if the report contains `engineBuild`. Reports before
+  hbclean.322 omit it, so `unknown` is expected. The reader cannot determine the
+  installed build from the checkout, counters, or timestamp. New native builds
+  use the candidate source version (or explicit build version), not a lagging installer pointer.
 - **Internal tone:** `matched`, `mismatch`, `incomplete`, or `unavailable`.
   Matched requires a completed tone, checked samples, and zero mismatches. This
   checks the internal test tone, not the user's instrument waveform, host mix,

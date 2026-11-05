@@ -25,6 +25,7 @@ Analyze the saved files without connecting to the device:
 ```sh
 python3 tools/audio-check/analyze.py /path/to/audio-check-123.json
 python3 tools/audio-check/analyze.py /path/to/audio-check-123.json --json
+python3 tools/audio-check/analyze.py /path/to/experiment.json --baseline /path/to/baseline.json
 ```
 
 Keep raw reports and recordings. Compare late callback intervals, request timing and queue activation/recovery/late-change deltas within the same loaded module lifetime. A native queue clear during a successful handoff is intentional; a clear during plain Copy is not. Do not subtract lifetime maxima, sum shared conductor counters across tracks, equate an internal tone match with clean speakers, or treat request correlation as proof of causation. The report may omit the installed build, so record it explicitly.
