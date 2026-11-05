@@ -1,0 +1,11 @@
+# Release verification and parallel development
+
+Each repository has one comprehensive device workflow: Movy `chord-play.yml` and HarmonyBus `release.yml`. Retired feature/release workflows remain in git history. Movy browser development, saved-audio analysis and Schwung compatibility retain their independent checks; manual historical source experiments remain read-only.
+
+The comprehensive PR workflow verifies the integrated source and packages it once. A push to main can reuse that successful same-repository PR artifact only when its exact git tree, version, complete asset set, checksums, Actions run and tested merge commit all match. Missing, expired, corrupt or stale artifacts cause full verification. Concurrent changes to any file change the tree and prevent reuse. No partial source fingerprint is used.
+
+`integration/release-candidate.json` is the candidate's version, predecessor, release notes, title and asset list. `release.json` remains the published installer pointer: developers must not advance it in feature branches. Feature work may merge without publishing by leaving the candidate version unchanged. For a release, update the candidate descriptor (and HarmonyBus module/source/guide versions), then merge after checks. Keep the Movy HB pin explicit. A later integration merge must verify its combined tree; a green feature branch alone is insufficient.
+
+Main runs do not cancel an active publisher. Publication accepts only main pushes, never PR/manual events. Existing assets are never overwritten. Downloads must match the verified bytes, main must still descend from the tested commit without changes to device/release inputs, and the predecessor must still match before the final non-forced installer commit. Browser-only concurrent changes are allowed by the existing ancestry guard; all other concurrent changes stop publication. A race at the final push fails safely and requires a new main run. Release creation alone is not an installer update, and neither installs on a Move.
+
+To validate this machinery locally: `python3 scripts/test_candidate_release.py` and `python3 scripts/test_release_base.py`. The latter uses real git histories, including merges, renames, divergent branches and concurrent installer edits.
