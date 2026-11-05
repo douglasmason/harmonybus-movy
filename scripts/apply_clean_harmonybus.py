@@ -715,6 +715,8 @@ def main() -> int:
     patch_queue_copy(root)
     from patch_safe_state_reads import patch_safe_state_reads
     patch_safe_state_reads(root)
+    from patch_queue_handoff import patch_queue_handoff
+    patch_queue_handoff(root)
     print("HarmonyBus clean integration applied")
     return 0
 

@@ -44,3 +44,5 @@ note releases. Existing native, shared-controller, audio-chain and ARM package
 checks remain required for publication.
 
 Install/update both `douglasmason/harmonybus` and `douglasmason/harmonybus-movy`.
+
+An explicit **Copy + handoff** choice is now available via Step 9 in the picker; see [handoff behavior](queue-handoff.md). Ordinary Copy remains save-only.

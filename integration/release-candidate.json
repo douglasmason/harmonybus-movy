@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.320",
-  "previous_version": "0.34.1-hbclean.319",
+  "version": "0.34.1-hbclean.321",
+  "previous_version": "0.34.1-hbclean.320",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.320 \u2014 Safe browser transport",
-  "notes": "docs/browser-safe-state.md",
+  "title": "Movy 0.34.1-hbclean.321 \u2014 Explicit queue-to-clip handoff",
+  "notes": "docs/queue-handoff.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

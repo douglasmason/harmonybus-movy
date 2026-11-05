@@ -20,16 +20,30 @@ impl Instance {
     fn copy_chord_queue_command(&mut self, operation: &str) {
         let result = (|| -> Result<(), String> {
             let mut fields = operation.split_whitespace();
-            if fields.next() != Some("qcopy") { return Err("Invalid queue copy".into()); }
+            let handoff = match fields.next() { Some("qcopy") => false, Some("qhandoff") => true, _ => return Err("Invalid queue copy".into()) };
             let track = fields.next().and_then(|text| text.parse::<usize>().ok()).ok_or("Invalid conductor")?;
             let slot = fields.next().and_then(|text| text.parse::<usize>().ok()).ok_or("Invalid clip")?;
             let token = fields.next().and_then(|text| u64::from_str_radix(text, 16).ok()).ok_or("Invalid queue identity")?;
             if fields.next().is_some() { return Err("Invalid queue copy".into()); }
             let snapshot = self.chord_copy_snapshot(track)?;
-            self.engine.copy_chord_queue(snapshot, track, slot, token).map_err(str::to_owned)
+            if handoff {
+                if !self.engine.chord_handoff_context(track, slot) {
+                    return Err("Handoff needs running own clip / no pending launch or generator".into());
+                }
+                self.chains.set_param(track, "midi_fx1:hb_chord_queue_handoff", &format!("{token:016x}"));
+                if !matches!(self.chains.hb_chord_handoff_ready(track), Some(0 | 1)) {
+                    return Err("Handoff unavailable - check queue / update HarmonyBus".into());
+                }
+            }
+            if let Err(error) = self.engine.copy_chord_queue(snapshot, track, slot, token) {
+                if handoff { self.chains.set_param(track, "midi_fx1:hb_chord_queue_handoff", "off"); }
+                return Err(error.into());
+            }
+            if handoff { self.chord_handoff = Some((track, slot)); }
+            Ok(())
         })();
         self.chord_copy_result = match result {
-            Ok(()) => "Copied - queue still live".into(),
+            Ok(()) => if self.chord_handoff.is_some() { "Copied - handoff at cycle start".into() } else { "Copied - queue still live".into() },
             Err(error) => format!("error:{error}"),
         };
     }

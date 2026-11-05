@@ -1,5 +1,11 @@
+#ifdef HB_TEST_QUEUE_HANDOFF
+#include "queue_handoff_audio.h"
+#endif
 /* Real HB -> chain -> Movy copy, persistence, Undo and abstract playback. */
 static void test_queue_copy(void){
+#ifdef HB_TEST_QUEUE_HANDOFF
+    test_queue_handoff();
+#endif
     set("cmd","stop");set("chord_select","off");render(8);
     set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ntk 3 0 0\ncl 0 0 64 0 \ncl 3 0 64 0 0:1000:66:90:0\n");render(8);
     set("ch0:midi_fx1:role","Conductor");set("ch0:midi_fx1:render_channel","3");

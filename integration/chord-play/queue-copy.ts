@@ -11,7 +11,7 @@ import {drawHeader} from '../renderer/header.js';
 import {cachedSetAnimLED,invalidateInputModeLeds} from './led-cache.js';
 import {C_GREEN,C_DARKGREY,trackColorDim} from './colors.js';
 
-interface Review {track:number;focus:number;mode:number;token:string;count:number;ticks:number;empty:number;slot:number;generation:number;set:string|null;}
+interface Review {handoff:boolean;track:number;focus:number;mode:number;token:string;count:number;ticks:number;empty:number;slot:number;generation:number;set:string|null;}
 let review:Review|null=null;
 const ownedReleases=new Set<string>();
 const get=(key:string):string=>String(host_module_get_param(key)??'');
@@ -36,7 +36,7 @@ export function openQueueCopy(track:number):void {
         ||!Number.isInteger(ticks)||ticks<24||ticks>6144||ticks%24||!Number.isInteger(empty)||empty<0||empty>255){seqToast('Queue copy unavailable');return;}
     const slot=Array.from({length:8},(_,index)=>index).find(index=>empty&(1<<index));
     if(slot===undefined){seqToast('No empty conductor clip');return;}
-    review={track,focus:appState.activeTrack.index,mode:sessionPlayMode(),token:fields[1],count,ticks,empty,slot,
+    review={handoff:false,track,focus:appState.activeTrack.index,mode:sessionPlayMode(),token:fields[1],count,ticks,empty,slot,
         generation:engineGeneration(),set:currentSetUuid()};
     invalidateInputModeLeds();appState.dirty=true;
 }
@@ -45,10 +45,10 @@ function commit(slot:number):void {
     if(!pending||!valid(pending)){cancelQueueCopy();return;}
     if(!(pending.empty&(1<<slot))){seqToast('Choose an empty clip');return;}
     cancelQueueCopy();
-    undoableEdit('COPY QUEUE',`T${pending.track+1} CLIP ${slot+1}`,()=>{
-        seqCmd(`qcopy ${pending.track} ${slot} ${pending.token}`);seqCmdFlush();
+    undoableEdit(pending.handoff?'COPY + HANDOFF':'COPY QUEUE',`T${pending.track+1} CLIP ${slot+1}`,()=>{
+        seqCmd(`${pending.handoff?'qhandoff':'qcopy'} ${pending.track} ${slot} ${pending.token}`);seqCmdFlush();
         const result=get('chord_copy_result');
-        seqToast(result.startsWith('Copied')?`Copied to T${pending.track+1} Clip ${slot+1}`:result.replace(/^error:/,'')||'Queue copy failed');
+        seqToast(result.startsWith('Copied')?(pending.handoff?'Saved; handoff at cycle start':`Copied to T${pending.track+1} Clip ${slot+1}`):result.replace(/^error:/,'')||'Queue copy failed');
     });
     seqCmdFlush();requestLabelSync();appState.dirty=true;
 }
@@ -60,7 +60,7 @@ export function queueCopyMidi(data:number[]):boolean {
     if(!queueCopyActive())return false;
     const pending=review!;
     if((status===144||status===128)&&key>=16&&key<32){
-        if(down){ownedReleases.add(identity);if(key<24)commit(key-16);}
+        if(down){ownedReleases.add(identity);if(key<24)commit(key-16);else if(key===24){if(!seqState.playing){seqToast('Play first for handoff');return true;}pending.handoff=!pending.handoff;appState.dirty=true;}}
         return true;
     }
     if(status===176){
@@ -80,7 +80,7 @@ export function paintQueueCopySteps():boolean {
     if(!queueCopyActive())return false;
     const pending=review!;
     for(let index=0;index<16;index++){
-        const color=index>=8?0:index===pending.slot?C_GREEN:pending.empty&(1<<index)?C_DARKGREY:trackColorDim(pending.track);
+        const color=index===8?(pending.handoff?C_GREEN:C_DARKGREY):index>8?0:index===pending.slot?C_GREEN:pending.empty&(1<<index)?C_DARKGREY:trackColorDim(pending.track);
         cachedSetAnimLED(16+index,color,color,0);
     }
     return true;
@@ -88,11 +88,11 @@ export function paintQueueCopySteps():boolean {
 export function renderQueueCopy():boolean {
     if(!queueCopyActive())return false;
     const pending=review!;
-    clear_screen();drawHeader('Copy queue',`T${pending.track+1}`);
+    clear_screen();drawHeader(pending.handoff?'Copy + handoff':'Copy queue',`T${pending.track+1}`);
     fontPrint(1,14,`${pending.count} chords / ${pending.ticks/96} beats`,1);
     fontPrint(1,25,`Clip ${pending.slot+1}: ${pending.empty&(1<<pending.slot)?'Empty':'Occupied'}`,1);
-    fontPrint(1,36,'Steps 1-8 / Jog: save',1);
-    fontPrint(1,46,'Live queue keeps playing',1);
+    fontPrint(1,36,'Steps 1-8 / Jog: confirm',1);
+    fontPrint(1,46,pending.handoff?'9: Handoff at cycle start':'9: Save only (queue live)',1);
     fontPrint(1,56,'Back / Copy: cancel',1);
     return true;
 }

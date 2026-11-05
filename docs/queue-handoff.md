@@ -1,0 +1,13 @@
+# Copy + handoff
+
+With Movy hbclean.321 and HarmonyBus 0.2.313, press **Copy** in Chord Play or Joint chords, press **Step 9** to select **Copy + handoff**, then choose an empty conductor clip with **Steps 1–8** or **Jog**. Transport must already be running. Active conductor Source Weaving or generator exploration is refused because it would replace the copied material during playback; plain Copy remains available. Each new picker defaults to ordinary save-only Copy.
+
+The clip is saved immediately as one Undo edit. The queue continues to sound until its next native cycle start, then its virtual input is released and the saved clip plays its first ordinary sequencer step on that same service tick. A completed Hold uses its next native boundary. Subsequent playback uses Movy's existing clip player. Melody focus and the transport clock stay where they are; as with a manual clip launch, an active Song arrangement yields to the manual takeover.
+
+Plain Copy is unchanged: it saves without launching or clearing the live queue. Empty-only, 16-bar/512-note limits and exact representable timing still apply. The native descriptor/duration fingerprint is checked again at transfer. Stop, rewind, Undo, other edits/launches, source-queue changes and changed timing cancel a pending handoff. Ordinary live melody notes and focus/watch updates do not cancel it. A short service delay advances within the copied first gate to retain the original native phase; a missed chord or a stall over eight ticks cancels the transfer. The saved clip remains available after cancellation unless Undo removes it. After a successful handoff the live queue is cleared; Undo restores the clip edit, not an expired live performance.
+
+No second clock, sequencer, note-ownership system or polling loop is added. Waiting uses the existing native queue service and a fixed four-byte readiness read only while a transfer is pending. Native readiness and fingerprint validation allocate nothing; the explicit copy and one-shot completion retain existing edit/launch costs.
+
+Validation compares production HB → Schwung chain → Movy attacks, releases and pitches against uninterrupted queue playback block-for-block, including subsequent loops, live melody input, and Undo before/after transfer. Native tests cover Hold/Loop deadlines, cancellation, stopped/changed timing and allocation-free waiting. Shared UI tests cover the separate explicit choice, save-only default, Undo ownership, melody focus and matching releases.
+
+Physical acceptance remains pending: see [the prepared device checks](hardware-acceptance.md). Neither merging nor publishing installs anything on Move.
