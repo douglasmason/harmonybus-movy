@@ -2,8 +2,14 @@
 import { seqCmdFlush, engineReady } from './engine.js';
 import { beginEdit, CLOSE } from '../undo/group.js';
 import { seqEdit } from '../undo/record.js';
-const fields=['enabled','pitch_track','pitch_slot','rhythm_track','rhythm_slot','alignment','expression_track','expression_slot','instrument_track','instrument_slot','hb_render_track','hb_render_slot','note_ops_track','note_ops_slot','grid_holds_track','grid_holds_slot','gesture_track','gesture_slot','expression_alignment','instrument_alignment'];
-const names=['Source Weaving','Pitch Source','Pitch Clip','Rhythm Source','Rhythm Clip','Alignment','Expression Source','Expression Clip','Instrument Source','Instrument Clip','HB Render Source','HB Render Clip','Note Ops Source','Note Ops Clip','Grid Holds Source','Grid Holds Clip','Gesture Source','Gesture Clip','Expression Alignment','Instrument Alignment'];
+const fields=['enabled','pitch_track','pitch_slot','rhythm_track','rhythm_slot','alignment','expression_track','expression_slot','instrument_track','instrument_slot','hb_render_track','hb_render_slot','note_ops_track','note_ops_slot','grid_holds_track','grid_holds_slot','gesture_track','gesture_slot','expression_alignment','instrument_alignment','rhythm_pitch'];
+const names=['Source Weaving','Pitch Source','Pitch Clip','Rhythm Source','Rhythm Clip','Alignment','Expression Source','Expression Clip','Instrument Source','Instrument Clip','HB Render Source','HB Render Clip','Note Ops Source','Note Ops Clip','Grid Holds Source','Grid Holds Clip','Gesture Source','Gesture Clip','Expression Alignment','Instrument Alignment','Rhythm Lane'];
+// Common assignments first; the stored value is always the actual raw note.
+// Every note remains selectable for custom kits, without another mode/knob.
+const commonRhythmNotes=[36,38,42,46,39,49,51];
+const rhythmNotes=[-1,...commonRhythmNotes,...Array.from({length:128},(_,pitch)=>pitch).filter(pitch=>!commonRhythmNotes.includes(pitch))];
+const rhythmNames:Record<number,string>={36:'Kick 36',38:'Snare 38',42:'Closed Hat 42',46:'Open Hat 46',39:'Clap 39',49:'Crash 49',51:'Ride 51'};
+const rhythmChoices=rhythmNotes.map(pitch=>pitch<0?'All':rhythmNames[pitch]??'Note '+pitch);
 const choices=[['Off','On'],['Own',...Array.from({length:16},(_,index)=>String(index+1))],
     Array.from({length:8},(_,index)=>String(index+1)),
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
@@ -19,7 +25,7 @@ const choices=[['Off','On'],['Own',...Array.from({length:16},(_,index)=>String(i
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
     Array.from({length:8},(_,index)=>String(index+1)),
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
-    Array.from({length:8},(_,index)=>String(index+1)),['Timeline','Fit to Window'],['Timeline','Fit to Window']];
+    Array.from({length:8},(_,index)=>String(index+1)),['Timeline','Fit to Window'],['Timeline','Fit to Window'],rhythmChoices];
 export const sourceKeys=(role:number):string[]=>fields.map(field=>'joint_source_'+role+'_'+field);
 export const sourceParameters=[0,1,2,3].flatMap(role=>sourceKeys(role).map((key,index)=>({key,name:names[index],short_name:names[index],type:'enum',options:choices[index],options_as_string:true,default:choices[index][0]})));
 function identity(base:number,key:string):{actor:number;field:number}|null {
@@ -38,13 +44,14 @@ function read(actor:number):number[] {
     if(values.length===17)values.push(-1,-1);
     if(values.length===19)values.push(0);
     if(values.length===20)values.push(0);
-    return values.length===21&&values.every(Number.isFinite)?values:[actor,0,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,0];
+    if(values.length===21)values.push(-1);
+    return values.length===22&&values.every(Number.isFinite)?values:[actor,0,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,0,-1];
 }
 export function sourcePanelGet(base:number,key:string):string|null {
     const target=identity(base,key);if(!target)return null;
     const values=read(target.actor);const field=target.field;
     const raw=values[field+1];
-    const index=field===1||field===3||field===6||field===8||field===10||field===12||field===14||field===16?raw+1:field===2||field===4||field===7||field===9||field===11||field===13||field===15||field===17?Math.max(0,raw):raw;
+    const index=field===20?rhythmNotes.indexOf(raw):field===1||field===3||field===6||field===8||field===10||field===12||field===14||field===16?raw+1:field===2||field===4||field===7||field===9||field===11||field===13||field===15||field===17?Math.max(0,raw):raw;
     return choices[field][index]??choices[field][0];
 }
 export function sourcePanelSet(base:number,key:string,value:string):boolean {
@@ -54,7 +61,7 @@ export function sourcePanelSet(base:number,key:string,value:string):boolean {
     const values=read(target.actor);const field=target.field;
     if(field===1||field===3||field===6||field===8||field===10||field===12||field===14||field===16){values[field+1]=selected-1;values[field+2]=selected===0?-1:Math.max(0,values[field+2]);}
     else if(field===2||field===4||field===7||field===9||field===11||field===13||field===15||field===17){if(values[field]===-1)return true;values[field+1]=selected;}
-    else values[field+1]=selected;
+    else values[field+1]=field===20?rhythmNotes[selected]:selected;
     beginEdit({key:'source-'+target.actor+'-'+field,verb:'Source Weaving',target:'Track '+(target.actor+1),close:CLOSE.IDLE,seq:true});
     seqEdit('source '+values.join(' '));seqCmdFlush();return true;
 }

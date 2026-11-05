@@ -16,6 +16,12 @@ the first dependency for rank 1, not adjustable affinity or generated receivers.
 See [scope and controls](generator-rhythm-sources.md); pitch/expression donation
 and free-audition source identities remain separate work.
 
+A second follow-up adds [Rhythm Lane selection](rhythm-source-lanes.md) to the
+existing Sources page: All, common drum notes, or any custom note number. Mixed
+drum clips can now supply independent kick/snare timing to different actors.
+The audit matrix below records the original baseline; adjustable affinity and
+generated receivers remain open, while its missing lane filter is implemented.
+
 This session implements a narrower prerequisite: remove unused automation-curve
 reads from recorded generator playback. It changes neither the musical model nor
 controls. Larger additions below remain proposals.

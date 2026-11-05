@@ -155,7 +155,7 @@ const sourceRoutes=new Map();
 globalThis.host_module_get_param=key=>key.startsWith('source_route_')?(sourceRoutes.get(Number(key.slice(13)))??`${key.slice(13)} 0 -1 -1 -1 -1 0`):nativeGet(key);
 globalThis.host_module_set_param_blocking=(key,value,timeout)=>{
  if(key==='cmd')for(const command of value.split(';'))if(command.startsWith('source ')){
-  const fields=command.slice(7).split(' ').map(Number);assert.equal(fields.length,21);sourceRoutes.set(fields[0],fields.join(' '));
+  const fields=command.slice(7).split(' ').map(Number);assert.equal(fields.length,22);sourceRoutes.set(fields[0],fields.join(' '));
  }
  return nativeSet?.(key,value,timeout);
 };
@@ -179,17 +179,24 @@ for(const group of [0,3]){
  assert.equal(sourceRoutes.get(actor)?.split(' ')[6],'2','Fit to Window');
  page.knobTurn(5,-4);flush(page);
  assert.equal(sourceRoutes.get(actor)?.split(' ')[6],'1','Timeline restored');
+ assert.equal(page.keyAt(6),'joint_source_3_rhythm_pitch');
+ assert.equal(page.performanceGet('joint_source_3_rhythm_pitch'),'All');
  page.knobTurn(6,4);flush(page);
- assert.equal(sourceRoutes.get(actor)?.split(' ')[7],'0','Expression Source is independent');
- page.knobTurn(7,4);flush(page);
- assert.equal(sourceRoutes.get(actor)?.split(' ')[8],'1','Expression Clip selects slot 2');
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[21],'36','Kick is an actual raw note, not an enum index');
+ page.knobTurn(6,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[21],'38','Snare follows Kick');
  const expressionPage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_source_3_expression_alignment'));
  assert(expressionPage>=0);page.goToPage(expressionPage);flush(page);
  assert.equal(page.keyAt(0),'joint_source_3_expression_track');
  assert.equal(page.keyAt(1),'joint_source_3_expression_slot');
+ page.knobTurn(0,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[7],'0','Expression Source is independent');
+ page.knobTurn(1,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[8],'1','Expression Clip selects slot 2');
  page.knobTurn(2,4);flush(page);
  assert.equal(sourceRoutes.get(actor)?.split(' ')[19],'1','Expression Fit is independent');
  assert.equal(sourceRoutes.get(actor)?.split(' ')[6],'1','Pitch alignment retained');
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[21],'38','Expression edits preserve the rhythm filter');
  const automationPage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_source_3_instrument_track'));
  assert(automationPage>=0);page.goToPage(automationPage);flush(page);
  page.knobTurn(0,4);flush(page);
@@ -222,6 +229,15 @@ for(const group of [0,3]){
  assert.equal(sourceRoutes.get(actor)?.split(' ')[18],'1');
  sourceRoutes.set(actor,`${actor} 0 -1 -1 -1 -1 0`);flush(page);
  assert.equal(page.performanceGet('joint_source_3_pitch_track'),'Own','external state edits read back');
+ assert.equal(page.performanceGet('joint_source_3_rhythm_pitch'),'All','legacy routes keep all lanes');
+ const encoded=[actor,1,-1,-1,0,0,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,0,127];
+ sourceRoutes.set(actor,encoded.join(' '));flush(page);
+ assert.equal(page.performanceGet('joint_source_3_rhythm_pitch'),'Note 127','custom kit lanes read back');
+ page.goToPage(sourcePage);
+ // A simulated Set/Undo recall invalidates the controller's encoder state.
+ page.ctl.revalue();flush(page);
+ page.knobTurn(6,-4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[21],'126','custom kit lanes edit by note');
 }
 globalThis.host_module_get_param=nativeGet;globalThis.host_module_set_param_blocking=nativeSet;
 console.log('Source Weaving panels: actor selection, independent tracks/slots, enable/alignment and native readback pass');
@@ -278,6 +294,8 @@ for(const group of [0,3]){
  assert.equal(page.performanceGet('joint_preview_3_expression'),'T5C2 50% fit');
  previewValue=JSON.stringify({schema:1,actor:group*4+3,enabled:true,playing:true,instrument_fit:true,sources:[null,null,null,{track:4,slot:1,active:true,phase_ticks:48,selection_phase_ticks:96,length_ticks:192}]});now+=101;
  assert.equal(page.performanceGet('joint_preview_3_instrument'),'T5C2 50% fit');
+ previewValue=JSON.stringify({schema:1,actor:group*4+3,enabled:true,playing:true,rhythm_pitch:36,sources:[null,{track:4,slot:0,active:true,phase_ticks:48,length_ticks:192}]});now+=101;
+ assert.equal(page.performanceGet('joint_preview_3_rhythm'),'T5C1 n36 25%');
  previewValue='bad JSON';now+=101;
  assert.equal(page.performanceGet('joint_preview_3_notes'),'Unavailable','failure replaces old output');
  previewValue=null;now+=101;

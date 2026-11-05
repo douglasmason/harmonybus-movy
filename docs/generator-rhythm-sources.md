@@ -5,6 +5,8 @@ receiving actor's existing Source Weaving panel, enable Source Weaving, choose
 the generator's track under Rhythm Source and its playing slot under Rhythm Clip.
 Leave Pitch Source and Expression Source at Own to keep the receiving clip's
 musical material. Both source and destination clips must be playing and unmuted.
+The [Rhythm Lane filter](rhythm-source-lanes.md) can select one raw source note;
+leave it at All to follow the complete generated rhythm.
 
 This also follows temporary previews of a recorded recipe's Complexity and Style,
 with the existing step/bar acceptance boundaries. Changing the donor's intensity

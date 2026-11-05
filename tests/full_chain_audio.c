@@ -313,6 +313,16 @@ static void test_source_weaving(void){
     set("cmd","play");long energy=render(240);set("cmd","stop");render(32);
     fprintf(stderr,"source melody: pcm=%ld on=%d off=%d mask=%u\n",energy,sent_on,sent_off,rendered_mask);
     assert(energy>0&&sent_on==3&&sent_off==3&&rendered_mask==((1u<<0)|(1u<<4)|(1u<<7)));
+    /* One mixed drum clip can supply all onsets, only kick, or only snare.
+       The destination retains its own pitches and expression in every case. */
+    for(int selected=-1;selected<=38;selected=selected<0?36:selected+2){
+        set("state","movy1\nbpm 12000\nlink 0\ntk 4 0 0\ntk 3 0 0\ncl 4 0 16 0 0:24:36:100:0;0:72:38:100:0;96:24:38:100:4;192:24:36:100:8\ncl 3 0 16 0 0:24:60:81:0;192:24:64:81:8\n");
+        snprintf(parameter,sizeof(parameter),"source 3 1 -1 -1 4 0 0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 0 0 %d",selected);set("cmd",parameter);
+        render(16);sent_on=sent_off=0;rendered_mask=0;source_velocity_check=81;
+        set("cmd","play");energy=render(600);set("cmd","stop");render(32);source_velocity_check=0;
+        assert(energy>0&&sent_on==(selected<0?3:2)&&sent_off==sent_on&&rendered_mask==((1u<<0)|(1u<<4)));
+    }
+    puts("Rhythm lane filter: mixed drum clip All/Kick/Snare, destination expression, PCM and paired releases pass");
     /* A recorded recipe donates accepted rhythm directly: no materialized
        donor notes, and the receiving actor keeps its own pitch/velocity. */
     for(int style=0;style<=4;style+=4){

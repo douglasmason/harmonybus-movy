@@ -84,7 +84,8 @@ export function overviewGet(base:number,key:string):string|null {
     const source=state.sources?.[dimension];
     if(!source)return 'No playing clip';
     if(!Number.isInteger(source.track)||!Number.isInteger(source.slot))return 'Unavailable';
-    const label='T'+(source.track+1)+'C'+(source.slot+1);
+    const label='T'+(source.track+1)+'C'+(source.slot+1)
+        +(field==='rhythm'&&Number.isInteger(state.rhythm_pitch)&&state.rhythm_pitch>=0&&state.rhythm_pitch<128?' n'+state.rhythm_pitch:'');
     if(!source.active)return label+' inactive';
     if(!Number.isFinite(source.phase_ticks)||!Number.isFinite(source.length_ticks)||source.length_ticks<=0)return label+' --';
     const fitted=(field==='pitch'&&state.alignment===2)||(field==='expression'&&state.expression_fit===true)||(field==='instrument'&&state.instrument_fit===true);
