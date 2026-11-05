@@ -50,6 +50,30 @@
         assert!(restored.undo_restore(&saved));assert!(restored.tracks[2].clips[0].generator.is_some());
         engine.stop(&mut Vec::new());assert!(engine.generator_explore.iter().all(Option::is_none));assert!(engine.gates.is_empty());
     }
+    #[test] fn generator_recorded_playback_resolves_controls_only_at_candidate_attacks() {
+        let (mut engine,recorded)=record();
+        engine.stop(&mut Vec::new());engine.play();
+        crate::generator::CONFIG_READS.with(|count|count.set(0));
+        let replay=ticks(&mut engine,3072);
+        let reads=crate::generator::CONFIG_READS.with(|count|count.get());
+        assert_eq!(replay,recorded,"removing unused control reads must preserve every attack and release");
+        assert_eq!(reads,128,"one curve resolution per candidate sixteenth; none on intervening ticks");
+    }
+    #[test] fn generator_recorded_playback_reads_edits_at_the_next_swung_attack() {
+        let (mut engine,_)=record();engine.stop(&mut Vec::new());
+        let config=crate::generator::Config {style:0,complexity:0,intensity:64,seed:47,end:3072};
+        let clip=&mut engine.tracks[2].clips[0];clip.generator=Some(config);clip.locks.clear();
+        // Sparse has an attack on step seven, delayed by swing. A control edit
+        // after its grid step but before the sounding attack must be observed.
+        clip.generator=Some(crate::generator::Config {style:2,..config});
+        engine.swing_pct=67;engine.play();
+        ticks(&mut engine,7*TICKS_PER_STEP+1);
+        let intensity_lane=engine.tracks[2].lane_label.iter().position(|label|label==LABELS[1]).unwrap();
+        engine.tracks[2].clips[0].set_lock(intensity_lane as u8,7,127);
+        let expected=crate::generator::Config {style:2,intensity:127,..config}.note(7).unwrap().vel;
+        let trace=ticks(&mut engine,2*TICKS_PER_STEP);
+        assert!(trace.iter().any(|(_,event)|matches!(event,OutEvent::NoteOn{track:2,vel,..} if *vel==expected)),"no stale step cache may hide an edit before a swung attack");
+    }
     #[test] fn generator_midbar_stop_keeps_silent_unrecorded_tail() {
         let mut engine=fixture();command(&mut engine,"gexplore 2 0 127 64 2");engine.play();engine.toggle_record(2);
         ticks(&mut engine,117);engine.toggle_record(2);

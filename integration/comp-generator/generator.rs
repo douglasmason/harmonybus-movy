@@ -1,6 +1,11 @@
 //! A bounded source of mapped actor attacks, consumed by the ordinary scheduler.
 use crate::{clip::{Clip,Note},follower_input::InputKey,TICKS_PER_STEP};
 pub const LABELS:[&str;3]=["generator:complexity","generator:intensity","generator:style"];
+#[cfg(test)]
+std::thread_local! {
+    /// Count source-control evaluations without instrumenting release builds.
+    pub(crate) static CONFIG_READS:std::cell::Cell<usize>=const {std::cell::Cell::new(0)};
+}
 pub fn internal(label:&str)->bool {LABELS.contains(&label)}
 pub fn lane_value(clip:&Clip,lane:u8,step:u16,base:u8)->u8 {
     clip.locks.iter().filter(|lock|lock.lane==lane&&lock.step>=clip.loop_start_steps&&lock.step<=step)
@@ -51,6 +56,8 @@ impl Config {
     /// The same named locks drive replay and Bake. Generator clips have no
     /// note-triggered resets: each control holds until its next lock.
     pub fn at(self,clip:&Clip,labels:&[String;8],step:u16)->Self {
+        #[cfg(test)]
+        CONFIG_READS.with(|count|count.set(count.get()+1));
         let mut result=self;
         for (field,label) in LABELS.iter().enumerate() {
             let Some(lane)=labels.iter().position(|name|name==label) else {continue;};

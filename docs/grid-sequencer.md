@@ -1,6 +1,7 @@
 # Grid Sequencer — hbclean.200 / HarmonyBus 0.2.278
 
-Tap Session to cycle Clips → Normal Play → Motif Play → Joint Play → Grid Sequencer.
+Tap Session to open the mode selector, then choose Grid Sequencer. Double-click
+Session to visit Clips; double-click again in Clips to return to the prior view.
 Track buttons retain their normal track-selection meaning. Each track saves 32 row
 assignments; changing a row assignment changes which existing events it displays,
 not the pitches or operations stored in the clip.
