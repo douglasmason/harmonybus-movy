@@ -44,8 +44,9 @@ The trial’s **Engine → Move → Connecting from an iPad** section offers a
 portable companion download. Extract it on your computer and run
 `node start.mjs --help` (Node.js 22+). It includes this exact tested workspace
 and its Node dependency; no Git/compiler/npm install is needed. See
-[portable instructions](COMPANION-README.md). The archive launcher is read-only
-and binds loopback unless you explicitly choose one private LAN address.
+[portable instructions](COMPANION-README.md). The archive launcher defaults to
+read-only and binds loopback unless you explicitly choose one private LAN
+address. Add `--enable-transport` for paired Play/Stop as described below.
 
 The source-development path is the included companion on a computer on
 the same trusted LAN. It serves the **same packaged workspace** and proxies one
@@ -124,9 +125,10 @@ Legacy builds remain read-only. This is an integration contract, not a user
 override: do not hand-edit installed metadata. A host upgrade alone does not
 supply this Movy capability. Screen mirroring remains available independently.
 
-To check readiness without installing anything on Move, start the companion
-with its existing Node dependencies (`npm --prefix dev/local ci`) and add
-`--enable-transport` to the command above. Bind one explicit private LAN IPv4
+To check readiness without installing anything on Move, add
+`--enable-transport` to the portable `node start.mjs` command. Source developers
+can instead install the existing Node dependencies (`npm --prefix dev/local ci`)
+and add the same flag to the source command above. Bind one explicit private LAN IPv4
 address, or 127.0.0.1 for same-computer testing. It prints a random per-launch
 pairing key. In Engine → Move enter the companion address, select **Check paired
 Play/Stop**, paste the key and Connect. The key is cleared immediately and never
@@ -184,11 +186,15 @@ release semantics. Exact source evidence: Schwung v1.8.2
 Node fixtures cover exact protocol writes, keys/origins, read-only default,
 unsupported versions, absent persistence capability, wrong tools, loss, stale
 callbacks and reconnect. Browser CI runs the packaged UI through the real
-companion: current metadata must be rejected before any subscription and retain
+companion: legacy metadata must be rejected before any subscription and retain
 the compiled engine's pending-save flag. The capable path uses the actual composed module metadata and production DSP,
 performs Manager-like state reads, verifies pending-save preservation, then
 checks Stop/Play and recorded MIDI replay. It remains a repository fixture,
 not a physical network test.
+
+The extracted portable archive is also exercised independently: read-only
+startup, explicit pairing, fresh keys after restart, exact Play/Stop forwarding,
+and rejection of legacy metadata before any state subscription.
 
 Physical Move/iPad testing remains required with the safe Movy build: identity, command delivery, Link response, recording
 completion, Wi-Fi/lock loss, tool changes and trusted TLS/CORS permissions.

@@ -1,7 +1,8 @@
 # HB / Movy local companion
 
 This archive contains the same tested browser workspace as the private trial,
-the existing read-only Move mirror companion, and its Node dependency. No Git,
+the existing Move companion, and its Node dependency. Mirroring is read-only
+by default; paired Play/Stop is an explicit option. No Git,
 compiler, npm install, or software installation on Move is needed.
 
 1. Install Node.js 22 or later on your Mac/computer if it is not already present.
@@ -28,8 +29,32 @@ is accessible to devices on that LAN; the hosted trial remains private.
 Actual device screen pixels and available LEDs, with explicit connection status.
 The current device protocol does not supply rich knob/pad labels, settings
 navigation or semantic editors. Those stay unavailable in Move mode. No
-emulator state is presented as device state. Current device transport remains
-read-only because its subscription can consume the autosave dirty flag.
+emulator state is presented as device state.
+
+### Optional paired Play/Stop
+
+Start the same launcher with the transport flag:
+
+```sh
+node start.mjs --host 192.168.1.20 --move http://move.local:7700 --enable-transport
+```
+
+Replace the example computer address as above. On the printed local page,
+choose **Engine → Move**, select **Check paired Play/Stop**, paste the printed
+**Pairing key**, then **Connect**. The companion checks installed Movy metadata
+and the active tool before enabling control. Movy **hbclean.320 and later**
+advertise the required safe-state capability; older builds stay read-only.
+Schwung 1.8.2 is the tested host protocol. Nothing is installed or upgraded by
+this command, and startup makes no device request.
+
+Only Play and Stop are exposed. Feedback means **request sent**, not confirmed
+execution. Disconnect leaves device playback running. Commands are never
+queued or replayed after a lost connection. Reconnect explicitly and enter the
+key again; the page does not save it. Every launcher restart generates a new
+key. Keep it private: plain LAN HTTP does not encrypt keys or commands. Use
+only a trusted LAN, or the trusted HTTPS setup in MOVE-CONNECTION.md.
+
+Launch without `--enable-transport` to return to read-only mirroring.
 
 Browser and device sessions remain separate. This local origin also has its own
 browser storage: it does not automatically receive sessions or appearance from
