@@ -78,8 +78,8 @@ def patch_comp_generator(root: Path) -> None:
 ''' + source[end:]
     # One donation per accepted clip onset, including coincident authored notes.
     # Free exploration has no stable clip identity and does not donate rhythm.
-    source = replace_once(source,'let mut source_duration: Option<u32> = None;',
-        'let mut source_duration: Option<u32> = generated_rhythm;')
+    source = replace_once(source,'let mut source_duration: Option<crate::source_route::RhythmAttack> = None;',
+        'let mut source_duration: Option<crate::source_route::RhythmAttack> = generated_rhythm;')
     source += '\nimpl Engine {fn advance_note_gates(&mut self,ti:usize,out:&mut Vec<OutEvent>) {\n' + gate_body + '\n}}\n'
     source = replace_once(source,'            if serviced && clock_serviced &&', '            if (serviced||self.generator_exploring(t)) && (clock_serviced||self.generator_exploring(owner)) &&')
     source = replace_once(source,'            for ti in 0..NUM_TRACKS {\n                let Some(slot)', '''            for ti in 0..NUM_TRACKS {
@@ -89,7 +89,6 @@ def patch_comp_generator(root: Path) -> None:
     source = replace_once(source,'        self.shared_transport(out);','        self.generator_check_target(out);\n        self.shared_transport(out);')
     source = replace_once(source,'            self.recipe_tick(out);','            self.generator_check_target(out);\n            self.recipe_tick(out);')
     # Suppress only incoming weaving while this actor owns a generator source.
-    source = replace_once(source,'    fn source_attack(&mut self, rhythm_track: usize, rhythm_slot: usize, duration: u32, out: &mut Vec<OutEvent>) {','    fn source_attack(&mut self, rhythm_track: usize, rhythm_slot: usize, duration: u32, out: &mut Vec<OutEvent>) {')
     source = source.replace('for actor in 0..NUM_TRACKS {\n            let route=self.source_routes[actor];','for actor in 0..NUM_TRACKS {\n            if self.generator_owns(actor) {continue;}\n            let route=self.source_routes[actor];')
     source = source.replace('.recipe.as_ref().filter(|_|!self.drum_output(ti))', '.recipe.as_ref().filter(|_|!self.drum_output(ti)&&!self.generator_free(ti))')
     source = source.replace('&& !(self.recording && self.records_track(ti)) {', '&& (self.generator_owns(ti)||!(self.recording && self.records_track(ti))) {')

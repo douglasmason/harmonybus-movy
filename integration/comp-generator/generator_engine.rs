@@ -315,7 +315,7 @@ impl Engine {
     /// emit_clip_note ownership. Return accepted source rhythm before actor
     /// rendering, so the clip clock can merge it with authored attacks once.
     /// No plan building, second generator evaluation or catalog parsing on ticks.
-    fn generator_tick(&mut self,track:usize,out:&mut Vec<OutEvent>)->Option<u32> {
+    fn generator_tick(&mut self,track:usize,out:&mut Vec<OutEvent>)->Option<crate::source_route::RhythmAttack> {
         if !self.generator_owns(track)||self.tracks[track].muted {return None;}
         if self.generator_exploring(track)&&self.generator_settings(track).is_some_and(|settings|!settings.mapped()) {
             self.generator_result="Actor needs Relative or Closest Split mapping".into();return None;
@@ -355,7 +355,7 @@ impl Engine {
         let clip=&self.tracks[track].clips[slot];
         let (start,end,snum,sden)=if free {(0,free_end,1,1)}else{(clip.loop_start_ticks(),clip.loop_end_ticks(),clip.scale_num,clip.scale_den)};
         let bar=pos/crate::TICKS_PER_BAR*16;
-        let mut source_duration:Option<u32>=None;
+        let mut source_duration:Option<crate::source_route::RhythmAttack>=None;
         for local in 0..16 {
             let step=(bar+local) as u16;
             let tick=step as u32*TICKS_PER_STEP;
@@ -365,7 +365,7 @@ impl Engine {
             let config=if let Some(state)=self.generator_explore[track] {state.current}
                 else {let clip=&self.tracks[track].clips[slot];clip.generator.unwrap().at(clip,&self.tracks[track].lane_label,step)};
             if let Some(mut note)=config.note(step) {
-                source_duration=Some(source_duration.map_or(note.gate.max(1),|previous|previous.max(note.gate.max(1))));
+                crate::source_route::RhythmAttack::accept(&mut source_duration,note.pitch,note.gate);
                 if let Some(part)=&self.generator_library[track]{if let Some(recipe)=&part.clip.recipe{note.gate=((note.gate as u64*recipe.gate as u64)/100).clamp(1,u32::MAX as u64) as u32;}}
                 if config.bass() {
                     let mut index=0;

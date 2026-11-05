@@ -72,12 +72,12 @@ impl Engine {
         clock_track: usize, out: &mut Vec<OutEvent>) {
 ''' + emission + '\n    }\n}\n'
     source = source[:begin] + '''                        let duration=weave.map_or_else(||hb_window.map_or(n.gate.max(1),|window|window.duration(n.gate)),|(_,gate)|gate);
-                        if n.vel>0 {source_duration=Some(source_duration.map_or(duration,|previous:u32|previous.max(duration)));}
+                        if n.vel>0 {crate::source_route::RhythmAttack::accept(&mut source_duration,n.pitch,duration);}
                         if !self.source_routes[ti].enabled || joint_recording_here {
                             self.emit_clip_note(ti,ti,slot,n,weave.map(|(_,gate)|gate),hb_window,hb_rhythm,humanize.time_active(ti),ti,out);
                         }''' + source[end:]
-    source = replace_once(source, '            if !muted {\n                    let len =', '            let mut source_duration: Option<u32> = None;\n            if !muted {\n                    let len =')
-    source = replace_once(source, '                // Advance + wrap inside the loop window', '''                if let Some(duration)=source_duration { self.source_attack(ti,slot,duration,out); }
+    source = replace_once(source, '            if !muted {\n                    let len =', '            let mut source_duration: Option<crate::source_route::RhythmAttack> = None;\n            if !muted {\n                    let len =')
+    source = replace_once(source, '                // Advance + wrap inside the loop window', '''                if let Some(rhythm)=source_duration.as_ref() { self.source_attack(ti,slot,rhythm,out); }
                 // Advance + wrap inside the loop window''')
     source = replace_once(source, '    pub fn stop(&mut self, out: &mut Vec<OutEvent>) {',
         '    pub fn stop(&mut self, out: &mut Vec<OutEvent>) {\n        self.source_automation_release(out);')
@@ -96,6 +96,7 @@ impl Engine {
     tests: Path = assets / 'source_engine_tests.rs'
     if tests.exists():
         source += '\n' + tests.read_text()
+    source += '\n' + (assets / 'source_rhythm_lane_tests.rs').read_text()
     source += '\n' + (assets / 'source_expression_fit_tests.rs').read_text()
     source += '\n' + (assets / 'source_instrument_tests.rs').read_text()
     source += '\n' + (assets / 'source_instrument_fit_tests.rs').read_text()
@@ -165,7 +166,7 @@ impl Engine {
     source = replace_once(source, 'export const jointParameters=[...setup,...recording,...participation,...display];', 'export const jointParameters=[...setup,...recording,...participation,...display,...sourceParameters];')
     source = replace_once(source, "        root.params.push({level:'joint_rhythm_'+role});", '''        const sourceLevel='joint_sources_'+role;
         const allSourceKeys=sourceKeys(role);
-        const routeKeys=allSourceKeys.slice(0,8);
+        const routeKeys=[...allSourceKeys.slice(0,6),allSourceKeys[20]];
         const automationKeys=[...allSourceKeys.slice(8,12),allSourceKeys[19]];
         const gestureKeys=allSourceKeys.slice(16,18);
         const expressionKeys=[...allSourceKeys.slice(6,8),allSourceKeys[18]];

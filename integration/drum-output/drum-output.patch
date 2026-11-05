@@ -307,7 +307,7 @@ index a7ac3e0f..661cb953 100644
                  .or_else(||self.source_gesture_window(ti,slot,pos));
 -            let hb_window=if request.is_some() {weave.map(|(window,_)|window)} else {hb_window};
 +            let hb_window=if self.drum_output(ti) {None} else if request.is_some() {weave.map(|(window,_)|window)} else {hb_window};
-             let mut source_duration: Option<u32> = None;
+             let mut source_duration: Option<crate::source_route::RhythmAttack> = None;
              if !muted {
                      let len = self.tracks[ti].clips[slot].notes.len();
 @@ -6588,7 +6613,7 @@ impl Engine {

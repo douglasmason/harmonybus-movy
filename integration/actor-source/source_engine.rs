@@ -22,7 +22,7 @@ impl Engine {
                 write!(&mut text,"{{\"track\":{},\"slot\":{},\"active\":{},\"phase_ticks\":{},\"selection_phase_ticks\":{},\"length_ticks\":{}}}",reference.track,reference.slot,active,phase,selected,clip.length_ticks()).unwrap();
             } else {text.push_str("null");}
         }
-        text.push_str("],\"notes\":[");
+        write!(&mut text,"],\"rhythm_pitch\":{},\"notes\":[",route.rhythm_pitch.map_or(-1,i32::from)).unwrap();
         let mut count=0;
         let mut pitches=[false;128];let mut gates=0;
         for gate in &self.gates {if gate.track as usize==actor {pitches[gate.pitch as usize]=true;gates+=1;}}
@@ -54,7 +54,7 @@ impl Engine {
                     write!(&mut text,"{{\"track\":{},\"slot\":{},\"active\":{},\"phase_ticks\":{},\"length_ticks\":{},\"speed_num\":{},\"speed_den\":{}}}",reference.track,reference.slot,active,track.pos_tick.saturating_sub(clip.loop_start_ticks()),clip.length_ticks(),clip.scale_num,clip.scale_den).unwrap();
                 } else {text.push_str("null");}
             }
-            text.push_str("]}");
+            write!(&mut text,"],\"rhythm_pitch\":{}}}",route.rhythm_pitch.map_or(-1,i32::from)).unwrap();
         }
         text.push_str("]}");text
     }
@@ -90,7 +90,7 @@ impl Engine {
     /// Raw source views are resolved only at accepted rhythm attacks. No cached
     /// pointers survive an edit, launch, load, or eviction. At most MAX_NOTES
     /// entries are examined per source attack, never on an idle audio block.
-    fn source_attack(&mut self, rhythm_track: usize, rhythm_slot: usize, duration: u32, out: &mut Vec<OutEvent>) {
+    fn source_attack(&mut self, rhythm_track: usize, rhythm_slot: usize, rhythm: &crate::source_route::RhythmAttack, out: &mut Vec<OutEvent>) {
         use crate::source_route::ClipRef;
         for actor in 0..NUM_TRACKS {
             let route=self.source_routes[actor];
@@ -99,6 +99,9 @@ impl Engine {
             if !self.tracks[actor].clips[actor_slot].exists() {continue;}
             let own=ClipRef{track:actor,slot:actor_slot};
             if route.rhythm.unwrap_or(own)!= (ClipRef{track:rhythm_track,slot:rhythm_slot}) {continue;}
+            // Rejected lanes are rests: do not consume the pitch sequence or
+            // apply another actor's controls until a matching onset arrives.
+            let Some(duration)=rhythm.duration(route.rhythm_pitch) else {continue;};
             // A donor can run before its destination in the track loop. Resolve
             // destination controls first, without advancing its clock or replaying
             // an actor that already ran (and may now point at the next tick).
