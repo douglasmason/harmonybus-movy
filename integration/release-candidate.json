@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.321",
-  "previous_version": "0.34.1-hbclean.320",
+  "version": "0.34.1-hbclean.322",
+  "previous_version": "0.34.1-hbclean.321",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.321 \u2014 Explicit queue-to-clip handoff",
-  "notes": "docs/queue-handoff.md",
+  "title": "Movy 0.34.1-hbclean.322 \u2014 Audio capture context and comparison",
+  "notes": "docs/audio-comparison.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

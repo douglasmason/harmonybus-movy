@@ -507,21 +507,25 @@ globalThis.host_read_file = path => quickFiles.get(path) ?? null;
 const { TRACK_COUNT: queueTrackCount } = await import('../dist/esm/track/ref.js');
 const queuePorts = Array.from({ length: queueTrackCount }, (_, track) => portFor(track));
 const queueGetters = queuePorts.map(port => port.getParam);
-let queueReads = 0, queueActivations = 8;
+let queueReads = 0, queueVersionReads = 0, queueActivations = 8;
 queuePorts.forEach((port, track) => { port.getParam = key => {
     if (key === 'midi_fx1:hb_chord_queue_diagnostics') {
         queueReads++;
         return track === 0 ? `qd1|100|${queueActivations}|2|1|0|1|0.375|32|32.375|1` : '';
     }
     if (key === 'midi_fx1:hb_chord_queue_status') { queueReads++; return track === 0 ? 'cq1|4|36|C|G|1|0|4|1|0|4|C|G|F|D' : ''; }
+    if (key === 'midi_fx1:version') { queueVersionReads++; return track === 0 ? '0.2.313-test' : ''; }
     return queueGetters[track].call(port, key);
 }; });
 const { cpuDetail: queueCpuDetail } = await import('../dist/esm/seq/cpu-page.js');
 queueCpuDetail.page = 1; clickJog();assert.equal(previewTest.quick,true);assert.equal(previewTest.stage,'intro');
 assert(previewTestLines().some(line=>line.includes('35 SECONDS')));
 clickPreviewTest(100000);assert.equal(previewTest.stage,'settle');
+engine.status.workerbuild='synthetic-quick-build';
 quickPoll(101000,0,0);assert.equal(previewTest.stage,'arming');
 assert.equal(queueReads, queueTrackCount * 2);
+assert.equal(queueVersionReads, queueTrackCount);
+const quickStartTempo = seqState.bpmX100;
 quickPoll(101010,1,10,'1,0,0,0,0');assert.equal(previewTest.stage,'run');
 assert.equal(launchpadPreviewFrozen(),false);assert.equal(isMovePreviewFrozen(),false);
 quickPoll(102010,1,1010);assert.equal(previewTest.remaining,34);
@@ -529,7 +533,9 @@ clearCpuPage();appState.currentView=0;
 quickPoll(104010,1,3010);assert.equal(previewTest.stage,'run','capture survives navigating to performance controls');
 openCpuPage();assert.equal(previewTest.stage,'run','reopening does not reset the capture');
 assert.equal(queueReads, queueTrackCount * 2, 'no queue polling during capture');
+assert.equal(queueVersionReads, queueTrackCount, 'no version reads during capture');
 assert.equal(quickFiles.size, 0, 'no report writes during capture');
+engine.status.bpm = quickStartTempo + 500;
 queueActivations = 16;
 quickPoll(136020,0,35005);assert.equal(previewTest.stage,'results');
 assert.equal(queueReads, queueTrackCount * 4, 'exactly two bounded snapshots');
@@ -537,6 +543,17 @@ assert.equal(quickFiles.size, 1);
 const quickReport = JSON.parse(quickFiles.get(previewTest.reportPath));
 assert.equal(quickReport.format, 'movy-audio-check-v1');
 assert.equal(quickReport.complete, true);
+assert.equal(quickReport.engineBuild, 'synthetic-quick-build');
+assert.equal(quickReport.setupBefore.engineBuild, 'synthetic-quick-build');
+assert.equal(quickReport.setupAfter.bpmX100, seqState.bpmX100);
+assert.equal(quickReport.setupBefore.bpmX100, quickStartTempo, 'start context is retained after live settings change');
+assert.equal(quickReport.setupAfter.bpmX100, quickStartTempo + 500, 'end context records the changed tempo');
+assert.equal(quickReport.setupBefore.setUuid, quickReport.setupAfter.setUuid);
+assert.equal(quickReport.setupBefore.launchpadMode, 0);
+assert.equal(quickReport.queueBefore[0].moduleVersion, '0.2.313-test');
+assert.equal(quickReport.queueAfter[1].moduleVersion, null);
+assert.equal(queueVersionReads, queueTrackCount * 2, 'versions read only at endpoints');
+engine.status.bpm = quickStartTempo;
 assert.equal(quickReport.queueBefore[0].diagnostics.activations, 8);
 assert.equal(quickReport.queueAfter[0].diagnostics.activations, 16);
 assert.equal(quickReport.queueAfter[0].diagnostics.recoveries, 2);

@@ -717,6 +717,9 @@ def main() -> int:
     patch_safe_state_reads(root)
     from patch_queue_handoff import patch_queue_handoff
     patch_queue_handoff(root)
+    for relative_path in ('engine/crates/movy-dsp/src/lib.rs', 'src/seq/constants.ts'):
+        version_path = root / relative_path
+        version_path.write_text(version_path.read_text().replace('0.103.0-queue-handoff1', '0.104.0-audio-report1'))
     print("HarmonyBus clean integration applied")
     return 0
 

@@ -7,6 +7,7 @@ import { flagValue } from './flags.js';
 import { portFor } from '../track/registry.js';
 import { TRACK_COUNT } from '../track/ref.js';
 import { keyboardState } from '../keyboard/state.js';
+import { scaleMicrophoneAvailable, scaleMicrophoneListening } from './scale-finding.js';
 import { safeWrite } from './persist-store.js';
 import { setMovePreviewFrozen, isMovePreviewFrozen } from '../keyboard/harmony-pads.js';
 import { launchpadAvailable, launchpadPreviewReady, launchpadPreviewFrozen, setLaunchpadPreviewFrozen, setLaunchpadIsolation, launchpadIsolationMetrics } from '../surfaces/launchpad.js';
@@ -70,8 +71,18 @@ let context = '', duration = 0, appliedPass = 0;
 let startedTransport = false, transportSet = '';
 const queueFields = ['services', 'activations', 'recoveries', 'lateChanges', 'clears', 'rearms',
     'maxLateBeats', 'lastDueBeat', 'lastActualBeat', 'owner'];
-type QueueSnapshot = { track: number; status: string; diagnostics: Record<string, number> | null };
+type QueueSnapshot = { track: number; moduleVersion: string | null; status: string; diagnostics: Record<string, number> | null };
 let queueBefore: QueueSnapshot[] = [];
+/** Endpoint observations only; never poll extra state during measurement. */
+function quickSetup() {
+    return { engineBuild: seqState.workerBuild || null, setUuid: currentSetUuid() || null,
+        bpmX100: seqState.bpmX100, activeTrack: appState.activeTrack.index + 1,
+        keyboardMode: keyboardState.mode, keyboardLayout: keyboardState.layout,
+        launchpadMode: flagValue('hblaunchpad'), launchpadConnected: launchpadAvailable(),
+        trackHosting: flagValue('chtracks'), setTrackHosting: flagValue('chtrackset'),
+        microphoneAvailable: scaleMicrophoneAvailable(), microphoneListening: scaleMicrophoneListening() };
+}
+let setupBefore: ReturnType<typeof quickSetup> | null = null;
 function normalQuickCheck(): boolean {
     return !previewTest.isolation && !previewTest.workers && !previewTest.thread && previewTest.quick;
 }
@@ -82,7 +93,8 @@ function queueSnapshot(): QueueSnapshot[] {
         const parts = (port.getParam('midi_fx1:hb_chord_queue_diagnostics') || '').split('|');
         const values = parts.slice(1).map(Number);
         const supported = parts[0] === 'qd1' && values.length === queueFields.length && values.every(Number.isFinite);
-        return { track: track + 1, status: port.getParam('midi_fx1:hb_chord_queue_status') || '',
+        return { track: track + 1, moduleVersion: port.getParam('midi_fx1:version') || null,
+            status: port.getParam('midi_fx1:hb_chord_queue_status') || '',
             diagnostics: supported ? Object.fromEntries(queueFields.map((field, index) => [field, values[index]])) : null };
     });
 }
@@ -90,8 +102,11 @@ function queueSnapshot(): QueueSnapshot[] {
 function saveQuickReport(): void {
     const path = '/data/UserData/schwung/audio-check-' + Date.now() + '.json';
     const report = { format: 'movy-audio-check-v1', capturedAt: new Date().toISOString(),
+        engineBuild: setupBefore?.engineBuild || null, setupBefore, setupAfter: quickSetup(),
         complete: true, captures: previewTest.captures, queueBefore, queueAfter: queueSnapshot(),
         limitations: ['Queue counters and peaks are cumulative for the loaded HarmonyBus module, not reset by this check',
+            'Setup observations bracket the capture; matching endpoints do not prove the workload stayed unchanged',
+            'Browser subscriptions, host version and audible symptoms are not observed by this report',
             'Subtract before/after counts only for the same module lifetime; do not subtract peaks',
             'The single conductor queue is shared: snapshots through different tracks may repeat the same totals; do not sum them',
             'Queue snapshots bracket the capture and are sequential, not sample-synchronous with audio metrics',
@@ -193,7 +208,7 @@ export function clickPreviewTest(now = Date.now(), compare = false, isolation = 
     if (seqState.recording || seqState.countingIn) { fail('STOP RECORDING FIRST', now); return; }
     if (!previewTest.quick && !launchpadPreviewReady()) { fail('ENABLE LAUNCHPAD FIRST', now); return; }
     previewTest.pass = 0; appliedPass = 0; previewTest.captures = []; previewTest.photo = 0; previewTest.reportPath = '';
-    queueBefore = [];
+    queueBefore = []; setupBefore = null;
     if (previewTest.workers || previewTest.thread) {
         workerSetup = { launchpad: flagValue('hblaunchpad'), host: flagValue('chtracks'),
             setHost: flagValue('chtrackset'), harmonyBus: portFor(appState.activeTrack.index).getParam('midi_fx1:version') || 'unknown' };
@@ -236,7 +251,7 @@ export function tickPreviewTest(now = Date.now()): void {
         else if (now - enteredAt > TIMEOUT_MS) fail('PLAY START TIMED OUT', now);
     } else if (previewTest.stage === 'settle') {
         if (now - enteredAt >= SETTLE_MS && audio[0] === 0 && requests[0] === '0') {
-            if (normalQuickCheck()) queueBefore = queueSnapshot();
+            if (normalQuickCheck()) { queueBefore = queueSnapshot(); setupBefore = quickSetup(); }
             command(previewTest.thread ? 'icapture' : previewTest.workers ? (previewTest.pass === 1 ? 'wserial' : 'wparallel') : previewTest.quick ? 'acapture' : 'aprof_on', 'arming', now);
         }
         else if (now - enteredAt > TIMEOUT_MS) fail('METER RESET TIMED OUT', now);

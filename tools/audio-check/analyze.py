@@ -27,7 +27,38 @@ LIMITATIONS: tuple[str, ...] = (
     "Queue lateness uses beat time; a stalled beat clock can conceal wall-time delay.",
     "Recovery counts do not identify why a live voice was lost.",
     "Independent peaks must not be added or subtracted to infer a cause.",
+    "Setup snapshots observe endpoints only; matching endpoints do not prove an unchanged workload.",
+    "Host version, browser subscriptions and audible symptoms are not observed by this report.",
 )
+SETUP_TEXT_FIELDS: tuple[str, ...] = ("engineBuild", "setUuid")
+SETUP_INTEGER_FIELDS: tuple[str, ...] = (
+    "bpmX100", "activeTrack", "keyboardMode", "keyboardLayout", "launchpadMode", "trackHosting", "setTrackHosting",
+)
+SETUP_BOOLEAN_FIELDS: tuple[str, ...] = ("launchpadConnected", "microphoneAvailable", "microphoneListening")
+
+
+def setup_snapshot(value: Any) -> dict[str, Any] | None:
+    """Validate optional endpoint context without guessing absent fields."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("setup snapshots must be objects or null")
+    map_field_to_value: dict[str, Any] = {}
+    field: str
+    for field in SETUP_TEXT_FIELDS + SETUP_INTEGER_FIELDS + SETUP_BOOLEAN_FIELDS:
+        observed: Any = value.get(field)
+        if observed is not None:
+            if field in SETUP_TEXT_FIELDS:
+                observed = optional_text(observed, field) or None
+            elif field in SETUP_BOOLEAN_FIELDS:
+                if type(observed) is not bool:
+                    raise ValueError(f"invalid setup boolean: {field}")
+            elif type(observed) is not int or not 0 <= observed <= 2**53 - 1:
+                raise ValueError(f"invalid setup integer: {field}")
+            elif (field == "bpmX100" and observed == 0) or (field == "activeTrack" and not 1 <= observed <= 16):
+                raise ValueError(f"invalid setup range: {field}")
+        map_field_to_value[field] = observed
+    return map_field_to_value
 
 
 def number(value: Any) -> bool:
@@ -63,6 +94,7 @@ def snapshots(value: Any) -> dict[int, dict[str, Any]]:
         if not 1 <= track <= 16 or track in map_track_to_snapshot:
             raise ValueError("queue tracks must be unique and within 1–16")
         optional_text(entry.get("status"), "queue status")
+        optional_text(entry.get("moduleVersion"), "queue moduleVersion")
         diagnostics: Any = entry.get("diagnostics")
         if diagnostics is not None:
             if not isinstance(diagnostics, dict):
@@ -99,6 +131,8 @@ def summarize_queue(report: dict[str, Any]) -> dict[str, Any]:
     before: dict[str, Any] = map_before_track_to_snapshot[track]["diagnostics"]
     after: dict[str, Any] = map_after_track_to_snapshot[track]["diagnostics"]
     result.update(track=track, before=before, after=after,
+                  moduleVersionBefore=map_before_track_to_snapshot[track].get("moduleVersion") or None,
+                  moduleVersionAfter=map_after_track_to_snapshot[track].get("moduleVersion") or None,
                   statusBefore=map_before_track_to_snapshot[track].get("status", ""),
                   statusAfter=map_after_track_to_snapshot[track].get("status", ""))
     if any(map_before_track_to_snapshot[other]["diagnostics"] != before
@@ -111,6 +145,10 @@ def summarize_queue(report: dict[str, Any]) -> dict[str, Any]:
         decreased.append("maxLateBeats")
     if not report.get("complete"):
         result["comparison"] = "incomplete_capture"
+    elif (result["moduleVersionBefore"] and result["moduleVersionAfter"]
+          and result["moduleVersionBefore"] != result["moduleVersionAfter"]):
+        result["comparison"] = "module_version_changed"
+        result["warnings"].append("HarmonyBus version changed; queue counters cannot be subtracted.")
     elif decreased:
         result["comparison"] = "counter_reset_or_inconsistent_snapshots"
         result["warnings"].append("Decreased lifetime values: " + ", ".join(decreased))
@@ -153,6 +191,12 @@ def summarize(report: Any) -> dict[str, Any]:
             raise ValueError("invalid audio profiling state")
         if report["complete"] and (audio[0] != 0 or not metrics["callbacks"]):
             raise ValueError("complete capture must have callbacks and profiling stopped")
+        numerator: str
+        denominator: str
+        for numerator, denominator in (("callbacksOverBudget", "callbacks"),
+                                       ("lateIntervals", "callbackIntervals"), ("shortIntervals", "callbackIntervals")):
+            if metrics[numerator] is not None and metrics[denominator] is not None and metrics[numerator] > metrics[denominator]:
+                raise ValueError(f"{numerator} exceeds {denominator}")
         tone: Any = capture.get("tone")
         pcm: str = "unavailable"
         if tone is not None:
@@ -171,6 +215,8 @@ def summarize(report: Any) -> dict[str, Any]:
                           "requestMetrics": requests})
     return {"format": "movy-audio-check-summary-v1", "complete": report["complete"],
             "capturedAt": captured_at, "engineBuild": engine_build or "unknown",
+            "setupBefore": setup_snapshot(report.get("setupBefore")),
+            "setupAfter": setup_snapshot(report.get("setupAfter")),
             "captures": summaries, "queue": summarize_queue(report), "limitations": list(LIMITATIONS)}
 
 
@@ -179,6 +225,10 @@ def render(summary: dict[str, Any]) -> str:
     lines: list[str] = [f"Audio check: {'complete' if summary['complete'] else 'incomplete'}",
                         f"Build: {summary['engineBuild']} (not inferred from counters)",
                         f"Captured at: {summary['capturedAt'] or 'unavailable'}"]
+    endpoint: str
+    for endpoint in ("setupBefore", "setupAfter"):
+        if summary[endpoint] is not None:
+            lines.append(endpoint + ": " + json.dumps(summary[endpoint], sort_keys=True))
     capture: dict[str, Any]
     for capture in summary["captures"]:
         lines.append("Internal tone: " + capture["internalTone"])
@@ -208,11 +258,19 @@ def main() -> int:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("report", type=Path)
     parser.add_argument("--json", action="store_true", help="emit structured JSON")
+    parser.add_argument("--baseline", type=Path, help="compare this experiment with a saved baseline capture")
     arguments: argparse.Namespace = parser.parse_args()
     try:
         report: Any = json.loads(arguments.report.read_text(encoding="utf-8"), parse_constant=reject_constant)
         summary: dict[str, Any] = summarize(report)
-        output: str = json.dumps(summary, indent=2, allow_nan=False) if arguments.json else render(summary)
+        output: str
+        if arguments.baseline:
+            from compare import compare, render_comparison
+            map_baseline_report: Any = json.loads(arguments.baseline.read_text(encoding="utf-8"), parse_constant=reject_constant)
+            map_comparison: dict[str, Any] = compare(summarize(map_baseline_report), summary)
+            output = json.dumps(map_comparison, indent=2, allow_nan=False) if arguments.json else render_comparison(map_comparison)
+        else:
+            output = json.dumps(summary, indent=2, allow_nan=False) if arguments.json else render(summary)
     except (OSError, UnicodeError, ValueError) as error:
         print(f"Cannot analyze capture: {error}", file=sys.stderr)
         return 2
