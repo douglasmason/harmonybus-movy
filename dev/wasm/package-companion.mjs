@@ -27,4 +27,4 @@ const archive=new URL('downloads/move-companion.tar.gz',site);
 execFileSync('tar',['-czf',fileURLToPath(archive),'-C',fileURLToPath(root),'move-companion']);
 const sha=createHash('sha256').update(await readFile(archive)).digest('hex');
 await writeFile(new URL('downloads/move-companion.sha256',site),sha+'  move-companion.tar.gz\n');
-console.log('Portable read-only companion packaged with the same workspace: '+sha);
+console.log('Portable companion packaged with the same workspace (read-only default, opt-in paired Play/Stop): '+sha);
