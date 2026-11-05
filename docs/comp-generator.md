@@ -152,7 +152,9 @@ Undo. It preserves the clip's loop, speed, transpose, rendering settings and oth
 parameter automation, materializing held values at new note starts where necessary.
 Unused generator lanes are freed only when no other clip uses them. Bake never
 replaces another slot or launches a clip. Bake before editing generated notes,
-using them as pitch/rhythm donors, or saving a conventional user-library style.
+using them as pitch/expression donors, or saving a conventional user-library style.
+Recorded recipes can supply rhythm directly through Source Weaving without Bake,
+including live previews of their controls. See [generator rhythm sources](generator-rhythm-sources.md).
 
 This first source supplies its own authored timing. It does not interpret incoming
 Source Weaving, clip rhythm transformations or Humanize timing while generating.

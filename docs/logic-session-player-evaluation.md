@@ -10,6 +10,12 @@ The most useful new musical work is adjustable rhythmic relationships, explicit
 note continuity for pads, and temporary variations of saved generator recipes.
 These are extensions to existing mechanisms, not replacements for them.
 
+Follow-up development: recorded Comp/Bass recipes and their live previews now
+donate rhythm through the existing clip source dispatch without Bake. This is
+the first dependency for rank 1, not adjustable affinity or generated receivers.
+See [scope and controls](generator-rhythm-sources.md); pitch/expression donation
+and free-audition source identities remain separate work.
+
 This session implements a narrower prerequisite: remove unused automation-curve
 reads from recorded generator playback. It changes neither the musical model nor
 controls. Larger additions below remain proposals.

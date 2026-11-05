@@ -313,6 +313,17 @@ static void test_source_weaving(void){
     set("cmd","play");long energy=render(240);set("cmd","stop");render(32);
     fprintf(stderr,"source melody: pcm=%ld on=%d off=%d mask=%u\n",energy,sent_on,sent_off,rendered_mask);
     assert(energy>0&&sent_on==3&&sent_off==3&&rendered_mask==((1u<<0)|(1u<<4)|(1u<<7)));
+    /* A recorded recipe donates accepted rhythm directly: no materialized
+       donor notes, and the receiving actor keeps its own pitch/velocity. */
+    for(int style=0;style<=4;style+=4){
+        char state[512];
+        snprintf(state,sizeof(state),"movy1\nbpm 12000\nlink 0\ntk 2 0 0\ntk 3 0 0\ncl 2 0 16 0 \ncg1 2 0 %d 0 64 23 384\ncl 3 0 16 0 0:24:60:81:0;192:24:64:81:8\nsr 3 1 -1 -1 2 0 0\n",style);
+        set("state",state);render(16);
+        sent_on=sent_off=0;rendered_mask=0;source_velocity_check=81;
+        set("cmd","play");energy=render(600);set("cmd","stop");render(32);source_velocity_check=0;
+        assert(energy>0&&sent_on==4&&sent_off==4&&rendered_mask==((1u<<0)|(1u<<4)));
+    }
+    puts("Generator rhythm donors: unbaked Comp/Bass recipes, destination pitches/velocity and paired production releases pass");
     /* Fit compresses a two-bar pitch loop into the actor's one-bar window.
        Timeline remains independent; both use the same attacks and releases. */
     for(int alignment=1;alignment<=2;alignment++){
