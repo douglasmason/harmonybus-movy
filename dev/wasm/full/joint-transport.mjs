@@ -6,12 +6,16 @@ export async function openBrowserConnection({surface='joint'}={}){
  if(moveLink){moveLink.href='/move/';moveLink.textContent='Full Move surface & clip editing';}
  const worker=new Worker(new URL('./joint-worker.mjs',import.meta.url),{type:'module'});
  const audio=new PcmMonitor(worker);
+ const startupAbort=new AbortController();
+ let rejectStartup;
+ const startupFailure=new Promise((_,reject)=>{rejectStartup=reject;});
  let serial=0,closed=false,active=true;
  const pending=new Map();
  const socket={readyState:0,onmessage:null,onclose:null,onerror:null,onopen:null,
   send:data=>{if(active&&socket.readyState===1)worker.postMessage({type:'send',data});},close};
  function close(){
   if(closed)return;closed=true;socket.readyState=3;
+  rejectStartup(new Error('Browser engine closed'));startupAbort.abort();
   audio.disable();worker.terminate();document.removeEventListener('visibilitychange',visibility);
   window.removeEventListener('pagehide',close);
   for(const {reject} of pending.values())reject(new Error('Browser engine closed'));pending.clear();
@@ -23,10 +27,11 @@ export async function openBrowserConnection({surface='joint'}={}){
   return new Promise((resolve,reject)=>{const id=++serial;pending.set(id,{resolve,reject});worker.postMessage({type,key,value,id});});
  }
  const ready=new Promise((resolve,reject)=>{
-  worker.onerror=event=>{reject(new Error(event.message));socket.onerror?.(event);close();};
+  worker.onerror=event=>{if(closed)return;const error=new Error(event.message);reject(error);rejectStartup(error);socket.onerror?.(event);close();};
   worker.onmessage=({data})=>{
+   if(closed)return;
    if(data.type==='ready'){audio.build=data.build;socket.readyState=1;resolve(data.metadata);}
-   else if(data.type==='fatal'){const error=new Error(data.message);reject(error);socket.onerror?.(error);close();}
+   else if(data.type==='fatal'){const error=new Error(data.message);reject(error);rejectStartup(error);socket.onerror?.(error);close();}
    else if(data.type==='reply'){const item=pending.get(data.id);pending.delete(data.id);if(data.error)item?.reject(new Error(data.error));else item?.resolve(data.value);}
    else if(data.type==='update'||data.type==='event'){
     if(data.value.type==='audio_error')audio.disable();
@@ -36,9 +41,11 @@ export async function openBrowserConnection({surface='joint'}={}){
   };
  });
  document.addEventListener('visibilitychange',visibility);window.addEventListener('pagehide',close);
- worker.postMessage({type:'init',hidden:document.hidden,surface});
- const metadata=await ready;
- try{await audio.prepare();}catch(error){close();throw error;}
+ const startupTimer=setTimeout(()=>{rejectStartup(new Error('Browser engine startup timed out'));close();},30000);
+ let metadata;
+ try{
+  metadata=await Promise.race([(async()=>{worker.postMessage({type:'init',hidden:document.hidden,surface});const value=await ready;await audio.prepare({signal:startupAbort.signal});return value;})(),startupFailure]);
+ }catch(error){close();throw error;}finally{clearTimeout(startupTimer);}
  // Asynchronous, read-only development inspection across the worker boundary.
  globalThis.__wasmRead=key=>inspect('read',key);
  globalThis.__wasmStats=()=>inspect('stats');

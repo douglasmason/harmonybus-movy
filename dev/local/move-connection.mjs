@@ -2,7 +2,8 @@
 import {deviceStreamURL,openDeviceConnection,blankDeviceFrame} from './move-device.mjs';
 export function createMoveConnection({browser,inputs,onState,onFrame,pageURL,openDevice=openDeviceConnection,diagnostics}){
  /** @type {import('./workspace-contract.d.ts').Engine} */
- let engine='browser',device=null,generation=0,busy=false,ready=true,signature='',failure=null;
+ // A missing browser is allowed only after its startup has failed and cleaned up.
+ let engine=browser?'browser':'move',device=null,generation=0,busy=false,ready=true,signature='',failure=null;
  const watches=new Map();
  function flushWatches(){if(engine!=='browser'||busy||!ready)return;const keys=[...new Set([...watches.values()].flat())].sort(),next=JSON.stringify(keys);if(keys.length>64)throw new Error('Workspace watch limit exceeded');if(next!==signature){signature=next;browser.socket.send(JSON.stringify({type:'dev_watch',keys}));}}
  function watch(owner,keys){watches.set(owner,keys);flushWatches();}
@@ -17,6 +18,7 @@ export function createMoveConnection({browser,inputs,onState,onFrame,pageURL,ope
  }
  async function select(next){
   if(failure){notify('error',failure);return;}
+  if(next==='browser'&&!browser)return;
   if(busy||next===engine||!['browser','move'].includes(next))return;
   inputs.disable();busy=true;ready=false; // Release to the old owner before changing it.
   disconnect('engine-change');engine=next;blank();notify('switching',next==='move'?'Stopping browser engine…':'Resuming browser session…');

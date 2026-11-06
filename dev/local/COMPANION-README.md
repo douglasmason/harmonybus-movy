@@ -62,6 +62,13 @@ and the last failure. Export makes no device request and includes no address,
 pairing key, screen contents or session. Keep the report with your observations
 on Move/iPad; it cannot confirm command execution or physical audio behavior.
 
+If the browser engine cannot load, the page still offers disconnected Move mode,
+capability checks and the report download. It stops the failed browser Worker
+before enabling Move connections; a stalled Worker/audio startup times out after
+30 seconds. Connect explicitly as usual. Saved browser sessions are left unopened;
+reload to retry Browser mode. An engine failure during an already open browser
+session still requires a reload before either engine can be used.
+
 Browser and device sessions remain separate. This local origin also has its own
 browser storage: it does not automatically receive sessions or appearance from
 the hosted trial. Session transfer is not part of connection setup.

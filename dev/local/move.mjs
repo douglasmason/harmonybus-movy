@@ -1,6 +1,5 @@
 import {readDeviceCapabilities,formatDeviceCapabilities,discoverPageCompanion} from './move-device.mjs';
 import {createMoveDiagnostics} from './move-diagnostics.mjs';
-import {openBrowserConnection} from '/wasm/full/joint-transport.mjs';
 import {controls,mountMoveSurface} from './build/move-surface.mjs';
 import {mountMoveInput} from './move-input.mjs';
 import {mountSessions} from './session-ui.mjs';
@@ -10,9 +9,12 @@ import {mountScaleFinderUI} from './scale-finder-ui.mjs';
 
 const errorBox=document.querySelector('#error'),feedback=document.querySelector('#feedback');
 try{
- const browser=await openBrowserConnection({surface:'move'});
- const {socket,audio,sessions,metadata}=browser;
- const diagnostics=createMoveDiagnostics({build:audio.build,pageProtocol:location.protocol,secureContext:isSecureContext,eventSourceAvailable:typeof EventSource!=='undefined',webSocketAvailable:typeof WebSocket!=='undefined'});
+ let browser=null,startupError=null;
+ try{const {openBrowserConnection}=await import('/wasm/full/joint-transport.mjs');browser=await openBrowserConnection({surface:'move'});}
+ catch(error){startupError=error;}
+ const {socket,audio,sessions,metadata}=browser??{};
+ const diagnostics=createMoveDiagnostics({build:audio?.build,pageProtocol:location.protocol,secureContext:isSecureContext,eventSourceAvailable:typeof EventSource!=='undefined',webSocketAvailable:typeof WebSocket!=='undefined'});
+ if(startupError)diagnostics.event('browser-startup-failed');
  const reportStatus=document.querySelector('#move-report-status');
  document.querySelector('#move-report').onclick=()=>{
   const url=URL.createObjectURL(new Blob([JSON.stringify(diagnostics.snapshot(),null,2)],{type:'application/json'}));
@@ -25,7 +27,7 @@ try{
  const audioButton=document.querySelector('#audio'),audioStatus=document.querySelector('#audio-status');
  const compSource=document.querySelector('#comp-source');
  const playMode=document.querySelector('#play-mode');
- let currentMode=null,modeNames='';
+ let currentMode=null,modeNames='',lastTrack=-1;
  const engineSelector=document.querySelector('#engine'),address=document.querySelector('#move-address');
  const connect=document.querySelector('#move-connect'),disconnect=document.querySelector('#move-disconnect');
  const transportEnabled=document.querySelector('#move-transport-enabled'),pairingKey=document.querySelector('#move-pairing-key'),transportStatus=document.querySelector('#move-transport-status');
@@ -57,7 +59,7 @@ try{
     playMode.disabled=true;playMode.replaceChildren(new Option('Read on Move display',''));
     currentMode=null;modeNames='';lastTrack=-1;
     feedback.textContent=state==='connected'?'Use physical controls for pads, knobs and recording · audio plays on Move':message;
-    audioStatus.textContent=connection.ready?'Browser engine suspended · browser session retained · no session transfer':'Waiting for browser suspension acknowledgment';
+    audioStatus.textContent=!browser?'Browser engine unavailable · audio plays on Move':connection.ready?'Browser engine suspended · browser session retained · no session transfer':'Waiting for browser suspension acknowledgment';
    }else if(!switching){audioStatus.textContent='Browser audio off · tap Enable audio to listen';}
   }});
  workspace=mountMoveWorkspace({connection,inputs,openComponent:surface.openComponent});
@@ -66,7 +68,7 @@ try{
   errorBox.textContent='';await connection.select(engineSelector.value);
  };
  let addressEdited=false;
- address.addEventListener('input',()=>{addressEdited=true;cancelCheck();diagnostics.reset();reportStatus.textContent='Connection evidence reset for the changed address.';});
+ address.addEventListener('input',()=>{addressEdited=true;cancelCheck();diagnostics.reset();if(startupError)diagnostics.event('browser-startup-failed');reportStatus.textContent='Connection evidence reset for the changed address.';});
  const discovery=new AbortController(),discoveryTimeout=setTimeout(()=>discovery.abort(),3000);
  discoverPageCompanion(location.href,{signal:discovery.signal}).then(endpoint=>{
   if(!endpoint||discovery.signal.aborted||addressEdited||address.value||connection.engine==='move'&&address.disabled)return;
@@ -86,6 +88,7 @@ try{
  disconnect.onclick=()=>connection.disconnect();
  window.addEventListener('pagehide',()=>{discovery.abort();cancelCheck();connection.disconnect('page-exit');});
  document.addEventListener('visibilitychange',()=>{if(document.hidden&&connection.engine==='move')connection.disconnect('hidden');});
+ if(browser){
  playMode.onchange=()=>{
   if(currentMode===null)return;
   if(!inputs.isHeld())send({type:'move_mode',previous:currentMode,mode:Number(playMode.value)});
@@ -98,7 +101,7 @@ try{
   compSource.dataset.setting=''; // Reconcile the selection even if the engine refuses it.
   send({type:'move_comp_source',group:accompaniment.group,source:Number(compSource.value)});
  };
- let stopped=true,lastTrack=-1,lastPress=null,lastOutput=null;
+ let stopped=true,lastPress=null,lastOutput=null;
  const disableAudio=()=>audio.disable();
  audio.onStatus=text=>{audioStatus.textContent=text;};
  audio.onDisable=()=>{audioButton.textContent='Enable audio';audioButton.setAttribute('aria-pressed','false');};
@@ -177,5 +180,11 @@ try{
  sessionUI=await mountSessions({sessions,storageKey:'move',legacyStorageKeys:['current'],isActive:isBrowser,captureUI:()=>({monitor:audio.master,displayWidth:Number(zoom.value),displaySharp:sharp.checked,workspace:workspace.capture()}),
   restoreUI:ui=>{workspace.restore(ui?.workspace);audio.master=Number.isFinite(ui?.monitor)?Math.max(0,Math.min(1,ui.monitor)):.35;document.querySelector('#monitor-level').value=audio.master;zoom.value=String([384,512,640].includes(ui?.displayWidth)?ui.displayWidth:512);zoom.onchange();sharp.checked=ui?.displaySharp!==false;sharp.dispatchEvent(new Event('change'));},
   disableAudio,isStopped:()=>isBrowser()&&stopped&&!inputs.isHeld(),release:()=>{inputs.release();}});
+ }else{
+  connection.disconnect();
+  errorBox.textContent='Browser engine could not start: '+startupError.message+'. Move connections remain available. Reload to retry the browser engine.';
+  document.querySelector('#build').textContent='Browser engine unavailable · saved browser sessions have not been opened';
+  engineSelector.querySelector('[value="browser"]').disabled=true;
+ }
  engineSelector.disabled=false;
 }catch(error){errorBox.textContent='Cannot start Move: '+error.message;feedback.textContent='Engine unavailable';}
