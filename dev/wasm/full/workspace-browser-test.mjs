@@ -267,6 +267,9 @@ try{
   assert(await page.getByRole('button',{name:'Pad 1',exact:true}).isDisabled());
   for(const id of ['audio','audio-test','stop'])assert(await page.locator('#'+id).isDisabled());
   assert(!(await page.locator('#sessions').isVisible()));
+  await page.locator('#display-size').selectOption('384');
+  assert.equal(await page.evaluate(()=>document.documentElement.style.getPropertyValue('--display-width')),'384px','display sizing remains available without the browser engine');
+  await page.locator('#move-address').dispatchEvent('input');
   const failedReport=await downloadReport();assert.equal(failedReport.ownerFailure,'browser-startup-failed');
   await page.locator('#move-check').click();await page.locator('#move-capabilities').filter({hasText:'Paired Play/Stop eligible'}).waitFor();
   if(scenario==='audio'){

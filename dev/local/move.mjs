@@ -88,6 +88,8 @@ try{
  disconnect.onclick=()=>connection.disconnect();
  window.addEventListener('pagehide',()=>{discovery.abort();cancelCheck();connection.disconnect('page-exit');});
  document.addEventListener('visibilitychange',()=>{if(document.hidden&&connection.engine==='move')connection.disconnect('hidden');});
+ const zoom=document.querySelector('#display-size'),sharp=document.querySelector('#display-sharp');
+ zoom.onchange=()=>document.documentElement.style.setProperty('--display-width',zoom.value+'px');
  if(browser){
  playMode.onchange=()=>{
   if(currentMode===null)return;
@@ -175,8 +177,6 @@ try{
  document.querySelector('#build').textContent=`Movy ${audio.build?.engineSource?.integrationVersion??'unknown'} · HarmonyBus ${metadata.version} · engine ${audio.build?.engineSource?.commit?.slice(0,12)??'unknown'} · UI ${audio.build?.hostSource?.commit?.slice(0,12)??'local'} · 44,100 Hz`;
  audio.onDiagnostic(audio.diagnostic());
  document.addEventListener('visibilitychange',()=>{if(document.hidden)disableAudio();});
- const zoom=document.querySelector('#display-size'),sharp=document.querySelector('#display-sharp');
- zoom.onchange=()=>document.documentElement.style.setProperty('--display-width',zoom.value+'px');
  sessionUI=await mountSessions({sessions,storageKey:'move',legacyStorageKeys:['current'],isActive:isBrowser,captureUI:()=>({monitor:audio.master,displayWidth:Number(zoom.value),displaySharp:sharp.checked,workspace:workspace.capture()}),
   restoreUI:ui=>{workspace.restore(ui?.workspace);audio.master=Number.isFinite(ui?.monitor)?Math.max(0,Math.min(1,ui.monitor)):.35;document.querySelector('#monitor-level').value=audio.master;zoom.value=String([384,512,640].includes(ui?.displayWidth)?ui.displayWidth:512);zoom.onchange();sharp.checked=ui?.displaySharp!==false;sharp.dispatchEvent(new Event('change'));},
   disableAudio,isStopped:()=>isBrowser()&&stopped&&!inputs.isHeld(),release:()=>{inputs.release();}});
