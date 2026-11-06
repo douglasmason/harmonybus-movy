@@ -37,7 +37,7 @@ export function capturePayload(engine,ui={}){
  }
  checkChains(chains);
  for(let bus=0;bus<2;bus++)if(read(`snd${bus}:module`))throw new Error('Send effects are unsupported; session was not saved');
- const sequencer=required(read('state'),'sequencer');
+ const sequencer=required(read('persistent_state'),'sequencer');
  if(!sequencer.startsWith('movy1\n'))throw new Error('Invalid production sequencer state');
  return {sequencer:wrapState(sequencer,1),chains,ui};
 }
@@ -66,7 +66,7 @@ export async function restoreCandidate(engine,session){
  engine.request('set','chains',doc);engine.request('step',128);
  if(engine.request('get','chains').value!==doc)throw new Error('Engine rejected chain modules');
  engine.request('set','state',state);
- const restored=engine.request('get','state').value;
+ const restored=engine.request('get','persistent_state').value;
  if(restored!==state){const expected=state.split('\n'),actual=restored.split('\n'),index=expected.findIndex((line,index)=>line!==actual[index]);throw new Error(`Engine cannot restore this sequencer state without changes (line ${index+1}, ${expected[index]?.split(' ')[0]??'end'})`);}
  for(const track of payload.chains){
   for(const entry of track.components)engine.request('set',`ch${track.track}:${entry.component}:state`,entry.state);

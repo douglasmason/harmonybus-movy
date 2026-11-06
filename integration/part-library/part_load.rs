@@ -76,9 +76,7 @@ impl Engine {
             for step in clip.loop_start_steps..clip.loop_start_steps+clip.length_steps {
                 let value=config.at(clip,&target.lane_label,step);
                 if !styles.contains(&value.style){styles.push(value.style);}
-                if value.complexity!=first.complexity {varying|=1;}
-                if value.intensity!=first.intensity {varying|=2;}
-                if value.style!=first.style {varying|=4;}
+                for field in 0..config.labels().len(){if value.values()[field]!=first.values()[field]{varying|=1<<field;}}
             }
         }
         format!("ps1|{}|{}|{}|{}",clip.length_steps,styles.iter().map(u8::to_string).collect::<Vec<_>>().join(","),varying,recipe.name)

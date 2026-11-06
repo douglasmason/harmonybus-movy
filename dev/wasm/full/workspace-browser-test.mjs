@@ -128,7 +128,7 @@ try{
  await page.locator('#song-edit').click();await page.waitForFunction(()=>document.querySelector('#play-mode').value==='3');
  await page.locator('#sessions summary').click();await page.locator('#session-save').click();
  await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('Saved')&&!document.querySelector('#session-save').disabled);
- const savedState=await page.evaluate(()=>__wasmRead('state'));
+ const savedState=await page.evaluate(()=>__wasmRead('persistent_state'));
  // One theme crosses component shadow roots, engine modes and reparented editor.
  const originalLED=await page.getByRole('button',{name:'Pad 1',exact:true}).getAttribute('style');
  await page.locator('#appearance summary').click();
@@ -144,7 +144,7 @@ try{
  assert.equal(await page.locator('body').evaluate(node=>getComputedStyle(node).color),'rgb(0, 0, 0)');
  assert.equal(await page.locator('[data-workspace=field] .component-content').evaluate(node=>getComputedStyle(node).backgroundColor),await page.locator('.accompaniment').evaluate(node=>getComputedStyle(node).backgroundColor));
  assert.equal(await page.getByRole('button',{name:'Pad 1',exact:true}).getAttribute('style'),originalLED,'theme does not recolor musical LEDs');
- assert.equal(await page.evaluate(()=>__wasmRead('state')),savedState,'appearance does not edit musical state');
+ assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),savedState,'appearance does not edit musical state');
  await page.locator('#appearance').evaluate(node=>node.dataset.identity='same-theme');
  await page.locator('#display-expand').click();
  assert.equal(await page.locator('#display-dialog #appearance').getAttribute('data-identity'),'same-theme');
@@ -211,7 +211,7 @@ try{
  const clearedReport=await downloadReport();assert.equal(clearedReport.attempt,0);assert.equal(clearedReport.metadata.state,'not-checked');assert.equal(clearedReport.transport.sent.play,0);
  physicalFixture.request('set','cmd','stop');
  await page.locator('#engine').selectOption('browser');await page.waitForFunction(()=>!document.querySelector('[aria-label="Pad 1"]').disabled);
- assert.equal(await page.evaluate(()=>__wasmRead('state')),savedState,'device mirror never overwrites the browser session');
+ assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),savedState,'device mirror never overwrites the browser session');
  assert.equal(await page.locator('#audio').getAttribute('aria-pressed'),'false');
  await page.reload();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
  assert.equal(await page.locator('#appearance-brightness').inputValue(),'100');

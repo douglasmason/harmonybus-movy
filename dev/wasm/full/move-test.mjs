@@ -18,10 +18,10 @@ test('direct play-mode choices retain device Back history, playback and saved pe
  try{
   await send({type:'subscribe_tool'});await until(()=>frame?.ready);
   assert.deepEqual(frame.modes,['Clips','Normal Play','Motif Play','Joint Play','Grid Sequencer','Field Play','Chord Play','HB Settings','Scale Finding','Loop Edit']);
-  const clips=service.read('state');
+  const clips=service.read('persistent_state');
   for(const mode of [6,7,0,2,4,5,3,8,9,1]){
    const previous=frame.mode;await choose(mode);
-   assert.equal(service.read('state'),clips,'view selection must not edit clips');
+   assert.equal(service.read('persistent_state'),clips,'view selection must not edit clips');
    await send({type:'move_mode',previous,mode:(mode+1)%10});assert.equal(frame.mode,mode,'stale selection cannot override current mode');
   }
   for(const mode of [-1,10,1.5,'3',null]){await send({type:'move_mode',previous:1,mode});assert.equal(frame.mode,1,'invalid choice ignored');}
@@ -62,11 +62,11 @@ test('panel shortcuts use production groups and reject stale or held navigation'
    await until(()=>frame?.mode===mode&&frame.panels?.entries.length>1);
    const original=frame.panels,originalIndex=original.index;
    const destination=original.segments.find(segment=>segment.index!==originalIndex)??original.entries.find(entry=>entry.index!==originalIndex);
-   const before=service.read('state');
+   const before=service.read('persistent_state');
    await send({type:'move_panel',token:original.token,index:destination.index});
    await until(()=>frame.panels?.index===destination.index);
    if(frame.panels.segments.length)assert.equal(frame.panelBar.index,frame.panels.segments.findIndex(segment=>segment.index===destination.index));
-   assert.equal(service.read('state'),before,'panel jump does not edit musical state in mode '+mode);
+   assert.equal(service.read('persistent_state'),before,'panel jump does not edit musical state in mode '+mode);
    assert(frame.knobLabels.some(Boolean),'selected settings retain their real controls');
    // A held pad keeps ownership; the browser cannot switch its page mid-gesture.
    await midi([144,68,100]);const heldPanel=frame.panels;
@@ -260,13 +260,13 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   await cc(43);
   assert.equal(count(0),0);
   await note(69);await note(16);assert.equal(count(0),1);
-  const first=service.read('state');assert.match(first,/cl 0 0 .*:[0-9]+:100:0/);
+  const first=service.read('persistent_state');assert.match(first,/cl 0 0 .*:[0-9]+:100:0/);
   await cc(56);assert.equal(count(0),0);
-  await midi([176,49,127]);await cc(56);await midi([176,49,0]);assert.equal(service.read('state'),first);
+  await midi([176,49,127]);await cc(56);await midi([176,49,0]);assert.equal(service.read('persistent_state'),first);
   // Hold-step editing reaches the production velocity gesture and grouped Undo.
   await midi([144,16,100]);await midi([144,8,127]);await midi([176,79,127]);await midi([128,8,0]);await midi([128,16,0]);
-  assert.notEqual(service.read('state'),first);assert.equal(count(0),1);
-  await cc(56);assert.equal(service.read('state'),first);
+  assert.notEqual(service.read('persistent_state'),first);assert.equal(count(0),1);
+  await cc(56);assert.equal(service.read('persistent_state'),first);
   // Cancellation must NOT turn an interrupted step press into a note toggle.
   await midi([144,17,100]);service.visibility(true);await wait(15);
   assert.equal(count(0),1);assert.equal(service.stats().move.held,0);service.visibility(false);
@@ -293,18 +293,18 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   assert.equal(globalThis.host_write_file(parts,partsText),true);
   assert.equal(globalThis.host_write_file('/data/UserData/schwung/desired-tempo','120.0000\n'),true);
   assert.equal(globalThis.host_write_file('/data/UserData/schwung/modules/midi_fx/harmonybus/module.json','{}'),false);
-  const saved=await service.save({monitor:.25}),before=service.read('state');
+  const saved=await service.save({monitor:.25}),before=service.read('persistent_state');
   assert(saved.payload.ui.move.state);assert(!('chains' in JSON.parse(saved.payload.ui.move.state)));
   const bad=structuredClone(saved.payload);bad.ui.move.files={'/data/UserData/unrelated':'x'};
   // Use a valid checksum so rejection exercises the UI host boundary.
   await assert.rejects(()=>sealSession(bad,{}).then(session=>service.open(session)),/Invalid Move preferences/);
-  assert.equal(service.read('state'),before);
-  await service.open(saved);await wait(100);assert.equal(service.read('state'),before);
+  assert.equal(service.read('persistent_state'),before);
+  await service.open(saved);await wait(100);assert.equal(service.read('persistent_state'),before);
   assert.equal(globalThis.host_read_file(journal),journalText);
   assert.equal(globalThis.host_read_file(parts),partsText);
   for(const track of [0,1,2,15])assert.equal(count(track),1);
   assert.equal(service.stats().move.held,0);
-  await cc(56);assert.equal(service.read('state'),before,'opening resets production Undo history');
+  await cc(56);assert.equal(service.read('persistent_state'),before,'opening resets production Undo history');
   await cc(50);await midi([176,14,1]);await cc(3);
   assert.equal(service.stats().move.mode,2,'current Motif Play controller is reachable');
   await cc(50);await midi([176,14,1]);await cc(3);
@@ -319,7 +319,7 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   assert.equal(service.read('ch2:midi_fx1:chord_mode'),'Conductor Chord');
   assert.equal(globalThis.host_read_file(parts),partsText);
   assert.match(service.read('status'),/dquant=100(?: |$)/);
-  const blank=service.read('state');await cc(56);assert.equal(service.read('state'),blank);
+  const blank=service.read('persistent_state');await cc(56);assert.equal(service.read('persistent_state'),blank);
   // Chord Play chooses abstract chords through physical steps; Record captures
   // them on the conductor. With its output off, melody triggers the Comp voice.
   // Record both actors, then verify abstract intent and multi-note rendering.
@@ -335,7 +335,7 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   assert.equal(service.stats().move.mode,6,'Stop & release retains Chord Play');
   assert.equal(service.stats().move.track,3);
   assert(count(0)>=2,'chord choices are recorded on the conductor');
-  const chordSession=await service.save({}),chordState=service.read('state');
+  const chordSession=await service.save({}),chordState=service.read('persistent_state');
   assert.deepEqual(chordSession.payload.ui.move.context,{mode:6,performance:6,track:3});
   const descriptors=chordState.split('\n').filter(line=>line.startsWith('ra 0 0 ')).map(line=>BigInt(line.split(' ')[4].split(',')[1]));
   assert(descriptors.length>=2,'recordings retain abstract harmonic descriptors');
@@ -352,13 +352,13 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
   // Invalid context must be rejected before it can replace the current engine.
   const badContext=structuredClone(chordSession.payload);badContext.ui.move.context.track=16;
   await assert.rejects(()=>sealSession(badContext,{}).then(session=>service.open(session)),/Invalid Move performance context/);
-  assert.equal(service.read('state'),chordState);assert.equal(service.stats().move.mode,6);
+  assert.equal(service.read('persistent_state'),chordState);assert.equal(service.stats().move.mode,6);
   // Cancellation releases a physical pad without leaving the selected mode.
   await midi([144,70,100]);assert.equal(service.stats().move.held,1);
   service.visibility(true);assert.equal(service.stats().move.held,0);assert.equal(service.stats().move.mode,6);
   service.visibility(false);
   await service.newSession({});assert.equal(count(0),0);
-  await service.open(chordSession);assert.equal(service.read('state'),chordState);
+  await service.open(chordSession);assert.equal(service.read('persistent_state'),chordState);
   assert.equal(service.stats().move.mode,6,'reopening restores Chord Play with no mode-selection gesture');
   assert.equal(service.stats().move.track,3,'reopening restores the playing track');
   const loadedReplay=await replay();
@@ -384,7 +384,7 @@ test('complete Movy UI edits real clips, undoes, records, replays and restores w
    const session=await service.save({});await service.open(session);
    assert.deepEqual((await service.save({})).payload.ui.move.context,context,'open preserves mode '+mode);
   }
-  await service.open(saved);assert.equal(service.read('state'),before);
+  await service.open(saved);assert.equal(service.read('persistent_state'),before);
   assert.equal(service.read('ch2:midi_fx1:chord_mode'),'Off','older sessions keep their own settings');
   assert.deepEqual(updates.filter(update=>update.type==='error'),[]);
  }finally{service.socket.close();}

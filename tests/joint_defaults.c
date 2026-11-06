@@ -19,8 +19,8 @@ int main(int argc,char **argv){
         if(role==2)assert(instance->player.config.inversion==8);
         char saved[16384],restored[16384];
         api->set_param(instance,"render_channel","9");
-        api->get_param(instance,"state",saved,sizeof(saved));
-        api->set_param(instance,"state",saved);api->get_param(instance,"state",restored,sizeof(restored));
+        api->get_param(instance,"persistent_state",saved,sizeof(saved));
+        api->set_param(instance,"state",saved);api->get_param(instance,"persistent_state",restored,sizeof(restored));
         assert(!strcmp(saved,restored));assert(instance->render_channel==8);
         api->destroy_instance(instance);
     }

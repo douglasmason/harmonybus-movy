@@ -75,7 +75,7 @@ static void test_part_library(void){
     set("cmd","play");render(2);
     assert(field_get("ch2:synth:cutoff")==91);
     set("cmd","stop");render(4);
-    assert(api->get_param(instance,"state",saved,sizeof(saved))>0);
+    assert(api->get_param(instance,"persistent_state",saved,sizeof(saved))>0);
     set("ch2:midi_fx1:render_velocity_percent","110");
     set("state",saved);render(4);
     assert(field_get("ch2:midi_fx1:render_velocity_percent")==50);
@@ -107,7 +107,7 @@ static void test_part_library(void){
     set("state","movy1\nbpm 12000\nlink 0\ntk 1 0 0\ncl 1 0 16 0 \n");
     load_part_track(1,"user",entry);set("cmd","play");render(2);
     assert(field_get("ch1:synth:cutoff")==91);set("cmd","stop");render(4);
-    assert(api->get_param(instance,"state",saved,sizeof(saved))>0);
+    assert(api->get_param(instance,"persistent_state",saved,sizeof(saved))>0);
     set("ch1:midi_fx1:render_velocity_percent","110");set("state",saved);render(4);
     assert(field_get("ch1:midi_fx1:render_velocity_percent")==50);
     assert(api->get_param(instance,"part_info_1",info,sizeof(info))>0&&strstr(info,"|-12|60|"));

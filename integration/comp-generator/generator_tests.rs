@@ -61,7 +61,7 @@
     }
     #[test] fn generator_recorded_playback_reads_edits_at_the_next_swung_attack() {
         let (mut engine,_)=record();engine.stop(&mut Vec::new());
-        let config=crate::generator::Config {style:0,complexity:0,intensity:64,seed:47,end:3072};
+        let config=crate::generator::Config {style:0,complexity:0,intensity:64,seed:47,end:3072,..Default::default()};
         let clip=&mut engine.tracks[2].clips[0];clip.generator=Some(config);clip.locks.clear();
         // Sparse has an attack on step seven, delayed by swing. A control edit
         // after its grid step but before the sounding attack must be observed.
@@ -83,7 +83,7 @@
     }
     #[test] fn generator_preserves_essential_rhythm_and_changes_intensity_independently() {
         for style in 0..4 {
-            let sparse=Config {style,complexity:0,intensity:32,seed:9,end:0};
+            let sparse=Config {style,complexity:0,intensity:32,seed:9,end:0,..Default::default()};
             let dense=Config {complexity:127,..sparse};let strong=Config {intensity:127,..sparse};
             let sparse_steps:Vec<_>=(0..64).filter(|step|sparse.note(*step).is_some()).collect();
             let dense_steps:Vec<_>=(0..64).filter(|step|dense.note(*step).is_some()).collect();
@@ -406,7 +406,7 @@
 
     #[test] fn generator_phrase_structure_repeats_without_flattening_and_complexity_retains_core() {
         for style in 8..16 {
-            let config=Config {style,complexity:0,intensity:64,seed:37,end:0};
+            let config=Config {style,complexity:0,intensity:64,seed:37,end:0,..Default::default()};
             let definition=&crate::generator::STYLES[style as usize];
             let steps=crate::part_catalog::generator_source_steps(config.bass(),definition.catalog);
             assert_eq!(steps,if style%4==3 {64}else{32});

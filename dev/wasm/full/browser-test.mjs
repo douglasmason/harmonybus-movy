@@ -25,7 +25,7 @@ try{
  await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Recording',{},{timeout:10000});
  await page.locator('[data-view=perform]').click();await root.focus();await page.keyboard.down('Space');await page.waitForTimeout(180);await page.keyboard.up('Space');
  await page.locator('#stop').click();await page.waitForFunction(()=>document.querySelector('#transport').textContent==='Stopped');
- assert.match(await page.evaluate(async()=>(await __wasmRead('state'))),/\d+:\d+:48:100:/,'production recording contains pad input');
+ assert.match(await page.evaluate(async()=>(await __wasmRead('persistent_state'))),/\d+:\d+:48:100:/,'production recording contains pad input');
  await page.locator('#play').click();await page.waitForFunction(async()=>(await __wasmRead('ch0:midi_fx1:pad_output')).includes('48'),{},{timeout:10000});
  // Block only the UI thread. Worker clock must advance through the stall.
  const beforeStall=await page.evaluate(()=>__wasmStats());

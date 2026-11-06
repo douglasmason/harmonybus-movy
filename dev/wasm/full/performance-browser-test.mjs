@@ -36,9 +36,9 @@ try{
  await page.waitForFunction(()=>{const samples=new Float32Array(2048);__joint.monitor.analyser.getFloatTimeDomainData(samples);return samples.some(value=>Math.abs(value)>.001);});
  await page.locator('#stop').click();
  await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('Saved on this device'));
- const before=await page.evaluate(()=>__wasmRead('state'));
+ const before=await page.evaluate(()=>__wasmRead('persistent_state'));
  await page.reload();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
- assert.equal(await page.evaluate(()=>__wasmRead('state')),before);
+ assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),before);
  await page.locator('#audio').click();await page.waitForFunction(()=>__joint.monitor.enabled);await page.locator('#play').click();
  await page.waitForFunction(()=>{const samples=new Float32Array(2048);__joint.monitor.analyser.getFloatTimeDomainData(samples);return samples.some(value=>Math.abs(value)>.001);});
  await page.locator('#stop').click();

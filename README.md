@@ -1,3 +1,7 @@
+## Follower cloud (hbclean.323)
+
+Draw harmony-following cloud patterns with multitouch, the Move/Launchpad pads, or two X/Y knobs with bounded or wrapping edges. The native display, pads, Schwung Tool remote page and standalone workspace share the same source and trail semantics. Ordinary Record captures gestures and eight controls; saved recipes, Undo and Bake reuse the existing clip path. See [Follower cloud](docs/follower-cloud.md).
+
 ## Perform Style inside saved recipes (hbclean.289)
 
 Turn Generator knob 7 to audition and record Style changes inside Comp or Bass User recipes, preserving their other control curves, seed and loop length. Browse still chooses the library entry; knob 6 Revert resumes its saved automation. Uses the existing Record and Undo paths. See [Style performance](docs/generator-style-performance.md). Pair with HarmonyBus 0.2.310.

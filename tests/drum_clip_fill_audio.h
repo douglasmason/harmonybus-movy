@@ -10,7 +10,7 @@ static void test_drum_clip_fill(void){
     snprintf(command,sizeof(command),"clipfill 8 0 %s 4_0_99_99_2_2 %s drums own",target,preview);
     set("cmd","usnap 310");set("cmd",command);render(2);set("cmd","ucommit 310");
     assert(api->get_param(instance,"part_result",result,sizeof(result))>0);assert(!strncmp(result,"Filled",6));
-    static char saved[262144];assert(api->get_param(instance,"state",saved,sizeof(saved))>0);
+    static char saved[262144];assert(api->get_param(instance,"persistent_state",saved,sizeof(saved))>0);
     for(int pass=0;pass<2;pass++){
         if(pass){set("state",saved);render(8);}
         drum_clip_packet_count=sent_on=sent_off=rejected=0;drum_clip_capture=1;

@@ -31,16 +31,16 @@ static void test_queue_copy(void){
     api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",after,sizeof(after));
     assert(!strcmp(before,after)&&sent_on==attacks&&sent_off==releases);
     static char saved[262144],unchanged[262144];
-    api->get_param(instance,"state",saved,sizeof(saved));
+    api->get_param(instance,"persistent_state",saved,sizeof(saved));
     assert(strstr(saved,"\ncl 0 1 8 0 ")&&strstr(saved,"\nra 0 1 "));
     assert(strstr(saved,"\ncl 3 0 64 0 0:1000:66:90:0\n"));
     snprintf(command,sizeof(command),"qcopy 0 1 %s",token);set("cmd",command);
     api->get_param(instance,"chord_copy_result",info,sizeof(info));assert(strstr(info,"occupied"));
-    api->get_param(instance,"state",unchanged,sizeof(unchanged));assert(!strcmp(saved,unchanged));
+    api->get_param(instance,"persistent_state",unchanged,sizeof(unchanged));assert(!strcmp(saved,unchanged));
     set("cmd","qcopy 0 2 0");api->get_param(instance,"chord_copy_result",info,sizeof(info));assert(strstr(info,"changed"));
-    api->get_param(instance,"state",unchanged,sizeof(unchanged));assert(!strcmp(saved,unchanged));
-    set("cmd","uswap 987 988");api->get_param(instance,"state",unchanged,sizeof(unchanged));assert(!strstr(unchanged,"\ncl 0 1 "));
-    set("cmd","uswap 988 989");api->get_param(instance,"state",unchanged,sizeof(unchanged));assert(!strcmp(saved,unchanged));
+    api->get_param(instance,"persistent_state",unchanged,sizeof(unchanged));assert(!strcmp(saved,unchanged));
+    set("cmd","uswap 987 988");api->get_param(instance,"persistent_state",unchanged,sizeof(unchanged));assert(!strstr(unchanged,"\ncl 0 1 "));
+    set("cmd","uswap 988 989");api->get_param(instance,"persistent_state",unchanged,sizeof(unchanged));assert(!strcmp(saved,unchanged));
     api->get_param(instance,"ch0:midi_fx1:hb_chord_queue_status",after,sizeof(after));assert(!strcmp(before,after));
     /* Clear the live override explicitly, reload, then launch the saved clip. */
     set("cmd","stop");set("chord_select","off");render(8);set("state",saved);render(8);

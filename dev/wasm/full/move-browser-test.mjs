@@ -132,7 +132,7 @@ try{
  assert.equal(await page.locator('body > main #sessions #session-save').count(),1,'session tools return inline');
  assert.equal(await page.locator('body > main #audio-settings #monitor-level').count(),1,'monitor returns inline');
  // Closing a held playing pad releases it without creating a step edit.
- const beforePadCancel=await page.evaluate(()=>__wasmRead('state'));
+ const beforePadCancel=await page.evaluate(()=>__wasmRead('persistent_state'));
  await button('Enlarge display').click();await button('Pads & steps').click();
  await button('Pad 2').focus();await page.keyboard.down('Space');
  await page.waitForFunction(async()=>(await __wasmStats()).move.held>0);
@@ -141,7 +141,7 @@ try{
  // Native close queues restoration separately; the next synthetic encoder
  // event must target the restored surface, not its briefly inert dialog copy.
  await page.waitForFunction(()=>document.activeElement===document.querySelector('#display-expand')&&document.querySelector('body > main #pads'));
- assert.equal(await page.evaluate(()=>__wasmRead('state')),beforePadCancel,'cancelled pad hold does not edit the clip');
+ assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),beforePadCancel,'cancelled pad hold does not edit the clip');
  // A concurrent alias cannot release another surface's encoder hold.
  await page.evaluate(()=>{
   const physical=document.querySelector('[aria-label="Knob 2"]'),screen=document.querySelector('.screen-parameter[data-slot="1"]');
@@ -210,18 +210,18 @@ try{
  assert(await page.locator('#hero').evaluate(el=>el.getContext('2d').getImageData(0,0,128,64).data.some((value,index)=>index%4!==3&&value>0)),'original bitmap remains rendered');
  await button('Pad 2').tap();await button('Step 1').tap();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('1 note'));
- let clip=await page.evaluate(()=>__wasmRead('state'));
+ let clip=await page.evaluate(()=>__wasmRead('persistent_state'));
  await button('Undo').tap();await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('0 notes'));
  await page.locator('#shift').check();await button('Undo').tap();await page.locator('#shift').uncheck();
- await page.waitForFunction(async()=>(await __wasmRead('state')).includes('cl 0 0'));
- assert.equal(await page.evaluate(()=>__wasmRead('state')),clip);
+ await page.waitForFunction(async()=>(await __wasmRead('persistent_state')).includes('cl 0 0'));
+ assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),clip);
  // A cancelled hold must never toggle a note on pointer release.
  await button('Step 2').focus();await page.keyboard.down('Space');await page.keyboard.press('Escape');await page.keyboard.up('Space');
- assert.equal(await page.evaluate(()=>__wasmRead('state')),clip);
+ assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),clip);
  // The production conductor sends harmony, while Track 4 renders local audio.
  await button('Track 4').tap();await button('Pad 2').tap();await button('Step 1').tap();
  await page.waitForFunction(async()=>Number((await __wasmRead('motif_clip_info_3')).split(',')[4])===1);
- clip=await page.evaluate(()=>__wasmRead('state'));
+ clip=await page.evaluate(()=>__wasmRead('persistent_state'));
  await button('Enlarge display').click();
  await page.locator('#audio').click();await page.waitForFunction(()=>document.querySelector('#audio').textContent==='Disable audio');
  await button('Pads & steps').click();
@@ -263,7 +263,7 @@ try{
  assert.equal(await page.locator('#comp-source').inputValue(),'1','Comp source survives save and reload');
  await page.locator('#comp-source').selectOption('0');
  await page.waitForFunction(()=>document.querySelector('#comp-explanation').textContent.includes('also triggers'));
- assert.equal(await page.evaluate(()=>__wasmRead('state')),clip);
+ assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),clip);
  // Starting fresh must preserve and expose the previous session, including
  // its clips and source choices. Reload keeps both the blank and its archive.
  await page.getByText('Session files',{exact:true}).click();
@@ -271,7 +271,7 @@ try{
  await page.evaluate(()=>{window.archiveAdd=IDBObjectStore.prototype.add;IDBObjectStore.prototype.add=function(){throw new DOMException('Test storage full','QuotaExceededError');};});
  await page.locator('#session-new').click();
  await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('Current session retained'));
- assert.equal(await page.evaluate(()=>__wasmRead('state')),clip);
+ assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),clip);
  assert.equal(await page.locator('#session-previous option').count(),1);
  await page.evaluate(()=>{IDBObjectStore.prototype.add=window.archiveAdd;delete window.archiveAdd;});
  await page.locator('#session-new').click();
@@ -284,7 +284,7 @@ try{
  assert.equal(await page.locator('#session-previous option').count(),2);
  await page.locator('#session-previous').selectOption({index:1});await page.locator('#session-open-previous').click();
  await page.waitForFunction(()=>!document.querySelector('#session-open-previous').disabled&&document.querySelector('#session-status').textContent.includes('restored'));
- assert.equal(await page.evaluate(()=>__wasmRead('state')),clip);
+ assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),clip);
  assert.equal(await page.locator('#session-previous option').count(),3,'opening an archive also preserves the session being left');
  // Record abstract chords plus melody through the real controls, stop with
  // the browser button, reload, and press Play without reselecting the mode.
@@ -328,7 +328,7 @@ try{
  assert(await dialog.isVisible(),'recording and playing stays in the enlarged editor');
  await page.locator('#stop').click();
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('Chord Play · Stopped'));
- const chordClip=await page.evaluate(()=>__wasmRead('state'));
+ const chordClip=await page.evaluate(()=>__wasmRead('persistent_state'));
  assert(chordClip.split('\n').filter(line=>line.startsWith('ra 0 0 ')).length>=2,'harmonic descriptors are recorded');
  await button('Files & audio').click();await page.locator('#session-save').click();
  await page.waitForFunction(()=>!document.querySelector('#session-save').disabled&&document.querySelector('#session-status').textContent.includes('Saved'));
@@ -337,18 +337,18 @@ try{
  await page.locator('#session-new').click();
  await page.waitForFunction(()=>document.querySelector('#session-status').textContent.startsWith('New session ·'));
  assert(await dialog.isVisible(),'creating a session stays inside the editor');
- assert.notEqual(await page.evaluate(()=>__wasmRead('state')),chordClip);
+ assert.notEqual(await page.evaluate(()=>__wasmRead('persistent_state')),chordClip);
  const chooser=page.waitForEvent('filechooser');await page.locator('#session-import').click();
  await(await chooser).setFiles(backupPath);
  await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored')&&!document.querySelector('#session-save').disabled);
- assert.equal(await page.evaluate(()=>__wasmRead('state')),chordClip,'export/import inside the modal restores the recorded abstract clip');
+ assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),chordClip,'export/import inside the modal restores the recorded abstract clip');
  assert(await dialog.isVisible(),'importing a session retains the editor');
  await page.locator('#session-file').setInputFiles({name:'broken.hb-session.json',mimeType:'application/json',buffer:Buffer.from('{')});
  await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('Current session retained'));
- assert.equal(await page.evaluate(()=>__wasmRead('state')),chordClip,'failed import inside the modal preserves the live clip');
+ assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),chordClip,'failed import inside the modal preserves the live clip');
  await page.reload();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
  await page.waitForFunction(()=>document.querySelector('#feedback').textContent.startsWith('Track 4 · Chord Play'));
- assert.equal(await page.evaluate(()=>__wasmRead('state')),chordClip);
+ assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),chordClip);
  await page.locator('#audio').click();await page.waitForFunction(()=>document.querySelector('#audio').textContent==='Disable audio');
  await button('Play / Stop').tap();
  await page.waitForFunction(()=>{try{return JSON.parse(document.querySelector('#audio-report').textContent).peak>.0001;}catch{return false;}});
@@ -403,10 +403,10 @@ try{
   assert(!/NaN|Infinity/.test(shapes),modes[mode]+' has finite geometry');
   assert(await page.locator('#screen-sharp rect, #screen-sharp path, #screen-sharp circle, #screen-sharp ellipse').count()>0,modes[mode]+' has graphics');
   assert(await page.locator('#screen-sharp text').count()<80,modes[mode]+' does not accumulate hidden footer text');
-  const state=await page.evaluate(()=>__wasmRead('state'));
+  const state=await page.evaluate(()=>__wasmRead('persistent_state'));
   await page.locator('#display-sharp').uncheck();assert(await page.locator('#hero').isVisible());
   await page.locator('#display-sharp').check();assert(await page.locator('#screen-sharp').isVisible());
-  assert.equal(await page.evaluate(()=>__wasmRead('state')),state,modes[mode]+' display toggle preserves musical state');
+  assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),state,modes[mode]+' display toggle preserves musical state');
  }
  // Mode choices remain accessible with the enlarged display and retain device Back.
  await button('Enlarge display').click();assert(await page.locator('#play-mode').isVisible());
@@ -484,6 +484,6 @@ try{
  console.log('PASS adaptable HB/Movy touch surface, clip edit/Undo/Redo, PCM, independent audio clock, preserved session archives, Chord Play Record/Stop/Save/Reload/Play without mode reselection, track 16, tablet/phone layouts and offline gestures');
 }catch(error){
  console.error('Encoder trace:',encoderTrace);
- if(page)console.error('Move browser failure:',await page.evaluate(async()=>({feedback:document.querySelector('#feedback')?.textContent,error:document.querySelector('#error')?.textContent,held:[...document.querySelectorAll('[data-held=true]')].map(el=>el.getAttribute('aria-label')),state:await globalThis.__wasmRead?.('state'),stats:await globalThis.__wasmStats?.()})).catch(String));
+ if(page)console.error('Move browser failure:',await page.evaluate(async()=>({feedback:document.querySelector('#feedback')?.textContent,error:document.querySelector('#error')?.textContent,held:[...document.querySelectorAll('[data-held=true]')].map(el=>el.getAttribute('aria-label')),state:await globalThis.__wasmRead?.('persistent_state'),stats:await globalThis.__wasmStats?.()})).catch(String));
  throw error;
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

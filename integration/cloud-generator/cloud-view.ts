@@ -1,0 +1,30 @@
+/** Shared spatial display model. Existing trail curves own fading, never notes. */
+import {trailFade,type TrailSettings} from './trail-history.js';
+export type CloudPoint={x:number;y:number;pressure:number;age:number};
+export type CloudSnapshot={contacts:CloudPoint[];trails:CloudPoint[];grains:CloudPoint[]};
+export const emptyCloud=():CloudSnapshot=>({contacts:[],trails:[],grains:[]});
+/** The same involution maps physical input to musical axes and back to display. */
+export function cloudPosition<Point extends {x:number;y:number}>(point:Point,flipped=false):Point {return flipped?{...point,x:point.y,y:point.x}:point;}
+export function readCloud(raw:string):CloudSnapshot|null {
+ const fields=raw.split('|');if(fields.length!==4||fields[0]!=='cf1')return null;
+ const groups=fields.slice(1).map((field,index)=>field?field.split(';').map(record=>record.split(',').map(Number)):[]);
+ if(groups.some((group,index)=>group.length>(index===0?16:256)||group.some(point=>point.length!==(index===0?3:4)||point.some(value=>!Number.isFinite(value))||point.slice(0,3).some(value=>value<0||value>127)||(point[3]??0)<0)))return null;
+ const points=groups.map(group=>group.map(([x,y,pressure,age=0])=>({x:x/127,y:y/127,pressure:pressure/127,age:age/4})));
+ return {contacts:points[0],trails:points[1],grains:points[2]};
+}
+export function cloudFade(point:CloudPoint,settings:TrailSettings):number {
+ if(point.age>=4)return 0;
+ return trailFade(point.age,settings.decayBeats,settings.curve,settings.exponent,settings.floor,settings.peak)*settings.strength*point.pressure;
+}
+/** Wrap preserves overshoot on either side; a bounded cursor stops at the edge. */
+export function cloudCoordinate(value:number,wrap:boolean):number {return wrap?((value%128)+128)%128:Math.max(0,Math.min(127,value));}
+export function cloudCells(snapshot:CloudSnapshot,width:number,height:number,settings:TrailSettings,flipped=false):number[] {
+ const colors=Array(width*height).fill(0),strength=Array(width*height).fill(0);
+ const cell=(point:CloudPoint)=>{const projected=cloudPosition(point,flipped);return Math.round(projected.y*(height-1))*width+Math.round(projected.x*(width-1));};
+ for(const point of [...snapshot.trails,...snapshot.grains]){
+  const index=cell(point),level=cloudFade(point,settings);if(level<=strength[index])continue;strength[index]=level;
+  colors[index]=point.age<1?(level>.55?16:level>.2?95:96):(level>.55?125:level>.2?99:100);
+ }
+ for(const point of snapshot.contacts)colors[cell(point)]=126;
+ return colors;
+}

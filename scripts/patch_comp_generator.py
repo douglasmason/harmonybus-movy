@@ -18,7 +18,7 @@ def patch_comp_generator(root: Path) -> None:
         raise ValueError('Generator styles must fit the existing automation lane')
     rows: list[str] = []
     for style in styles:
-        actor: str = style['actor'].lower()
+        actor: str = 'comp' if style['actor']=='Melody' else style['actor'].lower()
         if actor not in catalog or not 0 <= style['catalog'] < len(catalog[actor]):
             raise ValueError('Unknown generator actor/catalog source')
         pattern: dict[str, Any] = catalog[actor][style['catalog']]
@@ -36,6 +36,8 @@ def patch_comp_generator(root: Path) -> None:
         optional: str = ','.join('(' + ','.join(map(str, attack)) + ')' for attack in style['optional'])
         rows.append(f'Style{{name:{json.dumps(style["name"])},bass:{str(style["actor"] == "Bass").lower()},catalog:{style["catalog"]},optional:&[{optional}]}}')
     (core / 'generator_styles.rs').write_text('pub const STYLES:&[Style]=&[' + ','.join(rows) + '];\npub const BASS_OFF_KEYS:[usize;4]=[' + ','.join(map(str,bass_off_keys)) + '];\n')
+    with (core / 'generator_styles.rs').open('a') as output:
+        output.write(f"pub const CLOUD_ROLE_INDEX:usize={map_key_to_index['track_role']};\npub const CLOUD_TRAVEL_INDEX:usize={map_key_to_index['travel_map']};\n")
     (core / 'generator.rs').write_text((assets / 'generator.rs').read_text())
     path: Path = core / 'lib.rs'
     path.write_text(path.read_text() + '\npub mod generator;\n')

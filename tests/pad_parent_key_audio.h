@@ -66,7 +66,7 @@ static void test_pad_parent_key(void){
     uint8_t third_down[]={0x90,73,100},third_up[]={0x80,73,0};
     api->on_midi(instance,third_down,3,0);set("cmd","non 3 64 100");render(32);
     api->on_midi(instance,third_up,3,0);set("cmd","nof 3 64");render(32);set("cmd","stop");render(8);
-    char recorded[65536];assert(api->get_param(instance,"state",recorded,sizeof(recorded))>0);
+    char recorded[65536];assert(api->get_param(instance,"persistent_state",recorded,sizeof(recorded))>0);
     assert(strstr(recorded,"fi 3 0 0 0 1 0")); /* C-major source coordinates. */
     parent_pad_map(-3);sent_on=sent_off=0;rendered_mask=0;
     set("cmd","play");render(1500);set("cmd","stop");render(16);

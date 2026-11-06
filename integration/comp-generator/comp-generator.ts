@@ -6,28 +6,34 @@ import {seqCmd,seqCmdFlush,engineReady,engineGeneration} from './engine.js';
 import {seqState} from './state.js';
 import {seqToast} from './render.js';
 import {undoableEdit} from '../undo/edit.js';
-type Actor='Comp'|'Bass';
+type Actor='Comp'|'Bass'|'Melody';
 type Draft={config:number[];genre:string;user:number|null;auditioned?:boolean};
 let selectedActor:Actor='Comp',generation=-1,recordingTrack:number|null=null,pageDirty=false,selectedTrack=2;
-let tracks={Comp:2,Bass:1};
+let tracks={Comp:2,Bass:1,Melody:3};
 let libraryRevision=-1;
 const shortStyles:Record<string,string>={'Root / Fifth':'R+5',Syncopated:'Sync',Quarters:'Qtrs',Offbeats:'Offbt',Sustain:'Hold','Pop Answer 2b':'Pop 2b','Funk Pocket 2b':'Funk 2b','Bossa 2b':'Bosa 2b','Soul Space 4b':'Soul 4b'};
 const drafts=new Map<string,Draft>();
 const liveModes=['Exploring','Recording','Preview','Overdub'];
 const recordedModes=['Recorded','Preview','Overdub'];
 const cached=new Map<number,{at:number;value:string[]}>();
+export const cloudDefaults=[96,48,64,40,64,32];
+export const cloudControls=['density','dynamics','rate','length','register','spread','contour','variation'];
+export const cloudKeys=['rate','density','length','register','spread','contour','variation','dynamics'].map(field=>'cg_cloud_'+field);
+export function generatorCloud(track=selectedTrack):boolean{return styles[draft(track).config[0]]?.name==='Cloud';}
+export function generatorPanelKeys():string[]{return generatorCloud()?cloudKeys:generatorKeys;}
+export function generatorSelectedTrack():number{return selectedTrack;}
 export const generatorBrowseKeys=['cg_actor','cg_genre','cg_family','cg_style'];
 export const generatorKeys=['cg_complexity','cg_intensity','cg_seed','cg_explore','cg_bake','cg_restore','cg_source_style'];
 export function generatorActor():Actor{return selectedActor;}
-export function generatorTarget(comp:number,bass:number):number {tracks={Comp:comp,Bass:bass};selectedTrack=tracks[selectedActor];return selectedTrack;}
+export function generatorTarget(comp:number,bass:number,melody=3):number {tracks={Comp:comp,Bass:bass,Melody:melody};selectedTrack=tracks[selectedActor];return selectedTrack;}
 function draft(track=selectedTrack):Draft {
  const key=selectedActor+':'+track;let value=drafts.get(key);
- if(!value){value={config:[styles.findIndex(style=>style.actor===selectedActor),32,64,1],genre:'All',user:null};drafts.set(key,value);}
+ if(!value){const style=styles.findIndex(style=>style.actor===selectedActor);value={config:styles[style].name==='Cloud'?[style,96,80,1,0,...cloudDefaults]:[style,32,64,1],genre:'All',user:null};drafts.set(key,value);}
  return value;
 }
 /** Existing library Load can start the same temporary source and Record path. */
 export function generatorAuditionUser(track:number,kind:PartKind,index:number,genre='All'):boolean {
- const actor:Actor=kind==='bass'?'Bass':'Comp',entry=userParts(kind)[index];
+ const entry=userParts(kind)[index],actor:Actor=entry?.generator??(kind==='bass'?'Bass':'Comp');
  if(!entry||!isGeneratorPart(entry)||(entry.generator&&entry.generator!==actor)){seqToast('Choose a saved generator recipe');return false;}
  if(entry.synth!==(portFor(track).getParam('synth_module')??'')){seqToast('User preset needs its saved instrument');return false;}
  if(!engineReady())return false;
@@ -51,11 +57,12 @@ function genres():string[]{return [...new Set([...styles.filter(style=>style.act
 function familyChoices():string[]{return [...new Set([...choices().map(style=>style.family),styles[draft().config[0]].family,...(userChoices(false).length||draft().user!==null?['User']:[])])];}
 function styleChoices():string[]{if(draft().user!==null)return userChoices().map(index=>userPartLabel(actorKind(),index));const family=styles[draft().config[0]].family;return [...new Set([...choices().filter(style=>style.family===family).map(style=>style.name),styles[draft().config[0]].name])];}
 export function generatorParameters():any[]{return [
- {key:'cg_actor',name:'Generator Actor',short_name:'Actor',type:'enum',options:['Comp','Bass'],options_as_string:true,default:'Comp'},
+ {key:'cg_actor',name:'Generator Actor',short_name:'Actor',type:'enum',options:['Comp','Bass','Melody'],options_as_string:true,default:'Comp'},
  {key:'cg_genre',name:'Genre Filter',short_name:'Genre',type:'enum',options:['All',...genres()],options_as_string:true,default:'All'},
  {key:'cg_family',name:'Pattern Family',short_name:'Family',type:'enum',options:familyChoices(),options_as_string:true,default:familyChoices()[0]},
  {key:'cg_style',name:'Pattern Style',short_name:'Style',type:'enum',options:styleChoices(),short_options:styleChoices().map(name=>shortStyles[name]??name),options_as_string:true,default:styleChoices()[0]},
  {key:'cg_source_style',name:'Generator Style',short_name:'Style',type:'enum',options:choices('All').map(style=>style.name),short_options:choices('All').map(style=>shortStyles[style.name]??style.name),options_as_string:true,default:choices('All')[0].name},
+ ...cloudControls.map(field=>({key:'cg_cloud_'+field,name:'Cloud '+field,short_name:field.slice(0,6),type:'int',min:0,max:127,step:1,default:64})),
  ...['complexity','intensity'].map(field=>({key:'cg_'+field,name:field==='complexity'?'Complexity %':'Intensity %',short_name:field==='complexity'?'Complex':'Intens',type:'int',min:0,max:100,step:1,default:field==='complexity'?25:50})),
  {key:'cg_seed',name:'Variation Seed',short_name:'Seed',type:'int',min:1,max:65535,step:1,default:1},
  ...['explore','bake','restore'].map(field=>({key:'cg_'+field,name:field==='explore'?'Explore / Stop':field==='bake'?'Bake Recorded Clip':'Restore Saved Controls',short_name:field==='explore'?'Explore':field==='bake'?'Bake':'Revert',type:'string',readOnly:true}))
@@ -80,10 +87,10 @@ function compatible(state:string[]):boolean {const style=styles[Number(state[2]?
 function readState(track:number,fresh=false):string[]{
  const state=info(track,fresh),current=draft(track);
  if((liveModes.includes(state[0])||state[0]==='Recorded')&&compatible(state)){
-  const values=state[2]?.split(' ').slice(0,4).map(Number);
-  if(values?.length===4&&values.every(Number.isFinite)&&Number.isInteger(values[0])&&styles[values[0]]){
+  const values=state[2]?.split(' ').map(Number);
+  if(values&&[4,5,11].includes(values.length)&&values.every(Number.isFinite)&&Number.isInteger(values[0])&&styles[values[0]]){
    if(styles[current.config[0]].family!==styles[values[0]].family)pageDirty=true;
-   current.config=values;
+   current.config=values.length===11?values:values.slice(0,4);
    if(recordedModes.includes(state[0])&&current.user!==null&&current.auditioned){current.user=null;pageDirty=true;}
   }
  }
@@ -116,6 +123,7 @@ function send(track:number):boolean {
 export function generatorRead(key:string,track:number):string|null {
  if(!key.startsWith('cg_'))return null;
  readState(track);const current=draft(track),config=current.config,field=key.slice(3);
+ if(field.startsWith('cloud_')){const index=cloudControls.indexOf(field.slice(6));return String(index<2?config[index+1]:(config[5+index-2]??cloudDefaults[index-2]));}
  if(field==='actor')return selectedActor;
  if(field==='genre')return current.genre;
  if(field==='family')return current.user!==null?'User':styles[config[0]].family;
@@ -130,11 +138,19 @@ export function generatorWrite(key:string,value:string,track:number):boolean|nul
  if(!key.startsWith('cg_'))return null;
  const field=key.slice(3);
  if(field==='actor'){
-  if(!['Comp','Bass'].includes(value))return false;if(value===selectedActor)return true;
+  if(!['Comp','Bass','Melody'].includes(value))return false;if(value===selectedActor)return true;
   selectedActor=value as Actor;selectedTrack=tracks[selectedActor];cached.clear();pageDirty=true;return true;
  }
  const state=readState(track),current=draft(track),recorded=recordedModes.includes(state[0]);
  if(!compatible(state)){seqToast('Clip belongs to another actor');return false;}
+ if(field.startsWith('cloud_')){
+  const control=cloudControls.indexOf(field.slice(6)),number=Number(value);if(control<0||!Number.isFinite(number)||!generatorCloud(track))return false;
+  const amount=Math.max(0,Math.min(127,Math.round(number)));
+  if(current.user!==null)return active(track)?editUser(track,control,amount):false;
+  if(recorded)return preview(track,Number(state[1]),control,amount);
+  current.config=[...current.config.slice(0,4),0,...(current.config.length===11?current.config.slice(5):cloudDefaults)];
+  current.config[control<2?control+1:control+3]=amount;return active(track)?send(track):true;
+ }
  if(field==='genre'){
   if(value!=='All'&&!genres().includes(value))return false;
   current.genre=value;pageDirty=true;return true;
@@ -154,6 +170,7 @@ export function generatorWrite(key:string,value:string,track:number):boolean|nul
  else if(field==='complexity'||field==='intensity'){const number=Number(value);if(!Number.isFinite(number))return false;next[field==='complexity'?1:2]=Math.round(Math.max(0,Math.min(100,number))*127/100);}
  else if(field==='seed'){if(recorded){seqToast('Seed fixed for recorded clips');return false;}if(recordingTarget()===track){seqToast('Seed locked during recording');return false;}const number=Number(value);if(!Number.isFinite(number))return false;next[3]=Math.max(1,Math.min(65535,Math.round(number)));}
  else return true;
+ if(generatorCloud(track)&&['source_style','style','family'].includes(field)&&next[0]===current.config[0])return true;
  const control=field==='complexity'?0:field==='intensity'?1:2,controlValue=next[control===2?0:control+1];
  if(current.user!==null){
   if(field==='family'||field==='style'){
@@ -165,6 +182,8 @@ export function generatorWrite(key:string,value:string,track:number):boolean|nul
   seqToast('Start recipe exploration to change its controls');return false;
  }
  if(styles[current.config[0]].family!==styles[next[0]].family)pageDirty=true;
+ const changingKind=(styles[current.config[0]].name==='Cloud')!==(styles[next[0]].name==='Cloud');
+ if(changingKind){if(recorded||recordingTarget()===track){seqToast('Finish this recipe before changing source');return false;}const wasActive=active(track);if(wasActive)generatorStop(track);current.config=styles[next[0]].name==='Cloud'?[...next.slice(0,4),0,...cloudDefaults]:next.slice(0,4);pageDirty=true;return wasActive?send(track):true;}
  current.config=next;
  if(recorded)return preview(track,Number(state[1]),control,controlValue);
  if(active(track))return send(track);return true;
@@ -190,6 +209,17 @@ export function generatorFooter(track:number):string {
  if(state[3]&&/^(Choose|Three|Set actor|Actor needs|Automation|Seed locked|Recording ended|Generator automation|Play the selected|Preview ended)/.test(state[3]))return state[3];
  const target=selectedActor+' T'+(track+1)+':'+(Number(state[1])+1),owner=recordingTarget();
  if(owner!==null&&owner!==track)return target+' / Rec T'+(owner+1);
- if(draft(track).user!==null&&owner===null){const entry=userParts(actorKind())[draft(track).user!];return target+' '+(entry?.steps?entry.steps%16?entry.steps+'s':entry.steps/16+'b':'?b')+(entry?.automation?' Auto:'+['C','I','S'].filter((_,index)=>entry.automation!&(1<<index)).join(''):'');}
+ if(draft(track).user!==null&&owner===null){const entry=userParts(actorKind())[draft(track).user!];return target+' '+(entry?.steps?entry.steps%16?entry.steps+'s':entry.steps/16+'b':'?b')+(entry?.automation?' Auto:'+(entry.cloud?['D','V','R','L','H','S','C','J']:['C','I','S']).filter((_,index)=>entry.automation!&(1<<index)).join(''):'');}
  return (state[0]==='Overdub'?'Overdub ':state[0]==='Preview'?'Preview ':state[0]==='Recording'?'Recording ':active(track)?'Explore ':state[0]==='Recorded'?'Recorded ':'Temporary ')+target;
 }
+
+export function generatorEnsureCloud(track=selectedTrack):boolean {
+ if(!generatorCloud(track)||!compatible(info(track,true)))return false;
+ if(active(track))return true;
+ return info(track)[0]==='Recorded'?preview(track,Number(info(track)[1])):send(track);
+}
+export function generatorCloudContact(track:number,id:number,x:number,y:number,pressure:number,start=true):void {
+ if(!engineReady()||pressure>0&&(start?!generatorEnsureCloud(track):!active(track)))return;
+ seqCmd(`gcloud ${track} ${id} ${Math.round(x)} ${Math.round(y)} ${Math.round(pressure)}`);seqCmdFlush();
+}
+export function generatorCloudSnapshot(track=selectedTrack):string {return String(host_module_get_param('cloud_view_'+track)??'');}

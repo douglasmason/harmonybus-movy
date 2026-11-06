@@ -12,7 +12,7 @@ static void test_joint_chords(void){
     assert(routed_channel_on[1]>0);char status[256];unsigned serial,track,pitch;
     api->get_param(instance,"chord_step_input",status,sizeof(status));assert(sscanf(status,"%u,%u,%u",&serial,&track,&pitch)==3);assert(track==0&&pitch==60);
     char command[128];snprintf(command,sizeof(command),"usnap 97;cadd 0 0 0 %u;slen 0 0 0 60 48;ucommit 97",serial);set("cmd",command);
-    static char saved[262144];api->get_param(instance,"state",saved,sizeof(saved));
+    static char saved[262144];api->get_param(instance,"persistent_state",saved,sizeof(saved));
     assert(strstr(saved,"\nra 0 0 "));assert(!strstr(saved,"\nra 1 "));
     set("chord_select","off");render(16);assert(sent_on==sent_off);
     /* Playback uses the same descriptor and follow route; no bass notes are baked in. */
