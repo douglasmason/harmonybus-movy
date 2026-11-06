@@ -223,3 +223,26 @@ engine or send commands. The hosted static trial has no companion identity and
 keeps manual endpoint entry. Manual edits and an active connection take priority;
 page exit cancels discovery. The identity response contains no pairing key or
 upstream device address, and retains the companion's Host/Origin checks.
+
+### Download connection evidence
+
+**Engine → Move → Download connection report** saves a JSON report for the
+current address and latest connection attempt. It records the packaged source
+and engine hashes, browser protocol/API availability, the latest explicit
+metadata check, validated screen/LED/heartbeat counts, time to the first screen,
+paired transport readiness, Play/Stop requests and companion send confirmations,
+and the last failure or disconnect cause. The latest 20 significant events are
+retained; frames are counted without storing their contents.
+
+Export is passive: it does not probe Move, poll parameters, start a stream or
+send a command. It excludes addresses, pairing keys, raw error text, pixels,
+LED values, notes, audio and saved sessions. Evidence stays in memory until
+export. A new connection resets attempt counters; editing the address resets
+all evidence so results from different endpoints cannot be combined. Disconnect
+retains the preceding failure. Host version and command execution remain
+unconfirmed; a send confirmation is not proof that Move executed the command.
+
+For hardware acceptance, explicitly check capabilities, connect, try Play/Stop
+only when intended, then download the report after a failure or successful
+trial. Send the report with what you observed on Move and the iPad. A report
+alone does not certify physical behavior, TLS permissions or audio quality.

@@ -1,4 +1,5 @@
-import {checkDeviceCapabilities,discoverPageCompanion} from './move-device.mjs';
+import {readDeviceCapabilities,formatDeviceCapabilities,discoverPageCompanion} from './move-device.mjs';
+import {createMoveDiagnostics} from './move-diagnostics.mjs';
 import {openBrowserConnection} from '/wasm/full/joint-transport.mjs';
 import {controls,mountMoveSurface} from './build/move-surface.mjs';
 import {mountMoveInput} from './move-input.mjs';
@@ -11,6 +12,13 @@ const errorBox=document.querySelector('#error'),feedback=document.querySelector(
 try{
  const browser=await openBrowserConnection({surface:'move'});
  const {socket,audio,sessions,metadata}=browser;
+ const diagnostics=createMoveDiagnostics({build:audio.build,pageProtocol:location.protocol,secureContext:isSecureContext,eventSourceAvailable:typeof EventSource!=='undefined',webSocketAvailable:typeof WebSocket!=='undefined'});
+ const reportStatus=document.querySelector('#move-report-status');
+ document.querySelector('#move-report').onclick=()=>{
+  const url=URL.createObjectURL(new Blob([JSON.stringify(diagnostics.snapshot(),null,2)],{type:'application/json'}));
+  const anchor=document.createElement('a');anchor.href=url;anchor.download='hb-movy-connection-report.json';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
+  reportStatus.textContent='Report download requested. Check Downloads / Files. No device request was made.';
+ };
  let connection,sessionUI,workspace,workspaceAvailable=true;
  const send=message=>connection?.send(message);
  const inputs=mountMoveInput({controls,send,releaseOthers:()=>workspace?.release(),othersHeld:()=>workspace?.isHeld()??false}),surface=mountMoveSurface(inputs);
@@ -23,12 +31,12 @@ try{
  const transportEnabled=document.querySelector('#move-transport-enabled'),pairingKey=document.querySelector('#move-pairing-key'),transportStatus=document.querySelector('#move-transport-status');
  const check=document.querySelector('#move-check'),capabilityStatus=document.querySelector('#move-capabilities');
  let capabilityRequest=null;
- const cancelCheck=()=>{capabilityRequest?.abort();capabilityRequest=null;check.disabled=false;capabilityStatus.textContent='Capabilities not checked. Check reads installed module metadata only.';};
+ const cancelCheck=()=>{if(capabilityRequest)diagnostics.metadata('not-checked');capabilityRequest?.abort();capabilityRequest=null;check.disabled=false;capabilityStatus.textContent='Capabilities not checked. Check reads installed module metadata only.';};
  const transportButtons=[...document.querySelectorAll('[data-move-transport]')];
  const controlState=(ready,message)=>{for(const button of transportButtons)button.disabled=!ready;transportStatus.textContent=message;};
  const isBrowser=()=>connection.engine==='browser'&&!connection.busy&&connection.ready;
  const scaleFinder=mountScaleFinderUI({send,isBrowser});
- connection=createMoveConnection({browser,inputs:{disable(){workspace?.suspend();inputs.disable();}},pageURL:location.href,onFrame:frame=>surface.update(frame),
+ connection=createMoveConnection({browser,diagnostics,inputs:{disable(){workspace?.suspend();inputs.disable();}},pageURL:location.href,onFrame:frame=>surface.update(frame),
   onState:({engine,state,message})=>{
    if(state==='switching')cancelCheck();
    const local=engine==='browser',switching=state==='switching'||!connection.ready;
@@ -58,7 +66,7 @@ try{
   errorBox.textContent='';await connection.select(engineSelector.value);
  };
  let addressEdited=false;
- address.addEventListener('input',()=>{addressEdited=true;cancelCheck();});
+ address.addEventListener('input',()=>{addressEdited=true;cancelCheck();diagnostics.reset();reportStatus.textContent='Connection evidence reset for the changed address.';});
  const discovery=new AbortController(),discoveryTimeout=setTimeout(()=>discovery.abort(),3000);
  discoverPageCompanion(location.href,{signal:discovery.signal}).then(endpoint=>{
   if(!endpoint||discovery.signal.aborted||addressEdited||address.value||connection.engine==='move'&&address.disabled)return;
@@ -66,18 +74,18 @@ try{
   document.querySelector('#move-endpoint-hint').textContent='This local companion address is ready. Choose Connect explicitly; Move has not been contacted.';
  }).finally(()=>clearTimeout(discoveryTimeout));
  check.onclick=async()=>{
-  cancelCheck();const request=new AbortController();capabilityRequest=request;check.disabled=true;capabilityStatus.textContent='Checking installed module metadata…';
+  cancelCheck();const request=new AbortController();capabilityRequest=request;check.disabled=true;capabilityStatus.textContent='Checking installed module metadata…';diagnostics.metadata('checking');
   const timeout=setTimeout(()=>request.abort(),6000);
-  try{const report=await checkDeviceCapabilities(address.value,location.href,{signal:request.signal});if(capabilityRequest===request)capabilityStatus.textContent=report;}
-  catch(error){if(capabilityRequest===request)capabilityStatus.textContent=request.signal.aborted?'Capability check timed out. Check the companion and Move addresses.':error.message;}
+  try{const info=await readDeviceCapabilities(address.value,location.href,{signal:request.signal});if(capabilityRequest===request){capabilityStatus.textContent=formatDeviceCapabilities(info);diagnostics.metadata('available',info);}}
+  catch(error){if(capabilityRequest===request){diagnostics.metadata(request.signal.aborted?'timeout':'unavailable');capabilityStatus.textContent=request.signal.aborted?'Capability check timed out. Check the companion and Move addresses.':error.message;}}
   finally{clearTimeout(timeout);if(capabilityRequest===request){capabilityRequest=null;check.disabled=false;}}
  };
  transportEnabled.onchange=()=>{pairingKey.hidden=!transportEnabled.checked;if(!transportEnabled.checked)pairingKey.value='';};
- connect.onclick=()=>{const key=transportEnabled.checked?pairingKey.value.trim():undefined;pairingKey.value='';if(transportEnabled.checked&&!/^[a-f0-9]{64}$/.test(key)){controlState(false,'Enter the 64-character pairing key printed by the companion.');return;}connection.connect(address.value,{pairingKey:key,onControlState:controlState});};
+ connect.onclick=()=>{const key=transportEnabled.checked?pairingKey.value.trim():undefined;pairingKey.value='';if(transportEnabled.checked&&!/^[a-f0-9]{64}$/.test(key)){diagnostics.begin(address.value,true);diagnostics.event('pairing-key-invalid');controlState(false,'Enter the 64-character pairing key printed by the companion.');return;}connection.connect(address.value,{pairingKey:key,onControlState:controlState});};
  for(const button of transportButtons)button.onclick=()=>{if(!connection.transport(button.dataset.moveTransport))transportStatus.textContent='Request not sent · transport unavailable or busy';};
  disconnect.onclick=()=>connection.disconnect();
- window.addEventListener('pagehide',()=>{discovery.abort();cancelCheck();connection.disconnect();});
- document.addEventListener('visibilitychange',()=>{if(document.hidden&&connection.engine==='move')connection.disconnect();});
+ window.addEventListener('pagehide',()=>{discovery.abort();cancelCheck();connection.disconnect('page-exit');});
+ document.addEventListener('visibilitychange',()=>{if(document.hidden&&connection.engine==='move')connection.disconnect('hidden');});
  playMode.onchange=()=>{
   if(currentMode===null)return;
   if(!inputs.isHeld())send({type:'move_mode',previous:currentMode,mode:Number(playMode.value)});

@@ -6,6 +6,8 @@ import {once} from 'node:events';
 import {decodeDeviceScreen,decodeDeviceSurface,deviceStreamURL,openDeviceConnection,discoverPageCompanion} from './move-device.mjs';
 import {createMoveConnection} from './move-connection.mjs';
 import {createDeviceServer} from './move-device-server.mjs';
+import {createMoveDiagnostics} from './move-diagnostics.mjs';
+import {openDeviceControl} from './move-device-control.mjs';
 const fixture=JSON.parse(await readFile(new URL('./fixtures/move-mirror-v1.json',import.meta.url)));
 class Stream{
  static instances=[];
@@ -15,6 +17,50 @@ class Stream{
  close(){this.closed=true;}
 }
 const delay=milliseconds=>new Promise(resolve=>setTimeout(resolve,milliseconds));
+test('connection report observes the real adapters without extra traffic or private content',()=>{
+ let clock=0;const key='c'.repeat(64),address='http://private-computer.example:7703';
+ const diagnostics=createMoveDiagnostics({pageProtocol:'http:',now:()=>clock,date:()=>new Date('2026-11-05T00:00:00Z'),build:{engineSource:{integrationVersion:'0.34.1-hbclean.322'},privateSession:'secret'}});
+ class Socket{
+  static latest;readyState=1;bufferedAmount=0;sent=[];
+  constructor(){Socket.latest=this;}send(data){this.sent.push(JSON.parse(data));}close(){this.closed=true;}
+  emit(message){this.onmessage({data:JSON.stringify(message)});}
+ }
+ diagnostics.begin(address,true);
+ diagnostics.metadata('available',{moduleVersion:'0.34.1-hbclean.322',supportedModule:true,stateReadPreservesDirty:true,companionTransportEnabled:true,pairingKey:key,address});
+ const connection=openDeviceConnection({url:address,EventSourceClass:Stream,pairingKey:key,onFrame(){},onState(){},onDiagnostic:diagnostics.event,openControl:options=>openDeviceControl({...options,WebSocketClass:Socket})});
+ const stream=Stream.instances.at(-1);stream.emit('hb',fixture.heartbeat);assert.equal(diagnostics.snapshot().mirror.state,'connecting','heartbeat cannot establish screen');
+ clock=25;stream.emit('message',fixture.screen);stream.emit('surface',fixture.surface);
+ Socket.latest.emit({type:'ready',tool:'movy',version:'0.34.1-hbclean.322'});
+ assert.equal(connection.transport('play'),true);assert.equal(connection.transport('stop'),false);
+ assert.equal(diagnostics.snapshot().transport.pendingAction,'play');
+ Socket.latest.emit({type:'sent',action:'play'});assert.equal(connection.transport('stop'),true);Socket.latest.emit({type:'sent',action:'stop'});
+ for(let index=0;index<30;index++){clock++;stream.emit('message',fixture.screen);stream.emit('surface',fixture.surface);stream.emit('hb',fixture.heartbeat);}
+ const before=JSON.stringify(Socket.latest.sent),streamCount=Stream.instances.length;
+ const report=diagnostics.snapshot();assert.equal(JSON.stringify(Socket.latest.sent),before);assert.equal(Stream.instances.length,streamCount,'snapshot creates no connection');
+ assert.deepEqual(Socket.latest.sent,[{type:'transport',action:'play'},{type:'transport',action:'stop'}]);
+ assert.equal(report.mirror.firstScreenAfterMs,25);assert.equal(report.mirror.screenFrames,31);assert.equal(report.mirror.surfaceFrames,31);assert.equal(report.mirror.heartbeats,31);
+ assert.deepEqual(report.transport.sent,{play:1,stop:1});assert.equal(report.limits.deviceExecutionConfirmed,false);
+ for(const privateValue of [key,address,fixture.screen.data,'privateSession'])assert(!JSON.stringify(report).includes(privateValue),privateValue);
+ report.transport.sent.play=999;report.events[0].code='changed';assert.equal(diagnostics.snapshot().transport.sent.play,1);assert.notEqual(diagnostics.snapshot().events[0].code,'changed');
+ Socket.latest.emit({type:'error',message:'private error '+key+address});
+ assert.equal(diagnostics.snapshot().transport.lastFailure,'transport-rejected');assert(!JSON.stringify(diagnostics.snapshot()).includes(key));
+ stream.onerror();connection.close();assert.equal(diagnostics.snapshot().mirror.lastFailure,'mirror-lost');
+ const finished=JSON.stringify(diagnostics.snapshot());stream.emit('message',fixture.screen);Socket.latest.emit({type:'ready',tool:'movy',version:'0.34.1-hbclean.322'});assert.equal(JSON.stringify(diagnostics.snapshot()),finished);
+ diagnostics.begin('https://user:secret@private.example/?key='+key,false);assert.equal(diagnostics.snapshot().endpointProtocol,'https:');assert.equal(diagnostics.snapshot().mirror.screenFrames,0);assert.equal(diagnostics.snapshot().transport.sent.play,0);
+ diagnostics.metadata('available',{moduleVersion:'private.example/'+key});assert.equal(diagnostics.snapshot().metadata.moduleVersion,null);
+ for(let index=0;index<100;index++)diagnostics.event('transport-rejected',{message:key});
+ assert.equal(diagnostics.snapshot().events.length,20);assert(JSON.stringify(diagnostics.snapshot()).length<4000);assert(!JSON.stringify(diagnostics.snapshot()).includes(key));
+ diagnostics.reset();assert.equal(diagnostics.snapshot().metadata.state,'not-checked');assert.equal(diagnostics.snapshot().attempt,0);
+});
+test('connection ownership preserves loss evidence and ignores old diagnostic callbacks',async()=>{
+ const diagnostics=createMoveDiagnostics(),devices=[];
+ const owner=createMoveConnection({browser:{socket:{send(){}},setActive:async()=>{}},inputs:{disable(){}},onState(){},onFrame(){},pageURL:'http://local.example',diagnostics,openDevice:options=>{devices.push(options);options.onDiagnostic('mirror-connecting');return {close(){options.onDiagnostic('mirror-closed');}};}});
+ await owner.select('move');owner.connect('private.example');devices[0].onDiagnostic('mirror-screen');devices[0].onDiagnostic('mirror-lost');owner.disconnect('hidden');
+ assert.equal(diagnostics.snapshot().mirror.closedBy,'hidden');assert.equal(diagnostics.snapshot().mirror.lastFailure,'mirror-lost');
+ owner.connect('private.example');assert.equal(diagnostics.snapshot().attempt,2);devices[0].onDiagnostic('mirror-screen');assert.equal(diagnostics.snapshot().mirror.screenFrames,0);
+ devices[1].onDiagnostic('mirror-screen');assert.equal(diagnostics.snapshot().mirror.screenFrames,1);owner.browserClosed('private engine error');
+ assert.equal(diagnostics.snapshot().ownerFailure,'browser-engine-failed');assert.equal(diagnostics.snapshot().mirror.closedBy,'browser-failed');assert(!JSON.stringify(diagnostics.snapshot()).includes('private engine error'));
+});
 test('decode real mirror layouts without guessing semantic state',()=>{
  const pixels=decodeDeviceScreen(fixture.screen);assert.equal(pixels.length,8192);
  assert.equal(pixels[0],255);assert.equal(pixels[7*128],255);assert.equal(pixels[9*128+1],255);assert.equal(pixels[8191],255);assert.equal(pixels[128],0);

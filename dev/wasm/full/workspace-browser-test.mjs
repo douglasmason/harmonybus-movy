@@ -12,9 +12,9 @@ physicalFixture.request('set','joint_map',Array(32).fill('0,60,-1,0').join(';'))
 const fixture=JSON.parse(await readFile(new URL('../../local/fixtures/move-mirror-v1.json',import.meta.url)));
 const installedMetadata=JSON.parse(await readFile(new URL('../build/full/modules/movy/module.json',import.meta.url)));
 assert.equal(installedMetadata.browser_transport_v1?.state_read_preserves_dirty,true);
-const clients=new Set();let connections=0,persistenceSafe=false;
+const clients=new Set();let connections=0,metadataRequests=0,persistenceSafe=false;
 const move=createServer((request,response)=>{
- if(request.url==='/api/remote-ui/module-assets/movy/module.json'){response.setHeader('Content-Type','application/json');response.end(JSON.stringify({...installedMetadata,...(persistenceSafe?{}:{browser_transport_v1:undefined})}));return;}
+ if(request.url==='/api/remote-ui/module-assets/movy/module.json'){metadataRequests++;response.setHeader('Content-Type','application/json');response.end(JSON.stringify({...installedMetadata,...(persistenceSafe?{}:{browser_transport_v1:undefined})}));return;}
  assert.equal(request.url,'/stream-auto?v=2');assert.equal(request.method,'GET');connections++;
  response.writeHead(200,{'Content-Type':'text/event-stream','Access-Control-Allow-Origin':'*'});clients.add(response);
  response.write('data: '+JSON.stringify(fixture.screen)+'\n\nevent: surface\ndata: '+JSON.stringify(fixture.surface)+'\n\n');
@@ -42,6 +42,17 @@ const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disab
 let page;
 try{
  page=await browser.newPage({viewport:{width:1024,height:768}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
+ async function downloadReport(){
+  const before={connections,commands:commands.length,metadataRequests};
+  const pending=page.waitForEvent('download');await page.locator('#move-report').click();const download=await pending;
+  assert.equal(download.suggestedFilename(),'hb-movy-connection-report.json');
+  const text=await readFile(await download.path(),'utf8'),report=JSON.parse(text);
+  assert.equal(report.schema,1);assert.equal(report.type,'hb-movy-connection-report');
+  assert.deepEqual({connections,commands:commands.length,metadataRequests},before,'export is passive');
+  for(const privateValue of [origin,pairingKey,fixture.screen.data])assert(!text.includes(privateValue),'report excludes private connection content');
+  assert.equal(report.limits.hostVersion,null);assert.equal(report.limits.deviceExecutionConfirmed,false);
+  return report;
+ }
  await page.addInitScript(()=>{
   const NativeWorker=window.Worker;
   window.Worker=class extends NativeWorker{constructor(...args){super(...args);window.testEngineWorker=this;}};
@@ -150,6 +161,7 @@ try{
  assert(await page.getByRole('button',{name:'Pad 1',exact:true}).isDisabled());
  const stopped=await page.evaluate(()=>__wasmStats());await page.waitForTimeout(300);assert.equal((await page.evaluate(()=>__wasmStats())).blocksProcessed,stopped.blocksProcessed);
  assert.equal(await page.locator('#move-address').inputValue(),origin,'companion endpoint is ready without typing');
+ const initialReport=await downloadReport();assert.equal(initialReport.attempt,0);assert.equal(initialReport.metadata.state,'not-checked');assert.equal(initialReport.mirror.screenFrames,0);
  await page.locator('#move-check').click();await page.locator('#move-capabilities').filter({hasText:'Persistence-safe subscription is not advertised'}).waitFor();
  assert.equal(connections,0);assert.equal(commands.length,0,'metadata check never opens an unsafe subscription');
  assert(await page.getByRole('button',{name:'Pad 1',exact:true}).isDisabled());
@@ -171,6 +183,7 @@ try{
  // Legacy metadata must fail BEFORE subscribe_tool can read state.
  await page.waitForFunction(()=>document.querySelector('#move-transport-status').textContent.includes('persistence-safe'));
  assert.equal(commands.length,0);assert.match(physicalFixture.request('get','status').value,/dirty=1/,'rejected subscription preserves pending autosave');assert(await page.locator('[data-move-transport=play]').isDisabled());
+ const legacyReport=await downloadReport();assert.equal(legacyReport.metadata.stateReadPreservesDirty,false);assert.equal(legacyReport.mirror.state,'connected');assert.equal(legacyReport.transport.lastFailure,'transport-rejected');assert(legacyReport.mirror.screenFrames>0);assert(legacyReport.mirror.surfaceFrames>0);
  await page.locator('#move-disconnect').click();
  // Use the actual composed module metadata and production DSP for the safe path.
  persistenceSafe=true;
@@ -189,8 +202,12 @@ try{
  assert(physicalFixture.request('step',1500).events.some(packet=>(packet[1]&240)===144&&packet[2]===60&&packet[3]>0),'remote Play replays the production recording');
  assert(await page.getByRole('button',{name:'Pad 1',exact:true}).isDisabled());
  for(const socket of moveWS.clients)socket.terminate();await page.waitForFunction(()=>document.querySelector('[data-move-transport=play]').disabled);
+ const lossReport=await downloadReport();assert.equal(lossReport.metadata.stateReadPreservesDirty,true);assert.equal(lossReport.transport.everReady,true);assert.equal(lossReport.transport.lastFailure,'transport-rejected');assert.deepEqual(lossReport.transport.sent,{play:1,stop:1});assert(lossReport.build.hostCommit);assert(lossReport.build.wasmSha256);
  const sent=commands.length;await page.waitForTimeout(300);assert.equal(commands.length,sent,'transport loss never reconnects or replays');
  await page.locator('#move-disconnect').click();assert.match(physicalFixture.request('get','status').value,/play=1/,'disconnect does not stop the device');
+ const closedReport=await downloadReport();assert.equal(closedReport.mirror.closedBy,'user');assert.equal(closedReport.transport.lastFailure,lossReport.transport.lastFailure);
+ await page.locator('#move-address').fill('http://changed.example');await page.locator('#move-address').dispatchEvent('input');
+ const clearedReport=await downloadReport();assert.equal(clearedReport.attempt,0);assert.equal(clearedReport.metadata.state,'not-checked');assert.equal(clearedReport.transport.sent.play,0);
  physicalFixture.request('set','cmd','stop');
  await page.locator('#engine').selectOption('browser');await page.waitForFunction(()=>!document.querySelector('[aria-label="Pad 1"]').disabled);
  assert.equal(await page.evaluate(()=>__wasmRead('state')),savedState,'device mirror never overwrites the browser session');

@@ -32,51 +32,59 @@ export function blankDeviceFrame(){
  return {device:true,ready:false,track:null,screen:new Uint8Array(8192),surface:new Uint8Array(2232),displayRevision:0,display:null,panels:null,knobLabels:null,padLabels:null,stepLabels:null};
 }
 /** One explicit connection. EventSource retries are closed; reconnect is a user action. */
-export function openDeviceConnection({url,onFrame,onState,EventSourceClass=globalThis.EventSource,timeout=7000,pairingKey,onControlState=()=>{},openControl=openDeviceControl}){
+export function openDeviceConnection({url,onFrame,onState,EventSourceClass=globalThis.EventSource,timeout=7000,pairingKey,onControlState=()=>{},onDiagnostic=()=>{},openControl=openDeviceControl}){
  let stream,control,closed=false,connected=false,timer,frame=blankDeviceFrame();
  const capabilities={...deviceCapabilities,leds:false};
- function finish(state,message){
-  if(closed)return;closed=true;clearTimeout(timer);stream?.close();control?.close();capabilities.transport=false;onControlState(false,'Transport disconnected');onState(state,message,{...capabilities});
+ function finish(state,message,code,detail){
+  if(closed)return;closed=true;clearTimeout(timer);onDiagnostic(code,detail);stream?.close();control?.close();capabilities.transport=false;onControlState(false,'Transport disconnected');onState(state,message,{...capabilities});
  }
- const watchdog=()=>{clearTimeout(timer);timer=setTimeout(()=>finish(connected?'disconnected':'error',connected?'Move stream stopped. Reconnect when ready.':'No valid Move display received. Check the address and Schwung mirror service.'),timeout);};
+ const watchdog=()=>{clearTimeout(timer);timer=setTimeout(()=>finish(connected?'disconnected':'error',connected?'Move stream stopped. Reconnect when ready.':'No valid Move display received. Check the address and Schwung mirror service.','mirror-timeout'),timeout);};
  function receive(kind,event){
   if(closed)return;
   try{
    const message=JSON.parse(event.data);
    if(kind==='screen'){
     frame={...frame,screen:decodeDeviceScreen(message),displayRevision:frame.displayRevision+1};
+    onDiagnostic('mirror-screen');
     if(!connected){
      connected=true;onState('connected','Connected to Move · live screen',{...capabilities});
-     if(pairingKey)control=openControl({url,key:pairingKey,onState:(available,message)=>{if(closed)return;capabilities.transport=available;onControlState(available,message);}});
+     if(pairingKey)control=openControl({url,key:pairingKey,onDiagnostic,onState:(available,message)=>{if(closed)return;capabilities.transport=available;onControlState(available,message);}});
     }
    }else if(kind==='surface'){
-    frame={...frame,surface:decodeDeviceSurface(message)};capabilities.leds=true;
+    frame={...frame,surface:decodeDeviceSurface(message)};capabilities.leds=true;onDiagnostic('mirror-surface');
     if(connected)onState('connected','Connected to Move · live screen & LEDs',{...capabilities});
    }else{
     if(!Number.isInteger(message.frame)||message.frame<0)throw new Error('Invalid Move heartbeat.');
+    onDiagnostic('mirror-heartbeat');
     if(!connected)return; // A heartbeat alone never establishes a valid screen.
    }
    if(connected)watchdog();if(connected&&kind!=='heartbeat')onFrame(frame);
-  }catch(error){finish('error',error.message);}
+  }catch(error){finish('error',error.message,'mirror-invalid');}
  }
- onState('connecting','Connecting to Move…',{...capabilities});
+ onDiagnostic('mirror-connecting');onState('connecting','Connecting to Move…',{...capabilities});
  try{
   stream=new EventSourceClass(url);watchdog();
   stream.onmessage=event=>receive('screen',event);
   stream.addEventListener('surface',event=>receive('surface',event));
   stream.addEventListener('hb',event=>receive('heartbeat',event));
-  stream.onerror=()=>finish(connected?'disconnected':'error',connected?'Connection to Move lost. Reconnect when ready.':'Cannot reach the Move stream. Check the address, trusted certificate, network access and CORS.');
- }catch(error){finish('error',error.message);}
- return {capabilities,transport:action=>!closed&&connected&&capabilities.transport?control?.send(action)??false:false,close:()=>finish('disconnected','Disconnected from Move')};
+  stream.onerror=()=>finish(connected?'disconnected':'error',connected?'Connection to Move lost. Reconnect when ready.':'Cannot reach the Move stream. Check the address, trusted certificate, network access and CORS.',connected?'mirror-lost':'mirror-unreachable');
+ }catch(error){finish('error',error.message,'mirror-unreachable');}
+ return {capabilities,transport:action=>!closed&&connected&&capabilities.transport?control?.send(action)??false:false,close:(reason='user')=>finish('disconnected','Disconnected from Move','mirror-closed',{reason})};
 }
 
 /** Explicit metadata-only diagnostic. Never opens the tool subscription or grants controls. */
-export async function checkDeviceCapabilities(address,pageURL,{signal,fetcher=globalThis.fetch}={}){
+export async function readDeviceCapabilities(address,pageURL,{signal,fetcher=globalThis.fetch}={}){
  const url=new URL('/api/movy-capabilities',deviceStreamURL(address,pageURL));
  const response=await fetcher(url,{signal,credentials:'omit',cache:'no-store',redirect:'error'});
  if(!response.ok)throw new Error('Capability check unavailable. Use the updated local companion address; direct Move endpoints may only provide the mirror.');
  const info=await response.json();
  if(info?.schema!==1||typeof info.moduleVersion!=='string'||info.moduleVersion.length>80||info.hostVersion!==null||info.semantic!==false||info.input!==false||info.audio!==false||['supportedModule','stateReadPreservesDirty','companionTransportEnabled'].some(key=>typeof info[key]!=='boolean'))throw new Error('Unsupported companion capability report.');
+ return info;
+}
+export async function checkDeviceCapabilities(address,pageURL,options){
+ return formatDeviceCapabilities(await readDeviceCapabilities(address,pageURL,options));
+}
+export function formatDeviceCapabilities(info){
  const reason=!info.supportedModule?'Installed module version is not supported by this transport adapter.':!info.stateReadPreservesDirty?'Persistence-safe subscription is not advertised; controls remain read-only.':!info.companionTransportEnabled?'Persistence-safe subscription advertised; this companion is read-only.':'Paired Play/Stop eligible; an explicit paired connection is still required.';
  return `Installed Movy ${info.moduleVersion}. Host version unknown. ${reason} Rich labels, pad/knob input and device audio streaming are unavailable. This check does not connect or change the device.`;
 }
