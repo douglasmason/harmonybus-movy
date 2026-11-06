@@ -155,7 +155,10 @@ try{
  await page.waitForFunction(async()=>(await __wasmStats()).move.held===0);
  await screenTravel.waitFor({state:'visible'});
  await screenTravel.press('ArrowDown');
- await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')==='None');
+ // A native read can briefly see the reset before the UI has committed its
+ // queued encoder update. Start the reversible detent check from a confirmed
+ // surface/native baseline, just as its changed-value check below does.
+ await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')==='None'&&document.querySelector('[aria-label="Knob 2"] .knob-value').textContent==='None'&&(await __wasmStats()).move.held===0);
  assert.match(await page.locator('#encoder option[value="72"]').textContent(),/Follower Travel/);
  await page.locator('#encoder').selectOption('72');
  const traceEncoder=async action=>encoderTrace.push({action,...await page.evaluate(async()=>({value:await __wasmRead('ch3:midi_fx1:travel_map'),display:document.querySelector('[aria-label="Knob 2"] .knob-value').textContent,shift:document.querySelector('#shift').checked,selected:document.querySelector('#encoder').value,held:[...document.querySelectorAll('[data-held=true]')].map(element=>element.getAttribute('aria-label'))}))});
