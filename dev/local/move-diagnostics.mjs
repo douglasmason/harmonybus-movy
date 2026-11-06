@@ -3,7 +3,7 @@ const version=value=>typeof value==='string'&&value.length<=80&&/^\d+\.\d+\.\d+(
 const digest=value=>typeof value==='string'&&/^[a-f0-9]{40}$|^[a-f0-9]{64}$/.test(value)?value:null;
 const protocol=value=>['http:','https:'].includes(value)?value:null;
 const reasons=new Set(['user','hidden','page-exit','engine-change','browser-failed','reconnect']);
-const codes=new Set(['browser-engine-failed','browser-activation-failed','browser-ownership-ready','endpoint-rejected','pairing-key-invalid','mirror-connecting','mirror-screen','mirror-surface','mirror-heartbeat','mirror-unreachable','mirror-lost','mirror-timeout','mirror-invalid','mirror-closed','transport-connecting','transport-ready','transport-requested','transport-sent','transport-rejected','transport-unreachable','transport-lost','transport-timeout','transport-invalid','transport-closed']);
+const codes=new Set(['browser-startup-failed','browser-engine-failed','browser-activation-failed','browser-ownership-ready','endpoint-rejected','pairing-key-invalid','mirror-connecting','mirror-screen','mirror-surface','mirror-heartbeat','mirror-unreachable','mirror-lost','mirror-timeout','mirror-invalid','mirror-closed','transport-connecting','transport-ready','transport-requested','transport-sent','transport-rejected','transport-unreachable','transport-lost','transport-timeout','transport-invalid','transport-closed']);
 export function createMoveDiagnostics({build={},pageProtocol,secureContext,eventSourceAvailable,webSocketAvailable,now=()=>performance.now(),date=()=>new Date()}={}){
  const started=now();let attempt=0,attemptAt=null,lastFrameAt=null,events=[],endpointProtocol=null;
  let metadata={state:'not-checked'},mirror,transport,ownerFailure=null;

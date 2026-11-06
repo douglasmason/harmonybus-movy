@@ -2,8 +2,24 @@
 
 Choose **Engine → Move**, enter the endpoint, then **Connect**. Being on the
 same Wi-Fi never selects an engine or establishes a connection. Browser remains
-the startup default. Disconnect, network loss and tab hiding close the stream;
+the startup default when it loads successfully. Disconnect, network loss and tab hiding close the stream;
 reconnect requires Connect. No browser session is sent to Move.
+
+### If the browser engine cannot start
+
+A failed Worker, compiled engine load or audio-processor load leaves the Move
+connection controls available. Worker initialization and audio preparation have
+a shared 30-second deadline; failure terminates the Worker and cancels pending
+audio preparation before the Move controls become available. The page opens in
+disconnected Move mode. It never contacts Move automatically: check capabilities,
+Connect, and optionally pair Play/Stop explicitly as usual.
+
+Saved browser sessions are not opened or replaced in this mode. Browser controls
+remain disabled until a reload successfully starts the engine. The connection
+report records `browser-startup-failed`; build fields remain unknown if startup
+did not return a verified build. A failure after the browser session has already
+opened still disables both owners until reload, preserving the existing rule for
+unsaved edits and uncertain ownership.
 
 ## What works with Schwung 1.7.3
 
@@ -238,7 +254,8 @@ Export is passive: it does not probe Move, poll parameters, start a stream or
 send a command. It excludes addresses, pairing keys, raw error text, pixels,
 LED values, notes, audio and saved sessions. Evidence stays in memory until
 export. A new connection resets attempt counters; editing the address resets
-all evidence so results from different endpoints cannot be combined. Disconnect
+endpoint evidence so results from different endpoints cannot be combined. A
+browser startup failure remains recorded across address changes. Disconnect
 retains the preceding failure. Host version and command execution remain
 unconfirmed; a send confirmation is not proof that Move executed the command.
 

@@ -61,6 +61,19 @@ test('connection ownership preserves loss evidence and ignores old diagnostic ca
  devices[1].onDiagnostic('mirror-screen');assert.equal(diagnostics.snapshot().mirror.screenFrames,1);owner.browserClosed('private engine error');
  assert.equal(diagnostics.snapshot().ownerFailure,'browser-engine-failed');assert.equal(diagnostics.snapshot().mirror.closedBy,'browser-failed');assert(!JSON.stringify(diagnostics.snapshot()).includes('private engine error'));
 });
+test('clean startup failure permits explicit Move ownership without a browser session',async()=>{
+ const devices=[],states=[],frames=[],diagnostics=createMoveDiagnostics();
+ diagnostics.event('browser-startup-failed');
+ const owner=createMoveConnection({browser:null,diagnostics,inputs:{disable(){}},pageURL:'http://mac.local',onState:value=>states.push(value),onFrame:frame=>frames.push(frame),openDevice:options=>{devices.push(options);return {close(){},transport:action=>action==='play'};}});
+ owner.disconnect();owner.watch('field',['status']);owner.send({type:'subscribe_tool'});
+ assert.equal(owner.engine,'move');assert.equal(owner.ready,true);assert.equal(owner.acceptBrowserFrame(),false);assert.equal(devices.length,0);
+ await owner.select('browser');assert.equal(owner.engine,'move');assert.equal(devices.length,0);
+ owner.connect('move.local');devices[0].onFrame({device:true});devices[0].onDiagnostic('mirror-screen');
+ assert.equal(frames.at(-1).device,true);assert.equal(owner.transport('play'),true);
+ assert.equal(diagnostics.snapshot().ownerFailure,'browser-startup-failed');
+ owner.disconnect();devices[0].onFrame({stale:true});assert.equal(frames.at(-1).stale,undefined);
+ assert.equal(owner.transport('play'),false);assert.equal(states.at(-1).state,'disconnected');
+});
 test('decode real mirror layouts without guessing semantic state',()=>{
  const pixels=decodeDeviceScreen(fixture.screen);assert.equal(pixels.length,8192);
  assert.equal(pixels[0],255);assert.equal(pixels[7*128],255);assert.equal(pixels[9*128+1],255);assert.equal(pixels[8191],255);assert.equal(pixels[128],0);

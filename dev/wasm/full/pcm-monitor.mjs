@@ -8,8 +8,8 @@ export class PcmMonitor {
  }
  report(text){this.onStatus?.(text);this.onDiagnostic?.(this.diagnostic());}
  async bounded(promise,label){let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out. Tap Enable audio again in Safari.`)),5000);})]);}finally{clearTimeout(timer);}}
- async prepare(){
-  const response=await fetch(new URL('./pcm-worklet.mjs',import.meta.url));
+ async prepare({signal}={}){
+  const response=await fetch(new URL('./pcm-worklet.mjs',import.meta.url),{signal});
   if(!response.ok)throw new Error('Missing audio processor');
   this.moduleSource=await response.text();
  }
