@@ -274,6 +274,8 @@ try{
    await page.locator('#move-transport-enabled').check();await page.locator('#move-pairing-key').fill(pairingKey);
   }
   await page.locator('#move-connect').click();await page.waitForFunction(()=>document.querySelector('#engine-status').dataset.state==='connected');
+  // Connection readiness precedes the surface's next animation-frame paint.
+  await page.waitForFunction(()=>document.querySelector('#hero').getContext('2d').getImageData(0,0,1,1).data[0]===255&&document.querySelector('[aria-label="Pad 1"]').dataset.deviceHeld==='true');
   assert.equal(await page.locator('#hero').evaluate(canvas=>canvas.getContext('2d').getImageData(0,0,1,1).data[0]),255);
   if(scenario==='audio'){
    await page.waitForFunction(()=>!document.querySelector('[data-move-transport=play]').disabled);
