@@ -5,7 +5,7 @@ mod generator_source_tests {
 
     fn fixture(donor:usize,actor:usize,style:u8)->Engine {
         let mut engine=Engine::new(48000,12000);engine.link_enabled=false;
-        let config=Config{style,complexity:72,intensity:94,seed:371,end:1536};
+        let config=Config{style,complexity:72,intensity:94,seed:371,end:1536,..Default::default()};
         for track in [donor,actor] {
             engine.tracks[track].clips[0].set_loop(0,64);
             engine.tracks[track].playing_slot=Some(0);

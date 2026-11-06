@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.322",
-  "previous_version": "0.34.1-hbclean.321",
+  "version": "0.34.1-hbclean.323",
+  "previous_version": "0.34.1-hbclean.322",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.322 \u2014 Audio capture context and comparison",
-  "notes": "docs/audio-comparison.md",
+  "title": "Movy 0.34.1-hbclean.323 \u2014 Follower cloud and multitouch X/Y",
+  "notes": "docs/follower-cloud.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

@@ -56,7 +56,7 @@ for(const [kind,actor,track,style] of [['comp','Comp',2,8],['bass','Bass',1,12]]
  const savedEntry=JSON.stringify(storage.userParts(kind)[7]);commands=[];
  assert(generator.generatorWrite('cg_genre','Pop',track));
  const styleMeta=generator.generatorParameters().find(meta=>meta.key==='cg_source_style');
- assert.equal(styleMeta.options.length,8);assert(styleMeta.options.includes('Funk Pocket 2b'));assert(!styleMeta.options.some(name=>name.startsWith('User ')));
+ assert.equal(styleMeta.options.length,9);assert(styleMeta.options.includes('Funk Pocket 2b'));assert(!styleMeta.options.some(name=>name.startsWith('User ')));
  assert(!styleMeta.options.includes(actor==='Comp'?'Root / Fifth':'Quarters'));
  assert.equal(generator.generatorWrite('cg_source_style',actor==='Comp'?'Root / Fifth':'Quarters',track),false);assert.equal(commands.length,0);
  assert.equal(generator.generatorRead('cg_source_style',track),'Pop Answer 2b');

@@ -1,8 +1,9 @@
+import {mountCloud} from './build/cloud-web.mjs';
 /** Compose existing views around one connection, cache, focus and session owner. */
 import {mountHBComponent} from './build/hb-components.mjs';
 import {mountLighting} from './lighting-ui.mjs';
 import {mountSong} from './song-ui.mjs';
-const names=['controls','pads','field','choices','song','lights'];
+const names=['controls','pads','field','choices','song','lights','cloud'];
 const fieldReads=['field_outputs_view2','field_output_labels','field_placement_view','motion_operation'];
 /** @param {{connection: import('./workspace-contract.d.ts').ConnectionOwner, inputs: {isHeld():boolean}, openComponent(panel:HTMLElement,trigger:HTMLButtonElement):void}} options */
 export function mountMoveWorkspace({connection,inputs,openComponent}){
@@ -18,6 +19,7 @@ export function mountMoveWorkspace({connection,inputs,openComponent}){
   const component=mountHBComponent(name,panels.get(name).querySelector('.component-content'),api);
   component.suspend();components.set(name,component);
  }
+ const cloud=mountCloud({root:panels.get('cloud').querySelector('.component-content').attachShadow({mode:'open'}),api:{send:value=>{if(valid())connection.send({type:'set_param',key:'cloud_action',value});},read:async()=>({ui:valid()?cache.get('cloud_ui_state'):null,view:valid()?cache.get('cloud_view'):''})}});cloud.suspend();components.set('cloud',cloud);
  const lighting=mountLighting(panels.get('lights').querySelector('.component-content'));
  const song=mountSong({root:panels.get('song'),read:key=>cache.get(key),actions:{get count(){return frame?.song?.count??0;},
   get building(){return !!frame?.song?.building;},hold:value=>connection.send({type:'move_song',action:'hold',value}),
@@ -27,6 +29,7 @@ export function mountMoveWorkspace({connection,inputs,openComponent}){
  function watch(){
   const keys=[];
   if(available){
+   if(shown.has('cloud'))keys.push('cloud_ui_state','cloud_view');
    if(shown.has('field'))keys.push(...fieldReads.map(key=>`ch${track}:midi_fx1:${key}`));
    if(shown.has('choices'))keys.push(`ch${track}:midi_fx1:motif_choice_view`,`ch${track}:midi_fx1:motion_operation`);
    if(shown.has('lights'))keys.push(...lighting.watchKeys,...[...demand].filter(([,time])=>Date.now()-time<750).map(([key])=>key));
@@ -60,7 +63,7 @@ export function mountMoveWorkspace({connection,inputs,openComponent}){
  document.querySelector('#workspace-layout').onchange=event=>{if(inputs.isHeld()||isHeld()){event.target.value=layout;return;}layout=event.target.value;workspace.dataset.layout=layout;};
  for(const [name,panel] of panels){
   const header=document.createElement('div');header.className='component-heading';
-  const title=document.createElement('strong');title.textContent={controls:'Display & controls',pads:'Playing pads & steps',field:'Field outputs',choices:'Motif probabilities',song:'Scenes & Song',lights:'Lighting preview'}[name];header.append(title);
+  const title=document.createElement('strong');title.textContent={controls:'Display & controls',pads:'Playing pads & steps',cloud:'Follower cloud',field:'Field outputs',choices:'Motif probabilities',song:'Scenes & Song',lights:'Lighting preview'}[name];header.append(title);
   const enlarge=document.createElement('button');enlarge.type='button';enlarge.className='component-enlarge';enlarge.textContent='Enlarge';
   enlarge.setAttribute('aria-label',`Enlarge · ${title.textContent}`);
   enlarge.onclick=()=>openComponent(panel,enlarge);header.append(enlarge);
@@ -106,9 +109,9 @@ export function mountMoveWorkspace({connection,inputs,openComponent}){
   for(const name of order)workspace.append(panels.get(name));
   layout=saved?.layout==='columns'?'columns':'stack';document.querySelector('#workspace-layout').value=layout;
   trackPicker.value=/^(?:[0-9]|1[0-5])$/.test(saved?.track)?saved.track:'follow';
-  trackSelection=trackPicker.value;if(saved?.lighting)lighting.restoreProfile(saved.lighting);if(['field','choices','song','lights'].includes(requested))shown.add(requested);apply();
+  trackSelection=trackPicker.value;if(saved?.lighting)lighting.restoreProfile(saved.lighting);if(['cloud','field','choices','song','lights'].includes(requested))shown.add(requested);apply();
  }
- const requested=new URLSearchParams(location.search).get('view');if(['field','choices','song','lights'].includes(requested))shown.add(requested);
+ const requested=new URLSearchParams(location.search).get('view');if(['cloud','field','choices','song','lights'].includes(requested))shown.add(requested);
  apply();
  return {receive,setAvailable,suspend,release,isHeld,capture,restore};
 }

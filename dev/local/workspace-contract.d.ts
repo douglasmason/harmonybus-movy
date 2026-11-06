@@ -10,7 +10,7 @@ export interface Capabilities {
  /** Null when the endpoint does not report a version; never infer from pixels. */
  hostVersion?: string | null;
 }
-export type ComponentId = 'controls' | 'pads' | 'field' | 'choices' | 'song' | 'lights';
+export type ComponentId = 'controls' | 'pads' | 'cloud' | 'field' | 'choices' | 'song' | 'lights';
 export interface WorkspaceLayout {
  shown: ComponentId[];
  order: ComponentId[];

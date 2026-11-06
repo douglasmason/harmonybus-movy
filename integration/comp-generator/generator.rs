@@ -1,12 +1,14 @@
 //! A bounded source of mapped actor attacks, consumed by the ordinary scheduler.
 use crate::{clip::{Clip,Note},follower_input::InputKey,TICKS_PER_STEP};
+pub const CLOUD_DEFAULTS:[u8;6]=[96,48,64,40,64,32];
+pub const CLOUD_LABELS:[&str;8]=["generator:density","generator:dynamics","generator:rate","generator:length","generator:register","generator:spread","generator:contour","generator:variation"];
 pub const LABELS:[&str;3]=["generator:complexity","generator:intensity","generator:style"];
 #[cfg(test)]
 std::thread_local! {
     /// Count source-control evaluations without instrumenting release builds.
     pub(crate) static CONFIG_READS:std::cell::Cell<usize>=const {std::cell::Cell::new(0)};
 }
-pub fn internal(label:&str)->bool {LABELS.contains(&label)}
+pub fn internal(label:&str)->bool {LABELS.contains(&label)||CLOUD_LABELS.contains(&label)}
 pub fn lane_value(clip:&Clip,lane:u8,step:u16,base:u8)->u8 {
     clip.locks.iter().filter(|lock|lock.lane==lane&&lock.step>=clip.loop_start_steps&&lock.step<=step)
         .max_by_key(|lock|lock.step).map_or(base,|lock|lock.val)
@@ -14,27 +16,40 @@ pub fn lane_value(clip:&Clip,lane:u8,step:u16,base:u8)->u8 {
 pub struct Style {pub name:&'static str,pub bass:bool,pub catalog:usize,pub optional:&'static [(u16,u32,u8,u8,u8)]}
 include!("generator_styles.rs");
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
-pub struct Config {pub style:u8,pub complexity:u8,pub intensity:u8,pub seed:u16,pub end:u32}
-impl Default for Config {fn default()->Self {Self {style:0,complexity:32,intensity:64,seed:1,end:0}}}
+pub struct Config {pub style:u8,pub complexity:u8,pub intensity:u8,pub seed:u16,pub end:u32,pub cloud:[u8;6]}
+impl Default for Config {fn default()->Self {Self {style:0,complexity:32,intensity:64,seed:1,end:0,cloud:CLOUD_DEFAULTS}}}
 impl Config {
     pub fn parse(text:&str)->Option<Self> {
         let fields:Vec<u32>=text.split_whitespace().map(str::parse).collect::<Result<_,_>>().ok()?;
-        if !matches!(fields.len(),4|5)||fields[0]>=STYLES.len() as u32||fields[1]>127||fields[2]>127||!(1..=65535).contains(&fields[3])||fields.get(4).is_some_and(|end|*end>6144) {return None;}
-        Some(Self {style:fields[0] as u8,complexity:fields[1] as u8,intensity:fields[2] as u8,seed:fields[3] as u16,end:*fields.get(4).unwrap_or(&0)})
+        if !matches!(fields.len(),4|5|11)||fields[0]>=STYLES.len() as u32||fields[1]>127||fields[2]>127||!(1..=65535).contains(&fields[3])||fields.get(4).is_some_and(|end|*end>6144)||fields.iter().skip(5).any(|value|*value>127) {return None;}
+        Some(Self {style:fields[0] as u8,complexity:fields[1] as u8,intensity:fields[2] as u8,seed:fields[3] as u16,end:*fields.get(4).unwrap_or(&0),cloud:if fields.len()==11 {fields[5..].iter().map(|value|*value as u8).collect::<Vec<_>>().try_into().ok()?}else{CLOUD_DEFAULTS}})
     }
-    pub fn wire(self)->String {format!("{} {} {} {} {}",self.style,self.complexity,self.intensity,self.seed,self.end)}
+    pub fn wire(self)->String {if self.is_cloud(){format!("{} {} {} {} {} {}",self.style,self.complexity,self.intensity,self.seed,self.end,self.cloud.map(|value|value.to_string()).join(" "))}else{format!("{} {} {} {} {}",self.style,self.complexity,self.intensity,self.seed,self.end)}}
     pub fn bass(self)->bool {STYLES[self.style as usize].bass}
-    pub fn accepts_style(self,style:u8)->bool {STYLES.get(style as usize).is_some_and(|candidate|candidate.bass==self.bass())}
-    pub fn recipe_name(self)->&'static str {if self.bass(){"Bass-Generator"}else{"Comp-Generator"}}
+    pub fn accepts_style(self,style:u8)->bool {STYLES.get(style as usize).is_some_and(|candidate|candidate.bass==self.bass()&&(candidate.name=="Cloud")==self.is_cloud())}
+    pub fn recipe_name(self)->&'static str {if self.is_cloud(){if self.bass(){"Bass-Cloud"}else{"Follower-Cloud"}}else if self.bass(){"Bass-Generator"}else{"Comp-Generator"}}
     /// Bass articulation overrides only note expansion. Mapping and expression
     /// stay with the captured actor; cancellation restores the original settings.
     pub fn settings(self,mut settings:crate::part_settings::Settings)->crate::part_settings::Settings {
-        if self.bass() {
+        if self.is_cloud() {
+            settings.0[CLOUD_ROLE_INDEX]=1;
+            if !matches!(settings.0[CLOUD_TRAVEL_INDEX],1|5){settings.0[CLOUD_TRAVEL_INDEX]=1;}
+        }
+        if self.bass()||self.is_cloud() {
             for index in BASS_OFF_KEYS {settings.0[index]=0;}
         }
         settings
     }
-    pub fn values(self)->[u8;3] {[self.complexity,self.intensity,self.style]}
+    pub fn is_cloud(self)->bool {STYLES[self.style as usize].name=="Cloud"}
+    pub fn labels(self)->&'static [&'static str] {if self.is_cloud(){&CLOUD_LABELS}else{&LABELS}}
+    pub fn mask(self)->u8 {if self.is_cloud(){255}else{7}}
+    pub fn bar_control(self,field:usize)->bool {!self.is_cloud()&&field==2}
+    pub fn values(self)->[u8;8] {if self.is_cloud(){[self.complexity,self.intensity,self.cloud[0],self.cloud[1],self.cloud[2],self.cloud[3],self.cloud[4],self.cloud[5]]}else{[self.complexity,self.intensity,self.style,0,0,0,0,0]}}
+    pub fn set_valid(self,field:usize,value:u8)->bool {value<=127&&field<self.labels().len()&&(!self.bar_control(field)||self.accepts_style(value))}
+    pub fn set(&mut self,field:usize,value:u8)->bool {
+        if value>127||field>=self.labels().len()||self.bar_control(field)&&!self.accepts_style(value){return false;}
+        match field {0=>self.complexity=value,1=>self.intensity=value,_ if self.is_cloud()=>self.cloud[field-2]=value,_=>self.style=value} true
+    }
     /// A fixed threshold per authored optional attack. More complexity retains
     /// earlier details; repainting, block size and transport cycles do not reroll.
     pub fn note(self,step:u16)->Option<Note> {
@@ -59,11 +74,11 @@ impl Config {
         #[cfg(test)]
         CONFIG_READS.with(|count|count.set(count.get()+1));
         let mut result=self;
-        for (field,label) in LABELS.iter().enumerate() {
+        for (field,label) in self.labels().iter().enumerate() {
             let Some(lane)=labels.iter().position(|name|name==label) else {continue;};
-            let boundary=if field==2 {(step/16*16).max(clip.loop_start_steps)} else {step};
+            let boundary=if self.bar_control(field) {(step/16*16).max(clip.loop_start_steps)} else {step};
             let value=lane_value(clip,lane as u8,boundary,result.values()[field]);
-            match field {0=>result.complexity=value,1=>result.intensity=value,2 if self.accepts_style(value)=>result.style=value,_=>{}}
+            result.set(field,value);
         }
         result
     }
@@ -91,10 +106,10 @@ pub fn library_valid(clip:&Clip,labels:&[String;8])->Result<(),&'static str> {
         return Err("Recipe needs whole bars, zero start/transpose and 1x speed");
     }
     if !clip.recipe.as_ref().is_some_and(|recipe|recipe.settings.mapped()) {return Err("Recipe needs mapped actor settings");}
-    for (field,label) in LABELS.iter().enumerate() {
+    for (field,label) in config.labels().iter().enumerate() {
         let lane=labels.iter().position(|name|name==label).ok_or("Generator automation lanes missing")?;
         if clip.lock_at(lane as u8,0).is_none(){return Err("Generator automation must start at zero");}
-        if field==2&&clip.locks.iter().filter(|lock|lock.lane==lane as u8).any(|lock|!config.accepts_style(lock.val)) {return Err("Generator style belongs to another actor");}
+        if config.bar_control(field)&&clip.locks.iter().filter(|lock|lock.lane==lane as u8).any(|lock|!config.accepts_style(lock.val)) {return Err("Generator style belongs to another actor");}
     }
     Ok(())
 }

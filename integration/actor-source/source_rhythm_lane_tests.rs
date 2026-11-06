@@ -152,7 +152,7 @@ mod source_rhythm_lane_tests {
     fn rhythm_lane_generator_and_authored_notes_share_the_same_filter() {
         let mut engine=fixture(1);choose(&mut engine,Some(60));
         let clip=&mut engine.tracks[1].clips[0];clip.notes.clear();
-        clip.generator=Some(crate::generator::Config{style:4,complexity:127,intensity:64,seed:31,end:384});
+        clip.generator=Some(crate::generator::Config{style:4,complexity:127,intensity:64,seed:31,end:384,..Default::default()});
         let wanted=clip.generator.unwrap().note(0).unwrap().pitch;
         clip.add_note_raw(0,0,100,127,100);choose(&mut engine,Some(wanted));
         let mut attacks=0;

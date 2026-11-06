@@ -13,7 +13,7 @@ static void test_adaptive_motif(void){
     for(int word=1;word<52;word++)used+=snprintf(command+used,sizeof(command)-used,",0");
     set("cmd",command);render(4);
     assert(api->get_param(instance,"motif_load_result",result,sizeof(result))>0);assert(!strncmp(result,"Written",7));
-    assert(api->get_param(instance,"state",saved,sizeof(saved))>0);
+    assert(api->get_param(instance,"persistent_state",saved,sizeof(saved))>0);
     /* Restore the actual serialized clip, then vary harmony without rewriting it. */
     set("state",saved);render(8);
     for(int pass=0;pass<2;pass++){

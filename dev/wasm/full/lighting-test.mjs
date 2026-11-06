@@ -29,7 +29,7 @@ test('compiled HB drives live lighting; polling cannot advance field time or cha
   if(index===1){assert(frame.held>0,'live HB note is held with transport stopped');assert.equal(frame.playing,false);assert(frame.voices[3].energy>0);}
  }
  assert.equal(model.notes.size,0,'HB paired release clears lighting hold');assert.notEqual(snapshot(440),initial,'compiled field advances with render blocks');
- assert.deepEqual(engine.request('get','state').value,control.request('get','state').value,'preview must not modify session state');
+ assert.deepEqual(engine.request('get','persistent_state').value,control.request('get','persistent_state').value,'preview must not modify session state');
  const {readable}=prepareMetadata({capabilities:{chain_params:[]}});
  for(const key of ['field_view','field_outputs_view2','harmony_snapshot','shared_context_snapshot'])assert(readable.has(key));
 });
@@ -53,7 +53,7 @@ test('actual production section traversals cue lighting without changing MIDI or
    if(model.gesture?.kind==='arrival'&&model.gesture.start!==lastArrival){arrivals++;lastArrival=model.gesture.start;}
   }
   assert(arrivals>=3,`expected multiple real section arrivals, observed ${arrivals}`);
-  assert.deepEqual(engine.request('get','state').value,control.request('get','state').value);
+  assert.deepEqual(engine.request('get','persistent_state').value,control.request('get','persistent_state').value);
   assert.equal(engine.request('get','song_section').value,control.request('get','song_section').value);
  }finally{engine.dispose();control.dispose();}
 });

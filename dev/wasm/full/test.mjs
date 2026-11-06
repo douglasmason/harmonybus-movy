@@ -31,12 +31,12 @@ test('full production Wasm dispatch matches native chain host: harmony, operatio
   await both('set','cmd','jrec 1 1');await both('step',1200);
   await both('midi','144,68,100');await both('step',64);await both('midi','128,68,0');
   await both('set','cmd','stop');await both('step',16);
-  const state=await both('get','state');assert.match(state.value,/\d+:\d+:60:100:/);
+  const state=await both('get','persistent_state');assert.match(state.value,/\d+:\d+:60:100:/);
   observed.length=0;await both('set','cmd','play');await both('step',1500);
   assert(observed.some(packet=>(packet[1]&240)===144&&packet[2]===60&&packet[3]>0));
   await both('set','cmd','stop');await both('step',32);
   await both('set','cmd','song 0;songadd 1;songadd 0;songsection 0 bars 1;songsection 1 bars 1;songsection 1 track 1 2');
-  await both('get','state');await both('get','song_section_0');await both('get','song_section_1');
+  await both('get','persistent_state');await both('get','song_section_0');await both('get','song_section_1');
   await both('set','ch0:lfo1:shape','6');await both('get','ch0:lfo1:shape');await both('get','ch0:lfo1:field_source_version');
   await both('set','cmd','play');const visits=new Set();
   for(let index=0;index<8;index++){

@@ -146,7 +146,7 @@ static void test_shared_context(void){
     api->get_param(instance,"ch0:midi_fx1:shared_context_snapshot",view,sizeof(view));fprintf(stderr,"shared record view: %s\n",view);
     set("ch0:midi_fx1:parallel_scale","Natural Minor");set("ch0:midi_fx1:parallel_mode","Down");render(16);
     set("ch0:midi_fx1:parallel_mode","Up");render(16);set("cmd","stop");render(4);
-    api->get_param(instance,"state",state,sizeof(state));
+    api->get_param(instance,"persistent_state",state,sizeof(state));
     api->get_param(instance,"ch0:midi_fx1:shared_context_snapshot",view,sizeof(view));fprintf(stderr,"shared capture view: %s\n",view);
     assert(strstr(state,"sc 0 0 "));
     /* Explicit cross-boundary gesture, plus a second conductor's key. */
@@ -169,7 +169,7 @@ static void test_shared_context(void){
     api->on_midi(instance,down,3,0);set("cmd","non 0 62 100");render(16);
     set("ch0:midi_fx1:motion_hold_1","Off");
     api->on_midi(instance,up,3,0);set("cmd","nof 0 62");render(16);set("cmd","stop");render(8);
-    api->get_param(instance,"state",state,sizeof(state));assert(strstr(state,"sc 0 0 "));
+    api->get_param(instance,"persistent_state",state,sizeof(state));assert(strstr(state,"sc 0 0 "));
     rendered_mask=0;sent_on=sent_off=0;set("cmd","play");render(1500);set("cmd","stop");render(16);
     fprintf(stderr,"key landing replay: mask=%u ons=%d offs=%d\n",rendered_mask,sent_on,sent_off);
     assert(rendered_mask==(1u<<2)&&sent_on>=2&&sent_on==sent_off);
@@ -186,7 +186,7 @@ static void test_key_operation_ownership(void){
     api->on_midi(instance,down,3,0);set("cmd","non 0 62 100");render(16);
     api->on_midi(instance,up,3,0);set("cmd","nof 0 62");render(16);
     set("cmd","stop");render(4);
-    api->get_param(instance,"state",state,sizeof(state));assert(!strstr(state,"sc 0 0 "));
+    api->get_param(instance,"persistent_state",state,sizeof(state));assert(!strstr(state,"sc 0 0 "));
     api->get_param(instance,"ch0:midi_fx1:shared_context_snapshot",view,sizeof(view));assert(strstr(view,"dp1|D|")&&strstr(view,"LIVE"));
     set("cmd","uswap 500 501");render(4);
     api->get_param(instance,"ch0:midi_fx1:shared_context_snapshot",view,sizeof(view));assert(strstr(view,"dp1|D|")&&strstr(view,"LIVE"));
@@ -198,7 +198,7 @@ static void test_key_operation_ownership(void){
     set("cmd","play");render(16);set("cmd","rec 0");render(800);
     set("ch0:midi_fx1:motion_hold_1","On");render(4);
     set("ch0:midi_fx1:motion_hold_1","Off");render(4);
-    api->get_param(instance,"state",state,sizeof(state));assert(strstr(state,"sc 0 0 "));
+    api->get_param(instance,"persistent_state",state,sizeof(state));assert(strstr(state,"sc 0 0 "));
     set("cmd","stop");render(4);
     /* A known one-bar timeline checks the recording wire format and loop
        reconstruction independently of when the host polls the live event. */
@@ -239,7 +239,7 @@ static void test_capture(void){
         fprintf(stderr,"capture input running=%d arp=%d on=%d off=%d mask=%u\n",running,arp,played,sent_off,played_mask);
         assert(played>0&&sent_off==played);
         set("cmd","cap 0;capdone");
-        char state[32768];api->get_param(instance,"state",state,sizeof(state));
+        char state[32768];api->get_param(instance,"persistent_state",state,sizeof(state));
         char *clip=strstr(state,"cl 0 0 ");assert(clip);
         char *end=strchr(clip,'\n');assert(end);*end=0;
         int steps,start,consumed=0,count=0;
@@ -551,9 +551,9 @@ static void test_chord_play(void){
     for(int pad=0;pad<32;pad++)used+=snprintf(mapping+used,sizeof(mapping)-used,",60");set("padmap",mapping);
     render(32);sent_on=sent_off=0;memset(routed_channel_on,0,sizeof(routed_channel_on));
     char unarmed_before[65536],unarmed_after[65536];
-    api->get_param(instance,"state",unarmed_before,sizeof(unarmed_before));
+    api->get_param(instance,"persistent_state",unarmed_before,sizeof(unarmed_before));
     set("chord_select","0,10,1,0,1,0,1,12");render(16);
-    api->get_param(instance,"state",unarmed_after,sizeof(unarmed_after));
+    api->get_param(instance,"persistent_state",unarmed_after,sizeof(unarmed_after));
     assert(!strcmp(unarmed_before,unarmed_after)); /* Selection never arms or edits a clip. */
     assert(sent_on==0); /* Conductor selection does not trigger bass or comp. */
     char context[2048];api->get_param(instance,"ch2:midi_fx1:harmony_source_snapshot",context,sizeof(context));
@@ -565,7 +565,7 @@ static void test_chord_play(void){
     api->on_midi(instance,up,3,0);render(32);
     set("cmd","jrec 9 1");render(800);set("chord_select","0,0,1,0,1,0,1,12");render(64);
     set("chord_select","0,10,6,0,1,0,1,12");render(64);set("cmd","stop");render(16);
-    static char saved[262144];int length=api->get_param(instance,"state",saved,sizeof(saved));
+    static char saved[262144];int length=api->get_param(instance,"persistent_state",saved,sizeof(saved));
     if(!(length>0&&strstr(saved,"\nra ")))fprintf(stderr,"chord state (%d): %.4000s\n",length,saved);
     assert(length>0&&strstr(saved,"\nra "));
     set("chord_select","off");set("chord_route","off");
@@ -586,7 +586,7 @@ static void test_chord_play(void){
     api->get_param(instance,"ch2:midi_fx1:harmony_source_snapshot",context,sizeof(context));
     assert(strstr(context,"\"root\":2")&&sent_on==0);
     set("cmd","jrec 9 1");render(800);set("chord_select","0,0,0,3,3,0,1,12,3,4");render(64);set("cmd","stop");render(16);
-    length=api->get_param(instance,"state",saved,sizeof(saved));assert(length>0);
+    length=api->get_param(instance,"persistent_state",saved,sizeof(saved));assert(length>0);
     int has_intent=0;const char *action=saved;
     while((action=strstr(action,"\nra 0 "))){
         unsigned long long word=0;
@@ -730,7 +730,7 @@ int main(int argc,char **argv){
     api->on_midi(instance,down,3,0);set("cmd","non 0 60 100");render(32);
     api->on_midi(instance,up,3,0);set("cmd","nof 0 60");render(16);
     set("cmd","stop");render(16);
-    char state[32768];api->get_param(instance,"state",state,sizeof(state));
+    char state[32768];api->get_param(instance,"persistent_state",state,sizeof(state));
     char *clip=strstr(state,"cl 0 0 ");assert(clip);
     char *end=strchr(clip,'\n');assert(end);*end=0;
     printf("recorded %s\n",clip);

@@ -24,14 +24,14 @@ const get=(key:string):string=>String(host_module_get_param(key)??'');
 /** The engine owns clip parsing and control-curve evaluation; the catalog owns labels. */
 function savedMetadata(track:number,kind:PartKind):PartMetadata {
     const fields=get('part_summary_'+track).split('|'),steps=Number(fields[1]),automation=Number(fields[3]);
-    if(fields.length!==5||fields[0]!=='ps1'||!Number.isInteger(steps)||steps<1||steps>256||!Number.isInteger(automation)||automation<0||automation>7)return {};
+    if(fields.length!==5||fields[0]!=='ps1'||!Number.isInteger(steps)||steps<1||steps>256||!Number.isInteger(automation)||automation<0||automation>255)return {};
     const indexes=fields[2]?fields[2].split(',').map(Number):[];
-    if(indexes.some(index=>!Number.isInteger(index)||generatorStyles[index]?.actor.toLowerCase()!==kind))return {};
+    if(indexes.some(index=>!Number.isInteger(index)||(generatorStyles[index]?.actor==='Melody'?'comp':generatorStyles[index]?.actor.toLowerCase())!==kind))return {};
     const source=indexes.map(index=>generatorStyles[index]);
     const stock=catalog[kind].findIndex(entry=>entry.recipe===fields[4]);
     const related=source.length?source:generatorStyles.filter(style=>style.actor.toLowerCase()===kind&&style.catalog===stock);
     const name=source.length?source[0].name.replace(/ [24]b$/,'')+(source.length>1?' Mix':''):catalog[kind][stock]?.name??fields[4].replace(/-/g,' ');
-    return {name:cleanPartName(name),genres:[...new Set(related.flatMap(style=>style.genres))],steps,...(source.length?{automation}:{})};
+    return {...(fields[4].includes('Cloud')?{cloud:true}:{}),name:cleanPartName(name),genres:[...new Set(related.flatMap(style=>style.genres))],steps,...(source.length?{automation}:{})};
 }
 function metadataAvailable(pending:Review):boolean {return pending.save!==null||pending.original!==null;}
 function genreChoices(pending:Review):string[]{return ['Original tags','Untagged',...new Set(generatorStyles.filter(style=>style.actor.toLowerCase()===(pending.context.kind??'comp')).flatMap(style=>style.genres))];}
@@ -101,9 +101,9 @@ function apply():void {
         if(payload.startsWith('error:')){seqToast(payload.slice(6));return;}
         if(!/^[0-9a-f]{2,36000}$/.test(payload)){seqToast('Preset export unavailable');return;}
         const generator=payload.startsWith('70617274320a')?generatorStyles[Number(get('generator_info_'+context.track).split('|')[2]?.split(' ')[0])]?.actor:undefined;
-        if(generator&&generator.toLowerCase()!==kind){seqToast('Recipe belongs to the other actor');return;}
+        if(generator&&(generator==='Melody'?'comp':generator.toLowerCase())!==kind){seqToast('Recipe belongs to the other actor');return;}
         const synth=portFor(context.track).getParam('synth_module')??'';
-        seqToast(saveUserPart(pending.save,{payload,synth,...pending.metadata,...(generator?{generator:generator as 'Comp'|'Bass'}:{})},kind)?'Saved '+kind+' User '+(pending.save+1):'Preset save failed');return;
+        seqToast(saveUserPart(pending.save,{payload,synth,...pending.metadata,...(generator?{generator:generator as 'Comp'|'Bass'|'Melody'}:{})},kind)?'Saved '+kind+' User '+(pending.save+1):'Preset save failed');return;
     }
     const entry=choice>=stockCount?userParts(kind)[choice-stockCount]:null;
     if(pending.sourceRoute!==get('source_route_'+context.track)){seqToast('Sources changed - preview again');return;}

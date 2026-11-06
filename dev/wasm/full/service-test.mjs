@@ -23,9 +23,9 @@ test('shared source/variation edits, stopped live observations and transactional
   assert.equal(updates.at(-1).observation.structure.count,2);
   assert.equal(updates.at(-1).params.song_section_0,'0 0 1 2 0000000000000000');
   assert.equal(updates.at(-1).observation.views['ch0:lfo1:field_source_version'],'1');
-  const songBefore=service.read('state');
+  const songBefore=service.read('persistent_state');
   for(const value of ['ucommit -1','ucommit 1 2','ucommit nope','song 8','songsection 128 enable','songsection 0 bars 257','songsection 0 track 16 0','songsection 0 track 0 3','songsectionclear -1','songsection 0 enable;load /tmp/no']){
-   await send({type:'dev_engine_edit',value});assert.equal(updates.at(-1).type,'error');assert.equal(service.read('state'),songBefore);
+   await send({type:'dev_engine_edit',value});assert.equal(updates.at(-1).type,'error');assert.equal(service.read('persistent_state'),songBefore);
   }
   for(const key of ['ch0:synth:state:base','ch16:lfo1:shape','song_section_128']){await send({type:'dev_watch',keys:[key]});assert.equal(updates.at(-1).type,'error');}
   await send({type:'set_param',key:'joint_map',value:Array(32).fill('0,60,-1,0').join(';')});
@@ -33,16 +33,16 @@ test('shared source/variation edits, stopped live observations and transactional
   assert(updates.at(-1).events.some(event=>event.provenance.trigger==='live-input'&&event.sampleRate===44100));
   await send({type:'dev_midi',data:[128,68,0]});
   const session=await service.save({});
-  const before=service.read('state');
+  const before=service.read('persistent_state');
   const corrupt=structuredClone(session);corrupt.payload.sequencer+='broken';
   await assert.rejects(()=>service.open(corrupt),/checksum/);
-  assert.equal(service.read('state'),before);
+  assert.equal(service.read('persistent_state'),before);
   const rejected=structuredClone(session.payload);rejected.chains[0].components[1].state='{}';
   const rejectedSession=await sealSession(rejected,{});
   await assert.rejects(()=>service.open(rejectedSession),/readback differs/);
-  assert.equal(service.read('state'),before);
+  assert.equal(service.read('persistent_state'),before);
   assert.equal(service.read('variation_1'),'1 25 50 30 0 4 0');
-  await service.open(session);assert.equal(service.read('state'),before);
+  await service.open(session);assert.equal(service.read('persistent_state'),before);
   assert.equal(service.read('variation_1'),'1 25 50 30 0 4 0');
   await send({type:'dev_engine_edit',value:'load /tmp/anything'});assert.equal(updates.at(-1).type,'error');
  }finally{service.socket.close();}

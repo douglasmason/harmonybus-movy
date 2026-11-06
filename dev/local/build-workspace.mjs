@@ -1,7 +1,9 @@
 /** Compose canonical web editors; source markup and handlers remain in HarmonyBus. */
 import {readFile,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
-export async function buildWorkspace({root,harmonybus,esbuild}){
+export async function buildWorkspace({root,harmonybus,source,esbuild}){
+ await esbuild.build({entryPoints:[resolve(source,'src/seq/cloud-view.ts')],bundle:true,format:'esm',platform:'browser',outfile:resolve(root,'build/cloud-view.mjs')});
+ await writeFile(resolve(root,'build/cloud-web.mjs'),await readFile(resolve(source,'cloud-web.mjs')));
  const moduleRoot=resolve(harmonybus,'modules/harmonybus');
  const html=await readFile(resolve(moduleRoot,'web_ui.html'),'utf8');
  const style=html.match(/<style>([\s\S]*?)<\/style>/)?.[1];

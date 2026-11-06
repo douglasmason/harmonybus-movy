@@ -130,7 +130,7 @@ test('native Joint recording stores physical input and replays it; transport is 
     await request(socket,{type:'dev_midi',data:[128,68,0]});
     await request(socket,{type:'dev_transport',action:'stop'});
     await request(socket,{type:'dev_step',blocks:16});
-    const state=(await service.processor.request('get','state')).value;
+    const state=(await service.processor.request('get','persistent_state')).value;
     const clip=state.split('\n').find(line=>line.startsWith('cl 0 0 '));
     assert.match(clip,/\d+:\d+:60:100:/,'recorded clip contains original pad input');
     const events=[];const original=service.processor.onResult;

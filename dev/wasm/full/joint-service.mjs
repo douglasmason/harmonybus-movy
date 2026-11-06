@@ -120,7 +120,7 @@ export async function createJointService(raw,emit,build=null,createSurface=null)
      const key=String(message.key??'').replace(/^overtake_dsp:/,''),value=String(message.value??'');
      if(value.length>1024||/[\r\n\t]/.test(value))throw new Error('Invalid value');
      const match=trackKey.exec(key);
-     if(!routingKeys.has(key)&&(!match||(!enabledWrites.has(match[2])&&!jointAction.test(match[2]))))throw new Error('Parameter unavailable');
+     if(key!=='cloud_action'&&!routingKeys.has(key)&&(!match||(!enabledWrites.has(match[2])&&!jointAction.test(match[2]))))throw new Error('Parameter unavailable');
      if(match&&jointAction.test(match[2])){
       if(/(?:^|\|)(?:Down|Touch|Knob)/.test(value))touches.set(key,(value.includes('|')?value.split('|')[0]+'|':'')+'Cancel');
       else if(/(?:Up|Cancel)/.test(value))touches.delete(key);
