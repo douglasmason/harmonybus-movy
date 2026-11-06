@@ -52,7 +52,7 @@ export interface ConnectionOwner {
  connect(address: string, options?: {pairingKey?: string; onControlState?: (ready: boolean, message: string) => void}): void;
  /** Explicit commands, never inferred from LED state. No execution acknowledgment. */
  transport(action: 'play' | 'stop'): boolean;
- disconnect(): void;
+ disconnect(reason?: 'user' | 'hidden' | 'page-exit' | 'engine-change' | 'browser-failed' | 'reconnect'): void;
  /** Terminal Worker loss: invalidate observations and commands until reload. */
  browserClosed(message?: string): void;
  acceptBrowserFrame(): boolean;
@@ -72,7 +72,7 @@ export interface DeviceFrame {
  stepLabels: null;
 }
 
-/** On-device module.json opt-in; absent on current Movy. Host integration must
+/** On-device module.json opt-in, advertised from Movy hbclean.320. Integration must
  * prove subscribe_tool/state polling cannot consume an unsaved dirty flag
  * before advertising this capability. This is not a user override. */
 export interface DeviceTransportModuleCapability {

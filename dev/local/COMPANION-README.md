@@ -56,6 +56,12 @@ only a trusted LAN, or the trusted HTTPS setup in MOVE-CONNECTION.md.
 
 Launch without `--enable-transport` to return to read-only mirroring.
 
+If connection fails, use **Download connection report** in Engine → Move.
+It captures the checks already performed, screen/LED counts, transport readiness
+and the last failure. Export makes no device request and includes no address,
+pairing key, screen contents or session. Keep the report with your observations
+on Move/iPad; it cannot confirm command execution or physical audio behavior.
+
 Browser and device sessions remain separate. This local origin also has its own
 browser storage: it does not automatically receive sessions or appearance from
 the hosted trial. Session transfer is not part of connection setup.
