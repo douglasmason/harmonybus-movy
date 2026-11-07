@@ -2,7 +2,7 @@
 import {deviceStreamURL,openDeviceConnection,blankDeviceFrame} from './move-device.mjs';
 export function createMoveConnection({browser,inputs,onState,onFrame,pageURL,openDevice=openDeviceConnection,diagnostics}){
  /** @type {import('./workspace-contract.d.ts').Engine} */
- // A missing browser is allowed only after its startup has failed and cleaned up.
+ // A missing browser was explicitly skipped, or startup failed and cleaned up.
  let engine=browser?'browser':'move',device=null,generation=0,busy=false,ready=true,signature='',failure=null;
  const watches=new Map();
  function flushWatches(){if(engine!=='browser'||busy||!ready)return;const keys=[...new Set([...watches.values()].flat())].sort(),next=JSON.stringify(keys);if(keys.length>64)throw new Error('Workspace watch limit exceeded');if(next!==signature){signature=next;browser.socket.send(JSON.stringify({type:'dev_watch',keys}));}}

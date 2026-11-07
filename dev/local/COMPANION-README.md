@@ -14,7 +14,7 @@ compiler, npm install, or software installation on Move is needed.
 
    Replace the example computer address. If Move's name does not resolve, use
    its actual IP in `--move`. Change `--port 7703` if that port is occupied.
-5. Open the printed **local** URL on your iPad. Select **Engine → Move**, confirm
+5. Open the printed **local** URL on your iPad. It opens directly in Move mode; confirm
    the automatically filled companion address, then **Connect**. Same Wi-Fi alone does not
    connect. Stop with Ctrl+C; reconnect explicitly after restarting.
 
@@ -31,6 +31,12 @@ The current device protocol does not supply rich knob/pad labels, settings
 navigation or semantic editors. Those stay unavailable in Move mode. No
 emulator state is presented as device state.
 
+The printed `/move/?engine=move` page skips the browser synth download and Worker
+startup. It does not open saved browser sessions. Choose **Engine → Browser** to
+open the full studio on a new page load; this disconnects the mirror without
+stopping Move or transferring sessions. Browser studio restores its own saved
+session. Opening `/move/` without that query still starts in Browser mode.
+
 ### Optional paired Play/Stop
 
 Start the same launcher with the transport flag:
@@ -40,7 +46,7 @@ node start.mjs --host 192.168.1.20 --move http://move.local:7700 --enable-transp
 ```
 
 Replace the example computer address as above. On the printed local page,
-choose **Engine → Move**, select **Check paired Play/Stop**, paste the printed
+select **Check paired Play/Stop**, paste the printed
 **Pairing key**, then **Connect**. The companion checks installed Movy metadata
 and the active tool before enabling control. Movy **hbclean.320 and later**
 advertise the required safe-state capability; older builds stay read-only.

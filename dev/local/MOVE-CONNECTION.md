@@ -5,6 +5,23 @@ same Wi-Fi never selects an engine or establishes a connection. Browser remains
 the startup default when it loads successfully. Disconnect, network loss and tab hiding close the stream;
 reconnect requires Connect. No browser session is sent to Move.
 
+### Open directly in Move mode
+
+The companion prints `/move/?engine=move`. This entry mounts the same workspace
+without downloading the compiled browser synth, starting its Worker or opening
+saved browser sessions. It fills the local companion address but still waits for
+an explicit capability check or Connect. Optional Play/Stop still requires pairing.
+
+Choose **Engine → Browser** to disconnect the mirror and open the browser studio
+with a fresh page load, restoring that origin's saved browser session. Move keeps
+its own playback and session. Once Browser studio is running, ordinary engine
+switches still retain its session in memory. While Browser is starting, the
+**Connect to Move instead** link opens the direct entry without waiting for it.
+That shortcut disappears before the browser session opens, so it cannot discard
+edits from an active studio. Reports identify the requested startup engine;
+skipping Browser is not reported as a startup failure. Browser build fields remain
+unknown in direct Move mode because the engine and its build manifest were not loaded.
+
 ### If the browser engine cannot start
 
 A failed Worker, compiled engine load or audio-processor load leaves the Move

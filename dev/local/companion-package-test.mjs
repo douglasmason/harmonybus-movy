@@ -44,10 +44,12 @@ test('extracted archive boots independently, serves identical UI and proxies onl
  const reserve=createServer();reserve.listen(0,'127.0.0.1');await once(reserve,'listening');const port=reserve.address().port;await new Promise(resolve=>reserve.close(resolve));
  const child=spawn(process.execPath,['start.mjs','--port',String(port),'--move',`http://127.0.0.1:${upstream.address().port}`],{cwd:root,env:{...process.env,NODE_PATH:''},stdio:['ignore','pipe','pipe']});
  t.after(()=>child.kill());
- await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Companion startup timeout')),10000);let output='';child.stdout.on('data',data=>{output+=data;if(output.includes('Select Engine')){clearTimeout(timer);resolve();}});child.once('exit',code=>{clearTimeout(timer);reject(new Error('Companion exited '+code+': '+output));});child.stderr.on('data',data=>output+=data);});
+ const startupOutput=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Companion startup timeout')),10000);let output='';child.stdout.on('data',data=>{output+=data;if(output.includes('Select Engine')){clearTimeout(timer);resolve(output);}});child.once('exit',code=>{clearTimeout(timer);reject(new Error('Companion exited '+code+': '+output));});child.stderr.on('data',data=>output+=data);});
  assert.equal(requests,0,'startup never contacts Move');const origin=`http://127.0.0.1:${port}`;
+ assert(startupOutput.includes(origin+'/move/?engine=move'),'printed entry skips the browser engine');
  assert.deepEqual(await (await fetch(origin+'/api/movy-companion')).json(),{schema:1,service:'hb-movy-companion'});assert.equal(requests,0,'identification never contacts Move');
  assert.equal(await (await fetch(origin+'/move/')).text(),await readFile(new URL('move/index.html',site),'utf8'));
+ assert.equal(await (await fetch(origin+'/move/?engine=move')).text(),await readFile(new URL('move/index.html',site),'utf8'));
  assert.equal((await fetch(origin+'/stream-auto?v=2',{method:'POST'})).status,405);
  assert.equal((await fetch(origin+'/stream-auto?v=2',{headers:{Origin:'https://unrelated.example'}})).status,403);
  assert.equal((await fetch(origin+'/ws/remote-ui')).status,404);assert.equal(requests,0);

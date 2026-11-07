@@ -8,12 +8,16 @@ import {mountMoveWorkspace} from './move-workspace.mjs';
 import {mountScaleFinderUI} from './scale-finder-ui.mjs';
 
 const errorBox=document.querySelector('#error'),feedback=document.querySelector('#feedback');
+const moveOnly=new URLSearchParams(location.search).get('engine')==='move';
+const directLink=document.querySelector('#move-direct'),directURL=new URL(location.href);
+directURL.searchParams.set('engine','move');directLink.href=directURL.href;directLink.hidden=moveOnly;
 try{
  let browser=null,startupError=null;
- try{const {openBrowserConnection}=await import('/wasm/full/joint-transport.mjs');browser=await openBrowserConnection({surface:'move'});}
+ try{if(!moveOnly){const {openBrowserConnection}=await import('/wasm/full/joint-transport.mjs');browser=await openBrowserConnection({surface:'move'});}}
  catch(error){startupError=error;}
+ directLink.hidden=true;
  const {socket,audio,sessions,metadata}=browser??{};
- const diagnostics=createMoveDiagnostics({build:audio?.build,pageProtocol:location.protocol,secureContext:isSecureContext,eventSourceAvailable:typeof EventSource!=='undefined',webSocketAvailable:typeof WebSocket!=='undefined'});
+ const diagnostics=createMoveDiagnostics({build:audio?.build,startupEngine:moveOnly?'move':'browser',pageProtocol:location.protocol,secureContext:isSecureContext,eventSourceAvailable:typeof EventSource!=='undefined',webSocketAvailable:typeof WebSocket!=='undefined'});
  if(startupError)diagnostics.event('browser-startup-failed');
  const reportStatus=document.querySelector('#move-report-status');
  document.querySelector('#move-report').onclick=()=>{
@@ -59,12 +63,16 @@ try{
     playMode.disabled=true;playMode.replaceChildren(new Option('Read on Move display',''));
     currentMode=null;modeNames='';lastTrack=-1;
     feedback.textContent=state==='connected'?'Use physical controls for pads, knobs and recording · audio plays on Move':message;
-    audioStatus.textContent=!browser?'Browser engine unavailable · audio plays on Move':connection.ready?'Browser engine suspended · browser session retained · no session transfer':'Waiting for browser suspension acknowledgment';
+    audioStatus.textContent=!browser?(startupError?'Browser engine unavailable · audio plays on Move':'Browser studio not loaded · select Browser to open it'):connection.ready?'Browser engine suspended · browser session retained · no session transfer':'Waiting for browser suspension acknowledgment';
    }else if(!switching){audioStatus.textContent='Browser audio off · tap Enable audio to listen';}
   }});
  workspace=mountMoveWorkspace({connection,inputs,openComponent:surface.openComponent});
  engineSelector.onchange=async()=>{
   if(sessionUI?.isBusy()){engineSelector.value=connection.engine;return;}
+  if(moveOnly&&engineSelector.value==='browser'){
+   connection.disconnect('engine-change');
+   const target=new URL(location.href);target.searchParams.delete('engine');location.assign(target.href);return;
+  }
   errorBox.textContent='';await connection.select(engineSelector.value);
  };
  let addressEdited=false;
@@ -182,9 +190,9 @@ try{
   disableAudio,isStopped:()=>isBrowser()&&stopped&&!inputs.isHeld(),release:()=>{inputs.release();}});
  }else{
   connection.disconnect();
-  errorBox.textContent='Browser engine could not start: '+startupError.message+'. Move connections remain available. Reload to retry the browser engine.';
-  document.querySelector('#build').textContent='Browser engine unavailable · saved browser sessions have not been opened';
-  engineSelector.querySelector('[value="browser"]').disabled=true;
+  if(startupError)errorBox.textContent='Browser engine could not start: '+startupError.message+'. Move connections remain available. Reload to retry the browser engine.';
+  document.querySelector('#build').textContent=(startupError?'Browser engine unavailable':'Browser studio not loaded')+' · saved browser sessions have not been opened';
+  engineSelector.querySelector('[value="browser"]').disabled=!!startupError;
  }
  engineSelector.disabled=false;
 }catch(error){errorBox.textContent='Cannot start Move: '+error.message;feedback.textContent='Engine unavailable';}
