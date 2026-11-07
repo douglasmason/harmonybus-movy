@@ -16,7 +16,8 @@ In Chord Play, open Libraries → the actor's Browse page and select **Cloud**.
 The Generator page exposes eight knobs, in order: **Rate, Density, Length,
 Register, Spread, Contour, Variation, Dynamics**. The adjacent **Cloud X / Y**
 page assigns knob 1 to X, knob 2 to Y, knob 3 to **Axes**, and knob 4 to
-**Bounded / Wrap**. Knobs 5–8 are Explore, Seed, Bake and Restore. Turning
+**Bounded / Wrap**. Knobs 5–8 are Activity, Seed, Bake and Restore. **Activity**
+selects Probability or Rate; Loop still starts/stops Explore. Turning
 either coordinate draws; after 300 ms without movement the cursor releases and
 its cloud continues to decay. Wrapping preserves overshoot at both edges.
 
@@ -33,13 +34,25 @@ and drag one or more fingers. Both pages share controls, rendering and gesture
 cleanup. The browser workspace's physical Move connection remains a hardware
 mirror; use the native Tool page for the physical device's semantic cloud editor.
 
-The Axes selector switches between **X Probability / Y Pitch** and
-**X Pitch / Y Probability**. The second orientation gives Move eight horizontal
-pitch positions and four probability positions. The same reversible projection
+The Axes selector switches between **X Activity / Y Pitch** and
+**X Pitch / Y Activity**, with the web labels naming the selected activity.
+The second orientation gives Move eight horizontal pitch positions and four
+activity positions. The same reversible projection
 maps pads, touchscreen and X/Y knobs into the musical source, then projects its
 cloud back onto each display. Flipping releases held inputs and rotates the
 view; it never changes the pitches or timing of an already recorded gesture.
-Orientation and bounded/wrap preferences are saved with the Set/browser session.
+Orientation, Activity and bounded/wrap preferences are saved with the Set/browser session.
+
+In **Probability**, the activity coordinate changes the chance of a grain at
+the Rate knob's subdivision. In **Rate**, it selects a clocked subdivision from
+half notes through the fastest subdivision allowed by the Rate knob, including
+dotted subdivisions. Density and trail decay still affect how many grains occur;
+the coordinate does not guarantee a note on every possible trigger.
+
+Each deposited point retains its own activity behavior. Changing Activity
+releases held input and affects new strokes; existing trails and recorded clips
+keep their original meaning. Probability and Rate strokes can coexist in a
+recording or saved recipe without adding another automation lane.
 
 These axes describe
 the musical source; they do not send global pan CCs that could disturb other
@@ -69,16 +82,19 @@ to overwrite instrument automation or lanes belonging to another recipe. Live
 play supports up to 16 simultaneous contacts across surfaces, four grains per
 sixteenth (one for Bass), and a bounded four-beat history. Rates are clocked from
 half notes through sixteenths, including dotted subdivisions. This is MIDI note
-generation, not audio sample granulation. The current axis pair is pitch and
-probability, in either orientation; Rate remains a separate generator control.
+generation, not audio sample granulation. Pitch pairs with probability or trigger
+rate, in either orientation; the Rate knob remains the fastest allowed subdivision.
 
 ## Integration contract
 
-- `gcloud track id x y pressure` uses 0–127 coordinates; pressure zero releases.
+- `gcloud track id x y pressure [activity]` uses 0–127 coordinates; pressure zero releases.
+  Optional activity is 0 for Probability (also the legacy default) or 1 for Rate.
   IDs 0–31 belong to Move, 32–95 to Launchpad, 96–111 to the touchscreen and 112
   to X/Y drawing. Contact heartbeats stop stale input after two seconds, including
   while transport is stopped. One touchscreen controller owns that ID range.
 - `cf1` and `cp1` records extend the existing `movy1` Set. Old Sets still load.
+  Rate points append `,1` to the existing four-field point; legacy points retain
+  their original serialization and behavior. A rate clip needs hbclean.324 or newer.
   Gesture samples and control locks are the reusable source, not screen pixels.
 - `cloud_view[_track]` is a passive bounded snapshot of contacts, trails and
   accepted grain attacks. Rendering never advances the music or rerolls a seed.

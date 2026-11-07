@@ -17,11 +17,11 @@
         assert!(engine.clouds[2].contacts.is_empty());assert!(engine.clouds[2].points.is_empty());assert!(engine.gates.is_empty());
         assert!(trace(&mut engine,384).is_empty());
     }
-    #[test] fn cloud_recorded_strokes_controls_reload_library_and_bake_replay() {
+    fn recorded_stroke_roundtrip(rate_strokes:bool) {
         let mut engine=fixture();start(&mut engine);engine.play();engine.toggle_record(2);
         let mut recorded=Vec::new();
         for step in 0..32 {
-            if step<16 {command(&mut engine,&format!("gcloud 2 0 127 {} 110",step*8));command(&mut engine,&format!("gcloud 2 1 90 {} 100",127-step*8));}
+            if step<16 {command(&mut engine,&format!("gcloud 2 0 127 {} 110",step*8));command(&mut engine,&format!("gcloud 2 1 {} {} 100{}",if rate_strokes {step*8}else{90},127-step*8,if rate_strokes {" 1"}else{""}));}
             else {command(&mut engine,"gcloud 2 0 0 0 0;gcloud 2 1 0 0 0");}
             if step==12 {command(&mut engine,"gexplore 2 16 127 96 71 0 127 20 80 100 80 90");}
             recorded.extend(trace(&mut engine,24).into_iter().map(|(tick,pitch,velocity,on)|(tick+step*24,pitch,velocity,on)));
@@ -29,6 +29,8 @@
         engine.toggle_record(2);
         assert!(!recorded.is_empty());assert!(engine.tracks[2].clips[0].cloud_field);assert!(!engine.tracks[2].clips[0].cloud_points.is_empty());
         assert_eq!(engine.tracks[2].lane_assigned.iter().filter(|assigned|**assigned).count(),8);
+        assert!(engine.tracks[2].clips[0].cloud_points.iter().any(|point|point.activity==crate::cloud::Activity::Probability));
+        assert_eq!(engine.tracks[2].clips[0].cloud_points.iter().any(|point|point.activity==crate::cloud::Activity::Rate),rate_strokes);
         let saved=engine.undo_snapshot();let mut restored=fixture();assert!(crate::persist::load(&mut restored,&saved));
         restored.play();assert_eq!(trace(&mut restored,768),recorded,"accepted stroke and control automation must reproduce the take");
         restored.stop(&mut Vec::new());let payload=restored.part_export(2);assert!(!payload.starts_with("error:"),"{payload}");
@@ -36,6 +38,21 @@
         restored.generator_bake("gbake 2 0",&mut Vec::new());assert_eq!(restored.generator_result,"Baked - Undo available");
         restored.play();assert_eq!(trace(&mut restored,768),recorded,"Bake must retain the same abstract mapped notes");
         assert!(restored.undo_restore(&saved));assert!(restored.tracks[2].clips[0].generator.is_some());
+    }
+    #[test] fn cloud_recorded_strokes_controls_reload_library_and_bake_replay() {recorded_stroke_roundtrip(false);}
+    #[test] fn cloud_mixed_rate_probability_strokes_controls_reload_library_and_bake_replay() {recorded_stroke_roundtrip(true);}
+    #[test] fn cloud_rate_axis_selects_clocked_subdivisions_and_respects_rate_ceiling() {
+        use crate::cloud::{Activity,Point};
+        let mut config=crate::generator::Config::parse("16 127 96 71 0 127 50 64 0 64 0").unwrap();
+        let attacks=|config,x| (0..32).filter(|step|!crate::cloud::notes(config,*step,&[Point{step:i32::from(*step),x,y:64,pressure:127,activity:Activity::Rate}],true).is_empty()).collect::<Vec<_>>();
+        assert_eq!(attacks(config,0),vec![0,8,16,24]);
+        assert_eq!(attacks(config,127),(0..32).collect::<Vec<_>>());
+        config.cloud[0]=48; // Fastest is a quarter note; intermediate is dotted quarter.
+        assert_eq!(attacks(config,127),(0..32).step_by(4).collect::<Vec<_>>());
+        assert_eq!(attacks(config,60),vec![0,6,12,18,24,30],"dotted subdivisions must not be gated by the faster quarter-note clock");
+        let legacy=Point::parse("0,40,80,100").unwrap();assert_eq!(legacy.activity,Activity::Probability);assert_eq!(legacy.wire(),"0,40,80,100");
+        let rate=Point::parse("0,40,80,100,1").unwrap();assert_eq!(rate.activity,Activity::Rate);assert_eq!(Point::parse(&rate.wire()),Some(rate));
+        for malformed in ["0,40,80,100,2","0,40,80,100,-1","0,40,80,100,1,0"]{assert!(Point::parse(malformed).is_none());}
     }
     #[test] fn cloud_controls_need_eight_lanes_before_record_changes_anything() {
         let mut engine=fixture();engine.auto_label(2,7,"synth:cutoff");start(&mut engine);let before=engine.undo_snapshot();engine.toggle_record(2);
@@ -45,7 +62,7 @@
         assert_eq!(crate::generator::Config::parse("0 32 64 1").unwrap().wire(),"0 32 64 1 0");
         assert!(crate::generator::Config::parse("16 127 96 1 0 128 64 64 64 64 64").is_none());
         let mut engine=fixture();start(&mut engine);
-        for message in ["gcloud 16 0 0 0 127","gcloud 2 128 0 0 127","gcloud 2 0 -1 0 127","gcloud 2 0 0 0 128"]{assert!(!engine.cloud_touch(message));}
+        for message in ["gcloud 16 0 0 0 127","gcloud 2 128 0 0 127","gcloud 2 0 -1 0 127","gcloud 2 0 0 0 128","gcloud 2 0 0 0 127 2","gcloud 2 0 0 0 127 1 0"]{assert!(!engine.cloud_touch(message));}
         for contact in 0..32 {engine.cloud_touch(&format!("gcloud 2 {contact} 64 64 127"));}
         assert_eq!(engine.clouds[2].contacts.len(),crate::cloud::MAX_CONTACTS);
         let before=engine.undo_snapshot();for _ in 0..10 {engine.cloud_view(2);}assert_eq!(engine.undo_snapshot(),before);
@@ -85,8 +102,8 @@
         let before=engine.undo_snapshot();let original=engine.tracks[2].clips[0].cloud_points.clone();
         command(&mut engine,"gpreview 2 0");engine.play();let mut heard=trace(&mut engine,192);engine.toggle_record(2);
         for step in 8..32 {
-            if (12..16).contains(&step){command(&mut engine,"gcloud 2 1 127 120 127");}
-            else {command(&mut engine,"gcloud 2 1 127 120 0");}
+            if (12..16).contains(&step){command(&mut engine,"gcloud 2 1 80 120 127 1");}
+            else {command(&mut engine,"gcloud 2 1 80 120 0 1");}
             heard.extend(trace(&mut engine,24).into_iter().map(|(tick,pitch,vel,on)|(tick+step*24,pitch,vel,on)));
         }
         engine.toggle_record(2);engine.stop(&mut Vec::new());

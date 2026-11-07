@@ -13,10 +13,11 @@ impl Engine {
             if let Ok(track)=clear[1].parse::<usize>() {if track<NUM_TRACKS {self.clouds[track]=crate::cloud::Runtime{field:true,..Default::default()};return true;}}return false;
         }
         let fields:Vec<u32>=message.split_whitespace().skip(1).map(str::parse).collect::<Result<_,_>>().unwrap_or_default();
-        if fields.len()!=5||fields[0]>=NUM_TRACKS as u32||fields[1]>127||fields[2..].iter().any(|value|*value>127){return false;}
+        if !matches!(fields.len(),5|6)||fields[0]>=NUM_TRACKS as u32||fields[1]>127||fields[2..].iter().any(|value|*value>127){return false;}
+        let Some(activity)=crate::cloud::Activity::parse(*fields.get(5).unwrap_or(&0)) else{return false;};
         let track=fields[0] as usize;
         if !self.generator_explore[track].is_some_and(|state|state.current.is_cloud()){return false;}
-        self.clouds[track].touch(fields[1] as u8,fields[2] as u8,fields[3] as u8,fields[4] as u8,self.master_tick,self.frame_now)
+        self.clouds[track].touch(fields[1] as u8,fields[2] as u8,fields[3] as u8,fields[4] as u8,activity,self.master_tick,self.frame_now)
     }
     fn cloud_capture(&mut self,track:usize,slot:usize,pos:u32) {
         let Some(state)=self.generator_explore[track].filter(|state|state.current.is_cloud()) else{return;};

@@ -1,3 +1,7 @@
+## Cloud probability and rate axes (hbclean.324)
+
+Cloud X/Y knob 5 selects Probability or Rate. Rate strokes move from half notes up to the Rate knob's fastest subdivision, with dotted subdivisions in between. Both behaviors work with flipped axes, pads and touch, and each recorded point retains its interpretation through replay, saved recipes and Bake. Loop still starts/stops Explore. See [Follower cloud](docs/follower-cloud.md).
+
 ## Follower cloud (hbclean.323)
 
 Draw harmony-following cloud patterns with multitouch, the Move/Launchpad pads, or two X/Y knobs with bounded or wrapping edges. The native display, pads, Schwung Tool remote page and standalone workspace share the same source and trail semantics. Ordinary Record captures gestures and eight controls; saved recipes, Undo and Bake reuse the existing clip path. See [Follower cloud](docs/follower-cloud.md).
