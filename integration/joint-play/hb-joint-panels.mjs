@@ -155,7 +155,7 @@ const sourceRoutes=new Map();
 globalThis.host_module_get_param=key=>key.startsWith('source_route_')?(sourceRoutes.get(Number(key.slice(13)))??`${key.slice(13)} 0 -1 -1 -1 -1 0`):nativeGet(key);
 globalThis.host_module_set_param_blocking=(key,value,timeout)=>{
  if(key==='cmd')for(const command of value.split(';'))if(command.startsWith('source ')){
-  const fields=command.slice(7).split(' ').map(Number);assert.equal(fields.length,22);sourceRoutes.set(fields[0],fields.join(' '));
+  const fields=command.slice(7).split(' ').map(Number);assert.equal(fields.length,23);sourceRoutes.set(fields[0],fields.join(' '));
  }
  return nativeSet?.(key,value,timeout);
 };
@@ -185,6 +185,12 @@ for(const group of [0,3]){
  assert.equal(sourceRoutes.get(actor)?.split(' ')[21],'36','Kick is an actual raw note, not an enum index');
  page.knobTurn(6,4);flush(page);
  assert.equal(sourceRoutes.get(actor)?.split(' ')[21],'38','Snare follows Kick');
+ assert.equal(page.keyAt(7),'joint_source_3_rhythm_amount');
+ assert.equal(page.performanceGet('joint_source_3_rhythm_amount'),'100');
+ page.knobTurn(7,-4);flush(page);
+ const followAmount=Number(sourceRoutes.get(actor)?.split(' ')[22]);
+ assert(followAmount>=0&&followAmount<100,'knob 8 reduces Follow Amount');
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[21],'38','amount edits preserve the selected lane');
  const expressionPage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_source_3_expression_alignment'));
  assert(expressionPage>=0);page.goToPage(expressionPage);flush(page);
  assert.equal(page.keyAt(0),'joint_source_3_expression_track');
@@ -197,6 +203,7 @@ for(const group of [0,3]){
  assert.equal(sourceRoutes.get(actor)?.split(' ')[19],'1','Expression Fit is independent');
  assert.equal(sourceRoutes.get(actor)?.split(' ')[6],'1','Pitch alignment retained');
  assert.equal(sourceRoutes.get(actor)?.split(' ')[21],'38','Expression edits preserve the rhythm filter');
+ assert.equal(Number(sourceRoutes.get(actor)?.split(' ')[22]),followAmount,'Expression edits preserve Follow Amount');
  const automationPage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_source_3_instrument_track'));
  assert(automationPage>=0);page.goToPage(automationPage);flush(page);
  page.knobTurn(0,4);flush(page);
@@ -230,6 +237,7 @@ for(const group of [0,3]){
  sourceRoutes.set(actor,`${actor} 0 -1 -1 -1 -1 0`);flush(page);
  assert.equal(page.performanceGet('joint_source_3_pitch_track'),'Own','external state edits read back');
  assert.equal(page.performanceGet('joint_source_3_rhythm_pitch'),'All','legacy routes keep all lanes');
+ assert.equal(page.performanceGet('joint_source_3_rhythm_amount'),'100','legacy routes follow fully');
  const encoded=[actor,1,-1,-1,0,0,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,0,127];
  sourceRoutes.set(actor,encoded.join(' '));flush(page);
  assert.equal(page.performanceGet('joint_source_3_rhythm_pitch'),'Note 127','custom kit lanes read back');
@@ -238,6 +246,10 @@ for(const group of [0,3]){
  page.ctl.revalue();flush(page);
  page.knobTurn(6,-4);flush(page);
  assert.equal(sourceRoutes.get(actor)?.split(' ')[21],'126','custom kit lanes edit by note');
+ sourceRoutes.set(actor,encoded.concat(0).join(' '));page.ctl.revalue();flush(page);
+ assert.equal(page.performanceGet('joint_source_3_rhythm_amount'),'0','external Own endpoint reads back');
+ page.knobTurn(7,4);flush(page);
+ assert(Number(sourceRoutes.get(actor)?.split(' ')[22])>0,'knob resumes from externally restored amount');
 }
 globalThis.host_module_get_param=nativeGet;globalThis.host_module_set_param_blocking=nativeSet;
 console.log('Source Weaving panels: actor selection, independent tracks/slots, enable/alignment and native readback pass');
@@ -296,6 +308,8 @@ for(const group of [0,3]){
  assert.equal(page.performanceGet('joint_preview_3_instrument'),'T5C2 50% fit');
  previewValue=JSON.stringify({schema:1,actor:group*4+3,enabled:true,playing:true,rhythm_pitch:36,sources:[null,{track:4,slot:0,active:true,phase_ticks:48,length_ticks:192}]});now+=101;
  assert.equal(page.performanceGet('joint_preview_3_rhythm'),'T5C1 n36 25%');
+ previewValue=JSON.stringify({schema:1,actor:group*4+3,enabled:true,playing:true,rhythm_pitch:36,rhythm_amount:50,sources:[null,{track:4,slot:0,active:true,phase_ticks:48,length_ticks:192}]});now+=101;
+ assert.equal(page.performanceGet('joint_preview_3_rhythm'),'T5C1 n36 50% follow 25%');
  previewValue='bad JSON';now+=101;
  assert.equal(page.performanceGet('joint_preview_3_notes'),'Unavailable','failure replaces old output');
  previewValue=null;now+=101;

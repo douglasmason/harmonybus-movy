@@ -913,7 +913,7 @@ index f040c14e..c04eb961 100644
 @@ -113,11 +117,12 @@ function panelPort(track:number):TrackPort {
          const sourceValue=sourcePanelGet(base,bare);if(sourceValue!==null)return key.endsWith(':modulated')?'0':sourceValue;
          const meta=jointParameters.find(parameter=>parameter.key===bare);
-         if(meta)return key.endsWith(':modulated')?'0':meta.options[jointPanelGet(base,bare)]??meta.options[0];
+         if(meta?.options)return key.endsWith(':modulated')?'0':meta.options[jointPanelGet(base,bare)]??meta.options[0];
 -        const value=native.getParam(key);
 +        const value=key.endsWith(':chain_params')&&chords?chords.getParam(key):native.getParam(key);
          if(key.endsWith(':chain_params')&&value){try{return JSON.stringify([...JSON.parse(value),...jointParameters,...overviewParameters,...sectionParameters,...actorParameters(JSON.parse(value))]);}catch(_){}}

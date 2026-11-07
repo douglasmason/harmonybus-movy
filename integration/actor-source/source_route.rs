@@ -31,12 +31,13 @@ pub fn fitted_phase(position:u32, actor_start:u32, actor_length:u32,
     let offset=position.saturating_sub(actor_start)%actor_length.max(1);
     source_start+(u64::from(offset)*u64::from(source_length)/u64::from(actor_length.max(1))) as u32
 }
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Route {
     pub enabled: bool,
     pub pitch: Option<ClipRef>,
     pub rhythm: Option<ClipRef>,
     pub rhythm_pitch: Option<u8>,
+    pub rhythm_amount: u8,
     pub alignment: Alignment,
     pub expression: Option<ClipRef>,
     pub expression_fit: bool,
@@ -47,7 +48,22 @@ pub struct Route {
     pub grid_holds: Option<ClipRef>,
     pub gestures: Option<ClipRef>,
 }
+impl Default for Route {
+    fn default()->Self {
+        Self {enabled:false,pitch:None,rhythm:None,rhythm_pitch:None,rhythm_amount:100,
+            alignment:Alignment::default(),expression:None,expression_fit:false,
+            instrument:None,instrument_fit:false,hb_render:None,note_ops:None,
+            grid_holds:None,gestures:None}
+    }
+}
 impl Route {
+    /// One repeatable choice for both raw sources at the actor's captured phase.
+    /// Complementary masks preserve coincident attacks without track-order
+    /// dependence, an event queue, a second scheduler or a shared RNG draw.
+    pub fn follows_rhythm(self,actor:usize,slot:usize,phase:u32)->bool {
+        self.rhythm_amount>=100 || (self.rhythm_amount>0 &&
+            crate::humanize::Humanize::seed(actor,slot,phase)%100<u32::from(self.rhythm_amount))
+    }
     /// A destination loop alone cannot prove the period of independent donors.
     /// Keep this conservative across donor stop/mute and recording fallback.
     pub fn has_independent_sources(self, actor:usize, slot:usize)->bool {
@@ -60,14 +76,16 @@ impl Route {
     /// `actor enabled pitch-track pitch-slot rhythm-track rhythm-slot alignment [expression-track expression-slot [instrument-track instrument-slot [hb-render-track hb-render-slot [note-ops-track note-ops-slot [grid-holds-track grid-holds-slot [gesture-track gesture-slot]]]]]]`.
     /// Optional fields 20/21 select expression/instrument Fit (0 Timeline, 1 Fit).
     /// Optional field 22 selects a raw rhythm note (0..127); -1 means all notes.
+    /// Optional field 23 blends Own (0) to the rhythm source (100, default).
     /// Pitch alignment: 0 Sequential, 1 Timeline, 2 Fit to Window.
     /// Legacy seven/nine/eleven/thirteen/fifteen/seventeen-field routes retain Own for omitted dimensions.
     /// A -1 track with -1 slot means that actor's own playing clip.
     pub fn parse(message: &str) -> Option<(usize, Self)> {
         let values: Vec<i32> = message.split_whitespace().map(str::parse).collect::<Result<_,_>>().ok()?;
-        if values.len()!=7 && values.len()!=9 && values.len()!=11 && values.len()!=13 && values.len()!=15 && values.len()!=17 && values.len()!=19 && values.len()!=20 && values.len()!=21 && values.len()!=22 {return None;}
+        if values.len()!=7 && values.len()!=9 && values.len()!=11 && values.len()!=13 && values.len()!=15 && values.len()!=17 && values.len()!=19 && values.len()!=20 && values.len()!=21 && values.len()!=22 && values.len()!=23 {return None;}
         if values.get(19).is_some_and(|value|!(0..=1).contains(value)) || values.get(20).is_some_and(|value|!(0..=1).contains(value)) {return None;}
         if values.get(21).is_some_and(|pitch|!(-1..=127).contains(pitch)) {return None;}
+        if values.get(22).is_some_and(|amount|!(0..=100).contains(amount)) {return None;}
         let [actor,enabled,pitch_track,pitch_slot,rhythm_track,rhythm_slot,timeline] = &values[..7] else { return None; };
         if !(0..NUM_TRACKS as i32).contains(actor) || !(0..=1).contains(enabled) || !(0..=2).contains(timeline) { return None; }
         fn reference(track: i32, slot: i32) -> Option<Option<ClipRef>> {
@@ -78,6 +96,7 @@ impl Route {
         Some((*actor as usize, Self { enabled:*enabled!=0,
             pitch:reference(*pitch_track,*pitch_slot)?, rhythm:reference(*rhythm_track,*rhythm_slot)?,
             rhythm_pitch:values.get(21).copied().filter(|pitch|*pitch>=0).map(|pitch|pitch as u8),
+            rhythm_amount:values.get(22).copied().unwrap_or(100) as u8,
             alignment:match timeline {0=>Alignment::Sequential,1=>Alignment::Timeline,_=>Alignment::FitWindow},
             expression:if values.len()>=9 {reference(values[7],values[8])?} else {None},
             expression_fit:values.get(19)==Some(&1),
@@ -99,9 +118,10 @@ impl Route {
         let gestures=self.gestures.map_or((-1,-1),|source|(source.track as i32,source.slot as i32));
         let mut message=format!("{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}",actor,self.enabled as u8,pitch.0,pitch.1,rhythm.0,rhythm.1,self.alignment as u8,expression.0,expression.1,instrument.0,instrument.1,hb_render.0,hb_render.1,note_ops.0,note_ops.1,grid_holds.0,grid_holds.1,gestures.0,gestures.1);
         // Preserve the older route encoding unless the new mode is selected.
-        if self.expression_fit || self.instrument_fit || self.rhythm_pitch.is_some() {message.push_str(if self.expression_fit {" 1"} else {" 0"});}
-        if self.instrument_fit || self.rhythm_pitch.is_some() {message.push_str(if self.instrument_fit {" 1"} else {" 0"});}
-        if let Some(pitch)=self.rhythm_pitch {message.push_str(&format!(" {pitch}"));}
+        if self.expression_fit || self.instrument_fit || self.rhythm_pitch.is_some() || self.rhythm_amount!=100 {message.push_str(if self.expression_fit {" 1"} else {" 0"});}
+        if self.instrument_fit || self.rhythm_pitch.is_some() || self.rhythm_amount!=100 {message.push_str(if self.instrument_fit {" 1"} else {" 0"});}
+        if self.rhythm_pitch.is_some() || self.rhythm_amount!=100 {message.push_str(&format!(" {}",self.rhythm_pitch.map_or(-1,i32::from)));}
+        if self.rhythm_amount!=100 {message.push_str(&format!(" {}",self.rhythm_amount));}
         message
     }
 }
