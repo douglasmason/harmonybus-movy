@@ -31,7 +31,8 @@ The filter matches the raw source note number, before pitch mapping or transpose
 It also works on the recorded generator rhythm sources introduced previously.
 It does not analyze outgoing MIDI or make temporary drum-fill gestures into new
 source events. Generated receivers and free generator auditions retain their
-previous source limitations; this change adds neither follow strength nor fills.
+previous source limitations. [Follow Amount](rhythm-follow-amount.md) now blends
+own and donor timing on knob 8; fills remain separate work.
 Recording a receiver still uses its Own material rather than flattening weaving.
 
 Implementation retains per-note gate durations in one bounded, stack-resident

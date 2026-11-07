@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.324",
-  "previous_version": "0.34.1-hbclean.323",
+  "version": "0.34.1-hbclean.325",
+  "previous_version": "0.34.1-hbclean.324",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.324 \u2014 Cloud probability and rate axes",
-  "notes": "docs/follower-cloud.md",
+  "title": "Movy 0.34.1-hbclean.325 \u2014 Adjustable rhythm following",
+  "notes": "docs/rhythm-follow-amount.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

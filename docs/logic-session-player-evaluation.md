@@ -22,6 +22,11 @@ drum clips can now supply independent kick/snare timing to different actors.
 The audit matrix below records the original baseline; adjustable affinity and
 generated receivers remain open, while its missing lane filter is implemented.
 
+A third follow-up adds [Follow Amount](rhythm-follow-amount.md): deterministic
+crossfading between Own and a selected donor rhythm on the existing Sources page.
+This is a useful subset of rank 1; accent affinity, protected motifs, Answer
+behavior and generated receivers remain distinct work rather than implied claims.
+
 This session implements a narrower prerequisite: remove unused automation-curve
 reads from recorded generator playback. It changes neither the musical model nor
 controls. Larger additions below remain proposals.

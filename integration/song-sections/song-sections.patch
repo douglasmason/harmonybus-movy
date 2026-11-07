@@ -919,7 +919,7 @@ index 434a0409..5ebfa402 100644
          const variationValue=variationPanelGet(base,bare);if(variationValue!==null)return key.endsWith(':modulated')?'0':variationValue;
          const sourceValue=sourcePanelGet(base,bare);if(sourceValue!==null)return key.endsWith(':modulated')?'0':sourceValue;
          const meta=jointParameters.find(parameter=>parameter.key===bare);
-         if(meta)return key.endsWith(':modulated')?'0':meta.options[jointPanelGet(base,bare)]??meta.options[0];
+         if(meta?.options)return key.endsWith(':modulated')?'0':meta.options[jointPanelGet(base,bare)]??meta.options[0];
          const value=native.getParam(key);
 -        if(key.endsWith(':chain_params')&&value){try{return JSON.stringify([...JSON.parse(value),...jointParameters,...overviewParameters,...actorParameters(JSON.parse(value))]);}catch(_){}}
 +        if(key.endsWith(':chain_params')&&value){try{return JSON.stringify([...JSON.parse(value),...jointParameters,...overviewParameters,...sectionParameters,...actorParameters(JSON.parse(value))]);}catch(_){}}

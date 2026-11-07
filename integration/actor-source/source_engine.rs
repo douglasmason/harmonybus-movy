@@ -22,7 +22,7 @@ impl Engine {
                 write!(&mut text,"{{\"track\":{},\"slot\":{},\"active\":{},\"phase_ticks\":{},\"selection_phase_ticks\":{},\"length_ticks\":{}}}",reference.track,reference.slot,active,phase,selected,clip.length_ticks()).unwrap();
             } else {text.push_str("null");}
         }
-        write!(&mut text,"],\"rhythm_pitch\":{},\"notes\":[",route.rhythm_pitch.map_or(-1,i32::from)).unwrap();
+        write!(&mut text,"],\"rhythm_pitch\":{},\"rhythm_amount\":{},\"notes\":[",route.rhythm_pitch.map_or(-1,i32::from),route.rhythm_amount).unwrap();
         let mut count=0;
         let mut pitches=[false;128];let mut gates=0;
         for gate in &self.gates {if gate.track as usize==actor {pitches[gate.pitch as usize]=true;gates+=1;}}
@@ -54,7 +54,7 @@ impl Engine {
                     write!(&mut text,"{{\"track\":{},\"slot\":{},\"active\":{},\"phase_ticks\":{},\"length_ticks\":{},\"speed_num\":{},\"speed_den\":{}}}",reference.track,reference.slot,active,track.pos_tick.saturating_sub(clip.loop_start_ticks()),clip.length_ticks(),clip.scale_num,clip.scale_den).unwrap();
                 } else {text.push_str("null");}
             }
-            write!(&mut text,"],\"rhythm_pitch\":{}}}",route.rhythm_pitch.map_or(-1,i32::from)).unwrap();
+            write!(&mut text,"],\"rhythm_pitch\":{},\"rhythm_amount\":{}}}",route.rhythm_pitch.map_or(-1,i32::from),route.rhythm_amount).unwrap();
         }
         text.push_str("]}");text
     }
@@ -98,10 +98,17 @@ impl Engine {
             let Some(actor_slot)=self.tracks[actor].playing_slot else {continue;};
             if !self.tracks[actor].clips[actor_slot].exists() {continue;}
             let own=ClipRef{track:actor,slot:actor_slot};
-            if route.rhythm.unwrap_or(own)!= (ClipRef{track:rhythm_track,slot:rhythm_slot}) {continue;}
+            let incoming=ClipRef{track:rhythm_track,slot:rhythm_slot};
+            let configured=route.rhythm.unwrap_or(own);
+            if incoming!=configured && incoming!=own {continue;}
+            let phase=self.source_positions[actor].saturating_sub(self.tracks[actor].clips[actor_slot].loop_start_ticks());
+            let following=configured==own || route.follows_rhythm(actor,actor_slot,phase);
+            if incoming!=if following {configured}else{own} {continue;}
             // Rejected lanes are rests: do not consume the pitch sequence or
             // apply another actor's controls until a matching onset arrives.
-            let Some(duration)=rhythm.duration(route.rhythm_pitch) else {continue;};
+            // The lane filter belongs to the selected donor, not the actor's
+            // complementary own rhythm. Own-source routes retain legacy filtering.
+            let Some(duration)=rhythm.duration(if following {route.rhythm_pitch}else{None}) else {continue;};
             // A donor can run before its destination in the track loop. Resolve
             // destination controls first, without advancing its clock or replaying
             // an actor that already ran (and may now point at the next tick).

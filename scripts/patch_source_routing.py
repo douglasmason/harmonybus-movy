@@ -97,6 +97,7 @@ impl Engine {
     if tests.exists():
         source += '\n' + tests.read_text()
     source += '\n' + (assets / 'source_rhythm_lane_tests.rs').read_text()
+    source += '\n' + (assets / 'source_rhythm_amount_tests.rs').read_text()
     source += '\n' + (assets / 'source_expression_fit_tests.rs').read_text()
     source += '\n' + (assets / 'source_instrument_tests.rs').read_text()
     source += '\n' + (assets / 'source_instrument_fit_tests.rs').read_text()
@@ -166,7 +167,7 @@ impl Engine {
     source = replace_once(source, 'export const jointParameters=[...setup,...recording,...participation,...display];', 'export const jointParameters=[...setup,...recording,...participation,...display,...sourceParameters];')
     source = replace_once(source, "        root.params.push({level:'joint_rhythm_'+role});", '''        const sourceLevel='joint_sources_'+role;
         const allSourceKeys=sourceKeys(role);
-        const routeKeys=[...allSourceKeys.slice(0,6),allSourceKeys[20]];
+        const routeKeys=[...allSourceKeys.slice(0,6),allSourceKeys[20],allSourceKeys[21]];
         const automationKeys=[...allSourceKeys.slice(8,12),allSourceKeys[19]];
         const gestureKeys=allSourceKeys.slice(16,18);
         const expressionKeys=[...allSourceKeys.slice(6,8),allSourceKeys[18]];
@@ -196,6 +197,10 @@ impl Engine {
         const meta=jointParameters.find(parameter=>parameter.key===bare);''', 1)
     # The get/set metadata lookup appears twice; use the setter's unique anchor.
     source = replace_once(source, "        const bare=key.split(':').pop()??'';", "        const bare=key.split(':').pop()??'';\n        if(overviewKey(bare))return true;\n        if(sourcePanelSet(base,bare,value))return true;")
+    # Native source controls are handled above; the older generic fallback is
+    # enum-only and must not assume every new parameter has an options array.
+    source = replace_once(source, "if(meta)return key.endsWith(':modulated')", "if(meta?.options)return key.endsWith(':modulated')")
+    source = replace_once(source, 'if(meta){jointPanelSet(', 'if(meta?.options){jointPanelSet(')
     source = source.replace('return hierarchy;', 'return overviewHierarchy(hierarchy);')
     source = source.replace('...jointParameters,...actorParameters', '...jointParameters,...overviewParameters,...actorParameters')
     source = source.replace('export function resetJointPanels():void {', 'export function resetJointPanels():void {resetOverview();')

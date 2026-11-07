@@ -336,13 +336,14 @@ mod source_routing_tests {
     #[ignore = "isolated release-mode timing measurement, not a hardware audio assertion"]
     fn source_routing_benchmark() {
         use std::time::Instant;
-        for (enabled,alignment,expression_fit) in [(false,0,false),(true,0,false),(true,1,false),(true,2,false),(true,0,true)] {
+        for (enabled,alignment,expression_fit,amount) in [(false,0,false,100),(true,0,false,100),(true,1,false,100),(true,2,false,100),(true,0,true,100),(true,0,false,50),(true,0,false,0)] {
             let mut engine=setup();engine.source_route_set(&format!("3 {} 1 0 2 0 {alignment}",enabled as u8));
+            engine.source_routes[3].rhythm_amount=amount;
             if expression_fit {engine.source_routes[3].expression=Some(crate::source_route::ClipRef{track:1,slot:0});engine.source_routes[3].expression_fit=true;}
             let mut output=Vec::with_capacity(4096);
             let started=Instant::now();let mut count=0usize;
             for _ in 0..100_000 {engine.advance_block(250,&mut output);count+=output.len();output.clear();}
-            println!("source-routing enabled={enabled} alignment={alignment} expression_fit={expression_fit} ticks=100000 events={count} elapsed_us={}",started.elapsed().as_micros());
+            println!("source-routing enabled={enabled} alignment={alignment} expression_fit={expression_fit} amount={amount} ticks=100000 events={count} elapsed_us={}",started.elapsed().as_micros());
         }
     }
 

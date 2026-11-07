@@ -134,7 +134,7 @@ mod source_rhythm_lane_tests {
             assert_eq!(restored.source_routes[3],route);
             let message=route.message(3);assert_eq!(message.split_whitespace().count(),22);
             let prefix=message.rsplit_once(' ').unwrap().0;
-            for suffix in ["-2","128","1.5","36 38"] {
+            for suffix in ["-2","128","1.5","36 101"] {
                 assert!(!engine.source_route_set(&format!("{prefix} {suffix}")));assert_eq!(engine.source_routes[3],route);
             }
             assert!(engine.source_preview(3).unwrap().contains("\"rhythm_pitch\":38"));

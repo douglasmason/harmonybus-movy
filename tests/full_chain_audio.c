@@ -323,6 +323,15 @@ static void test_source_weaving(void){
         assert(energy>0&&sent_on==(selected<0?3:2)&&sent_off==sent_on&&rendered_mask==((1u<<0)|(1u<<4)));
     }
     puts("Rhythm lane filter: mixed drum clip All/Kick/Snare, destination expression, PCM and paired releases pass");
+    /* Crossfade raw rhythms, preserving common hits exactly once. */
+    for(int amount=0;amount<=100;amount+=50){
+        set("state","movy1\nbpm 12000\nlink 0\ntk 4 0 0\ntk 3 0 0\ncl 4 0 16 0 0:24:36:100:0;24:24:36:100:1;96:24:36:100:4;144:24:36:100:6;48:96:38:100:2\ncl 3 0 16 0 0:12:60:81:0;48:12:62:81:2;96:12:64:81:4;192:12:65:81:8\n");
+        snprintf(parameter,sizeof(parameter),"source 3 1 -1 -1 4 0 0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 0 0 36 %d",amount);set("cmd",parameter);
+        render(16);sent_on=sent_off=0;rendered_mask=0;source_velocity_check=81;
+        set("cmd","play");energy=render(600);set("cmd","stop");render(32);source_velocity_check=0;
+        assert(energy>0&&sent_on==(amount==50?5:4)&&sent_off==sent_on&&rendered_mask==((1u<<0)|(1u<<2)|(1u<<4)|(1u<<5)));
+    }
+    puts("Rhythm follow amount: Own/50/100, destination expression, PCM and balanced releases pass");
     /* A recorded recipe donates accepted rhythm directly: no materialized
        donor notes, and the receiving actor keeps its own pitch/velocity. */
     for(int style=0;style<=4;style+=4){
