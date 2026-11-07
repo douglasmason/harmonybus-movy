@@ -4,7 +4,7 @@ const digest=value=>typeof value==='string'&&/^[a-f0-9]{40}$|^[a-f0-9]{64}$/.tes
 const protocol=value=>['http:','https:'].includes(value)?value:null;
 const reasons=new Set(['user','hidden','page-exit','engine-change','browser-failed','reconnect']);
 const codes=new Set(['browser-startup-failed','browser-engine-failed','browser-activation-failed','browser-ownership-ready','endpoint-rejected','pairing-key-invalid','mirror-connecting','mirror-screen','mirror-surface','mirror-heartbeat','mirror-unreachable','mirror-lost','mirror-timeout','mirror-invalid','mirror-closed','transport-connecting','transport-ready','transport-requested','transport-sent','transport-rejected','transport-unreachable','transport-lost','transport-timeout','transport-invalid','transport-closed']);
-export function createMoveDiagnostics({build={},pageProtocol,secureContext,eventSourceAvailable,webSocketAvailable,now=()=>performance.now(),date=()=>new Date()}={}){
+export function createMoveDiagnostics({build={},startupEngine='browser',pageProtocol,secureContext,eventSourceAvailable,webSocketAvailable,now=()=>performance.now(),date=()=>new Date()}={}){
  const started=now();let attempt=0,attemptAt=null,lastFrameAt=null,events=[],endpointProtocol=null;
  let metadata={state:'not-checked'},mirror,transport,ownerFailure=null;
  function clearAttempt(){
@@ -48,7 +48,7 @@ export function createMoveDiagnostics({build={},pageProtocol,secureContext,event
   snapshot(){return {
    schema:1,type:'hb-movy-connection-report',capturedAt:date().toISOString(),
    build:{integrationVersion:version(build.engineSource?.integrationVersion),hostCommit:digest(build.hostSource?.commit),engineCommit:digest(build.engineSource?.commit),sourceTree:digest(build.hostSource?.tree),wasmSha256:digest(build.wasmSha256),harmonyBusVersion:version(build.harmonyBus?.version)},
-   environment:{pageProtocol:protocol(pageProtocol),secureContext:secureContext===true,eventSourceAvailable:eventSourceAvailable===true,webSocketAvailable:webSocketAvailable===true},
+   environment:{startupEngine:startupEngine==='move'?'move':'browser',pageProtocol:protocol(pageProtocol),secureContext:secureContext===true,eventSourceAvailable:eventSourceAvailable===true,webSocketAvailable:webSocketAvailable===true},
    endpointProtocol,ownerFailure,attempt,elapsedMs:elapsed(attemptAt),lastScreenAgeMs:elapsed(lastFrameAt),
    metadata:{...metadata},mirror:{...mirror},transport:{...transport,requests:{...transport.requests},sent:{...transport.sent}},events:events.map(item=>({...item})),
    limits:{hostVersion:null,deviceExecutionConfirmed:false,semanticStateAvailable:false,physicalAcceptanceVerified:false},

@@ -25,7 +25,7 @@ export function startCompanion(args,siteRoot){
  const server=createDeviceServer({siteRoot,moveAddress:options.move,origin:options.origin,pairingKey});
  server.once('error',error=>{console.error('Companion could not start: '+error.message);process.exitCode=1;});
  server.listen(options.port,options.host,()=>{
-  console.log(`Open ${options.origin}/move/ on ${options.host==='127.0.0.1'?'this computer':'your iPad on the same trusted LAN'}.\nSelect Engine → Move, enter ${options.origin}.`);
+  console.log(`Open ${options.origin}/move/?engine=move on ${options.host==='127.0.0.1'?'this computer':'your iPad on the same trusted LAN'}.\nMove mode opens without loading Browser studio. The companion address fills automatically; click Connect explicitly.\nSelect Engine → Browser to open the studio separately.`);
   if(pairingKey)console.log(`Pairing key: ${pairingKey}\nFor Play/Stop, check paired Play/Stop, paste this key, then Connect. Requires Movy's safe-state capability (hbclean.320+).\nKeep the key private; enter it again to reconnect. Restarting generates a new key. Plain LAN HTTP does not encrypt it.`);
   else console.log('Read-only screen/LED mirror. Click Connect. Add --enable-transport at launch to opt in to paired Play/Stop.');
   console.log('No device software or session transfer. Ctrl+C stops the companion.\nPlain LAN HTTP may not support browser audio. Use the hosted HTTPS trial for Browser mode.');

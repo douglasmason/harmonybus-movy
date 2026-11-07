@@ -243,25 +243,27 @@ try{
  const originalPage=page,context=page.context();
  const readSaved=()=>new Promise((resolve,reject)=>{const request=indexedDB.open('harmonybus-browser',1);request.onerror=()=>reject(request.error);request.onsuccess=()=>{const database=request.result,query=database.transaction('sessions').objectStore('sessions').get('move');query.onerror=()=>reject(query.error);query.onsuccess=()=>{resolve(JSON.stringify(query.result));database.close();};};});
  const savedBeforeFailure=await page.evaluate(readSaved);assert(savedBeforeFailure);
- for(const scenario of ['wasm','audio','worker']){
+ for(const scenario of ['direct','wasm','audio','worker']){
   page=await context.newPage();const startupErrors=[];page.on('pageerror',error=>startupErrors.push(error.message));
+  const engineRequests=[];page.on('request',request=>{if(new URL(request.url()).pathname.startsWith('/wasm/'))engineRequests.push(request.url());});
   await page.addInitScript(failure=>{
-   const NativeWorker=window.Worker;window.testWorkerTerminations=0;window.testSessionOpens=0;
+   const NativeWorker=window.Worker;window.testWorkerStarts=0;window.testWorkerTerminations=0;window.testSessionOpens=0;
    const open=indexedDB.open.bind(indexedDB);indexedDB.open=(...args)=>{window.testSessionOpens++;return open(...args);};
    window.Worker=class extends NativeWorker{
-    constructor(...args){if(failure==='worker')throw new Error('Worker unavailable fixture');super(...args);}
+    constructor(...args){if(failure==='worker')throw new Error('Worker unavailable fixture');super(...args);window.testWorkerStarts++;}
     terminate(){window.testWorkerTerminations++;super.terminate();}
    };
   },scenario);
   if(scenario==='wasm')await page.route('**/engine.wasm',route=>route.fulfill({status:503,body:'Engine fixture unavailable'}));
   if(scenario==='audio')await page.route('**/pcm-worklet.mjs',route=>route.fulfill({status:404,body:'Audio fixture unavailable'}));
   const before={connections,commands:commands.length,metadataRequests};
-  await page.goto(origin+'/move/');await page.waitForFunction(()=>!document.querySelector('#engine').disabled);
+  await page.goto(origin+'/move/'+(scenario==='direct'?'?engine=move&view=field':''));await page.waitForFunction(()=>!document.querySelector('#engine').disabled);
   await page.waitForFunction(expected=>document.querySelector('#move-address').value===expected,origin);
   assert.equal(await page.locator('#engine').inputValue(),'move');
-  assert.equal(await page.locator('#engine option[value=browser]').evaluate(option=>option.disabled),true);
-  assert.match(await page.locator('#error').textContent(),/Move connections remain available/);
-  assert.equal(await page.evaluate(()=>window.testWorkerTerminations),scenario==='worker'?0:1);
+  assert.equal(await page.locator('#engine option[value=browser]').evaluate(option=>option.disabled),scenario!=='direct');
+  if(scenario==='direct')assert.equal(await page.locator('#error').textContent(),'');
+  else assert.match(await page.locator('#error').textContent(),/Move connections remain available/);
+  assert.equal(await page.evaluate(()=>window.testWorkerTerminations),['direct','worker'].includes(scenario)?0:1);
   assert.equal(await page.evaluate(()=>window.testSessionOpens),0,'recovery does not open browser storage');
   assert.deepEqual({connections,commands:commands.length,metadataRequests},before,'recovery never contacts Move automatically');
   assert(await page.getByRole('button',{name:'Pad 1',exact:true}).isDisabled());
@@ -270,9 +272,10 @@ try{
   await page.locator('#display-size').selectOption('384');
   assert.equal(await page.evaluate(()=>document.documentElement.style.getPropertyValue('--display-width')),'384px','display sizing remains available without the browser engine');
   await page.locator('#move-address').dispatchEvent('input');
-  const failedReport=await downloadReport();assert.equal(failedReport.ownerFailure,'browser-startup-failed');
+  const expectedFailure=scenario==='direct'?null:'browser-startup-failed';
+  const failedReport=await downloadReport();assert.equal(failedReport.ownerFailure,expectedFailure);assert.equal(failedReport.environment.startupEngine,scenario==='direct'?'move':'browser');
   await page.locator('#move-check').click();await page.locator('#move-capabilities').filter({hasText:'Paired Play/Stop eligible'}).waitFor();
-  if(scenario==='audio'){
+  if(['direct','audio'].includes(scenario)){
    physicalFixture.request('set','cmd','bpm 12000');
    await page.locator('#move-transport-enabled').check();await page.locator('#move-pairing-key').fill(pairingKey);
   }
@@ -280,17 +283,44 @@ try{
   // Connection readiness precedes the surface's next animation-frame paint.
   await page.waitForFunction(()=>document.querySelector('#hero').getContext('2d').getImageData(0,0,1,1).data[0]===255&&document.querySelector('[aria-label="Pad 1"]').dataset.deviceHeld==='true');
   assert.equal(await page.locator('#hero').evaluate(canvas=>canvas.getContext('2d').getImageData(0,0,1,1).data[0]),255);
-  if(scenario==='audio'){
+  if(['direct','audio'].includes(scenario)){
    await page.waitForFunction(()=>!document.querySelector('[data-move-transport=play]').disabled);
    await page.locator('[data-move-transport=play]').click();await page.waitForFunction(()=>document.querySelector('#move-transport-status').textContent.includes('Play request sent'));
    assert.match(physicalFixture.request('get','status').value,/play=1/);
    await page.locator('[data-move-transport=stop]').click();await page.waitForFunction(()=>document.querySelector('#move-transport-status').textContent.includes('Stop request sent'));
    assert.match(physicalFixture.request('get','status').value,/play=0/);
   }
-  const recoveredReport=await downloadReport();assert.equal(recoveredReport.ownerFailure,'browser-startup-failed');assert(recoveredReport.mirror.screenFrames>0);
-  await page.locator('#move-disconnect').click();assert.equal(await page.evaluate(readSaved),savedBeforeFailure,'recovery preserves the saved browser session byte for byte');
+  const recoveredReport=await downloadReport();assert.equal(recoveredReport.ownerFailure,expectedFailure);assert(recoveredReport.mirror.screenFrames>0);
+  if(scenario==='direct'){
+   assert.deepEqual(engineRequests,[],'direct Move mode downloads no browser engine or audio assets');
+   assert.equal(await page.evaluate(()=>window.testWorkerStarts),0);assert.equal(await page.evaluate(()=>window.testSessionOpens),0);
+   assert(!(await page.locator('#move-direct').isVisible()));
+   const commandsBeforeBrowser=commands.length;
+   await page.locator('#engine').selectOption('browser');await page.waitForURL('**/move/?view=field');
+   await page.waitForFunction(()=>!document.querySelector('#engine').disabled&&document.querySelector('#session-status').textContent.includes('restored'));
+   assert.equal(await page.locator('#engine').inputValue(),'browser');
+   assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),savedState,'explicit Browser entry restores the original studio session');
+   assert.equal(await page.evaluate(()=>window.testWorkerStarts),1);
+   assert.equal(commands.length,commandsBeforeBrowser,'opening Browser never sends a device command');
+   assert(!(await page.locator('#move-direct').isVisible()),'a running browser session cannot be replaced by the startup shortcut');
+  }else await page.locator('#move-disconnect').click();
+  assert.equal(await page.evaluate(readSaved),savedBeforeFailure,'Move mode preserves the saved browser session byte for byte');
   assert.deepEqual(startupErrors,[]);await page.close();
  }
- page=originalPage;console.log('Startup recovery: failed WASM/audio/Worker creation, terminated owners, untouched browser storage, passive report, explicit mirror and real DSP paired transport pass');
+ // The static shortcut also escapes a Worker script that has not finished loading.
+ page=await context.newPage();let blockedWorker;
+ await page.route('**/joint-worker.mjs',route=>{blockedWorker=route;});
+ const beforeShortcut={connections,commands:commands.length,metadataRequests};
+ const workerRequested=page.waitForRequest('**/joint-worker.mjs');
+ await page.goto(origin+'/move/?view=field',{waitUntil:'domcontentloaded'});
+ await workerRequested;
+ await page.waitForFunction(()=>!document.querySelector('#move-direct').hidden&&document.querySelector('#engine').disabled);
+ await page.locator('#move-direct').click();await page.waitForURL('**/move/?view=field&engine=move');
+ await page.waitForFunction(()=>!document.querySelector('#engine').disabled);
+ assert.equal(await page.locator('#engine').inputValue(),'move');
+ assert.equal(await page.locator('#error').textContent(),'');
+ assert.deepEqual({connections,commands:commands.length,metadataRequests},beforeShortcut,'startup shortcut does not contact Move');
+ await blockedWorker?.abort().catch(()=>{});await page.close();
+ page=originalPage;console.log('Move entry/recovery: no synth assets or Worker in direct mode, untouched browser storage, explicit Browser restore, startup shortcut, failed WASM/audio/Worker creation, passive report and real DSP paired transport pass');
 }catch(error){if(page)console.error(await page.locator('#error').textContent(),await page.locator('#engine-status').textContent());throw error;}
 finally{await browser.close();for(const socket of moveWS.clients)socket.terminate();moveWS.close();physicalFixture.dispose();for(const client of clients)client.destroy();site.closeAllConnections();move.closeAllConnections();await Promise.all([new Promise(resolve=>site.close(resolve)),new Promise(resolve=>move.close(resolve))]);}
