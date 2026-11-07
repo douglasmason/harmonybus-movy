@@ -10,19 +10,20 @@ export function mountCloud({root,api}){
  </style><div class="cloud-toolbar"><strong>Follower cloud</strong><select aria-label="Follower actor" data-actor><option>Melody</option><option>Comp</option><option>Bass</option></select><button data-action="choose">Choose Cloud</button><button data-action="explore">Explore</button><button data-action="play">Play</button><button data-action="stop">Stop</button><button data-action="record">Record</button><button data-action="clear">Clear trail</button></div>
  <canvas aria-label="Multitouch cloud field. Horizontal movement changes rhythmic activity; vertical movement changes harmonic height."></canvas>
  <div class="cloud-legend"><span style="color:#00ff00">● Direct touch</span><span style="color:#31adff">● Fresh consequences</span><span style="color:#6060ff">● Fading trail</span><span data-axes-label>← Less probability · More probability → &nbsp; ↑ Higher notes</span></div>
+ <div class="cloud-toolbar"><label>Activity axis<select aria-label="Cloud field activity" data-activity><option>Probability</option><option>Rate</option></select></label><span class="cloud-legend" data-activity-help></span></div>
  <div class="cloud-controls">${['rate','density','length','register','spread','contour','variation','dynamics'].map(field=>`<label>${field[0].toUpperCase()+field.slice(1)} <output data-value="${field}">—</output><input aria-label="Cloud ${field}" data-control="${field}" type="range" min="0" max="127" value="64"></label>`).join('')}</div>
  <div class="cloud-toolbar"><strong>Draw with X / Y</strong><select aria-label="Cloud field axes" data-axes><option value="pitch-y">X Probability · Y Pitch</option><option value="pitch-x">X Pitch · Y Probability</option></select>${['x','y'].map(axis=>`<button data-draw="${axis}" data-delta="-1" aria-label="Draw ${axis} negative">${axis.toUpperCase()} −</button><button data-draw="${axis}" data-delta="1" aria-label="Draw ${axis} positive">${axis.toUpperCase()} +</button>`).join('')}<select aria-label="Cloud field boundary" data-edge><option>Bounded</option><option>Wrap</option></select><label>Seed<input aria-label="Cloud seed" data-seed type="number" min="1" max="65535" value="1"></label><button data-action="restore">Restore controls</button><button data-action="bake">Bake clip</button></div><p class="cloud-status" role="status">Waiting for the follower generator…</p>`;
  const canvas=root.querySelector('canvas'),context=canvas.getContext('2d'),status=root.querySelector('.cloud-status'),pointers=new Map();
  let suspended=false,requested=true,disposed=false,inFlight=false,state=null,snapshot=emptyCloud(),timer=null,lastHeartbeat=0,generation=0;
  const command=value=>{if(!suspended&&!disposed)api.send(value);};
  const coordinates=event=>{const bounds=canvas.getBoundingClientRect();return {x:Math.max(0,Math.min(127,Math.round((event.clientX-bounds.left)/bounds.width*127))),y:Math.max(0,Math.min(127,Math.round((1-(event.clientY-bounds.top)/bounds.height)*127))),pressure:Math.round((event.pointerType==='pen'?event.pressure||.75:.85)*127)};};
- function touch(pointer,pressure=pointer.pressure){command(`touch ${pointer.track} ${pointer.id} ${pointer.x} ${pointer.y} ${pressure}`);}
+ function touch(pointer,pressure=pointer.pressure){command(`touch ${pointer.track} ${pointer.id} ${pointer.x} ${pointer.y} ${pressure}${pointer.activity==='Rate'?' 1':''}`);}
  function release(){for(const pointer of pointers.values())touch(pointer,0);pointers.clear();}
  function finish(event){const pointer=pointers.get(event.pointerId);if(!pointer)return;touch(pointer,0);pointers.delete(event.pointerId);if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);paint();}
  canvas.onpointerdown=event=>{
   if(suspended||!state?.cloud||pointers.size>=16)return;event.preventDefault();
   const used=new Set([...pointers.values()].map(pointer=>pointer.id)),id=Array.from({length:16},(_,index)=>96+index).find(id=>!used.has(id));
-  const pointer={...coordinates(event),id,track:state.track,pending:false};pointers.set(event.pointerId,pointer);canvas.setPointerCapture(event.pointerId);touch(pointer);paint();
+  const pointer={...coordinates(event),id,track:state.track,activity:state.activity,pending:false};pointers.set(event.pointerId,pointer);canvas.setPointerCapture(event.pointerId);touch(pointer);paint();
  };
  canvas.onpointermove=event=>{const pointer=pointers.get(event.pointerId);if(!pointer)return;Object.assign(pointer,coordinates(event),{pending:true});paint();};
  canvas.onpointerup=finish;canvas.onpointercancel=finish;canvas.onlostpointercapture=finish;
@@ -30,6 +31,7 @@ export function mountCloud({root,api}){
  for(const button of root.querySelectorAll('[data-action]'))button.onclick=()=>{if(['stop','clear','choose'].includes(button.dataset.action))release();command(button.dataset.action);};
  for(const input of root.querySelectorAll('[data-control]'))input.oninput=()=>{root.querySelector(`[data-value="${input.dataset.control}"]`).textContent=input.value;command(`control cg_cloud_${input.dataset.control} ${input.value}`);};
  root.querySelector('[data-axes]').onchange=event=>{release();command('axes '+event.target.value);};
+ root.querySelector('[data-activity]').onchange=event=>{release();command('activity '+event.target.value);};
  root.querySelector('[data-edge]').onchange=event=>command('edge '+event.target.value);
  root.querySelector('[data-seed]').onchange=event=>command('control cg_seed '+event.target.value);
  for(const button of root.querySelectorAll('[data-draw]')){
@@ -59,11 +61,16 @@ export function mountCloud({root,api}){
    const result=await api.read();if(suspended||disposed||token!==generation)return;
    const next=typeof result.ui==='string'?JSON.parse(result.ui||'null'):result.ui;
    if(next&&Number.isInteger(next.track)&&Array.isArray(next.values)&&next.values.length===8){
-    if(state&&(state.track!==next.track||state.axes!==next.axes))release();state=next;
+    if(state&&(state.track!==next.track||state.axes!==next.axes||state.activity!==next.activity))release();state=next;
     const flipped=state.axes==='Pitch / Activity';
+    const rate=state.activity==='Rate',activity=rate?'Rate':'Probability',meaning=rate?'trigger rate':'trigger probability';
+    root.querySelector('[data-activity]').value=activity;
+    root.querySelector('[data-activity-help]').textContent=rate?'Drag from half notes up to the Rate control’s fastest subdivision. Existing strokes keep their behavior.':'Drag to change trigger probability. Rate sets the shared subdivision.';
+    const axisOptions=root.querySelector('[data-axes]').options;
+    axisOptions[0].textContent=`X ${activity} · Y Pitch`;axisOptions[1].textContent=`X Pitch · Y ${activity}`;
     root.querySelector('[data-axes]').value=flipped?'pitch-x':'pitch-y';
-    root.querySelector('[data-axes-label]').textContent=flipped?'← Lower notes · Higher notes →   ↑ More probability':'← Less probability · More probability →   ↑ Higher notes';
-    canvas.setAttribute('aria-label',flipped?'Multitouch cloud field. Horizontal movement changes harmonic height; vertical movement changes trigger probability.':'Multitouch cloud field. Horizontal movement changes trigger probability; vertical movement changes harmonic height.');
+    root.querySelector('[data-axes-label]').textContent=flipped?`← Lower notes · Higher notes →   ↑ ${rate?'Faster triggers':'More probability'}`:`← ${rate?'Slower':'Less probability'} · ${rate?'Faster triggers':'More probability'} →   ↑ Higher notes`;
+    canvas.setAttribute('aria-label',flipped?`Multitouch cloud field. Horizontal movement changes harmonic height; vertical movement changes ${meaning}.`:`Multitouch cloud field. Horizontal movement changes ${meaning}; vertical movement changes harmonic height.`);
     root.querySelector('[data-actor]').value=state.actor;root.querySelector('[data-edge]').value=state.edge;
     for(const input of root.querySelectorAll('[data-control]')){const value=state.values[fields.indexOf(input.dataset.control)];if(root.activeElement!==input)input.value=String(value);root.querySelector(`[data-value="${input.dataset.control}"]`).textContent=value;input.disabled=!state.cloud;}
     root.querySelector('[data-action="explore"]').textContent=state.explore==='Stop'?'Stop exploring':'Explore';
