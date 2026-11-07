@@ -26,7 +26,7 @@ cloud.cloudWrite('cg_edge','Wrap');cloud.cloudWrite('cg_x','127');cloud.cloudTur
 cloud.cloudWrite('cg_y','0');cloud.cloudTurn('cg_y',-2);assert.equal(cloud.cloudRead('cg_y'),'126');
 cloud.cloudWrite('cg_edge','Bounded');cloud.cloudTurn('cg_x',200);assert.equal(cloud.cloudRead('cg_x'),'127');
 page.goToPage(page.ctl.pages.findIndex(entry=>entry.level==='cp_cloud_field'));now+=200;chord.tickChord();
-assert.equal(page.keyAt(0),'cg_x');assert.equal(page.keyAt(1),'cg_y');assert.equal(page.keyAt(2),'cg_axes');assert.equal(page.keyAt(7),'cg_restore');
+assert.equal(page.keyAt(0),'cg_x');assert.equal(page.keyAt(1),'cg_y');assert.equal(page.keyAt(2),'cg_axes');assert.equal(page.keyAt(4),'cg_activity');assert.equal(page.keyAt(7),'cg_restore');
 cloud.cloudWrite('cg_edge','Wrap');chord.chordMidi([176,71,3]);assert.equal(cloud.cloudRead('cg_x'),'2','physical X encoder preserves wrapped overshoot');
 cloud.cloudWrite('cg_x','127');cloud.cloudWrite('cg_edge','Bounded');
 const settings={scope:'pitch',window:'infinite',windowBeats:4,curve:'linear',decayBeats:4,strength:1,peak:1,floor:0};
@@ -38,7 +38,13 @@ cloud.setCloudSurface(true);cloud.cloudWrite('cg_axes','Pitch / Activity');comma
 chord.chordMidi([144,75,110]);seqCmdFlush();assert(commands.includes('gcloud 2 7 0 127 110'),'wide physical X axis becomes semantic pitch');
 chord.chordMidi([128,75,0]);seqCmdFlush();assert(commands.includes('gcloud 2 7 0 127 0'));
 const axisSnapshot=view.readCloud('cf1|0,127,127||');assert.equal(view.cloudCells(axisSnapshot,8,4,settings,true)[7],126,'projection puts the sounding contact back on the touched pad');
-const saved=cloud.cloudSurfaceSnapshot();cloud.restoreCloudSurface(null);assert.equal(cloud.cloudRead('cg_axes'),'Activity / Pitch');cloud.restoreCloudSurface(saved);assert.equal(cloud.cloudRead('cg_axes'),'Pitch / Activity');
+assert.equal(cloud.cloudWrite('cg_activity','bogus'),false);assert.equal(cloud.cloudRead('cg_activity'),'Probability');
+chord.chordMidi([176,75,1]);assert.equal(cloud.cloudRead('cg_activity'),'Rate','fifth physical encoder selects the activity');commands=[];
+chord.chordMidi([144,75,110]);seqCmdFlush();assert(commands.includes('gcloud 2 7 0 127 110 1'),'pad uses the selected activity and flipped projection');
+cloud.cloudWrite('cg_activity','Probability');seqCmdFlush();assert(commands.includes('gcloud 2 7 0 127 0 1'),'changing activity releases old input before changing its interpretation');
+cloud.cloudWrite('cg_activity','Rate');cloud.cloudPad('launchpad',63,true,8,100);seqCmdFlush();assert(commands.includes('gcloud 2 95 127 127 100 1'));
+cloud.cloudWrite('cg_x','80');seqCmdFlush();assert(commands.includes('gcloud 2 112 126 80 100 1'));
+const saved=cloud.cloudSurfaceSnapshot();cloud.restoreCloudSurface(null);assert.equal(cloud.cloudRead('cg_axes'),'Activity / Pitch');assert.equal(cloud.cloudRead('cg_activity'),'Probability');cloud.restoreCloudSurface(saved);assert.equal(cloud.cloudRead('cg_axes'),'Pitch / Activity');assert.equal(cloud.cloudRead('cg_activity'),'Rate');
 cloud.setCloudSurface(false);
 globalThis.host_module_get_param=originalGet;globalThis.host_module_set_param_blocking=originalSet;
 console.log('Cloud: shared controls, multitouch, owned releases, X/Y wrap/clamp, reversible axis projection and trail palette pass');

@@ -36,7 +36,8 @@ try{
  assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),before,'live field leaves the saved Set untouched');
  await panel.getByRole('combobox',{name:'Cloud field axes'}).selectOption('pitch-x');
  await panel.getByRole('combobox',{name:'Cloud field boundary'}).selectOption('Wrap');
- await until(async()=>{const state=JSON.parse(await __wasmRead('cloud_ui_state'));return state.axes==='Pitch / Activity'&&state.edge==='Wrap';});
+ await panel.getByRole('combobox',{name:'Cloud field activity'}).selectOption('Rate');
+ await until(async()=>{const state=JSON.parse(await __wasmRead('cloud_ui_state'));return state.axes==='Pitch / Activity'&&state.edge==='Wrap'&&state.activity==='Rate';});
  await panel.getByRole('button',{name:'Record',exact:true}).click();
  await until(async()=>(await __wasmRead('status')).includes('rec=1'));
  await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:points});await page.waitForTimeout(700);
@@ -44,20 +45,22 @@ try{
  await until(async()=>(await __wasmRead('status')).includes('play=0'));
  const saved=await page.evaluate(()=>__wasmRead('persistent_state'));
  assert.match(saved,/cg1 3 0 18 /);assert.match(saved,/cp1 3 0 /);assert.match(saved,/generator:density/);
- const deposits=[...saved.matchAll(/^cp1 3 0 (-?\d+),(\d+),(\d+),(\d+)$/gm)].map(match=>match.slice(1).map(Number));
- assert(deposits.some(([,activity,pitch])=>Math.abs(pitch-108)<=1&&Math.abs(activity-89)<=1),'recorded field uses horizontal pitch and vertical probability');
+ const deposits=[...saved.matchAll(/^cp1 3 0 (-?\d+),(\d+),(\d+),(\d+),1$/gm)].map(match=>match.slice(1).map(Number));
+ assert(deposits.some(([,activity,pitch])=>Math.abs(pitch-108)<=1&&Math.abs(activity-89)<=1),'recorded field retains rate behavior with horizontal pitch and vertical rate');
  await panel.getByRole('combobox',{name:'Cloud field axes'}).selectOption('pitch-y');
- await until(async()=>JSON.parse(await __wasmRead('cloud_ui_state')).axes==='Activity / Pitch');
+ await panel.getByRole('combobox',{name:'Cloud field activity'}).selectOption('Probability');
+ await until(async()=>{const state=JSON.parse(await __wasmRead('cloud_ui_state'));return state.axes==='Activity / Pitch'&&state.activity==='Probability';});
  assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),saved,'changing projection cannot reinterpret the recorded musical gesture');
  await panel.getByRole('button',{name:'Play',exact:true}).click();
  await until(async()=>(await __wasmRead('cloud_view_3')).split('|')[3].length>0);
  await panel.getByRole('button',{name:'Stop',exact:true}).click();await until(async()=>(await __wasmRead('status')).includes('play=0'));
  await panel.getByRole('combobox',{name:'Cloud field axes'}).selectOption('pitch-x');
- await until(async()=>JSON.parse(await __wasmRead('cloud_ui_state')).axes==='Pitch / Activity');
+ await panel.getByRole('combobox',{name:'Cloud field activity'}).selectOption('Rate');
+ await until(async()=>{const state=JSON.parse(await __wasmRead('cloud_ui_state'));return state.axes==='Pitch / Activity'&&state.activity==='Rate';});
  await page.locator('#sessions').evaluate(element=>element.open=true);await page.locator('#session-save').click();
  await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('Saved'));
  await page.reload();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
- await until(async()=>{try{return JSON.parse(await __wasmRead('cloud_ui_state')).axes==='Pitch / Activity';}catch{return false;}});
+ await until(async()=>{try{const state=JSON.parse(await __wasmRead('cloud_ui_state'));return state.axes==='Pitch / Activity'&&state.activity==='Rate';}catch{return false;}});
  assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),saved);assert.deepEqual(errors,[]);
  console.log('Standalone cloud: real multitouch, reversible axes, temporary audition, Record/replay and saved projection preferences pass');
 }catch(error){if(page)console.error(await page.evaluate(async()=>({ui:await __wasmRead('cloud_ui_state'),status:await __wasmRead('status'),error:document.querySelector('#error')?.textContent})).catch(String));throw error;}

@@ -719,7 +719,7 @@ def main() -> int:
     patch_queue_handoff(root)
     for relative_path in ('engine/crates/movy-dsp/src/lib.rs', 'src/seq/constants.ts'):
         version_path = root / relative_path
-        version_path.write_text(version_path.read_text().replace('0.103.0-queue-handoff1', '0.105.0-cloud1'))
+        version_path.write_text(version_path.read_text().replace('0.103.0-queue-handoff1', '0.105.0-cloud2'))
     from patch_cloud_generator import patch_cloud_generator
     patch_cloud_generator(root)
     print("HarmonyBus clean integration applied")
