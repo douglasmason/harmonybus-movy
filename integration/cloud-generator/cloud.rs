@@ -2,6 +2,7 @@
 use crate::{clip::Note, follower_input::InputKey, generator::Config, TICKS_PER_STEP};
 pub const TAIL_STEPS:i32=16;
 pub const MAX_CONTACTS:usize=16;
+pub const MAX_STROKE_VERTICES:usize=8;
 pub const MAX_POINTS:usize=MAX_CONTACTS*(256+TAIL_STEPS as usize);
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub enum Activity {Probability,Rate}
@@ -20,36 +21,165 @@ impl Point {
 }
 #[derive(Clone,Copy,Debug)]
 pub struct Contact {pub id:u8,pub point:Point,pub refreshed:u64,pub frame:u64}
+/// A short polyline between clock samples, with no per-move heap allocation.
+#[derive(Clone,Debug)]
+pub struct Stroke {
+    pub contact:Contact,
+    vertices:[Point;MAX_STROKE_VERTICES],
+    count:usize,
+    open:bool,
+}
+impl Stroke {
+    fn new(contact:Contact,previous:Option<Point>)->Self {
+        let mut stroke=Self{contact,vertices:[previous.unwrap_or(contact.point);MAX_STROKE_VERTICES],count:1,open:true};
+        stroke.push(contact);
+        stroke
+    }
+    fn push(&mut self,contact:Contact) {
+        self.contact=contact;
+        let last=&mut self.vertices[self.count-1];
+        if (last.x,last.y)==(contact.point.x,contact.point.y) {*last=contact.point;return;}
+        if self.count==MAX_STROKE_VERTICES {
+            // Thin older vertices while preserving both ends and the latest turn.
+            self.vertices[1]=self.vertices[2];self.vertices[2]=self.vertices[4];
+            self.vertices[3]=self.vertices[6];self.vertices[4]=self.vertices[7];self.count=5;
+        }
+        self.vertices[self.count]=contact.point;self.count+=1;
+    }
+    fn distance(start:Point,end:Point)->u16 {u16::from(start.x.abs_diff(end.x).max(start.y.abs_diff(end.y)))}
+    fn interior(&self,index:usize)->Option<Point> {
+        let distance:u16=self.vertices[..self.count].windows(2).map(|pair|Self::distance(pair[0],pair[1])).sum();
+        let count=(usize::from(distance)/16).min(MAX_STROKE_VERTICES);
+        if index>=count {return None;}
+        let mut remaining=distance*index as u16/count as u16;
+        for pair in self.vertices[..self.count].windows(2) {
+            let length=Self::distance(pair[0],pair[1]);
+            if remaining<=length&&length>0 {
+                let interpolate=|start:u8,end:u8| (i32::from(start)+(i32::from(end)-i32::from(start))*i32::from(remaining)/i32::from(length)) as u8;
+                return Some(Point{step:0,x:interpolate(pair[0].x,pair[1].x),y:interpolate(pair[0].y,pair[1].y),pressure:interpolate(pair[0].pressure,pair[1].pressure),activity:self.contact.point.activity});
+            }
+            remaining=remaining.saturating_sub(length);
+        }
+        None
+    }
+}
 #[derive(Clone,Debug,Default)]
 pub struct Runtime {
-    pub contacts:Vec<Contact>,pub pending_touches:Vec<Contact>,pub points:Vec<Point>,pub field:bool,
+    pub contacts:Vec<Contact>,pub pending_touches:Vec<Stroke>,pub points:Vec<Point>,pub field:bool,
     pub view:Vec<Point>,pub grains:Vec<Point>,pub last_sample:Option<u64>,pub overridden:Vec<u16>,pub pending:Vec<(u8,Point)>,
 }
 impl Runtime {
     pub fn touch(&mut self,id:u8,x:u8,y:u8,pressure:u8,activity:Activity,tick:u64,frame:u64)->bool {
-        if let Some(index)=self.contacts.iter().position(|contact|contact.id==id){
-            if pressure==0 {self.contacts.remove(index);return true;}
-            self.contacts[index]=Contact{id,point:Point{step:0,x,y,pressure,activity},refreshed:tick,frame};
-        }else if pressure>0 {
-            if self.contacts.len()>=MAX_CONTACTS{return false;}
-            self.contacts.push(Contact{id,point:Point{step:0,x,y,pressure,activity},refreshed:tick,frame});
+        let held=self.contacts.iter().position(|contact|contact.id==id);
+        if pressure==0 {
+            if let Some(index)=held {self.contacts.remove(index);}
+            for stroke in &mut self.pending_touches {if stroke.contact.id==id {stroke.open=false;}}
+            return true;
         }
-        if pressure>0{
-            self.field=true;
-            let contact=Contact{id,point:Point{step:0,x,y,pressure,activity},refreshed:tick,frame};
-            if let Some(previous)=self.pending_touches.iter_mut().find(|previous|previous.id==id){*previous=contact;}
-            else if self.pending_touches.len()<MAX_CONTACTS {self.pending_touches.push(contact);}
-        } true
+        if held.is_none()&&self.contacts.len()>=MAX_CONTACTS {return false;}
+        let previous=held.map(|index|self.contacts[index]).filter(|contact|contact.point.activity==activity&&tick.saturating_sub(contact.refreshed)<192);
+        if previous.is_none() {for stroke in &mut self.pending_touches {if stroke.contact.id==id {stroke.open=false;}}}
+        let contact=Contact{id,point:Point{step:0,x,y,pressure,activity},refreshed:tick,frame};
+        if let Some(index)=held {self.contacts[index]=contact;}else{self.contacts.push(contact);}
+        self.field=true;
+        if let Some(stroke)=self.pending_touches.iter_mut().find(|stroke|stroke.open&&stroke.contact.id==id) {stroke.push(contact);}
+        else if self.pending_touches.len()<MAX_CONTACTS {self.pending_touches.push(Stroke::new(contact,previous.map(|contact|contact.point)));}
+        true
     }
     pub fn sample(&mut self,tick:u64) {
         let step=tick/TICKS_PER_STEP as u64;
         if self.last_sample==Some(step){return;}self.last_sample=Some(step);
         self.contacts.retain(|contact|tick.saturating_sub(contact.refreshed)<192);
+        self.pending_touches.retain(|stroke|tick.saturating_sub(stroke.contact.refreshed)<192);
         self.points.retain(|point|step.saturating_sub(point.step as u64)<TAIL_STEPS as u64);
+        let before=self.points.len();let mut selected=[false;MAX_CONTACTS];
         for contact in &self.contacts {self.points.push(Point{step:step as i32,..contact.point});}
-        let available=MAX_CONTACTS.saturating_sub(self.contacts.len());
-        for contact in self.pending_touches.iter().filter(|pending|!self.contacts.iter().any(|held|held.id==pending.id)).take(available){self.points.push(Point{step:step as i32,..contact.point});}
+        for (index,stroke) in self.pending_touches.iter().enumerate() {
+            if stroke.open&&self.contacts.iter().any(|held|held.id==stroke.contact.id) {selected[index]=true;}
+            else if self.points.len()-before<MAX_CONTACTS {
+                self.points.push(Point{step:step as i32,..stroke.contact.point});selected[index]=true;
+            }
+        }
+        // All held contacts and short-tap endpoints get priority. Remaining
+        // deposits are shared across paths; the existing 16/step cap stays fixed.
+        for sample in 0..MAX_STROKE_VERTICES {
+            for (index,stroke) in self.pending_touches.iter().enumerate() {
+                if self.points.len()-before>=MAX_CONTACTS {break;}
+                if selected[index] {if let Some(point)=stroke.interior(sample) {self.points.push(Point{step:step as i32,..point});}}
+            }
+        }
         self.pending_touches.clear();
+    }
+}
+#[cfg(test)]
+mod stroke_tests {
+    use super::*;
+    fn touch(runtime:&mut Runtime,id:u8,x:u8,y:u8,pressure:u8,tick:u64) {
+        assert!(runtime.touch(id,x,y,pressure,Activity::Rate,tick,tick*250));
+    }
+    #[test]
+    fn fast_corner_and_release_leave_a_polyline_not_a_diagonal() {
+        let mut runtime=Runtime::default();
+        touch(&mut runtime,96,0,0,80,0);touch(&mut runtime,96,127,0,100,0);
+        touch(&mut runtime,96,127,127,120,0);touch(&mut runtime,96,127,127,0,0);
+        runtime.sample(0);
+        assert!(runtime.contacts.is_empty());assert!(runtime.pending_touches.is_empty());
+        assert!(runtime.points.len()>3&&runtime.points.len()<=MAX_CONTACTS);
+        assert!(runtime.points.iter().all(|point|point.y==0||point.x==127));
+        assert!(runtime.points.iter().any(|point|point.x==127&&point.y==0));
+        assert!(runtime.points.iter().any(|point|point.x>0&&point.x<127&&point.y==0));
+        assert!(runtime.points.iter().any(|point|point.y>0&&point.y<127&&point.x==127));
+        assert!(runtime.points.iter().all(|point|point.activity==Activity::Rate&&(80..=120).contains(&point.pressure)));
+    }
+    #[test]
+    fn fingers_and_reused_contact_ids_never_connect_unrelated_strokes() {
+        let mut runtime=Runtime::default();
+        touch(&mut runtime,96,0,0,100,0);touch(&mut runtime,96,0,0,0,0);
+        touch(&mut runtime,96,127,127,100,0);touch(&mut runtime,96,127,127,0,0);
+        runtime.sample(0);assert_eq!(runtime.points.len(),2);
+        let mut runtime=Runtime::default();
+        touch(&mut runtime,96,0,0,100,0);touch(&mut runtime,97,127,127,100,0);
+        touch(&mut runtime,96,127,0,100,0);touch(&mut runtime,97,0,127,100,0);
+        runtime.sample(0);assert_eq!(runtime.points.len(),MAX_CONTACTS);
+        assert_eq!(runtime.points.iter().filter(|point|point.y==0).count(),8);
+        assert_eq!(runtime.points.iter().filter(|point|point.y==127).count(),8);
+    }
+    #[test]
+    fn heartbeat_holds_keep_one_deposit_and_movement_crosses_clock_boundaries() {
+        let mut runtime=Runtime::default();
+        for step in 0..4 {touch(&mut runtime,96,0,0,100,step*24);runtime.sample(step*24);}
+        assert_eq!(runtime.points.len(),4);
+        touch(&mut runtime,96,127,127,100,96);runtime.sample(96);
+        let fresh:Vec<_>=runtime.points.iter().filter(|point|point.step==4).collect();
+        assert_eq!(fresh.len(),8);assert!(fresh.iter().all(|point|point.x==point.y));
+        assert!(fresh.iter().any(|point|point.x==0));assert!(fresh.iter().any(|point|point.x==127));
+        touch(&mut runtime,96,0,0,100,288);runtime.sample(288);
+        assert_eq!(runtime.points.iter().filter(|point|point.step==12).count(),1,"expired input cannot bridge a later gesture");
+    }
+    #[test]
+    fn path_floods_preserve_every_held_endpoint_and_existing_history_bounds() {
+        let mut runtime=Runtime::default();
+        for step in 0..20 {
+            for movement in 0..100 {for id in 0..MAX_CONTACTS as u8 {
+                touch(&mut runtime,id,((movement+u32::from(id))%128) as u8,((movement*3)%128) as u8,100,step*24);
+            }}
+            assert_eq!(runtime.pending_touches.len(),MAX_CONTACTS);
+            assert!(runtime.pending_touches.iter().all(|stroke|stroke.count<=MAX_STROKE_VERTICES));
+            runtime.sample(step*24);
+            let fresh:Vec<_>=runtime.points.iter().filter(|point|point.step==step as i32).collect();
+            assert_eq!(fresh.len(),MAX_CONTACTS);
+            assert!(runtime.contacts.iter().all(|contact|fresh.iter().any(|point|(point.x,point.y)==(contact.point.x,contact.point.y))));
+            assert!(runtime.points.len()<=MAX_CONTACTS*TAIL_STEPS as usize);
+        }
+    }
+    #[test]
+    fn an_activity_change_breaks_the_path_without_reinterpreting_prior_points() {
+        let mut runtime=Runtime::default();
+        assert!(runtime.touch(96,0,0,100,Activity::Probability,0,0));
+        touch(&mut runtime,96,127,127,100,0);runtime.sample(0);
+        assert_eq!(runtime.points.len(),2);
+        assert!(runtime.points.iter().any(|point|point.x==0&&point.activity==Activity::Probability));
+        assert!(runtime.points.iter().any(|point|point.x==127&&point.activity==Activity::Rate));
     }
 }
 /// A seeded, bounded cloud in abstract C-major input space. HB projects it into

@@ -18,8 +18,9 @@ export function mountCloud({root,api}){
  const command=value=>{if(!suspended&&!disposed)api.send(value);};
  const coordinates=event=>{const bounds=canvas.getBoundingClientRect();return {x:Math.max(0,Math.min(127,Math.round((event.clientX-bounds.left)/bounds.width*127))),y:Math.max(0,Math.min(127,Math.round((1-(event.clientY-bounds.top)/bounds.height)*127))),pressure:Math.round((event.pointerType==='pen'?event.pressure||.75:.85)*127)};};
  function touch(pointer,pressure=pointer.pressure){command(`touch ${pointer.track} ${pointer.id} ${pointer.x} ${pointer.y} ${pressure}${pointer.activity==='Rate'?' 1':''}`);}
- function release(){for(const pointer of pointers.values())touch(pointer,0);pointers.clear();}
- function finish(event){const pointer=pointers.get(event.pointerId);if(!pointer)return;touch(pointer,0);pointers.delete(event.pointerId);if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);paint();}
+ function finishTouch(pointer){if(pointer.pending){pointer.pending=false;touch(pointer);}touch(pointer,0);}
+ function release(){for(const pointer of pointers.values())finishTouch(pointer);pointers.clear();}
+ function finish(event){const pointer=pointers.get(event.pointerId);if(!pointer)return;finishTouch(pointer);pointers.delete(event.pointerId);if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);paint();}
  canvas.onpointerdown=event=>{
   if(suspended||!state?.cloud||pointers.size>=16)return;event.preventDefault();
   const used=new Set([...pointers.values()].map(pointer=>pointer.id)),id=Array.from({length:16},(_,index)=>96+index).find(id=>!used.has(id));

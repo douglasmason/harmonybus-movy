@@ -3,7 +3,7 @@ impl Engine {
         let now=self.frame_now;let lease=self.clock.sample_rate() as u64*2;
         for runtime in &mut self.clouds {
             runtime.contacts.retain(|contact|now.saturating_sub(contact.frame)<lease);
-            runtime.pending_touches.retain(|contact|now.saturating_sub(contact.frame)<lease);
+            runtime.pending_touches.retain(|stroke|now.saturating_sub(stroke.contact.frame)<lease);
         }
     }
     /// A contact belongs to one track and one input surface; up never re-targets.

@@ -70,6 +70,21 @@ and overdubbed using the existing controls. An overdub retains gesture history
 before the new touch, then records the replacement field through the rest of the
 take, including its release. Undo restores the prior recipe.
 
+From hbclean.326, a quick drag or X/Y turn leaves deposits along its path between
+received positions, including the final pending touchscreen movement before
+release. Each contact keeps a short polyline so turns can survive between clock
+samples. Fingers, separate pad contacts, released gestures and knob wraparound
+crossings never join into an unintended line across the field. Stationary holds
+still deposit once per sixteenth. This uses the existing point format and eight
+control lanes; previously recorded gestures keep their behavior.
+
+Sampling stays bounded at 16 deposits per sixteenth and 256 live deposits over
+four beats. Each pending path retains at most eight vertices. Held endpoints
+have priority; remaining deposits are shared among paths. Dense simultaneous
+input therefore coarsens the trails rather than increasing engine work without
+limit. The touchscreen continues batching moves every 50 ms; this is a musical
+path sampler, not a recording of every raw touch event.
+
 Seed is fixed during a take and for recorded recipes. Replay, reload and Bake
 use the same seed, gesture history and automation. Bake retains abstract mapped
 notes, so later conductor changes still apply. Existing saved part recipes also

@@ -35,9 +35,15 @@ try{
  await page.evaluate(()=>window.state.activity='Rate');await page.waitForTimeout(100);assert.match(await canvas.getAttribute('aria-label'),/vertical movement changes trigger rate/);
  await page.getByRole('slider',{name:'Cloud density',exact:true}).fill('110');assert((await page.evaluate(()=>window.sent)).includes('control cg_cloud_density 110'));
  await page.getByRole('button',{name:'Record',exact:true}).click();assert((await page.evaluate(()=>window.sent)).includes('record'));
+ await canvas.evaluate(element=>element.addEventListener('pointerdown',event=>window.activePointer=event.pointerId,{once:true}));
  await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[touches[0]]});
- await page.evaluate(()=>window.component.suspend());assert.equal(await page.evaluate(()=>window.component.isHeld()),false);
- sent=await page.evaluate(()=>window.sent);assert.match(sent.at(-1),/^touch 3 96 .* 0 1$/,'release retains the captured activity mode');
+ await canvas.evaluate(element=>{
+  const bounds=element.getBoundingClientRect();
+  element.dispatchEvent(new PointerEvent('pointermove',{pointerId:window.activePointer,pointerType:'touch',clientX:bounds.x+bounds.width*.8,clientY:bounds.y+bounds.height*.8}));
+  window.component.suspend();
+ });assert.equal(await page.evaluate(()=>window.component.isHeld()),false);
+ sent=await page.evaluate(()=>window.sent);
+ assert.deepEqual(sent.slice(-2),['touch 3 96 102 25 108 1','touch 3 96 102 25 0 1'],'suspension flushes the final pending position before releasing its captured activity mode');
  const reads=await page.evaluate(()=>window.reads);await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await page.waitForTimeout(150);assert.equal(await page.evaluate(()=>window.reads),reads,'visibility cannot revive a hidden workspace component');
  await page.evaluate(()=>window.component.resume());await page.waitForTimeout(100);
  await mkdir(new URL('../../artifacts/',import.meta.url),{recursive:true});await page.screenshot({path:new URL('../../artifacts/follower-cloud.png',import.meta.url).pathname,fullPage:true});
