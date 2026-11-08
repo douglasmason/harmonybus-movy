@@ -90,7 +90,7 @@ impl Engine {
             let Some(track)=fields[1].parse::<usize>().ok().filter(|track|*track<NUM_TRACKS) else{return false;};
             self.generator_cancel_track(track,out);return true;
         }
-        if !matches!(fields.len(),6|13) {self.generator_result="Invalid generator".into();return false;}
+        if !matches!(fields.len(),6|11|13) {self.generator_result="Invalid generator".into();return false;}
         let Some(track)=fields[1].parse::<usize>().ok().filter(|track|*track<NUM_TRACKS&&!self.track_is_drum(*track)) else {self.generator_result="Choose a melodic actor track".into();return false;};
         let Some(config)=crate::generator::Config::parse(&fields[2..].join(" ")) else {return false;};
         if self.generator_library[track].is_some(){self.generator_result="Stop saved recipe before choosing a stock source".into();return false;}
@@ -332,11 +332,11 @@ impl Engine {
         let loop_start=clip.loop_start_ticks();
         if let Some(state)=self.generator_explore[track].as_mut() {
             let mut accepted=state.current;
-            let boundaries=if pos%TICKS_PER_STEP==0 {if state.current.is_cloud(){255}else{3}}else{0}
+            let boundaries=if pos%TICKS_PER_STEP==0 {state.current.step_mask()}else{0}
                 | if pos%crate::TICKS_PER_BAR==0||(state.source.is_some()&&pos==loop_start) {4}else{0};
             let released=state.restore_pending&boundaries;
             state.touched&=!released;state.restore_pending&=!released;
-            if pos%TICKS_PER_STEP==0 {accepted=Self::generator_override(accepted,state.desired,if accepted.is_cloud(){255}else{3});}
+            if pos%TICKS_PER_STEP==0 {accepted=Self::generator_override(accepted,state.desired,accepted.step_mask());}
             if pos%crate::TICKS_PER_BAR==0||(state.source.is_some()&&pos==loop_start) {accepted.style=state.desired.style;accepted.seed=state.desired.seed;}
             // Only an active saved-source preview consumes a base on each tick.
             // Ordinary recipe playback reads its curves below at the swung
@@ -364,7 +364,8 @@ impl Engine {
             if fire!=pos {continue;}
             let config=if let Some(state)=self.generator_explore[track] {state.current}
                 else {let clip=&self.tracks[track].clips[slot];clip.generator.unwrap().at(clip,&self.tracks[track].lane_label,step)};
-            let generated=if config.is_cloud(){self.cloud_notes(track,slot,step,config,free)}else{config.note(step).into_iter().collect()};
+            let phase=if free&&self.generator_library[track].is_none(){self.master_tick.saturating_sub(1)/TICKS_PER_STEP as u64}else{step as u64};
+            let generated=if config.is_cloud(){self.cloud_notes(track,slot,step,config,free)}else{config.note_at(step,phase).into_iter().collect()};
             for mut note in generated {
                 crate::source_route::RhythmAttack::accept(&mut source_duration,note.pitch,note.gate);
                 if let Some(part)=&self.generator_library[track]{if let Some(recipe)=&part.clip.recipe{note.gate=((note.gate as u64*recipe.gate as u64)/100).clamp(1,u32::MAX as u64) as u32;}}

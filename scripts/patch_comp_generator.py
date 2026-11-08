@@ -39,8 +39,9 @@ def patch_comp_generator(root: Path) -> None:
     with (core / 'generator_styles.rs').open('a') as output:
         output.write(f"pub const CLOUD_ROLE_INDEX:usize={map_key_to_index['track_role']};\npub const CLOUD_TRAVEL_INDEX:usize={map_key_to_index['travel_map']};\n")
     (core / 'generator.rs').write_text((assets / 'generator.rs').read_text())
+    (core / 'euclidean.rs').write_text((assets / 'euclidean.rs').read_text())
     path: Path = core / 'lib.rs'
-    path.write_text(path.read_text() + '\npub mod generator;\n')
+    path.write_text(path.read_text() + '\npub mod generator;\npub mod euclidean;\n')
     path = core / 'part_catalog.rs'
     path.write_text(path.read_text() + '\npub fn generator_source_notes(bass:bool,choice:usize)->&\'static [(u16,u32,u8,u8)] {(if bass{BASS}else{COMP}).get(choice).map_or(&[],|pattern|pattern.notes)}\n')
     path.write_text(path.read_text() + '\npub fn generator_source_steps(bass:bool,choice:usize)->u16 {(if bass{BASS}else{COMP}).get(choice).map_or(16,|pattern|pattern.steps)}\n')
@@ -99,6 +100,7 @@ def patch_comp_generator(root: Path) -> None:
     if (assets / 'generator_tests.rs').exists():
         source += '\n' + (assets / 'generator_tests.rs').read_text()
     source += '\n' + (assets / 'generator_source_tests.rs').read_text()
+    source += '\n' + (assets / 'euclidean_tests.rs').read_text()
     path.write_text(source)
     path = core / 'clip_recipe.rs'
     source = replace_once(path.read_text(),'let next=clip.recipe.as_ref().map(|recipe|recipe.settings).or(self.recipe_bases[track]);','let next=self.generator_settings(track).or_else(||clip.recipe.as_ref().map(|recipe|recipe.settings)).or(self.recipe_bases[track]);')
@@ -198,6 +200,7 @@ def patch_comp_generator(root: Path) -> None:
     (root / 'browser-test/hb-generator-phrases.mjs').write_text((assets / 'hb-generator-phrases.mjs').read_text())
     (root / 'browser-test/hb-generator-library.mjs').write_text((assets / 'hb-generator-library.mjs').read_text())
     (root / 'browser-test/hb-generator-restore.mjs').write_text((assets / 'hb-generator-restore.mjs').read_text())
+    (root / 'browser-test/hb-euclidean-generator.mjs').write_text((assets / 'hb-euclidean-generator.mjs').read_text())
     if (assets / 'hb-generator-overdub.mjs').exists():
         (root / 'browser-test/hb-generator-overdub.mjs').write_text((assets / 'hb-generator-overdub.mjs').read_text())
 
