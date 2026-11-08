@@ -56,6 +56,7 @@ jobs:
           npm ci
           npm run typecheck
           npm run build:browser
+          node browser-test/hb-euclidean-generator.mjs
           node browser-test/logic.mjs
           node ../dev/local/scale-microphone.test.mjs
           node ../dev/local/harmonic-function.test.mjs

@@ -238,4 +238,31 @@ static void test_comp_generator(void){
         assert(api->get_param(instance,"persistent_state",after,sizeof(after))>0&&!strcmp(before,after));
     }
     puts("Follower cloud: Comp, Bass and Melody follow conductor changes through production HB, preserve temporary state and balance every release");
+
+    /* Euclidean sources follow live conductor changes through the real HB
+       renderer, with the same release owner and no persistent audition writes. */
+    for(int actor=0;actor<2;actor++){
+        const int track=actor?1:2,style=actor?20:19;
+        char parameter[64],command[128];
+        set("cmd","stop");set("chord_select","off");render(16);
+        set("state","movy1\nbpm 12000\nlink 0\ntk 1 0 0\ntk 2 0 0\n");
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:role",track);set(parameter,"Follower");
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:travel_map",track);set(parameter,"Relative");
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:chord_mode",track);set(parameter,"Conductor Chord");
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:chord_form",track);set(parameter,"Triad");
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:arp_playback",track);set(parameter,"Together");
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:arp_hold",track);set(parameter,"Momentary");
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:rhythm_gen_pattern",track);set(parameter,"Off");
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:render_channel",track);set(parameter,"3");
+        set("chord_route","3,2,2");set("chord_select","0,0,1,0,1,0,1,12");render(8);
+        assert(api->get_param(instance,"persistent_state",before,sizeof(before))>0);
+        snprintf(command,sizeof(command),"gexplore %d %d 32 64 1 0 3 7 0 0;play",track,style);
+        set("cmd",command);sent_on=sent_off=0;rendered_mask=0;render(500);
+        assert(sent_on>2&&rendered_mask==(actor?1u:((1u<<0)|(1u<<4)|(1u<<7))));
+        set("chord_select","0,2,1,0,1,0,1,12");render(8);rendered_mask=0;render(500);
+        assert(rendered_mask==(actor?(1u<<2):((1u<<2)|(1u<<6)|(1u<<9))));
+        set("cmd","gexplore off;stop");render(16);assert(sent_on==sent_off);
+        assert(api->get_param(instance,"persistent_state",after,sizeof(after))>0&&!strcmp(before,after));
+    }
+    puts("Euclidean followers: real Comp/Bass harmony mapping, temporary persistence and paired releases pass");
 }

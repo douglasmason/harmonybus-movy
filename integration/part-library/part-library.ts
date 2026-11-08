@@ -31,7 +31,7 @@ function savedMetadata(track:number,kind:PartKind):PartMetadata {
     const stock=catalog[kind].findIndex(entry=>entry.recipe===fields[4]);
     const related=source.length?source:generatorStyles.filter(style=>style.actor.toLowerCase()===kind&&style.catalog===stock);
     const name=source.length?source[0].name.replace(/ [24]b$/,'')+(source.length>1?' Mix':''):catalog[kind][stock]?.name??fields[4].replace(/-/g,' ');
-    return {...(fields[4].includes('Cloud')?{cloud:true}:{}),name:cleanPartName(name),genres:[...new Set(related.flatMap(style=>style.genres))],steps,...(source.length?{automation}:{})};
+    return {...(fields[4].includes('Cloud')?{cloud:true}:{}),...(source.some(style=>style.name==='Euclidean')?{euclidean:true}:{}),name:cleanPartName(name),genres:[...new Set(related.flatMap(style=>style.genres))],steps,...(source.length?{automation}:{})};
 }
 function metadataAvailable(pending:Review):boolean {return pending.save!==null||pending.original!==null;}
 function genreChoices(pending:Review):string[]{return ['Original tags','Untagged',...new Set(generatorStyles.filter(style=>style.actor.toLowerCase()===(pending.context.kind??'comp')).flatMap(style=>style.genres))];}
@@ -85,7 +85,7 @@ export function preparePart(context:PartContext,choice:number,save:number|null=n
     const info=get('motif_clip_info_'+context.track).split(','),settings=baseline(context.track);
     if(info.length!==6||!/^[0-9a-f]+$/.test(info[1])||!settings){seqToast('Preset settings unavailable');return;}
     const original=save===null&&choice>=stockCount?userParts(kind)[choice-stockCount]:null;
-    const metadata=save!==null?savedMetadata(context.track,kind):{name:original?.name,genres:original?.genres,steps:original?.steps,automation:original?.automation};
+    const metadata=save!==null?savedMetadata(context.track,kind):{name:original?.name,genres:original?.genres,steps:original?.steps,automation:original?.automation,cloud:original?.cloud,euclidean:original?.euclidean};
     review={context,choice,slot:Number(info[0]),signature:info[1],baseline:settings,generation:engineGeneration(),set:currentSetUuid(),occupied:info[5]==='1',save,ready:false,keepWeaving:false,sourceRoute:get('source_route_'+context.track),metadata,original,metadataDirty:false,genreChoice:0,initialGenres:[...(metadata.genres??[])]};
     appState.dirty=true;
 }

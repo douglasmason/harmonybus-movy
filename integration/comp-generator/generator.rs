@@ -3,12 +3,14 @@ use crate::{clip::{Clip,Note},follower_input::InputKey,TICKS_PER_STEP};
 pub const CLOUD_DEFAULTS:[u8;6]=[96,48,64,40,64,32];
 pub const CLOUD_LABELS:[&str;8]=["generator:density","generator:dynamics","generator:rate","generator:length","generator:register","generator:spread","generator:contour","generator:variation"];
 pub const LABELS:[&str;3]=["generator:complexity","generator:intensity","generator:style"];
+pub const EUCLIDEAN_DEFAULTS:[u8;4]=[3,8,0,0];
+pub const EUCLIDEAN_LABELS:[&str;5]=["generator:hits","generator:steps","generator:rotation","generator:division","generator:intensity"];
 #[cfg(test)]
 std::thread_local! {
     /// Count source-control evaluations without instrumenting release builds.
     pub(crate) static CONFIG_READS:std::cell::Cell<usize>=const {std::cell::Cell::new(0)};
 }
-pub fn internal(label:&str)->bool {LABELS.contains(&label)||CLOUD_LABELS.contains(&label)}
+pub fn internal(label:&str)->bool {LABELS.contains(&label)||CLOUD_LABELS.contains(&label)||EUCLIDEAN_LABELS.contains(&label)}
 pub fn lane_value(clip:&Clip,lane:u8,step:u16,base:u8)->u8 {
     clip.locks.iter().filter(|lock|lock.lane==lane&&lock.step>=clip.loop_start_steps&&lock.step<=step)
         .max_by_key(|lock|lock.step).map_or(base,|lock|lock.val)
@@ -16,17 +18,22 @@ pub fn lane_value(clip:&Clip,lane:u8,step:u16,base:u8)->u8 {
 pub struct Style {pub name:&'static str,pub bass:bool,pub catalog:usize,pub optional:&'static [(u16,u32,u8,u8,u8)]}
 include!("generator_styles.rs");
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
-pub struct Config {pub style:u8,pub complexity:u8,pub intensity:u8,pub seed:u16,pub end:u32,pub cloud:[u8;6]}
-impl Default for Config {fn default()->Self {Self {style:0,complexity:32,intensity:64,seed:1,end:0,cloud:CLOUD_DEFAULTS}}}
+pub struct Config {pub style:u8,pub complexity:u8,pub intensity:u8,pub seed:u16,pub end:u32,pub cloud:[u8;6],pub euclidean:[u8;4]}
+impl Default for Config {fn default()->Self {Self {style:0,complexity:32,intensity:64,seed:1,end:0,cloud:CLOUD_DEFAULTS,euclidean:EUCLIDEAN_DEFAULTS}}}
 impl Config {
     pub fn parse(text:&str)->Option<Self> {
         let fields:Vec<u32>=text.split_whitespace().map(str::parse).collect::<Result<_,_>>().ok()?;
-        if !matches!(fields.len(),4|5|11)||fields[0]>=STYLES.len() as u32||fields[1]>127||fields[2]>127||!(1..=65535).contains(&fields[3])||fields.get(4).is_some_and(|end|*end>6144)||fields.iter().skip(5).any(|value|*value>127) {return None;}
-        Some(Self {style:fields[0] as u8,complexity:fields[1] as u8,intensity:fields[2] as u8,seed:fields[3] as u16,end:*fields.get(4).unwrap_or(&0),cloud:if fields.len()==11 {fields[5..].iter().map(|value|*value as u8).collect::<Vec<_>>().try_into().ok()?}else{CLOUD_DEFAULTS}})
+        if !matches!(fields.len(),4|5|9|11)||fields[0]>=STYLES.len() as u32||fields[1]>127||fields[2]>127||!(1..=65535).contains(&fields[3])||fields.get(4).is_some_and(|end|*end>6144)||fields.iter().skip(5).any(|value|*value>127) {return None;}
+        let mut config=Self {style:fields[0] as u8,complexity:fields[1] as u8,intensity:fields[2] as u8,seed:fields[3] as u16,end:*fields.get(4).unwrap_or(&0),cloud:if fields.len()==11 {fields[5..].iter().map(|value|*value as u8).collect::<Vec<_>>().try_into().ok()?}else{CLOUD_DEFAULTS},..Default::default()};
+        if fields.len()==9 {
+            if !config.is_euclidean(){return None;}
+            for (field,value) in fields[5..].iter().enumerate(){if !config.set(field,*value as u8){return None;}}
+        }else if config.is_euclidean()&&fields.len()==11 {return None;}
+        Some(config)
     }
-    pub fn wire(self)->String {if self.is_cloud(){format!("{} {} {} {} {} {}",self.style,self.complexity,self.intensity,self.seed,self.end,self.cloud.map(|value|value.to_string()).join(" "))}else{format!("{} {} {} {} {}",self.style,self.complexity,self.intensity,self.seed,self.end)}}
+    pub fn wire(self)->String {if self.is_euclidean(){format!("{} {} {} {} {} {}",self.style,self.complexity,self.intensity,self.seed,self.end,self.euclidean.map(|value|value.to_string()).join(" "))}else if self.is_cloud(){format!("{} {} {} {} {} {}",self.style,self.complexity,self.intensity,self.seed,self.end,self.cloud.map(|value|value.to_string()).join(" "))}else{format!("{} {} {} {} {}",self.style,self.complexity,self.intensity,self.seed,self.end)}}
     pub fn bass(self)->bool {STYLES[self.style as usize].bass}
-    pub fn accepts_style(self,style:u8)->bool {STYLES.get(style as usize).is_some_and(|candidate|candidate.bass==self.bass()&&(candidate.name=="Cloud")==self.is_cloud())}
+    pub fn accepts_style(self,style:u8)->bool {STYLES.get(style as usize).is_some_and(|candidate|candidate.bass==self.bass()&&(candidate.name=="Cloud")==self.is_cloud()&&(candidate.name=="Euclidean")==self.is_euclidean())}
     pub fn recipe_name(self)->&'static str {if self.is_cloud(){if self.bass(){"Bass-Cloud"}else{"Follower-Cloud"}}else if self.bass(){"Bass-Generator"}else{"Comp-Generator"}}
     /// Bass articulation overrides only note expansion. Mapping and expression
     /// stay with the captured actor; cancellation restores the original settings.
@@ -41,20 +48,39 @@ impl Config {
         settings
     }
     pub fn is_cloud(self)->bool {STYLES[self.style as usize].name=="Cloud"}
-    pub fn labels(self)->&'static [&'static str] {if self.is_cloud(){&CLOUD_LABELS}else{&LABELS}}
-    pub fn mask(self)->u8 {if self.is_cloud(){255}else{7}}
-    pub fn bar_control(self,field:usize)->bool {!self.is_cloud()&&field==2}
-    pub fn values(self)->[u8;8] {if self.is_cloud(){[self.complexity,self.intensity,self.cloud[0],self.cloud[1],self.cloud[2],self.cloud[3],self.cloud[4],self.cloud[5]]}else{[self.complexity,self.intensity,self.style,0,0,0,0,0]}}
-    pub fn set_valid(self,field:usize,value:u8)->bool {value<=127&&field<self.labels().len()&&(!self.bar_control(field)||self.accepts_style(value))}
+    pub fn is_euclidean(self)->bool {STYLES[self.style as usize].name=="Euclidean"}
+    pub fn labels(self)->&'static [&'static str] {if self.is_euclidean(){&EUCLIDEAN_LABELS}else if self.is_cloud(){&CLOUD_LABELS}else{&LABELS}}
+    pub fn mask(self)->u8 {((1u16<<self.labels().len())-1) as u8}
+    pub fn step_mask(self)->u8 {if self.bar_control(2){3}else{self.mask()}}
+    pub fn bar_control(self,field:usize)->bool {!self.is_cloud()&&!self.is_euclidean()&&field==2}
+    pub fn values(self)->[u8;8] {if self.is_euclidean(){[self.euclidean[0],self.euclidean[1],self.euclidean[2],self.euclidean[3],self.intensity,0,0,0]}else if self.is_cloud(){[self.complexity,self.intensity,self.cloud[0],self.cloud[1],self.cloud[2],self.cloud[3],self.cloud[4],self.cloud[5]]}else{[self.complexity,self.intensity,self.style,0,0,0,0,0]}}
+    pub fn set_valid(self,field:usize,value:u8)->bool {
+        if self.is_euclidean(){return match field {0=>value<=16,1=>(1..=16).contains(&value),2=>value<16,3=>value<4,4=>value<=127,_=>false};}
+        value<=127&&field<self.labels().len()&&(!self.bar_control(field)||self.accepts_style(value))
+    }
     pub fn set(&mut self,field:usize,value:u8)->bool {
-        if value>127||field>=self.labels().len()||self.bar_control(field)&&!self.accepts_style(value){return false;}
+        if !self.set_valid(field,value){return false;}
+        if self.is_euclidean(){if field<4 {self.euclidean[field]=value;}else{self.intensity=value;}return true;}
         match field {0=>self.complexity=value,1=>self.intensity=value,_ if self.is_cloud()=>self.cloud[field-2]=value,_=>self.style=value} true
     }
     /// A fixed threshold per authored optional attack. More complexity retains
     /// earlier details; repainting, block size and transport cycles do not reroll.
     pub fn note(self,step:u16)->Option<Note> {
+        self.note_at(step,step as u64)
+    }
+    /// Free Euclidean exploration uses transport phase; saved sources use clip
+    /// phase. The note still belongs to the existing scheduler and gate owner.
+    pub fn note_at(self,step:u16,phase:u64)->Option<Note> {
         if self.end>0&&step as u32*TICKS_PER_STEP>=self.end {return None;}
         let style=STYLES.get(self.style as usize)?;
+        if self.is_euclidean(){
+            let [hits,length,rotation,rate]=self.euclidean;
+            let division=1u64<<rate;
+            if !crate::euclidean::hit(phase,length,hits,rotation,rate){return None;}
+            let velocity=((90*(64+self.intensity as u32)+64)/128).clamp(1,127) as u8;
+            return Some(Note {tick:step as u32*TICKS_PER_STEP,step,gate:division as u32*TICKS_PER_STEP/2,pitch:if self.bass(){36}else{60},vel:velocity,
+                input_key:InputKey::new(0,1),actions:None,pressure:Vec::new(),rendered:false,suppress:false,fired:false});
+        }
         let local=step%crate::part_catalog::generator_source_steps(style.bass,style.catalog);
         let essential=crate::part_catalog::generator_source_notes(style.bass,style.catalog).iter().find(|note|note.0==local);
         let (gate,pitch,velocity)=if let Some(&(_,gate,pitch,velocity))=essential {(gate,pitch,velocity)} else {
@@ -110,6 +136,7 @@ pub fn library_valid(clip:&Clip,labels:&[String;8])->Result<(),&'static str> {
         let lane=labels.iter().position(|name|name==label).ok_or("Generator automation lanes missing")?;
         if clip.lock_at(lane as u8,0).is_none(){return Err("Generator automation must start at zero");}
         if config.bar_control(field)&&clip.locks.iter().filter(|lock|lock.lane==lane as u8).any(|lock|!config.accepts_style(lock.val)) {return Err("Generator style belongs to another actor");}
+        if config.is_euclidean()&&clip.locks.iter().filter(|lock|lock.lane==lane as u8).any(|lock|!config.set_valid(field,lock.val)){return Err("Invalid Euclidean control");}
     }
     Ok(())
 }
