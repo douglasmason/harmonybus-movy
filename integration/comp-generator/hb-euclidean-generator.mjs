@@ -51,7 +51,10 @@ for(const [actor,track,style] of [['Comp',2,19],['Bass',1,20]]){
  assert(commands.includes(`grestore ${track} 0`));assert(!commands.some(command=>/harmony|chord_select/.test(command)));
  generator.generatorStop(track);states.set(track,`Off|0|${style} 32 64 1 0 3 7 2 1||-1|0`);now+=101;
 }
+const originalRead=globalThis.host_read_file,originalWrite=globalThis.host_write_file,files=new Map();
+globalThis.host_write_file=(path,value)=>files.set(path,value);globalThis.host_read_file=path=>files.get(path)??originalRead(path);
 assert(storage.saveUserPart(7,{payload:'70617274320a',synth:'plaits',generator:'Comp',euclidean:true,automation:31,steps:32,name:'Euclid test'},'comp'));
 assert.equal(storage.userParts('comp')[7].automation,31);assert.match(storage.userPartDetails(storage.userParts('comp')[7]),/Auto HSRTI/);
+globalThis.host_read_file=originalRead;globalThis.host_write_file=originalWrite;
 globalThis.host_module_get_param=originalGet;globalThis.host_module_set_param_blocking=originalSet;
 console.log('Euclidean: both actors, shared eight-knob panel, temporary exploration, Record routing, preview, Restore and saved metadata pass');
