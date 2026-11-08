@@ -38,6 +38,11 @@ export function cloudWrite(key:string,value:string):boolean|null {
  if(key==='cg_axes'){if(!['Activity / Pitch','Pitch / Activity'].includes(value))return false;releaseCloud();flipped=value==='Pitch / Activity';paint.fill(-1);markUiStateDirty();appState.dirty=true;return true;}
  if(!['cg_x','cg_y'].includes(key))return null;
  const number=Number(value);if(!Number.isFinite(number)||!cloudSelected())return false;
+ // Wrapping crosses an edge, not the whole field. End the old segment before
+ // depositing at the opposite edge; other held contacts keep their ownership.
+ if(wrap&&(Math.round(number)<0||Math.round(number)>127)){
+  const contact=held.get(112);if(contact){contactInput(contact.track,112,contact.x,contact.y,0);held.delete(112);}
+ }
  if(key==='cg_x')cursorX=cloudCoordinate(Math.round(number),wrap);else cursorY=cloudCoordinate(Math.round(number),wrap);
  lastDraw=Date.now();const track=generatorSelectedTrack();contactInput(track,112,cursorX,cursorY,100);held.set(112,{track,x:cursorX,y:cursorY,pressure:100});appState.dirty=true;return true;
 }

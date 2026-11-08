@@ -1,3 +1,7 @@
+## Continuous cloud strokes (hbclean.326)
+
+Fast finger drags and X/Y knob turns now leave sampled trails between their received positions. Separate fingers, lifts and wrapping edges keep independent strokes. The shared native/Remote UI/standalone engine preserves its 16-deposit-per-step limit, while ordinary Record, saved recipes and Bake retain the sampled gesture. See [Follower cloud](docs/follower-cloud.md).
+
 ## Cloud probability and rate axes (hbclean.324)
 
 Cloud X/Y knob 5 selects Probability or Rate. Rate strokes move from half notes up to the Rate knob's fastest subdivision, with dotted subdivisions in between. Both behaviors work with flipped axes, pads and touch, and each recorded point retains its interpretation through replay, saved recipes and Bake. Loop still starts/stops Explore. See [Follower cloud](docs/follower-cloud.md).

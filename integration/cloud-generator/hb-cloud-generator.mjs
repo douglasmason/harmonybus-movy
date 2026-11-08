@@ -22,7 +22,9 @@ assert.equal(page.keyAt(7),'cg_cloud_dynamics');assert(cloud.cloudSurfaceActive(
 commands=[];chord.chordMidi([144,68,110]);chord.chordMidi([144,99,90]);seqCmdFlush();
 assert(commands.includes('gcloud 2 0 0 0 110'));assert(commands.includes('gcloud 2 31 127 127 90'));
 chord.chordMidi([128,68,0]);chord.chordMidi([128,99,0]);seqCmdFlush();assert(commands.includes('gcloud 2 0 0 0 0'));assert(commands.includes('gcloud 2 31 127 127 0'));
-cloud.cloudWrite('cg_edge','Wrap');cloud.cloudWrite('cg_x','127');cloud.cloudTurn('cg_x',3);assert.equal(cloud.cloudRead('cg_x'),'2');
+cloud.cloudWrite('cg_edge','Wrap');cloud.cloudWrite('cg_x','127');seqCmdFlush();commands=[];
+cloud.cloudTurn('cg_x',3);seqCmdFlush();assert.equal(cloud.cloudRead('cg_x'),'2');
+assert.deepEqual(commands.filter(command=>command.startsWith('gcloud ')),['gcloud 2 112 127 64 0','gcloud 2 112 2 64 100'],'wrap starts a new stroke instead of drawing across the field');
 cloud.cloudWrite('cg_y','0');cloud.cloudTurn('cg_y',-2);assert.equal(cloud.cloudRead('cg_y'),'126');
 cloud.cloudWrite('cg_edge','Bounded');cloud.cloudTurn('cg_x',200);assert.equal(cloud.cloudRead('cg_x'),'127');
 page.goToPage(page.ctl.pages.findIndex(entry=>entry.level==='cp_cloud_field'));now+=200;chord.tickChord();

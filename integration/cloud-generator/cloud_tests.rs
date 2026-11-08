@@ -41,6 +41,21 @@
     }
     #[test] fn cloud_recorded_strokes_controls_reload_library_and_bake_replay() {recorded_stroke_roundtrip(false);}
     #[test] fn cloud_mixed_rate_probability_strokes_controls_reload_library_and_bake_replay() {recorded_stroke_roundtrip(true);}
+    #[test] fn cloud_fast_swipes_between_ticks_record_reload_and_bake_exactly() {
+        let mut engine=fixture();start(&mut engine);engine.play();engine.toggle_record(2);
+        let mut heard=Vec::new();
+        for step in 0..32 {
+            if step<8 {command(&mut engine,&format!("gcloud 2 96 0 {} 100 {};gcloud 2 96 127 {} 120 {};gcloud 2 96 127 {} 0",step*16,step%2,step*16,step%2,step*16));}
+            heard.extend(trace(&mut engine,24).into_iter().map(|(tick,pitch,velocity,on)|(tick+step*24,pitch,velocity,on)));
+        }
+        engine.toggle_record(2);let points=engine.tracks[2].clips[0].cloud_points.clone();
+        assert_eq!(points.len(),64);assert!(points.iter().any(|point|point.x>0&&point.x<127));
+        let saved=engine.undo_snapshot();let mut restored=fixture();assert!(crate::persist::load(&mut restored,&saved));
+        restored.play();assert_eq!(trace(&mut restored,768),heard);
+        restored.stop(&mut Vec::new());let payload=restored.part_export(2);
+        assert_eq!(crate::part_load::prepare_part("user",&payload).unwrap().clip.cloud_points,points);
+        restored.generator_bake("gbake 2 0",&mut Vec::new());restored.play();assert_eq!(trace(&mut restored,768),heard);
+    }
     #[test] fn cloud_rate_axis_selects_clocked_subdivisions_and_respects_rate_ceiling() {
         use crate::cloud::{Activity,Point};
         let mut config=crate::generator::Config::parse("16 127 96 71 0 127 50 64 0 64 0").unwrap();
