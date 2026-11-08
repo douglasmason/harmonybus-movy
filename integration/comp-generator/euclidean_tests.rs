@@ -30,10 +30,10 @@
             if ticks(&mut engine,1).iter().any(|(_,event)|matches!(event,OutEvent::NoteOn{..})){attacks.push(tick);}
         }
         let expected:Vec<_>=(0..128).filter(|step|crate::euclidean::hit(*step,7,3,0,0)).map(|step|step as u32*TICKS_PER_STEP).collect();
-        assert_eq!(attacks,expected);command(&mut engine,"stop");assert!(engine.gates.is_empty());
+        assert_eq!(attacks,expected);command(&mut engine,"gexplore off");assert!(engine.gates.is_empty());
         // The changed input key is runtime state, not a clip edit.
         engine.follower_inputs[2]=crate::follower_input::InputKey::new(0,1);
-        assert_eq!(engine.undo_snapshot(),saved);assert!(!engine.dirty);
+        assert_eq!(engine.undo_snapshot(),saved);assert!(!engine.dirty);engine.stop(&mut Vec::new());
     }
     fn record(bass:bool)->(Engine,Vec<(u32,OutEvent)>) {
         let mut engine=fixture();let mut current=config(bass);
