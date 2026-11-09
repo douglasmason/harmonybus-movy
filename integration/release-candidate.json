@@ -1,8 +1,8 @@
 {
-  "version": "0.34.1-hbclean.328",
-  "previous_version": "0.34.1-hbclean.327",
+  "version": "0.34.1-hbclean.329",
+  "previous_version": "0.34.1-hbclean.328",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.328 — Cloud recording feedback",
+  "title": "Movy 0.34.1-hbclean.329 — Cloud recording feedback",
   "notes": "docs/follower-cloud.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",

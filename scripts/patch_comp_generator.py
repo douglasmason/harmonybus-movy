@@ -53,11 +53,12 @@ def patch_comp_generator(root: Path) -> None:
     path = core / 'engine.rs'
     source = replace_once(path.read_text(),'pub struct Engine {','''pub struct Engine {
     pub generator_explore:[Option<crate::generator::Explore>;16],
+    pub generator_visuals:[Option<(usize,[u8;4],u64)>;16],
     pub generator_library:[Option<crate::part_load::PreparedPart>;16],
     pub generator_restore:[Option<crate::part_settings::Settings>;16],
     pub generator_result:String,
     generator_emitting:bool,''')
-    source = replace_once(source,'            variations:', '            generator_explore:[None;16],generator_library:std::array::from_fn(|_|None),generator_restore:[None;16],generator_result:String::new(),generator_emitting:false,\n            variations:')
+    source = replace_once(source,'            variations:', '            generator_explore:[None;16],generator_visuals:[None;16],generator_library:std::array::from_fn(|_|None),generator_restore:[None;16],generator_result:String::new(),generator_emitting:false,\n            variations:')
     source = replace_once(source,'struct Gate {','struct Gate {\n    generated:bool,')
     source = replace_once(source,'self.gates.push(Gate {','self.gates.push(Gate {\n                            generated:self.generator_emitting,')
     source = replace_once(source,'    pub fn clip_transpose(&self, track: usize, slot: usize) -> i32 {','    pub fn clip_transpose(&self, track: usize, slot: usize) -> i32 {\n        if self.generator_free(track) {return 0;}')
@@ -108,7 +109,7 @@ def patch_comp_generator(root: Path) -> None:
     path.write_text(source)
     path = core / 'persist.rs'
     source = replace_once(path.read_text(),'            if let Some(recipe)=&c.recipe', '            if let Some(config)=c.generator {s.push_str(&format!("cg1 {} {} {}\\n",ti,ci,config.wire()));}\n            if let Some(recipe)=&c.recipe')
-    source = replace_once(source,'    engine.chord_step_input=None;', '    engine.generator_explore.fill(None);engine.generator_library.fill(None);\n    engine.chord_step_input=None;')
+    source = replace_once(source,'    engine.chord_step_input=None;', '    engine.generator_explore.fill(None);engine.generator_visuals.fill(None);engine.generator_library.fill(None);\n    engine.chord_step_input=None;')
     source = replace_once(source,'            Some("pr1")=>{','''            Some("cg1")=>{
                 if let (Some(track),Some(slot))=(it.next().and_then(|value|value.parse::<usize>().ok()),it.next().and_then(|value|value.parse::<usize>().ok())) {
                     if let Some(clip)=engine.tracks.get_mut(track).and_then(|track|track.clips.get_mut(slot)) {

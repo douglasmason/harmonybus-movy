@@ -722,6 +722,8 @@ def main() -> int:
         version_path.write_text(version_path.read_text().replace('0.103.0-queue-handoff1', '0.105.0-cloud3'))
     from patch_cloud_generator import patch_cloud_generator
     patch_cloud_generator(root)
+    from patch_euclidean_surface import patch_euclidean_surface
+    patch_euclidean_surface(root)
     print("HarmonyBus clean integration applied")
     return 0
 

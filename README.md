@@ -1,4 +1,4 @@
-## Cloud recording feedback (hbclean.328)
+## Cloud recording feedback (hbclean.329)
 
 The shared Remote UI and standalone cloud controls show transport, count-in, recording and the take's destination clip. Record becomes Cancel count-in or Stop recording as appropriate, and can finish the original take after browsing another actor without starting that actor's generator. Native generator footers also identify count-in. See [Follower cloud](docs/follower-cloud.md).
 

@@ -34,7 +34,7 @@ and drag one or more fingers. Both pages share controls, rendering and gesture
 cleanup. The browser workspace's physical Move connection remains a hardware
 mirror; use the native Tool page for the physical device's semantic cloud editor.
 
-From hbclean.328, the shared web controls show Playing/Stopped, recording state
+From hbclean.329, the shared web controls show Playing/Stopped, recording state
 and the take's track and clip. Record changes to **Cancel count-in**, **Cancel
 recording** while armed, or **Stop recording** when capturing. These indicators
 follow the existing engine/controller state; clicking does not invent a success
