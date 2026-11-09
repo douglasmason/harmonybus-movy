@@ -194,7 +194,8 @@ def patch_comp_generator(root: Path) -> None:
     source = replace_once(source,'export function chordRecordButton(down:boolean,track:number):void {','export function chordRecordButton(down:boolean,track:number):void {\n    if(generatorRecordActive()){if(down)recToggle(track);return;}')
     path.write_text(source)
     path = root / 'src/undo/rec-pass.ts'
-    source = "import {generatorRecordCommand,generatorRecordTrack} from '../seq/comp-generator.js';\n" + path.read_text()
+    source = "import {generatorRecordCommand,generatorRecordTrack,generatorRecording} from '../seq/comp-generator.js';\n" + path.read_text()
+    source = replace_once(source, '    if (!seqState.recording && !seqState.countingIn) {', "    if (!seqState.recording && !seqState.countingIn && generatorRecording().phase==='idle') {")
     source = replace_once(source,'seqCtl(chordRecordCommand() ??', 'seqCtl(generatorRecordCommand() ?? chordRecordCommand() ??')
     source = source.replace("watchedTrack() + ':' + passSeq", "(generatorRecordTrack()??watchedTrack()) + ':' + passSeq")
     source = source.replace('target: trackLabel(watchedTrack()),','target: trackLabel(generatorRecordTrack()??watchedTrack()),')

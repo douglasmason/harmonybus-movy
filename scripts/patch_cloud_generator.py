@@ -76,7 +76,7 @@ export function tickChord():void{
     source = replace_once(source, '    if(mode===0)set(', "    if(cloudSurfaceActive()){set(CC_MODE_LOOP,'Cloud Explore','Start or stop this follower cloud',true,cloudRunning());set(CC_MODE_CLEAR,'Clear cloud','Release contacts and clear this cloud trail',true,false);return result;}\n    if(mode===0)set(")
     path.write_text(source)
     path = root / 'build/browser.mjs'
-    source = replace_once(path.read_text(), '    entryPoints: [', "    entryPoints: [\n        resolve(root,'src/seq/cloud-view.ts'),\n        resolve(root,'src/seq/cloud-surface.ts'),")
+    source = replace_once(path.read_text(), '    entryPoints: [', "    entryPoints: [\n        resolve(root,'src/seq/cloud-view.ts'),\n        resolve(root,'src/seq/cloud-surface.ts'),\n        resolve(root,'src/seq/cloud-remote.ts'),")
     path.write_text(source)
     path = core / 'engine.rs'
     source = replace_once(path.read_text(), 'pub struct Engine {', 'pub struct Engine {\n    pub clouds:[crate::cloud::Runtime;16],')

@@ -34,6 +34,18 @@ and drag one or more fingers. Both pages share controls, rendering and gesture
 cleanup. The browser workspace's physical Move connection remains a hardware
 mirror; use the native Tool page for the physical device's semantic cloud editor.
 
+From hbclean.329, the shared web controls show Playing/Stopped, recording state
+and the take's track and clip. Record changes to **Cancel count-in**, **Cancel
+recording** while armed, or **Stop recording** when capturing. These indicators
+follow the existing engine/controller state; clicking does not invent a success
+state. Ending a take leaves playback running. Stop ends the transport.
+
+Browsing another actor keeps the original recording destination visible. The
+Record button can finish or cancel that take even when the browsed actor is not
+using Cloud, without starting the browsed actor's generator. The native generator
+footer also identifies count-in. Both paths retain the ordinary Record button's
+single Undo pass. Bake is unavailable while a take is armed or recording.
+
 The Axes selector switches between **X Activity / Y Pitch** and
 **X Pitch / Y Activity**, with the web labels naming the selected activity.
 The second orientation gives Move eight horizontal pitch positions and four
