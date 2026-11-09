@@ -48,6 +48,7 @@ jobs:
           node dev/local/browser-test.cjs
           node dev/local/joint-browser-test.cjs
           node dev/local/cloud-ui.test.mjs
+          node dev/local/euclidean-ui.test.mjs
       - name: Install WebAssembly toolchains
         run: |
           rustup target add wasm32-unknown-unknown wasm32-unknown-emscripten
@@ -70,6 +71,7 @@ jobs:
           node dev/wasm/full/session-browser-test.mjs
           WASM_PACKAGED=1 node dev/wasm/full/workspace-browser-test.mjs
           WASM_PACKAGED=1 node dev/wasm/full/cloud-browser-test.mjs
+          WASM_PACKAGED=1 node dev/wasm/full/euclidean-browser-test.mjs
           WASM_PACKAGED=1 node dev/wasm/full/move-browser-test.mjs
           node dev/wasm/package-companion.mjs
           node --test dev/local/companion-package-test.mjs

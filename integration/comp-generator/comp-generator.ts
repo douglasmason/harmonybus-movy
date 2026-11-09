@@ -154,6 +154,7 @@ export function generatorPrepareRecord(track:number):boolean|null {
  return state[0]==='Recorded'?preview(track,Number(state[1])):null;
 }
 export function generatorRecordCommand():string|null {const track=generatorRecordTrack();if(track===null)return null;recordingTrack=track;return 'rec '+track;}
+export function generatorCanBake(track=selectedTrack):boolean {const state=readState(track);return compatible(state)&&state[0]==='Recorded'&&!seqState.recording&&!seqState.countingIn;}
 export function generatorStop(track?:number):void {if(engineReady()){seqCmd(track===undefined?'gexplore off':'gexplore '+track+' off');seqCmdFlush();}cached.clear();if(track===undefined||recordingTrack===track)recordingTrack=null;}
 function send(track:number):boolean {
  if(!engineReady())return false;
@@ -255,7 +256,7 @@ export function generatorTouch(key:string,track:number,down:boolean):boolean {
  }
  if(key==='cg_explore') {if(active(track))generatorStop(track);else {if(draft(track).user!==null)generatorAuditionUser(track,actorKind(),draft(track).user!,draft(track).genre);else if(state[0]==='Recorded')preview(track,Number(state[1]));else if(send(track))seqToast('Explore: Play starts / Rec saves');}return true;}
  const slot=Number(state[1]);
- if(state[0]!=='Recorded'||seqState.recording||seqState.countingIn){seqToast('Stop exploration; record a take first');return true;}
+ if(!generatorCanBake(track)){seqToast('Stop exploration; record a take first');return true;}
  undoableEdit('BAKE '+selectedActor.toUpperCase(),'T'+(track+1),()=>seqCmd('gbake '+track+' '+slot));seqCmdFlush();cached.clear();
  seqToast(info(track,true)[3]??'Bake requested');return true;
 }
@@ -270,7 +271,13 @@ export function generatorFooter(track:number):string {
 }
 
 export function generatorEnsureCloud(track=selectedTrack):boolean {
- if(!generatorCloud(track)||!compatible(info(track,true)))return false;
+ return generatorCloud(track)&&ensureGenerator(track);
+}
+export function generatorEnsureEuclidean(track=selectedTrack):boolean {
+ return generatorEuclidean(track)&&ensureGenerator(track);
+}
+function ensureGenerator(track:number):boolean {
+ if(!engineReady()||!compatible(info(track,true)))return false;
  if(active(track))return true;
  return info(track)[0]==='Recorded'?preview(track,Number(info(track)[1])):send(track);
 }

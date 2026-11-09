@@ -6,6 +6,9 @@ from patch_responsive_persistence import replace_once
 def patch_euclidean_surface(root: Path) -> None:
     """Share step gestures and drawing between Move and browser controllers."""
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/comp-generator'
+    filename: str
+    for filename in ('euclidean-web.mjs','generator-web.mjs'):
+        (root / filename).write_text((assets / filename).read_text())
     (root / 'src/seq/euclidean-surface.ts').write_text((assets / 'euclidean-surface.ts').read_text())
     path: Path = root / 'src/seq/chord-play.ts'
     source: str = "import {generatorEuclideanView,generatorRotateStep,generatorEuclidean,euclideanExpressionKeys} from './comp-generator.js';\nimport {tickEuclidean,paintEuclideanSteps,drawEuclidean} from './euclidean-surface.js';\nimport {deleteActive} from './edit-ops.js';\nimport {dupActive} from './duplicate.js';\n" + path.read_text()

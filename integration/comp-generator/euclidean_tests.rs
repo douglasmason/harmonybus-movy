@@ -132,6 +132,25 @@
             assert!((0..26).filter_map(|step|expressive.note(step)).all(|note|note.vel==90),"zero depth disables emphasis");
         }
     }
+    #[test] fn euclidean_exploration_maps_fresh_actors_and_preserves_valid_mappings() {
+        for bass in [false,true] {for role in 0..4 {for mapping in 0..8 {
+            let mut original=crate::part_settings::Settings::comp();
+            original.0[crate::generator::CLOUD_ROLE_INDEX]=role;
+            original.0[crate::generator::CLOUD_TRAVEL_INDEX]=mapping;
+            let effective=config(bass).settings(original);
+            assert!(effective.mapped());
+            assert_eq!(effective.0[crate::generator::CLOUD_TRAVEL_INDEX],if matches!(mapping,1|5){mapping}else{1});
+            let mut engine=fixture();engine.recipe_seen[2]=Some(original);
+            command(&mut engine,&format!("gexplore 2 {}",config(bass).wire()));
+            assert_eq!(engine.generator_restore[2],Some(original));
+            assert_eq!(engine.generator_settings(2),Some(effective));
+            engine.play();assert!(!ticks(&mut engine,100).is_empty());
+            command(&mut engine,"gexplore off;stop");
+            assert!(engine.generator_explore[2].is_none());
+            assert!(engine.generator_settings(2).is_none());
+            assert!(engine.gates.is_empty());
+        }}}
+    }
     #[test] fn euclidean_expression_automation_replays_reloads_and_bakes_exactly() {
         for bass in [false,true] {
             let mut engine=fixture();let mut current=config(bass);current.expression=[2,40,25];

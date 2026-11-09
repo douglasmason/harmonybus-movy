@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.333",
-  "previous_version": "0.34.1-hbclean.332",
+  "version": "0.34.1-hbclean.334",
+  "previous_version": "0.34.1-hbclean.333",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.333 \u2014 Expressive cloud pressure and pad feedback",
-  "notes": "docs/follower-cloud.md",
+  "title": "Movy 0.34.1-hbclean.334 — Shared Euclidean touch editor",
+  "notes": "docs/euclidean-generator.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

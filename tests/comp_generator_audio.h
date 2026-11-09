@@ -278,4 +278,20 @@ static void test_comp_generator(void){
         assert(strong>0&&soft>0&&sent_on==sent_off);
     }
     puts("Euclidean expression: accented/soft velocities survive production Comp/Bass rendering with paired releases");
+    for(int actor=0;actor<2;actor++){
+        const int track=actor?1:2,style=actor?20:19;
+        char parameter[64],command[128],value[64];
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:role",track);set(parameter,"Off");
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:travel_map",track);set(parameter,"None");render(8);
+        assert(api->get_param(instance,"persistent_state",before,sizeof(before))>0);
+        snprintf(command,sizeof(command),"gexplore %d %d 32 64 1 0 3 7 0 0;play",track,style);
+        sent_on=sent_off=0;set("cmd",command);render(200);assert(sent_on>0);
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:travel_map",track);assert(api->get_param(instance,parameter,value,sizeof(value))>0&&!strcmp(value,"Relative"));
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:role",track);assert(api->get_param(instance,parameter,value,sizeof(value))>0&&!strcmp(value,"Follower"));
+        set("cmd","gexplore off;stop");render(16);assert(sent_on==sent_off);
+        assert(api->get_param(instance,parameter,value,sizeof(value))>0&&!strcmp(value,"Off"));
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:travel_map",track);assert(api->get_param(instance,parameter,value,sizeof(value))>0&&!strcmp(value,"None"));
+        assert(api->get_param(instance,"persistent_state",after,sizeof(after))>0&&!strcmp(before,after));
+    }
+    puts("Euclidean fresh actors: temporary follower mapping sounds and restores original role/mapping");
 }

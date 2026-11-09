@@ -1,4 +1,4 @@
-import {mountCloud} from './build/cloud-web.mjs';
+import {mountGenerators} from './build/generator-web.mjs';
 /** Compose existing views around one connection, cache, focus and session owner. */
 import {mountHBComponent} from './build/hb-components.mjs';
 import {mountLighting} from './lighting-ui.mjs';
@@ -19,7 +19,7 @@ export function mountMoveWorkspace({connection,inputs,openComponent}){
   const component=mountHBComponent(name,panels.get(name).querySelector('.component-content'),api);
   component.suspend();components.set(name,component);
  }
- const cloud=mountCloud({root:panels.get('cloud').querySelector('.component-content').attachShadow({mode:'open'}),api:{send:value=>{if(valid())connection.send({type:'set_param',key:'cloud_action',value});},read:async()=>({ui:valid()?cache.get('cloud_ui_state'):null,view:valid()?cache.get('cloud_view'):''})}});cloud.suspend();components.set('cloud',cloud);
+ const cloud=mountGenerators({root:panels.get('cloud').querySelector('.component-content').attachShadow({mode:'open'}),api:{send:value=>{if(valid())connection.send({type:'set_param',key:'cloud_action',value});},read:async()=>({ui:valid()?cache.get('cloud_ui_state'):null,view:valid()?cache.get('cloud_view'):''})}});cloud.suspend();components.set('cloud',cloud);
  const lighting=mountLighting(panels.get('lights').querySelector('.component-content'));
  const song=mountSong({root:panels.get('song'),read:key=>cache.get(key),actions:{get count(){return frame?.song?.count??0;},
   get building(){return !!frame?.song?.building;},hold:value=>connection.send({type:'move_song',action:'hold',value}),
@@ -48,7 +48,7 @@ export function mountMoveWorkspace({connection,inputs,openComponent}){
    if(content){content.inert=!available;content.hidden=!available;}
    const limitation=panel.querySelector('.component-limit');if(limitation){
     limitation.hidden=available;
-    limitation.textContent=connection.engine==='move'?'This component needs semantic engine data, which the connected Move mirror does not provide.':'Browser engine offline. Reload to restart; unsaved edits may be lost.';
+    limitation.textContent=connection.engine==='move'?(name==='cloud'?'Use the Movy Tool tab in Schwung Remote UI to edit the connected Move generators.':'This component needs semantic engine data, which the connected Move mirror does not provide.'):'Browser engine offline. Reload to restart; unsaved edits may be lost.';
    }
   }
   if(shown.has('lights')&&available)lighting.resume();else lighting.suspend();
@@ -63,7 +63,7 @@ export function mountMoveWorkspace({connection,inputs,openComponent}){
  document.querySelector('#workspace-layout').onchange=event=>{if(inputs.isHeld()||isHeld()){event.target.value=layout;return;}layout=event.target.value;workspace.dataset.layout=layout;};
  for(const [name,panel] of panels){
   const header=document.createElement('div');header.className='component-heading';
-  const title=document.createElement('strong');title.textContent={controls:'Display & controls',pads:'Playing pads & steps',cloud:'Follower cloud',field:'Field outputs',choices:'Motif probabilities',song:'Scenes & Song',lights:'Lighting preview'}[name];header.append(title);
+  const title=document.createElement('strong');title.textContent={controls:'Display & controls',pads:'Playing pads & steps',cloud:'Follower generators',field:'Field outputs',choices:'Motif probabilities',song:'Scenes & Song',lights:'Lighting preview'}[name];header.append(title);
   const enlarge=document.createElement('button');enlarge.type='button';enlarge.className='component-enlarge';enlarge.textContent='Enlarge';
   enlarge.setAttribute('aria-label',`Enlarge · ${title.textContent}`);
   enlarge.onclick=()=>openComponent(panel,enlarge);header.append(enlarge);
