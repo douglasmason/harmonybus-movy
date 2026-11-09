@@ -73,7 +73,7 @@ export function overviewGet(base:number,key:string):string|null {
     const actor=base+Number(match[1]),field=match[2];
     const state=snapshot('source-'+actor,()=>typeof host_module_get_param==='function'?host_module_get_param('source_preview_'+actor):null);
     if(state?.schema!==1||state.actor!==actor)return 'Unavailable';
-    if(field==='state')return !state.playing?'Stopped':state.muted?'Muted':state.recording?'Recording own':state.enabled?(state.alignment===2?'Weave Fit':state.timeline?'Weave Time':'Weave Seq'):'Own playback';
+    if(field==='state')return !state.playing?'Stopped':state.muted?'Muted':state.recording?'Recording own':state.generator_owned?(state.generator_rhythm&&state.rhythm_amount!==0?'Generator follow':'Generator own'):state.enabled?(state.alignment===2?'Weave Fit':state.timeline?'Weave Time':'Weave Seq'):'Own playback';
     if(field==='gates')return Number.isInteger(state.gates)?String(state.gates):'--';
     if(field==='notes'){
         if(!Array.isArray(state.notes))return '--';

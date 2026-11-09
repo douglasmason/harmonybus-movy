@@ -320,6 +320,50 @@ impl Engine {
         }
         Ok(count>0)
     }
+    /// Resolve preview controls at a supplied musical phase without advancing
+    /// clocks or recording. The same projection is used by Own and donor attacks.
+    fn generator_preview_at(&self,track:usize,slot:usize,pos:u32,mut state:crate::generator::Explore)->crate::generator::Explore {
+        let clip=&self.tracks[track].clips[slot];
+        let template=self.generator_library[track].as_ref();
+        let loop_start=clip.loop_start_ticks();
+        let mut accepted=state.current;
+        let boundaries=if pos%TICKS_PER_STEP==0 {state.current.step_mask()}else{0}
+            | if pos%crate::TICKS_PER_BAR==0||(state.source.is_some()&&pos==loop_start) {4}else{0};
+        let released=state.restore_pending&boundaries;
+        state.touched&=!released;state.restore_pending&=!released;
+        if pos%TICKS_PER_STEP==0 {accepted=Self::generator_override(accepted,state.desired,accepted.step_mask());}
+        if pos%crate::TICKS_PER_BAR==0||(state.source.is_some()&&pos==loop_start) {accepted.style=state.desired.style;accepted.seed=state.desired.seed;}
+        // Only an active saved-source preview consumes a base on each tick.
+        // Ordinary recipe playback reads its curves below at the swung
+        // attack, so resolving them here would scan the same locks unused.
+        state.current=if let Some(part)=template {
+            let base=part.clip.generator.unwrap().at(&part.clip,&part.lanes.labels,(pos/TICKS_PER_STEP) as u16);
+            Self::generator_override(base,accepted,state.touched)
+        }else if state.source.is_some() {
+            let base=clip.generator.unwrap().at(clip,&self.tracks[track].lane_label,(pos/TICKS_PER_STEP) as u16);
+            Self::generator_override(base,accepted,state.touched)
+        }else{accepted};
+        state
+    }
+    /// Retain one owner for recipe gate scaling, Bass articulation, generated
+    /// releases and Cloud observation, regardless of the selected rhythm clock.
+    fn generator_emit_note(&mut self,track:usize,slot:usize,mut note:crate::clip::Note,
+        config:crate::generator::Config,gate_override:Option<u32>,clock_track:usize,out:&mut Vec<OutEvent>) {
+        if let Some(part)=&self.generator_library[track]{if let Some(recipe)=&part.clip.recipe{note.gate=((note.gate as u64*recipe.gate as u64)/100).clamp(1,u32::MAX as u64) as u32;}}
+        if config.bass() {
+            let mut index=0;
+            while index<self.gates.len() {
+                if self.gates[index].track==track as u8&&self.gates[index].generated {
+                    out.push(self.gates.remove(index).off_event());
+                }else{index+=1;}
+            }
+        }
+        self.generator_emitting=true;
+        let observed=note.clone();let before=out.len();
+        self.emit_clip_note(track,track,slot,note,gate_override,None,Default::default(),config.is_cloud()||gate_override.is_some(),clock_track,out);
+        if config.is_cloud()&&out[before..].iter().any(|event|matches!(event,OutEvent::NoteOn{..})) {self.cloud_observe(track,&observed);}
+        self.generator_emitting=false;
+    }
     /// Called by the existing per-track clock, sharing its gate countdown and
     /// emit_clip_note ownership. Return accepted source rhythm before actor
     /// rendering, so the clip clock can merge it with authored attacks once.
@@ -337,27 +381,8 @@ impl Engine {
         let free=self.generator_free(track)&&!recording;
         let free_end=self.generator_library[track].as_ref().map_or(crate::TICKS_PER_BAR*4,|part|part.clip.length_ticks());
         let pos=if free {self.master_tick.saturating_sub(1) as u32%free_end} else {self.tracks[track].pos_tick};
-        let clip=&self.tracks[track].clips[slot];
-        let template=self.generator_library[track].as_ref();
-        let loop_start=clip.loop_start_ticks();
-        if let Some(state)=self.generator_explore[track].as_mut() {
-            let mut accepted=state.current;
-            let boundaries=if pos%TICKS_PER_STEP==0 {state.current.step_mask()}else{0}
-                | if pos%crate::TICKS_PER_BAR==0||(state.source.is_some()&&pos==loop_start) {4}else{0};
-            let released=state.restore_pending&boundaries;
-            state.touched&=!released;state.restore_pending&=!released;
-            if pos%TICKS_PER_STEP==0 {accepted=Self::generator_override(accepted,state.desired,accepted.step_mask());}
-            if pos%crate::TICKS_PER_BAR==0||(state.source.is_some()&&pos==loop_start) {accepted.style=state.desired.style;accepted.seed=state.desired.seed;}
-            // Only an active saved-source preview consumes a base on each tick.
-            // Ordinary recipe playback reads its curves below at the swung
-            // attack, so resolving them here would scan the same locks unused.
-            state.current=if let Some(part)=template {
-                let base=part.clip.generator.unwrap().at(&part.clip,&part.lanes.labels,(pos/TICKS_PER_STEP) as u16);
-                Self::generator_override(base,accepted,state.touched)
-            }else if state.source.is_some() {
-                let base=clip.generator.unwrap().at(clip,&self.tracks[track].lane_label,(pos/TICKS_PER_STEP) as u16);
-                Self::generator_override(base,accepted,state.touched)
-            }else{accepted};
+        if let Some(state)=self.generator_explore[track] {
+            self.generator_explore[track]=Some(self.generator_preview_at(track,slot,pos,state));
         }
         self.cloud_capture(track,slot,pos);
         self.generator_capture_tick(track,slot,pos,out);
@@ -377,22 +402,10 @@ impl Engine {
             let phase=if free&&self.generator_library[track].is_none(){self.master_tick.saturating_sub(1)/TICKS_PER_STEP as u64}else{step as u64};
             self.generator_visuals[track]=config.is_euclidean().then_some((slot,config.euclidean,phase));
             let generated=if config.is_cloud(){self.cloud_notes(track,slot,step,config,free)}else{config.note_at(step,phase).into_iter().collect()};
-            for mut note in generated {
+            for note in generated {
                 crate::source_route::RhythmAttack::accept(&mut source_duration,note.pitch,note.gate);
-                if let Some(part)=&self.generator_library[track]{if let Some(recipe)=&part.clip.recipe{note.gate=((note.gate as u64*recipe.gate as u64)/100).clamp(1,u32::MAX as u64) as u32;}}
-                if config.bass() {
-                    let mut index=0;
-                    while index<self.gates.len() {
-                        if self.gates[index].track==track as u8&&self.gates[index].generated {
-                            out.push(self.gates.remove(index).off_event());
-                        }else{index+=1;}
-                    }
-                }
-                self.generator_emitting=true;
-                let observed=note.clone();let before=out.len();
-                self.emit_clip_note(track,track,slot,note,None,None,Default::default(),config.is_cloud(),track,out);
-                if config.is_cloud()&&out[before..].iter().any(|event|matches!(event,OutEvent::NoteOn{..})) {self.cloud_observe(track,&observed);}
-                self.generator_emitting=false;
+                if self.generator_rhythm_following(track)&&!self.generator_rhythm_own(track) {continue;}
+                self.generator_emit_note(track,slot,note,config,None,track,out);
             }
         }
         source_duration
@@ -410,6 +423,9 @@ impl Engine {
         if slot!=target.active_clip{return Err("Clip changed");}
         let clip=target.clips.get(slot).ok_or("Invalid clip")?;
         let config=clip.generator.ok_or("Record a generator take first")?;
+        if !config.is_cloud()&&self.source_routes[track].enabled&&self.source_routes[track].rhythm.is_some_and(|source|source!=crate::source_route::ClipRef{track,slot}) {
+            return Err("Turn Source Weaving off before Bake");
+        }
         if self.humanize.time_active(track)||(self.humanize.tracks&(1<<track)!=0&&self.humanize.velocity>0)
             ||self.hb_rhythm[track].enabled()||!clip.operation_intervals.is_empty()||!clip.grid_gates.is_empty()||!clip.trigs.is_empty() {
             return Err("Bake needs Humanize and clip rhythm operations off");

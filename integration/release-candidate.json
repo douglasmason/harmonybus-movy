@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.328",
-  "previous_version": "0.34.1-hbclean.327",
+  "version": "0.34.1-hbclean.330",
+  "previous_version": "0.34.1-hbclean.329",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.328 — Playable Euclidean rhythm preview",
-  "notes": "docs/euclidean-generator.md",
+  "title": "Movy 0.34.1-hbclean.330 — Generated rhythm followers",
+  "notes": "docs/generated-rhythm-receivers.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

@@ -25,7 +25,13 @@ generated receivers remain open, while its missing lane filter is implemented.
 A third follow-up adds [Follow Amount](rhythm-follow-amount.md): deterministic
 crossfading between Own and a selected donor rhythm on the existing Sources page.
 This is a useful subset of rank 1; accent affinity, protected motifs, Answer
-behavior and generated receivers remain distinct work rather than implied claims.
+behavior remain distinct work rather than implied claims.
+
+A fourth follow-up extends [rhythm following to recorded generated receivers](generated-rhythm-receivers.md).
+Comp/Bass/Euclidean recipes can borrow selected donor attacks while sampling their
+own abstract material at their own phrase phase. Cloud/free exploration retain
+their own timing. This completes the basic generated-donor/generated-receiver
+path without claiming accent affinity, answering, or protected-motif regeneration.
 
 This session implements a narrower prerequisite: remove unused automation-curve
 reads from recorded generator playback. It changes neither the musical model nor
