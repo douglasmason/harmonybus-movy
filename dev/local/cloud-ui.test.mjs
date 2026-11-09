@@ -6,7 +6,7 @@ const server=createServer(async(request,response)=>{
  if(request.url==='/'){
   response.setHeader('Content-Type','text/html');response.end(`<!doctype html><style>body{margin:20px;background:#111;color:white}</style><main id="cloud"></main><script type="module">
   import {mountCloud} from '/cloud-web.mjs';window.sent=[];window.reads=0;
-  window.state={actor:'Melody',track:3,cloud:true,values:[96,96,127,48,64,80,64,90],seed:71,explore:'Stop',footer:'Explore Melody T4:1',x:64,y:64,edge:'Bounded',trail:{scope:'pitch',window:'infinite',windowBeats:4,curve:'linear',decayBeats:4,strength:1,peak:1,floor:0}};
+  window.state={actor:'Melody',track:3,slot:0,transport:{playing:false,phase:'idle',track:null,slot:null},cloud:true,values:[96,96,127,48,64,80,64,90],seed:71,explore:'Stop',footer:'Explore Melody T4:1',x:64,y:64,edge:'Bounded',trail:{scope:'pitch',window:'infinite',windowBeats:4,curve:'linear',decayBeats:4,strength:1,peak:1,floor:0}};
   window.view='cf1|64,64,127|20,30,100,6;35,50,100,4;52,65,110,2;64,64,120,0|30,35,95,5;50,60,100,2';
   window.component=mountCloud({root:document.querySelector('#cloud').attachShadow({mode:'open'}),api:{send:value=>sent.push(value),read:async()=>{window.reads++;return {ui:state,view};}}});
   </script>`);return;
@@ -35,6 +35,22 @@ try{
  await page.evaluate(()=>window.state.activity='Rate');await page.waitForTimeout(100);assert.match(await canvas.getAttribute('aria-label'),/vertical movement changes trigger rate/);
  await page.getByRole('slider',{name:'Cloud density',exact:true}).fill('110');assert((await page.evaluate(()=>window.sent)).includes('control cg_cloud_density 110'));
  await page.getByRole('button',{name:'Record',exact:true}).click();assert((await page.evaluate(()=>window.sent)).includes('record'));
+ assert.equal(await page.getByRole('button',{name:'Record',exact:true}).getAttribute('aria-pressed'),'false','sending an action does not invent engine confirmation');
+ await page.evaluate(()=>{window.state.transport={playing:false,phase:'count-in',track:1,slot:2};window.state.cloud=false;});
+ await page.getByRole('button',{name:'Cancel count-in',exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Cancel count-in',exact:true}).isEnabled(),true,'the original take can be cancelled from a non-cloud actor');
+ assert.equal(await page.getByRole('button',{name:'Cancel count-in',exact:true}).getAttribute('aria-pressed'),'true');
+ assert.match(await page.locator('.cloud-transport').textContent(),/Count-in · Track 2 · Clip 3/);
+ assert.equal(await page.getByRole('button',{name:'Bake clip',exact:true}).isEnabled(),false);
+ await page.getByRole('button',{name:'Cancel count-in',exact:true}).click();assert.equal((await page.evaluate(()=>window.sent)).at(-1),'record');
+ await page.evaluate(()=>{window.state.transport={playing:true,phase:'recording',track:1,slot:2};});
+ await page.getByRole('button',{name:'Stop recording',exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Play',exact:true}).getAttribute('aria-pressed'),'true');
+ assert.equal(await page.getByRole('button',{name:'Stop',exact:true}).isEnabled(),true);
+ assert.match(await page.locator('.cloud-transport').textContent(),/Playing · Recording · Track 2 · Clip 3/);
+ await page.evaluate(()=>{window.state.transport={playing:false,phase:'idle',track:null,slot:null};window.state.cloud=true;});
+ await page.getByRole('button',{name:'Record',exact:true}).waitFor();
+ assert.match(await page.locator('.cloud-status').textContent(),/Melody · Track 4 · Clip 1/);
  await canvas.evaluate(element=>element.addEventListener('pointerdown',event=>window.activePointer=event.pointerId,{once:true}));
  await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[touches[0]]});
  await canvas.evaluate(element=>{

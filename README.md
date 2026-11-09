@@ -1,3 +1,7 @@
+## Cloud recording feedback (hbclean.328)
+
+The shared Remote UI and standalone cloud controls show transport, count-in, recording and the take's destination clip. Record becomes Cancel count-in or Stop recording as appropriate, and can finish the original take after browsing another actor without starting that actor's generator. Native generator footers also identify count-in. See [Follower cloud](docs/follower-cloud.md).
+
 ## Continuous cloud strokes (hbclean.326)
 
 Fast finger drags and X/Y knob turns now leave sampled trails between their received positions. Separate fingers, lifts and wrapping edges keep independent strokes. The shared native/Remote UI/standalone engine preserves its 16-deposit-per-step limit, while ordinary Record, saved recipes and Bake retain the sampled gesture. See [Follower cloud](docs/follower-cloud.md).

@@ -5,10 +5,11 @@ export function mountCloud({root,api}){
  root.innerHTML=`<style>
  :host{color:var(--ui-fg,#eee);font:14px system-ui}*{box-sizing:border-box}.cloud-toolbar,.cloud-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
  button,select,input{font:inherit;color:inherit;accent-color:var(--ui-focus,#e74b50)}button,select{background:var(--ui-control,#252528);border:1px solid var(--ui-border,#555);border-radius:7px;padding:8px}
+ button[aria-pressed=true]{border-color:var(--ui-focus,#e74b50);box-shadow:inset 0 0 0 1px var(--ui-focus,#e74b50)}button[data-action=record][aria-pressed=true]{background:#54212b;border-color:#ff6666;box-shadow:inset 0 0 0 1px #ff6666}button:disabled{opacity:.45}.cloud-transport{font-weight:600;min-height:1.4em;margin:10px 0}
  canvas{display:block;width:100%;height:clamp(220px,40vh,480px);background:#090e14;border:1px solid var(--ui-border,#444);border-radius:12px;touch-action:none;margin:14px 0}
  label{display:flex;flex-direction:column;gap:4px;flex:1 1 120px}.cloud-controls input{width:100%}.cloud-legend,.cloud-status{color:var(--ui-muted,#aaa);font-size:12px}.cloud-legend span{margin-right:14px}.cloud-controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:12px 0}input[type=number]{background:#252528;border:1px solid #555;border-radius:5px;padding:6px;width:100%}@media(max-width:550px){.cloud-controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
  </style><div class="cloud-toolbar"><strong>Follower cloud</strong><select aria-label="Follower actor" data-actor><option>Melody</option><option>Comp</option><option>Bass</option></select><button data-action="choose">Choose Cloud</button><button data-action="explore">Explore</button><button data-action="play">Play</button><button data-action="stop">Stop</button><button data-action="record">Record</button><button data-action="clear">Clear trail</button></div>
- <canvas aria-label="Multitouch cloud field. Horizontal movement changes rhythmic activity; vertical movement changes harmonic height."></canvas>
+ <p class="cloud-transport" role="status">Waiting for transport…</p><canvas aria-label="Multitouch cloud field. Horizontal movement changes rhythmic activity; vertical movement changes harmonic height."></canvas>
  <div class="cloud-legend"><span style="color:#00ff00">● Direct touch</span><span style="color:#31adff">● Fresh consequences</span><span style="color:#6060ff">● Fading trail</span><span data-axes-label>← Less probability · More probability → &nbsp; ↑ Higher notes</span></div>
  <div class="cloud-toolbar"><label>Activity axis<select aria-label="Cloud field activity" data-activity><option>Probability</option><option>Rate</option></select></label><span class="cloud-legend" data-activity-help></span></div>
  <div class="cloud-controls">${['rate','density','length','register','spread','contour','variation','dynamics'].map(field=>`<label>${field[0].toUpperCase()+field.slice(1)} <output data-value="${field}">—</output><input aria-label="Cloud ${field}" data-control="${field}" type="range" min="0" max="127" value="64"></label>`).join('')}</div>
@@ -73,9 +74,19 @@ export function mountCloud({root,api}){
     root.querySelector('[data-axes-label]').textContent=flipped?`← Lower notes · Higher notes →   ↑ ${rate?'Faster triggers':'More probability'}`:`← ${rate?'Slower':'Less probability'} · ${rate?'Faster triggers':'More probability'} →   ↑ Higher notes`;
     canvas.setAttribute('aria-label',flipped?`Multitouch cloud field. Horizontal movement changes harmonic height; vertical movement changes ${meaning}.`:`Multitouch cloud field. Horizontal movement changes ${meaning}; vertical movement changes harmonic height.`);
     root.querySelector('[data-actor]').value=state.actor;root.querySelector('[data-edge]').value=state.edge;
+    const transport=state.transport,phase=transport?.phase??'idle',recording=phase!=='idle',playing=transport?.playing===true;
+    const record=root.querySelector('[data-action="record"]');
+    record.textContent=phase==='count-in'?'Cancel count-in':phase==='armed'?'Cancel recording':recording?'Stop recording':'Record';
+    record.setAttribute('aria-pressed',String(recording));record.disabled=!state.cloud&&!recording;
+    const play=root.querySelector('[data-action="play"]'),stop=root.querySelector('[data-action="stop"]');
+    play.setAttribute('aria-pressed',String(playing));stop.setAttribute('aria-pressed',String(!playing&&!recording));
+    play.disabled=playing;stop.disabled=!playing&&!recording;
+    const destination=Number.isInteger(transport?.track)?` · Track ${transport.track+1}${Number.isInteger(transport.slot)?` · Clip ${transport.slot+1}`:''}`:'';
+    root.querySelector('.cloud-transport').textContent=transport?`${playing?'Playing':'Stopped'} · ${phase==='count-in'?'Count-in':phase==='armed'?'Recording armed':recording?'Recording':'Not recording'}${recording?destination:''}`:'Transport status unavailable';
+    root.querySelector('[data-action="bake"]').disabled=!state.cloud||recording;
     for(const input of root.querySelectorAll('[data-control]')){const value=state.values[fields.indexOf(input.dataset.control)];if(root.activeElement!==input)input.value=String(value);root.querySelector(`[data-value="${input.dataset.control}"]`).textContent=value;input.disabled=!state.cloud;}
     root.querySelector('[data-action="explore"]').textContent=state.explore==='Stop'?'Stop exploring':'Explore';
-    root.querySelector('[data-seed]').value=state.seed;status.textContent=`${state.actor} · Track ${state.track+1} · ${state.footer}`;
+    root.querySelector('[data-seed]').value=state.seed;status.textContent=`${state.actor} · Track ${state.track+1}${Number.isInteger(state.slot)?` · Clip ${state.slot+1}`:''} · ${state.footer}`;
    }
    const view=readCloud(result.view??'');if(view)snapshot=view;paint();
   }catch{status.textContent='Waiting for cloud state…';}finally{inFlight=false;}

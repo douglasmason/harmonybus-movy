@@ -90,6 +90,15 @@ function recordingTarget():number|null {
 }
 export function generatorRecordActive():boolean {return recordingTarget()!==null||(active()&&compatible(info(selectedTrack)));}
 export function generatorRecordTrack():number|null {return recordingTarget()??(active()&&compatible(info(selectedTrack))?selectedTrack:null);}
+/** Display the confirmed take owner, never the actor merely being browsed. */
+export function generatorClipSlot(track=selectedTrack):number|null {
+ const value=info(track)[1],slot=Number(value);return value!==undefined&&Number.isInteger(slot)&&slot>=0&&slot<8?slot:null;
+}
+export function generatorRecording():{phase:'idle'|'armed'|'count-in'|'recording';track:number|null;slot:number|null} {
+ const track=recordingTarget();
+ const phase=seqState.countingIn?'count-in':seqState.recording?'recording':track!==null?'armed':'idle';
+ return {phase,track,slot:track===null?null:generatorClipSlot(track)};
+}
 export function generatorPageChanged():boolean {if(libraryRevision!==partLibraryRevision()){libraryRevision=partLibraryRevision();pageDirty=true;}const changed=pageDirty;pageDirty=false;return changed;}
 function compatible(state:string[]):boolean {const style=styles[Number(state[2]?.split(' ')[0])];return !(liveModes.includes(state[0])||state[0]==='Recorded')||style?.actor===selectedActor;}
 function readState(track:number,fresh=false):string[]{
@@ -229,6 +238,7 @@ export function generatorFooter(track:number):string {
  const state=info(track);if(!compatible(state))return 'Clip belongs to another actor';
  if(state[3]&&/^(Choose|Three|Set actor|Actor needs|Automation|Seed locked|Recording ended|Generator automation|Play the selected|Preview ended)/.test(state[3]))return state[3];
  const target=selectedActor+' T'+(track+1)+':'+(Number(state[1])+1),owner=recordingTarget();
+ if(owner!==null&&seqState.countingIn)return owner===track?'Count-in '+target:target+' / Count-in T'+(owner+1);
  if(owner!==null&&owner!==track)return target+' / Rec T'+(owner+1);
  if(draft(track).user!==null&&owner===null){const entry=userParts(actorKind())[draft(track).user!];return target+' '+(entry?.steps?entry.steps%16?entry.steps+'s':entry.steps/16+'b':'?b')+(entry?.automation?' Auto:'+(entry.euclidean?['H','S','R','T','I']:entry.cloud?['D','V','R','L','H','S','C','J']:['C','I','S']).filter((_,index)=>entry.automation!&(1<<index)).join(''):'');}
  return (state[0]==='Overdub'?'Overdub ':state[0]==='Preview'?'Preview ':state[0]==='Recording'?'Recording ':active(track)?'Explore ':state[0]==='Recorded'?'Recorded ':'Temporary ')+target;

@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.327",
-  "previous_version": "0.34.1-hbclean.326",
+  "version": "0.34.1-hbclean.328",
+  "previous_version": "0.34.1-hbclean.327",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.327 — Live Euclidean followers",
-  "notes": "docs/euclidean-generator.md",
+  "title": "Movy 0.34.1-hbclean.328 — Cloud recording feedback",
+  "notes": "docs/follower-cloud.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",
