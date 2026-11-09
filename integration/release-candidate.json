@@ -1,8 +1,8 @@
 {
-  "version": "0.34.1-hbclean.331",
-  "previous_version": "0.34.1-hbclean.330",
+  "version": "0.34.1-hbclean.332",
+  "previous_version": "0.34.1-hbclean.331",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.331 — Euclidean accents and articulation",
+  "title": "Movy 0.34.1-hbclean.332 — Euclidean accents and articulation",
   "notes": "docs/euclidean-generator.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",

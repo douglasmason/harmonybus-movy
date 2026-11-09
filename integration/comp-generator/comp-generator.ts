@@ -279,3 +279,8 @@ export function generatorCloudContact(track:number,id:number,x:number,y:number,p
  seqCmd(`gcloud ${track} ${id} ${Math.round(x)} ${Math.round(y)} ${Math.round(pressure)}${activity==='Rate'?' 1':''}`);seqCmdFlush();
 }
 export function generatorCloudSnapshot(track=selectedTrack):string {return String(host_module_get_param('cloud_view_'+track)??'');}
+export function generatorCloudHeld(track=selectedTrack):boolean {return engineReady()&&String(host_module_get_param('cloud_hold_'+track))==='1';}
+export function generatorCloudHold(enabled:boolean,track=selectedTrack):void {
+ if(!engineReady()||enabled&&!generatorEnsureCloud(track))return;
+ seqCmd(`gcloud ${track} hold ${enabled?1:0}`);seqCmdFlush();
+}

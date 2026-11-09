@@ -35,11 +35,20 @@ try{
  const engineSelector=document.querySelector('#engine'),address=document.querySelector('#move-address');
  const connect=document.querySelector('#move-connect'),disconnect=document.querySelector('#move-disconnect');
  const transportEnabled=document.querySelector('#move-transport-enabled'),pairingKey=document.querySelector('#move-pairing-key'),transportStatus=document.querySelector('#move-transport-status');
+ const observedStatus=document.querySelector('#move-observed-status');let observationTimer=null;
+ function observeTransport(state){
+  clearInterval(observationTimer);observationTimer=null;
+  if(!state){observedStatus.textContent='Device playback and recording not reported.';return;}
+  const receivedAt=performance.now(),phase={idle:'Not recording',armed:'Recording armed','count-in':'Count-in',recording:'Recording'}[state.phase];
+  const target=state.track===null?'':` · Track ${state.track+1}${state.slot===null?'':` / Clip ${state.slot+1}`}`;
+  const render=()=>{const age=Math.max(0,Math.floor((performance.now()-receivedAt)/1000));observedStatus.textContent=`Move last reported: ${state.playing?'Playing':'Stopped'} · ${phase}${target} · received ${age}s ago${age>=5?' · no recent report':''}`;};
+  render();observationTimer=setInterval(render,1000);
+ }
  const check=document.querySelector('#move-check'),capabilityStatus=document.querySelector('#move-capabilities');
  let capabilityRequest=null;
  const cancelCheck=()=>{if(capabilityRequest)diagnostics.metadata('not-checked');capabilityRequest?.abort();capabilityRequest=null;check.disabled=false;capabilityStatus.textContent='Capabilities not checked. Check reads installed module metadata only.';};
  const transportButtons=[...document.querySelectorAll('[data-move-transport]')];
- const controlState=(ready,message)=>{for(const button of transportButtons)button.disabled=!ready;transportStatus.textContent=message;};
+ const controlState=(ready,message)=>{if(!ready)observeTransport(null);for(const button of transportButtons)button.disabled=!ready;transportStatus.textContent=message;};
  const isBrowser=()=>connection.engine==='browser'&&!connection.busy&&connection.ready;
  const scaleFinder=mountScaleFinderUI({send,isBrowser});
  connection=createMoveConnection({browser,diagnostics,inputs:{disable(){workspace?.suspend();inputs.disable();}},pageURL:location.href,onFrame:frame=>surface.update(frame),
@@ -91,7 +100,7 @@ try{
   finally{clearTimeout(timeout);if(capabilityRequest===request){capabilityRequest=null;check.disabled=false;}}
  };
  transportEnabled.onchange=()=>{pairingKey.hidden=!transportEnabled.checked;if(!transportEnabled.checked)pairingKey.value='';};
- connect.onclick=()=>{const key=transportEnabled.checked?pairingKey.value.trim():undefined;pairingKey.value='';if(transportEnabled.checked&&!/^[a-f0-9]{64}$/.test(key)){diagnostics.begin(address.value,true);diagnostics.event('pairing-key-invalid');controlState(false,'Enter the 64-character pairing key printed by the companion.');return;}connection.connect(address.value,{pairingKey:key,onControlState:controlState});};
+ connect.onclick=()=>{const key=transportEnabled.checked?pairingKey.value.trim():undefined;pairingKey.value='';if(transportEnabled.checked&&!/^[a-f0-9]{64}$/.test(key)){diagnostics.begin(address.value,true);diagnostics.event('pairing-key-invalid');controlState(false,'Enter the 64-character pairing key printed by the companion.');return;}connection.connect(address.value,{pairingKey:key,onControlState:controlState,onObservation:observeTransport});};
  for(const button of transportButtons)button.onclick=()=>{if(!connection.transport(button.dataset.moveTransport))transportStatus.textContent='Request not sent · transport unavailable or busy';};
  disconnect.onclick=()=>connection.disconnect();
  window.addEventListener('pagehide',()=>{discovery.abort();cancelCheck();connection.disconnect('page-exit');});

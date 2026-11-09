@@ -8,6 +8,42 @@
         result
     }
     fn start(engine:&mut Engine){command(engine,"gexplore 2 16 127 96 71 0 127 50 64 80 64 100");}
+    #[test] fn cloud_hold_is_transient_track_owned_and_cleared_by_stop_or_cancel() {
+        let mut engine=fixture();let before=engine.undo_snapshot();engine.dirty=false;start(&mut engine);
+        for message in ["gcloud 2 hold 1","gcloud 16 hold 1","gcloud 2 hold 2","gcloud 2 hold 1 extra","gcloud 1 hold 1"]{assert!(!engine.cloud_touch(message));}
+        command(&mut engine,"gcloud 2 96 127 90 110;gcloud 2 96 127 90 0;gcloud 2 hold 1");
+        assert!(engine.clouds[2].holding());assert!(!engine.clouds[1].holding());engine.play();
+        trace(&mut engine,1536);assert!(!trace(&mut engine,384).is_empty(),"held cloud outlives contact leases and the four-beat tail");
+        assert!(engine.cloud_view(2).starts_with("cf1||"),"held emitters are consequences, never physical green contacts");
+        assert_eq!(engine.undo_snapshot(),before);assert!(!engine.dirty);
+        command(&mut engine,"gcloud 2 clear");assert!(!engine.clouds[2].holding());assert!(engine.clouds[2].points.is_empty());
+        for ending in ["gexplore 2 off","stop"] {
+            start(&mut engine);command(&mut engine,"gcloud 2 96 127 90 110;gcloud 2 hold 1");assert!(engine.clouds[2].holding());
+            command(&mut engine,ending);assert!(!engine.clouds[2].holding());
+        }
+        start(&mut engine);command(&mut engine,"gcloud 2 96 127 90 110");engine.advance_block(96000,&mut Vec::new());
+        assert!(!engine.cloud_touch("gcloud 2 hold 1"),"a stale stopped contact is not a cloud to hold");
+    }
+    #[test] fn held_cloud_overlays_controls_record_reload_recipe_and_bake_exactly() {
+        let mut engine=fixture();start(&mut engine);engine.play();engine.toggle_record(2);
+        command(&mut engine,"gcloud 2 96 0 20 110 1;gcloud 2 96 127 100 110 1;gcloud 2 96 127 100 0 1;gcloud 2 hold 1");
+        let mut heard=Vec::new();
+        for step in 0..64 {
+            if step==12 {command(&mut engine,"gexplore 2 16 127 96 71 0 127 20 80 100 80 90");}
+            if step==16 {command(&mut engine,"gcloud 2 97 127 20 100");}
+            if step==17 {command(&mut engine,"gcloud 2 97 127 20 0");}
+            if step==32 {command(&mut engine,"gcloud 2 hold 0");}
+            heard.extend(trace(&mut engine,24).into_iter().map(|(tick,pitch,velocity,on)|(tick+step*24,pitch,velocity,on)));
+        }
+        engine.toggle_record(2);let points=engine.tracks[2].clips[0].cloud_points.clone();
+        assert!(points.iter().any(|point|point.step==31));assert!(points.iter().all(|point|point.step<32));
+        assert_eq!(engine.tracks[2].lane_assigned.iter().filter(|assigned|**assigned).count(),8);
+        let saved=engine.undo_snapshot();let mut restored=fixture();assert!(crate::persist::load(&mut restored,&saved));assert!(!restored.clouds[2].holding());
+        restored.play();assert_eq!(trace(&mut restored,1536),heard);
+        restored.stop(&mut Vec::new());let payload=restored.part_export(2);
+        assert_eq!(crate::part_load::prepare_part("user",&payload).unwrap().clip.cloud_points,points);
+        restored.generator_bake("gbake 2 0",&mut Vec::new());restored.play();assert_eq!(trace(&mut restored,1536),heard);
+    }
     #[test] fn cloud_multitouch_live_does_not_change_set_and_contacts_expire() {
         let mut engine=fixture();let before=engine.undo_snapshot();engine.dirty=false;start(&mut engine);
         command(&mut engine,"gcloud 2 0 127 20 100;gcloud 2 1 127 100 100");engine.play();

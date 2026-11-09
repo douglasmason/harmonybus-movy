@@ -35,7 +35,7 @@ export function createMoveConnection({browser,inputs,onState,onFrame,pageURL,ope
   if(!ready){notify('error','Browser suspension was not acknowledged. Return to Browser and retry, or reload.');return;}
   disconnect('reconnect');const attempt=++generation;diagnostics?.begin(address,!!options.pairingKey);
   let url;try{url=deviceStreamURL(address,pageURL);}catch(error){diagnostics?.event('endpoint-rejected');notify('error',error.message);return;}
-  device=openDevice({url,pairingKey:options.pairingKey,onDiagnostic:(...args)=>{if(attempt===generation&&engine==='move')diagnostics?.event(...args);},onControlState:(...args)=>{if(attempt===generation&&engine==='move')options.onControlState?.(...args);},onFrame:frame=>{if(attempt===generation&&engine==='move')onFrame(frame);},
+  device=openDevice({url,pairingKey:options.pairingKey,onObservation:state=>{if(attempt===generation&&engine==='move')options.onObservation?.(state);},onDiagnostic:(...args)=>{if(attempt===generation&&engine==='move')diagnostics?.event(...args);},onControlState:(...args)=>{if(attempt===generation&&engine==='move')options.onControlState?.(...args);},onFrame:frame=>{if(attempt===generation&&engine==='move')onFrame(frame);},
    onState:(state,message,capabilities)=>{if(attempt!==generation||engine!=='move')return;if(['error','disconnected'].includes(state))blank();notify(state,message,capabilities);}});
  }
  return {select,connect,disconnect,watch,browserClosed,get engine(){return engine;},get busy(){return busy;},get ready(){return ready;},

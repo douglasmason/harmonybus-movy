@@ -67,8 +67,24 @@ impl Stroke {
 pub struct Runtime {
     pub contacts:Vec<Contact>,pub pending_touches:Vec<Stroke>,pub points:Vec<Point>,pub field:bool,
     pub view:Vec<Point>,pub grains:Vec<Point>,pub last_sample:Option<u64>,pub overridden:Vec<u16>,pub pending:Vec<(u8,Point)>,
+    pub(crate) held:Vec<Point>,pub(crate) held_cursor:usize,
 }
 impl Runtime {
+    pub fn holding(&self)->bool {!self.held.is_empty()}
+    /// Freeze a bounded set of emitters, without advancing the musical sampler.
+    /// Pending short strokes count even when captured between clock ticks.
+    pub fn hold(&mut self,enabled:bool,tick:u64)->bool {
+        if !enabled {self.held.clear();self.held_cursor=0;return true;}
+        if self.holding(){return true;}
+        let step=(tick/TICKS_PER_STEP as u64) as i32;
+        let mut fresh=Self{contacts:self.contacts.clone(),pending_touches:self.pending_touches.clone(),..Default::default()};
+        fresh.sample(tick);
+        let candidates:Vec<_>=self.points.iter().filter(|point|point.step<=step&&step-point.step<TAIL_STEPS).chain(fresh.points.iter()).copied().collect();
+        let count=candidates.len().min(MAX_CONTACTS);
+        if count==0{return false;}
+        self.held=(0..count).map(|index|candidates[if count==1 {0}else{index*(candidates.len()-1)/(count-1)}]).collect();
+        self.held_cursor=0;self.field=true;true
+    }
     pub fn touch(&mut self,id:u8,x:u8,y:u8,pressure:u8,activity:Activity,tick:u64,frame:u64)->bool {
         let held=self.contacts.iter().position(|contact|contact.id==id);
         if pressure==0 {
@@ -109,11 +125,53 @@ impl Runtime {
             }
         }
         self.pending_touches.clear();
+        // Live endpoints and stroke interiors win. Rotate held emitters through
+        // any remaining capacity so mixed live/held input cannot starve one end.
+        let count=(MAX_CONTACTS-(self.points.len()-before)).min(self.held.len());
+        for _ in 0..count {
+            self.points.push(Point{step:step as i32,..self.held[self.held_cursor]});
+            self.held_cursor=(self.held_cursor+1)%self.held.len();
+        }
     }
 }
 #[cfg(test)]
 mod stroke_tests {
     use super::*;
+    #[test]
+    fn hold_captures_pending_paths_without_advancing_and_releases_into_existing_decay() {
+        let mut runtime=Runtime::default();
+        assert!(!runtime.hold(true,0));
+        touch(&mut runtime,96,0,0,100,0);touch(&mut runtime,96,127,0,100,0);
+        touch(&mut runtime,96,127,127,100,0);touch(&mut runtime,96,127,127,0,0);
+        assert!(runtime.hold(true,0));assert!(runtime.holding());
+        assert_eq!(runtime.last_sample,None);assert!(runtime.points.is_empty());
+        assert!(runtime.held.len()>3&&runtime.held.len()<=MAX_CONTACTS);
+        let captured=runtime.held.clone();assert!(runtime.hold(true,0));assert_eq!(runtime.held,captured,"repeated desired state is idempotent");
+        for step in 0..40 {runtime.sample(step*24);}
+        assert!(runtime.contacts.is_empty());assert!(!runtime.points.is_empty());
+        assert!(runtime.points.iter().all(|point|point.y==0||point.x==127));
+        let before=runtime.points.clone();runtime.hold(false,40*24);
+        assert!(!runtime.holding());assert_eq!(runtime.points,before,"release does not abruptly erase the existing tail");
+        runtime.sample(56*24);assert!(runtime.points.is_empty());
+        assert!(!runtime.hold(true,56*24),"expired history cannot be recaptured");
+    }
+    #[test]
+    fn live_input_has_priority_and_held_emitters_rotate_within_fixed_bounds() {
+        let mut runtime=Runtime::default();
+        for id in 0..16 {touch(&mut runtime,id,id*8,0,100,0);}
+        assert!(runtime.hold(true,0));assert_eq!(runtime.held.len(),MAX_CONTACTS);
+        runtime.contacts.clear();runtime.pending_touches.clear();
+        let mut seen=std::collections::BTreeSet::new();
+        for step in 0..32 {
+            for id in 0..15 {touch(&mut runtime,id,id*8,127,100,step*24);}
+            runtime.sample(step*24);
+            let fresh:Vec<_>=runtime.points.iter().filter(|point|point.step==step as i32).collect();
+            assert_eq!(fresh.len(),MAX_CONTACTS);assert_eq!(fresh.iter().filter(|point|point.y==127).count(),15);
+            seen.insert(fresh.iter().find(|point|point.y==0).unwrap().x);
+            assert!(runtime.points.len()<=MAX_CONTACTS*TAIL_STEPS as usize);
+        }
+        assert_eq!(seen.len(),16);assert_eq!(runtime.held.len(),16,"live touches do not replace the captured cloud");
+    }
     fn touch(runtime:&mut Runtime,id:u8,x:u8,y:u8,pressure:u8,tick:u64) {
         assert!(runtime.touch(id,x,y,pressure,Activity::Rate,tick,tick*250));
     }

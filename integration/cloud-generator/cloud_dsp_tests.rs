@@ -6,6 +6,8 @@
         let saved=instance.get_param("persistent_state").unwrap();
         instance.set_param("cloud_ui_state",r#"{"footer":"Cloud \"take\""}"#);
         let expected=format!("{{\"cloud_ui_state\":{},\"cloud_view\":\"cf1|||\"}}",remote_json_string(&instance.cloud_ui));
+        for _ in 0..10 {assert_eq!(instance.get_param("cloud_hold_2").as_deref(),Some("0"));assert!(instance.engine.dirty);}
+        assert!(instance.get_param("cloud_hold_16").is_none());
         instance.get_param("rui_poll");
         assert!(instance.get_param("status").unwrap().contains("cloudremote=0"),"the unconditional host probe must not wake the remote controller");
         for _ in 0..8 {
