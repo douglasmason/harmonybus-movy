@@ -64,11 +64,11 @@ export function tickChord():void{
     path = root / 'src/app/input-reset.ts'
     path.write_text("import {releaseCloud} from '../seq/cloud-surface.js';\n" + path.read_text().replace('    releaseField();', '    releaseCloud();releaseField();'))
     path = root / 'src/surfaces/launchpad.ts'
-    source = "import {cloudSurfaceActive,cloudPad,cloudColors,releaseCloud} from '../seq/cloud-surface.js';\n" + path.read_text()
+    source = "import {cloudSurfaceActive,cloudPad,cloudPadPressure,cloudColors,releaseCloud} from '../seq/cloud-surface.js';\n" + path.read_text()
     source = replace_once(source, 'export function releaseLaunchpad(): boolean {', "export function releaseLaunchpad(): boolean {\n    releaseCloud('launchpad');")
     source = source.replace('if(fieldActive()||gridActive())', 'if(cloudSurfaceActive()||fieldActive()||gridActive())')
     source = source.replace('const desired = fieldActive()?', 'const desired = cloudSurfaceActive()?cloudColors(8):fieldActive()?')
-    source = replace_once(source, '    if(fieldActive()&&index>=0)', "    if(cloudSurfaceActive()&&index>=0){if(type===128||type===144)cloudPad('launchpad',index,type===144&&value>0,8,value);return;}\n    if(fieldActive()&&index>=0)")
+    source = replace_once(source, '    if(fieldActive()&&index>=0)', "    if(cloudSurfaceActive()&&index>=0){if(type===160)cloudPadPressure('launchpad',index,value);else if(type===128||type===144)cloudPad('launchpad',index,type===144&&value>0,8,value);return;}\n    if(fieldActive()&&index>=0)")
     path.write_text(source)
     path = root / 'src/seq/mode-buttons.ts'
     source = "import {cloudSurfaceActive,cloudRunning,cloudHolding,toggleCloudHold,cloudMidi,clearCloud} from './cloud-surface.js';\n" + path.read_text()

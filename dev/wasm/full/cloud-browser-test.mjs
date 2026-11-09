@@ -43,7 +43,13 @@ try{
  assert.equal(heldView[1],'','held clouds never synthesize green finger contacts');assert(heldView[2].length>0&&heldView[3].length>0);
  assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),before,'Hold is a transient audition until Record');
  await panel.getByRole('combobox',{name:'Follower actor'}).selectOption('Melody');
- await panel.getByRole('button',{name:'Release cloud',exact:true}).waitFor();await panel.getByRole('button',{name:'Release cloud',exact:true}).click();
+ await panel.getByRole('button',{name:'Release cloud',exact:true}).waitFor();
+ assert.equal(await canvas.evaluate(element=>{
+  const pixels=element.getContext('2d').getImageData(0,0,element.width,element.height).data;
+  for(let offset=0;offset<pixels.length;offset+=4)if(pixels[offset+1]>90&&pixels[offset+1]>pixels[offset]*1.4&&pixels[offset+1]>pixels[offset+2]*1.1)return true;
+  return false;
+ }),false,'the compiled browser renders a neutral parked cursor while the cloud remains held');
+ await panel.getByRole('button',{name:'Release cloud',exact:true}).click();
  await until(async()=>(await __wasmRead('cloud_hold_3'))==='0');
  await until(async()=>{const view=(await __wasmRead('cloud_view_3')).split('|');return view[2]===''&&view[3]==='';});
  await panel.getByRole('button',{name:'Stop',exact:true}).click();
@@ -58,8 +64,17 @@ try{
  await panel.getByRole('button',{name:'Stop recording',exact:true}).waitFor();
  assert.equal(await panel.getByRole('button',{name:'Stop recording',exact:true}).getAttribute('aria-pressed'),'true');
  assert.match(await panel.locator('.cloud-transport').textContent(),/Recording · Track 4 · Clip 1/);
- await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:points});await page.waitForTimeout(200);
- await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:points.map((point,index)=>({...point,x:bounds.x+bounds.width*(index===0?.15:.3)}))});
+ // Actor and lower control selectors can scroll the page. Capture viewport
+ // coordinates at this gesture, not before the preceding Hold/actor sequence.
+ await canvas.scrollIntoViewIfNeeded();const recordingBounds=await canvas.boundingBox();
+ const recordingPoints=[{id:1,x:recordingBounds.x+recordingBounds.width*.85,y:recordingBounds.y+recordingBounds.height*.3,force:.8},{id:2,x:recordingBounds.x+recordingBounds.width*.7,y:recordingBounds.y+recordingBounds.height*.7,force:.7}];
+ await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:recordingPoints});
+ await until(async()=>{const contacts=(await __wasmRead('cloud_view_3')).split('|')[1].split(';').map(value=>value.split(',').map(Number));return contacts.length===2&&contacts.some(point=>Math.abs(point[0]-89)<=1&&Math.abs(point[1]-108)<=1);});
+ // Chromium may coalesce a move packet. Wait for its pointer event before up;
+ // do not wait for the controller's batched send or a musical clock boundary.
+ await canvas.evaluate(element=>{window.cloudMoveSeen=false;element.addEventListener('pointermove',()=>window.cloudMoveSeen=true,{once:true});});
+ await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:recordingPoints.map((point,index)=>({...point,x:recordingBounds.x+recordingBounds.width*(index===0?.15:.3)}))});
+ await page.waitForFunction(()=>window.cloudMoveSeen);
  await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  await until(async()=>[...(await __wasmRead('persistent_state')).matchAll(/^cp1 3 0 (-?\d+),(\d+),(\d+),(\d+),1$/gm)].some(match=>Math.abs(Number(match[2])-89)<=1&&Number(match[3])>20&&Number(match[3])<107));
  const otherSource=await page.evaluate(async()=>(await __wasmRead('generator_info_2')).split('|').slice(0,3));
@@ -98,5 +113,5 @@ try{
  await until(async()=>{try{const state=JSON.parse(await __wasmRead('cloud_ui_state'));return state.axes==='Pitch / Activity'&&state.activity==='Rate';}catch{return false;}});
  assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),saved);assert.deepEqual(errors,[]);
  console.log('Standalone cloud: real multitouch, reversible axes, temporary audition, Record/replay and saved projection preferences pass');
-}catch(error){if(page)console.error(await page.evaluate(async()=>({ui:await __wasmRead('cloud_ui_state'),status:await __wasmRead('status'),error:document.querySelector('#error')?.textContent})).catch(String));throw error;}
+}catch(error){if(page)console.error(await page.evaluate(async()=>({ui:await __wasmRead('cloud_ui_state'),status:await __wasmRead('status'),error:document.querySelector('#error')?.textContent,points:(await __wasmRead('persistent_state')).split('\n').filter(line=>line.startsWith('cp1 3 0 ')).slice(0,40),canvas:document.querySelector('[data-workspace=cloud] .component-content').shadowRoot.querySelector('canvas').getBoundingClientRect().toJSON()})).catch(String));throw error;}
 finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

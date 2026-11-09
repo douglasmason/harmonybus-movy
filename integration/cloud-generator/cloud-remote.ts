@@ -1,6 +1,6 @@
 /** Remote actions re-enter the production controller, including ordinary Record/Undo. */
 import {generatorActor,generatorCloud,generatorSelectedTrack,generatorRead,generatorWrite,generatorTouch,generatorEnsureCloud,generatorCloudContact,generatorCloudHeld,generatorCloudHold,generatorPrepareRecord,generatorFooter,generatorClipSlot,generatorRecording,cloudControls} from './comp-generator.js';
-import {cloudRead,cloudWrite,cloudTurn,cloudInput,releaseCloud} from './cloud-surface.js';
+import {cloudRead,cloudWrite,cloudTurn,cloudInput,releaseCloud,flushCloudPressure} from './cloud-surface.js';
 import {trailStyle} from './trail-settings.js';
 import {generatorEuclidean,generatorEuclideanView,generatorRotateStep,generatorEnsureEuclidean,generatorCanBake,euclideanControls} from './comp-generator.js';
 import {seqState} from './state.js';
@@ -51,7 +51,7 @@ export function cloudRemoteAction(message:string):void {
   const [target,id,x,y,pressure,activity=0]=fields.map(Number);
   if([target,id,x,y,pressure,activity].every(Number.isInteger)&&[0,1].includes(activity)&&target>=0&&target<16&&id>=96&&id<112&&[x,y,pressure].every(value=>value>=0&&value<=127)&&(pressure===0||target===track)){const position=cloudInput(x,y);generatorCloudContact(target,id,position.x,position.y,pressure,true,activity===1?'Rate':'Probability');}
  }else if(['explore','bake','restore'].includes(action)&&fields.length===0)generatorTouch('cg_'+action,track,true);
- else if(action==='hold'&&fields.length===1&&['0','1'].includes(fields[0]))generatorCloudHold(fields[0]==='1',track);
+ else if(action==='hold'&&fields.length===1&&['0','1'].includes(fields[0])){flushCloudPressure();generatorCloudHold(fields[0]==='1',track);}
  else if(action==='clear'&&fields.length===0){releaseCloud();seqCmd(`gcloud ${track} clear`);seqCmdFlush();}
 }
 export function cloudRemoteSnapshot():string {

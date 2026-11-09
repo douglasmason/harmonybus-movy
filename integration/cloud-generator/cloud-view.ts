@@ -19,11 +19,19 @@ export function cloudFade(point:CloudPoint,settings:TrailSettings):number {
 /** Wrap preserves overshoot on either side; a bounded cursor stops at the edge. */
 export function cloudCoordinate(value:number,wrap:boolean):number {return wrap?((value%128)+128)%128:Math.max(0,Math.min(127,value));}
 export function cloudCells(snapshot:CloudSnapshot,width:number,height:number,settings:TrailSettings,flipped=false):number[] {
- const colors=Array(width*height).fill(0),strength=Array(width*height).fill(0);
+ const colors=Array(width*height).fill(0),strength=Array(width*height).fill(0),age=Array(width*height).fill(Infinity);
  const cell=(point:CloudPoint)=>{const projected=cloudPosition(point,flipped);return Math.round(projected.y*(height-1))*width+Math.round(projected.x*(width-1));};
  for(const point of [...snapshot.trails,...snapshot.grains]){
-  const index=cell(point),level=cloudFade(point,settings);if(level<=strength[index])continue;strength[index]=level;
-  colors[index]=point.age<1?(level>.55?16:level>.2?95:96):(level>.55?125:level>.2?99:100);
+  const projected=cloudPosition(point,flipped),horizontal=projected.x*(width-1),vertical=projected.y*(height-1);
+  const left=Math.floor(horizontal),bottom=Math.floor(vertical),fade=cloudFade(point,settings);
+  // Four neighboring cells share a deposit. Max blending prevents a held cloud
+  // or repeated heartbeats from making the same position artificially brighter.
+  for(let row=bottom;row<=bottom+1&&row<height;row++)for(let column=left;column<=left+1&&column<width;column++){
+   const index=row*width+column,level=fade*(1-Math.abs(horizontal-column))*(1-Math.abs(vertical-row));
+   // Ignore sub-visible energy, including 7-bit rounding at physical pad centers.
+   if(level<1/32||level<strength[index]||level===strength[index]&&point.age>=age[index])continue;strength[index]=level;age[index]=point.age;
+   colors[index]=point.age<1?(level>.55?16:level>.2?95:96):(level>.55?125:level>.2?99:100);
+  }
  }
  for(const point of snapshot.contacts)colors[cell(point)]=126;
  return colors;

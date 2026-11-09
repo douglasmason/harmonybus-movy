@@ -53,7 +53,9 @@ export function mountCloud({root,api}){
   if(state?.trail){for(const point of snapshot.trails.map(project))dot(point,point.age<1?'#31adff':'#3131ff',15+point.age*6,cloudFade(point,state.trail)*.5,true);for(const point of snapshot.grains.map(project))dot(point,point.age<1?'#80eaff':'#5050ff',2+point.pressure*3,cloudFade(point,state.trail));}
   for(const point of snapshot.contacts.map(project))dot(point,'#00ff00',5,1);
   for(const pointer of pointers.values())dot({x:pointer.x/127,y:pointer.y/127},'#00ff00',6,1);
-  if(state?.cloud){context.globalAlpha=.75;context.strokeStyle='#00ff00';context.strokeRect(state.x/127*width-4,(1-state.y/127)*height-4,8,8);}
+  // The parked X/Y cursor is a locator, not an active contact. Green is reserved
+  // for actual touch/pad/encoder contacts, including when Hold keeps a cloud alive.
+  if(state?.cloud){context.globalAlpha=.75;context.strokeStyle='#929aaa';context.strokeRect(state.x/127*width-4,(1-state.y/127)*height-4,8,8);}
   context.globalAlpha=1;
  }
  async function poll(){

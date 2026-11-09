@@ -27,6 +27,15 @@ try{
  assert(sent.some(value=>value.startsWith('touch 3 96 ')));assert(sent.some(value=>value.startsWith('touch 3 97 ')));
  await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  sent=await page.evaluate(()=>window.sent);assert(sent.some(value=>/^touch 3 96 .* 0$/.test(value)));assert(sent.some(value=>/^touch 3 97 .* 0$/.test(value)));
+ const greenPixels=()=>canvas.evaluate(element=>{
+  const pixels=element.getContext('2d').getImageData(0,0,element.width,element.height).data;let count=0;
+  for(let offset=0;offset<pixels.length;offset+=4)if(pixels[offset+1]>90&&pixels[offset+1]>pixels[offset]*1.4&&pixels[offset+1]>pixels[offset+2]*1.1)count++;
+  return count;
+ });
+ assert(await greenPixels()>0,'an engine-confirmed direct contact is green');
+ await page.evaluate(()=>{window.savedView=window.view;window.view='cf1||64,64,127,0;65,65,127,2|';window.state.holding=true;});await page.waitForTimeout(100);
+ assert.equal(await greenPixels(),0,'held clouds and the parked X/Y cursor cannot invent green contacts');
+ await page.evaluate(()=>{window.view=window.savedView;window.state.holding=false;});await page.waitForTimeout(100);
  await page.getByRole('button',{name:'Hold cloud',exact:true}).click();assert.equal((await page.evaluate(()=>window.sent)).at(-1),'hold 1');
  assert.equal(await page.getByRole('button',{name:'Hold cloud',exact:true}).getAttribute('aria-pressed'),'false','Hold waits for engine confirmation');
  await page.evaluate(()=>window.state.holding=true);await page.getByRole('button',{name:'Release cloud',exact:true}).waitFor();
