@@ -48,7 +48,7 @@ export function mountMoveWorkspace({connection,inputs,openComponent}){
    if(content){content.inert=!available;content.hidden=!available;}
    const limitation=panel.querySelector('.component-limit');if(limitation){
     limitation.hidden=available;
-    limitation.textContent=connection.engine==='move'?'This component needs semantic engine data, which the connected Move mirror does not provide.':'Browser engine offline. Reload to restart; unsaved edits may be lost.';
+    limitation.textContent=connection.engine==='move'?(name==='cloud'?'Use the Movy Tool tab in Schwung Remote UI to edit the connected Move generators.':'This component needs semantic engine data, which the connected Move mirror does not provide.'):'Browser engine offline. Reload to restart; unsaved edits may be lost.';
    }
   }
   if(shown.has('lights')&&available)lighting.resume();else lighting.suspend();

@@ -28,8 +28,8 @@ native surface. Recording feedback identifies the actual take's track and clip,
 including when another actor is being browsed; Stop recording finishes that take.
 Bake becomes available after a recipe is recorded and exploration is stopped.
 Fast slider gestures are coalesced, delayed edits retain their target actor,
-and hidden editors stop polling. The device mirror links to the Movy Tool's
-Remote UI for semantic editing; it does not pretend to provide that data itself.
+and hidden editors stop polling. For a connected physical Move, use the Movy
+Tool's Remote UI; the device mirror does not supply these semantic controls.
 
 Range remains on the existing chord settings pages; this generator uses all
 eight knobs. Comp triggers mapped root inputs through the actor's chord/voicing
