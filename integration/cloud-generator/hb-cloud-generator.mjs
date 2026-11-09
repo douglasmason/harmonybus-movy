@@ -10,10 +10,11 @@ const {WHITE_DIM,WHITE_BRIGHT}=await import('../dist/esm/seq/colors.js');
 const {padsPlayNotes}=await import('../dist/esm/seq/router-pads.js');
 const {seqCmdFlush}=await import('../dist/esm/seq/engine.js');
 const originalGet=globalThis.host_module_get_param,originalSet=globalThis.host_module_set_param_blocking;
-let holding=false;
+let holding=false,commandWrites=0;
 let now=Date.now()+2000,commands=[],state='Off|0|0 32 64 1 0|';Date.now=()=>now;
 globalThis.host_module_get_param=key=>key==='cloud_hold_2'?(holding?'1':'0'):key==='generator_info_2'?state:key==='cloud_view_2'?'cf1|127,127,100|0,0,100,2|64,64,100,1':originalGet(key);
 globalThis.host_module_set_param_blocking=(key,value)=>{
+ if(key==='cmd')commandWrites++;
  if(key==='cmd')for(const command of value.split(';')){commands.push(command);const fields=command.split(' ');if(fields[0]==='gcloud'&&fields[1]==='2'&&fields[2]==='hold')holding=fields[3]==='1';if(fields[0]==='gexplore'&&fields[1]==='2'&&fields.length>=6)state='Exploring|0|'+fields.slice(2).join(' ')+'|';}
  return originalSet?.(key,value);
 };
@@ -26,6 +27,29 @@ assert.equal(page.keyAt(7),'cg_cloud_dynamics');assert(cloud.cloudSurfaceActive(
 commands=[];chord.chordMidi([144,68,110]);chord.chordMidi([144,99,90]);seqCmdFlush();
 assert(commands.includes('gcloud 2 0 0 0 110'));assert(commands.includes('gcloud 2 31 127 127 90'));
 chord.chordMidi([128,68,0]);chord.chordMidi([128,99,0]);seqCmdFlush();assert(commands.includes('gcloud 2 0 0 0 0'));assert(commands.includes('gcloud 2 31 127 127 0'));
+commands=[];chord.chordMidi([144,68,110]);chord.chordMidi([160,68,0]);cloud.tickCloud(now+=16);chord.chordMidi([160,68,73]);cloud.tickCloud(now+=16);seqCmdFlush();
+assert(commands.includes('gcloud 2 0 0 0 1'),'zero Move aftertouch remains a softly held contact');
+assert(commands.includes('gcloud 2 0 0 0 73'));assert(!commands.includes('gcloud 2 0 0 0 0'),'pressure does not synthesize a release');
+commands=[];const writesBeforePressure=commandWrites;
+for(let pressure=0;pressure<1000;pressure++)chord.chordMidi([160,68,pressure%128]);
+assert.equal(commandWrites,writesBeforePressure,'pressure callbacks never make blocking host writes');
+cloud.tickCloud(now+=16);assert.equal(commandWrites,writesBeforePressure+1,'one tick sends one pressure batch');
+assert.deepEqual(commands,['gcloud 2 0 0 0 103'],'only the latest pressure is deposited');
+commands=[];chord.chordMidi([160,68,77]);chord.chordMidi([128,68,0]);seqCmdFlush();
+assert.deepEqual(commands,['gcloud 2 0 0 0 77','gcloud 2 0 0 0 0'],'note-off flushes the final pending pressure in order');
+commands=[];chord.chordMidi([160,68,99]);seqCmdFlush();assert.equal(commands.length,0,'late pressure cannot create a new contact');
+const launchpad=await import('../dist/esm/surfaces/launchpad.js');
+const {setFlag}=await import('../dist/esm/seq/flags.js');
+globalThis.move_midi_external_send=()=>true;globalThis.host_ext_midi_remap_set=()=>true;globalThis.host_ext_midi_remap_enable=()=>true;globalThis.host_external_surface=()=>true;
+setFlag('hblaunchpad',2);launchpad.tickLaunchpad(now);commands=[];
+launchpad.onMidiMessageExternal([144,88,90]);launchpad.onMidiMessageExternal([160,88,38]);cloud.tickCloud(now+=16);launchpad.onMidiMessageExternal([160,88,0]);cloud.tickCloud(now+=16);seqCmdFlush();
+assert(commands.includes('gcloud 2 95 127 127 90'));assert(commands.includes('gcloud 2 95 127 127 38'),'Launchpad X pressure reaches Cloud through the real external MIDI route');
+assert(commands.includes('gcloud 2 95 127 127 1'));assert(!commands.includes('gcloud 2 95 127 127 0'));
+launchpad.onMidiMessageExternal([128,88,0]);seqCmdFlush();assert(commands.includes('gcloud 2 95 127 127 0'));
+commands=[];launchpad.onMidiMessageExternal([160,88,95]);seqCmdFlush();assert.equal(commands.length,0);
+launchpad.onMidiMessageExternal([144,88,90]);cloud.setCloudSurface(false);seqCmdFlush();commands=[];
+launchpad.onMidiMessageExternal([160,88,95]);seqCmdFlush();assert.equal(commands.length,0,'pressure cannot revive a contact after leaving Cloud');
+cloud.setCloudSurface(true);launchpad.unloadLaunchpad();setFlag('hblaunchpad',0);
 cloud.cloudWrite('cg_edge','Wrap');cloud.cloudWrite('cg_x','127');seqCmdFlush();commands=[];
 cloud.cloudTurn('cg_x',3);seqCmdFlush();assert.equal(cloud.cloudRead('cg_x'),'2');
 assert.deepEqual(commands.filter(command=>command.startsWith('gcloud ')),['gcloud 2 112 127 64 0','gcloud 2 112 2 64 100'],'wrap starts a new stroke instead of drawing across the field');
@@ -38,6 +62,23 @@ cloud.cloudWrite('cg_x','127');cloud.cloudWrite('cg_edge','Bounded');
 const settings={scope:'pitch',window:'infinite',windowBeats:4,curve:'linear',decayBeats:4,strength:1,peak:1,floor:0};
 const snapshot=view.readCloud('cf1|0,0,127|0,0,127,4;127,127,127,8|');assert(snapshot);
 const colors=view.cloudCells(snapshot,8,4,settings);assert.equal(colors[0],126,'direct green wins over every trail');assert.notEqual(colors[31],126);
+for(const height of [4,8]){
+ const middle={x:3.5/7,y:1.5/(height-1),pressure:1,age:0},field={contacts:[],trails:[middle],grains:[]};
+ const blended=view.cloudCells(field,8,height,settings),lit=blended.flatMap((color,index)=>color?[index]:[]);
+ assert.deepEqual(lit,[11,12,19,20],'a source between pads shares its cloud across four neighbors');assert(!blended.includes(126));
+ assert.deepEqual(view.cloudCells({...field,trails:Array(256).fill(middle)},8,height,settings),blended,'repeated held deposits cannot amplify visual energy');
+ const mixed=[middle,{...middle,age:2}];
+ assert.deepEqual(view.cloudCells({...field,trails:mixed},8,height,{...settings,curve:'none'}),view.cloudCells({...field,trails:mixed.slice().reverse()},8,height,{...settings,curve:'none'}),'equally bright fresh and old deposits keep the fresh color regardless of storage order');
+ assert.deepEqual(view.cloudCells({...field,contacts:[middle]},8,height,settings).filter(color=>color===126),[126],'direct touch stays one green pad above the cloud');
+ assert(view.cloudCells({...field,trails:[{...middle,age:4}]},8,height,settings).every(color=>color===0));
+ for(let index=0;index<8*height;index++){
+  const centered={x:Math.round(index%8*127/7)/127,y:Math.round(Math.floor(index/8)*127/(height-1))/127,pressure:1,age:0};
+  const centeredColors=view.cloudCells({contacts:[],trails:[centered],grains:[]},8,height,settings);
+  assert.deepEqual(centeredColors.flatMap((color,cell)=>color?[cell]:[]),[index],'7-bit rounding does not light phantom neighbors at pad centers');
+ }
+ const normal=view.cloudCells(field,8,height,settings),flipped=view.cloudCells({contacts:[],trails:[{...middle,x:middle.y,y:middle.x}],grains:[]},8,height,settings,true);
+ assert.deepEqual(normal,flipped,'axis exchange preserves the spatial footprint');
+}
 assert.equal(view.readCloud('cf1|NaN,0,1||'),null);assert.equal(view.cloudCoordinate(-257,true),127);
 commands=[];cloud.setCloudSurface(false);seqCmdFlush();assert(commands.some(command=>command==='gcloud 2 112 127 126 0'),'leaving the field releases the drawing cursor');
 cloud.setCloudSurface(true);cloud.cloudWrite('cg_axes','Pitch / Activity');commands=[];
@@ -53,7 +94,9 @@ cloud.cloudWrite('cg_x','80');seqCmdFlush();assert(commands.includes('gcloud 2 1
 const saved=cloud.cloudSurfaceSnapshot();cloud.restoreCloudSurface(null);assert.equal(cloud.cloudRead('cg_axes'),'Activity / Pitch');assert.equal(cloud.cloudRead('cg_activity'),'Probability');cloud.restoreCloudSurface(saved);assert.equal(cloud.cloudRead('cg_axes'),'Pitch / Activity');assert.equal(cloud.cloudRead('cg_activity'),'Rate');
 commands=[];cloud.tickCloud(now+200);
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,0),WHITE_DIM);
+chord.chordMidi([144,68,90]);chord.chordMidi([160,68,65]);commands=[];
 assert(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false));assert(holding);assert(cloud.cloudHolding());
+assert.match(commands.at(-2),/^gcloud 2 0 \d+ \d+ 65 1$/);assert.equal(commands.at(-1),'gcloud 2 hold 1','Hold captures the final pressure before the next UI tick');
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,0),WHITE_BRIGHT);
 assert(buttons.modeHelpSnapshot().lines.includes('Sample: hold / release'));
 assert.equal(buttons.modeActionDescriptors().find(action=>action.cc===buttons.CC_MODE_SAMPLE).label,'Release cloud');

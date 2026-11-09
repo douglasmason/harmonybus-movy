@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.332",
-  "previous_version": "0.34.1-hbclean.331",
+  "version": "0.34.1-hbclean.333",
+  "previous_version": "0.34.1-hbclean.332",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.332 — Euclidean accents and articulation",
-  "notes": "docs/euclidean-generator.md",
+  "title": "Movy 0.34.1-hbclean.333 \u2014 Expressive cloud pressure and pad feedback",
+  "notes": "docs/follower-cloud.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

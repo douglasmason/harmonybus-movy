@@ -73,6 +73,30 @@ are cyan and older trails blue. The Move display uses crosses and dots on its
 monochrome screen. Existing trail curve, strength and brightness settings govern
 cloud rendering on every surface; its spatial history has a four-beat lifetime.
 
+## Pressure and feedback (hbclean.333)
+
+Move and Launchpad X aftertouch update the pressure of the pad's existing cloud
+contact. Pressure bursts and contact heartbeats are coalesced into one batch per
+UI tick; note-off and Hold first flush the final pending pressure. Pressure shapes newly deposited points and their resulting velocities
+and brightness. Previously emitted trail points and a captured Hold cloud keep
+the pressure they were created with. A zero aftertouch value means the pad is
+still held at minimum pressure; only note-off releases it. Late pressure cannot
+create a new contact or restart a stopped exploration. Launchpad Mini continues
+using its normal pad velocity and note-off behavior.
+
+On Move's 8×4 pads and Launchpad's 8×8 pads, a cloud point between pads distributes
+its light across up to four neighbors. Repeated deposits use the strongest
+contribution rather than accumulating brightness, and equally bright fresh
+consequences retain cyan ahead of older blue points. Physical pad centers remain
+sharp despite 7-bit coordinate rounding. Direct touches override the background
+with one green pad. Axes can still be exchanged without changing the footprint.
+
+The Remote UI and standalone X/Y locator is neutral gray when parked. Green dots
+represent actual contacts only, including while a captured cloud is held. The
+native display retains its monochrome contact crosses and grain dots. All these
+views keep the existing shared trail fade, strength and pressure settings; this
+change does not alter generation timing, stored gestures, recipes or Bake.
+
 ## Hold the cloud (hbclean.331)
 
 Draw with fingers, pads or X/Y knobs, then press **Sample** on a Cloud page or

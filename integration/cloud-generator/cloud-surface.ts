@@ -14,6 +14,7 @@ let paint:number[]=Array(32).fill(-1);
 let cursorX=64,cursorY=64,wrap=false,flipped=false,lastDraw=-Infinity;
 let activity:'Probability'|'Rate'='Probability';
 const held=new Map<number,{track:number;x:number;y:number;pressure:number}>();
+const pendingPressure=new Set<number>();
 export const cloudFieldKeys=['cg_x','cg_y','cg_axes','cg_edge','cg_activity','cg_seed','cg_bake','cg_restore'];
 export function cloudParameters():any[]{return [
  ...['x','y'].map(field=>({key:'cg_'+field,name:'Draw '+field.toUpperCase(),short_name:field.toUpperCase(),type:'int',min:0,max:127,step:1,default:64})),
@@ -24,13 +25,17 @@ export function cloudParameters():any[]{return [
 export function cloudSurfaceSnapshot():{wrap:boolean;flipped:boolean;activity:string} {return {wrap,flipped,activity};}
 export function restoreCloudSurface(value:unknown):void {releaseCloud();const state=value as {wrap?:unknown;flipped?:unknown;activity?:unknown}|null;wrap=state?.wrap===true;flipped=state?.flipped===true;activity=state?.activity==='Rate'?'Rate':'Probability';cursorX=cursorY=64;paint.fill(-1);appState.dirty=true;}
 export function cloudInput(x:number,y:number):{x:number;y:number} {return cloudPosition({x,y},flipped);}
-function contactInput(track:number,id:number,x:number,y:number,pressure:number,start=true):void {const position=cloudInput(x,y);generatorCloudContact(track,id,position.x,position.y,pressure,start,activity);}
+function contactInput(track:number,id:number,x:number,y:number,pressure:number,start=true,flush=true):void {const position=cloudInput(x,y);generatorCloudContact(track,id,position.x,position.y,pressure,start,activity,flush);}
+function finishContact(id:number,contact:{track:number;x:number;y:number;pressure:number}):void {
+ if(pendingPressure.delete(id))contactInput(contact.track,id,contact.x,contact.y,contact.pressure,false,false);
+ contactInput(contact.track,id,contact.x,contact.y,0);
+}
 export function cloudSurfaceActive():boolean {return owner!==null;}
 export function cloudRunning():boolean {return owner!==null&&generatorRead('cg_explore',owner)==='Stop';}
 /** Cached feedback: LED painters must not poll or mutate the engine. */
 export function cloudHolding():boolean {return owner!==null&&holding;}
 export function toggleCloudHold():void {
- if(owner===null)return;generatorCloudHold(!generatorCloudHeld(owner),owner);holding=generatorCloudHeld(owner);lastRead=-Infinity;appState.dirty=true;
+ if(owner===null)return;flushCloudPressure();generatorCloudHold(!generatorCloudHeld(owner),owner);holding=generatorCloudHeld(owner);lastRead=-Infinity;appState.dirty=true;
 }
 export function setCloudSurface(visible:boolean):void {
  const next=visible&&generatorCloud()?generatorSelectedTrack():null;
@@ -59,27 +64,42 @@ export function cloudTurn(key:string,delta:number):boolean {
 export function cloudPad(source:string,index:number,down:boolean,height=4,pressure=100):boolean {
  const offset=source==='move'?0:source==='launchpad'?32:96;
  const id=offset+index;
- if(!down){const contact=held.get(id);if(contact){contactInput(contact.track,id,contact.x,contact.y,0);held.delete(id);return true;}return cloudSurfaceActive();}
+ if(!down){const contact=held.get(id);if(contact){finishContact(id,contact);held.delete(id);return true;}return cloudSurfaceActive();}
  if(owner===null||index<0||index>=height*8||!Number.isInteger(index))return false;
  const contact={track:owner,x:Math.round(index%8*127/7),y:Math.round(Math.floor(index/8)*127/(height-1)),pressure};
- held.set(id,contact);contactInput(owner,id,contact.x,contact.y,pressure);appState.dirty=true;return true;
+ pendingPressure.delete(id);held.set(id,contact);contactInput(owner,id,contact.x,contact.y,pressure);appState.dirty=true;return true;
+}
+/** Pressure changes an existing contact; only a note-off ends its ownership. */
+export function cloudPadPressure(source:'move'|'launchpad',index:number,pressure:number):boolean {
+ if(!Number.isInteger(index)||index<0||index>=(source==='move'?32:64)||!Number.isInteger(pressure)||pressure<0||pressure>127)return false;
+ const id=(source==='move'?0:32)+index,contact=held.get(id);
+ if(!contact)return cloudSurfaceActive();
+ // Zero aftertouch still means a held pad. The cloud wire reserves zero for up,
+ // so retain the smallest sounding pressure until a real note-off arrives.
+ contact.pressure=Math.max(1,pressure);pendingPressure.add(id);appState.dirty=true;return true;
 }
 export function releaseCloud(source?:string):void {
- for(const [id,contact] of held){if(source&&(source==='move'?id>=32:source==='launchpad'?id<32||id>=96:id<96))continue;contactInput(contact.track,id,contact.x,contact.y,0);held.delete(id);}
+ for(const [id,contact] of held){if(source&&(source==='move'?id>=32:source==='launchpad'?id<32||id>=96:id<96))continue;finishContact(id,contact);held.delete(id);}
 }
 export function cloudMidi(data:number[]):boolean {
  const type=data[0]&240,key=data[1],value=data[2];
  if(key>=68&&key<100&&[128,144,160].includes(type)){
-  if(type===160){const contact=held.get(key-68);if(contact){contact.pressure=value;contactInput(contact.track,key-68,contact.x,contact.y,value);}return cloudSurfaceActive();}
+  if(type===160)return cloudPadPressure('move',key-68,value);
   return cloudPad('move',key-68,type===144&&value>0,4,value);
  }
  if(!cloudSurfaceActive())return false;
  if(type===176&&key===58){if(value){releaseCloud();generatorTouch('cg_explore',owner!,true);}return true;}
  return false;
 }
+/** One batch per UI tick, also flushed before an explicit Hold capture. */
+export function flushCloudPressure(refresh=false):void {
+ let queued=false;
+ for(const [id,contact] of held)if(refresh||pendingPressure.has(id)){contactInput(contact.track,id,contact.x,contact.y,contact.pressure,false,false);queued=true;}
+ pendingPressure.clear();if(queued)seqCmdFlush();
+}
 export function tickCloud(now=Date.now()):void {
  if(held.has(112)&&now-lastDraw>300){const contact=held.get(112)!;contactInput(contact.track,112,contact.x,contact.y,0);held.delete(112);}
- if(now-lastRefresh>=250){lastRefresh=now;for(const [id,contact] of held)contactInput(contact.track,id,contact.x,contact.y,contact.pressure,false);}
+ const refresh=now-lastRefresh>=250;if(refresh)lastRefresh=now;flushCloudPressure(refresh);
  if(owner===null)return;
  if(now-lastRead<80)return;lastRead=now;
  holding=generatorCloudHeld(owner);
