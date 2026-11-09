@@ -100,7 +100,15 @@ for(const [actor,track,style] of [['Comp',2,19],['Bass',1,20]]){
  const remoteState=JSON.parse(remote.cloudRemoteSnapshot());assert.equal(remoteState.euclideanValues.length,8);assert.equal(remoteState.euclideanValues[6],'40');assert(remoteState.euclidean);
  const beforeRead=commands.length;remote.cloudRemoteSnapshot();assert.equal(commands.length,beforeRead,'remote pattern observation never changes the recipe');
  commands=[];remote.cloudRemoteAction(`euclidean ${track} record`);seqCmdFlush();assert(commands.includes(`rec ${track}`),'remote Record uses the ordinary actor take path');
- seqState.recording=false;seqState.countingIn=false;endEdit();resetRecPass();
+ const otherTrack=track===2?1:2,otherState=states.get(otherTrack),ownState=states.get(track);
+ states.set(track,ownState.split('|').map((value,index)=>index===4?String(track):value).join('|'));
+ states.set(otherTrack,otherState.split('|').map((value,index)=>index===4?String(track):value).join('|'));
+ seqState.recording=true;generator.generatorWrite('cg_actor',actor==='Comp'?'Bass':'Comp',track);now+=101;
+ commands=[];remote.cloudRemoteAction(`euclidean ${track} record`);seqCmdFlush();
+ assert.deepEqual(commands,[`rec ${track}`],'a pre-refresh Record gesture finishes its take after browsing another actor');
+ states.set(track,ownState);states.set(otherTrack,otherState);seqState.recording=false;seqState.countingIn=false;now+=101;
+ commands=[];remote.cloudRemoteAction(`euclidean ${track} record`);seqCmdFlush();assert.deepEqual(commands,[],'a stale actor cannot start a new take');
+ generator.generatorWrite('cg_actor',actor,otherTrack);now+=101;endEdit();resetRecPass();
  page.goToPage(page.ctl.pages.findIndex(entry=>entry.level==='cp_comp_generator'));
  assert.equal(generator.generatorWrite('cg_source_style','Quarters',track),false,'saved recipes cannot silently change their source schema');
  commands=[];chord.chordMidi([144,7,127]);chord.chordMidi([128,7,0]);seqCmdFlush();

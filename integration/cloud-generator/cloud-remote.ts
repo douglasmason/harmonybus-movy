@@ -12,15 +12,18 @@ export function cloudRemoteAction(message:string):void {
  const [action,...fields]=message.split(' '),track=generatorSelectedTrack();
  if(action==='euclidean'){
   const [target,operation,...args]=fields;
-  // Delayed gestures belong to the actor whose controls produced them.
-  if(!engineReady()||target!==String(track))return;
-  if(operation==='choose'&&args.length===0){generatorWrite('cg_source_style','Euclidean',track);return;}
+  if(!engineReady()||!/^(?:[0-9]|1[0-5])$/.test(target??''))return;
   if(operation==='record'&&args.length===0){
    const recording=generatorRecording();
+   // Finish the confirmed take even while an actor change awaits its next UI
+   // snapshot. Starting a take still requires the current gesture target.
    if(recording.phase!=='idle')recToggle(recording.track??track);
-   else if(generatorEnsureEuclidean(track)&&generatorPrepareRecord(track)!==false)recToggle(track);
+   else if(target===String(track)&&generatorEnsureEuclidean(track)&&generatorPrepareRecord(track)!==false)recToggle(track);
    seqCmdFlush();return;
   }
+  // Delayed musical edits belong to the actor whose controls produced them.
+  if(target!==String(track))return;
+  if(operation==='choose'&&args.length===0){generatorWrite('cg_source_style','Euclidean',track);return;}
   if(!generatorEuclideanView(track))return;
   if(operation==='rotate'&&args.length===1&&/^\d+$/.test(args[0]))generatorRotateStep(Number(args[0]),track);
   else if(operation==='control'&&args.length===2&&/^(?:cg_euclid_(?:hits|steps|rotation|rate|accents|depth|gate)|cg_intensity)$/.test(args[0]))generatorWrite(args[0],args[1],track);
