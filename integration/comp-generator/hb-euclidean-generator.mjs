@@ -9,6 +9,7 @@ const {resetRecPass}=await import('../dist/esm/undo/rec-pass.js');
 const {endEdit}=await import('../dist/esm/undo/group.js');
 const visual=await import('../dist/esm/seq/euclidean-surface.js');
 const {appState}=await import('../dist/esm/app/state.js');
+const leds=await import('../dist/esm/seq/led-cache.js');
 const originalGet=globalThis.host_module_get_param,originalSet=globalThis.host_module_set_param_blocking;
 const states=new Map([[2,'Off|0|0 32 64 1 0||-1|0'],[1,'Off|0|4 32 64 1 0||-1|0']]);
 let now=Date.now()+2000,commands=[];Date.now=()=>now;
@@ -54,6 +55,10 @@ for(const [actor,track,style] of [['Comp',2,19],['Bass',1,20]]){
  states.set(track,states.get(track)+'|3 7 2 1 5');now+=101;seqState.playing=true;
  const liveView=generator.generatorEuclideanView(track);assert.equal(liveView.cursor,5);
  assert.deepEqual(visual.euclideanStepColors(liveView),[127,119,127,119,119,120,119,0,0,0,0,0,0,0,0,0]);
+ const packets=[],send=globalThis.move_midi_internal_send;
+ globalThis.move_midi_internal_send=packet=>{packets.push([...packet]);return true;};
+ leds.invalidateInputModeLeds();leds.ledFrameReset();chord.paintChordSteps();globalThis.move_midi_internal_send=send;
+ assert.deepEqual(packets.filter(packet=>packet[1]===144&&packet[2]>=16&&packet[2]<32).map(packet=>packet[3]),visual.euclideanStepColors(liveView),'the real chord painter owns all sixteen step LEDs');
  appState.dirty=false;visual.tickEuclidean(liveView);assert(appState.dirty);
  appState.dirty=false;visual.tickEuclidean(liveView);assert(!appState.dirty,'unchanged feedback does not redraw continuously');
  const rectangles=[],fill=globalThis.fill_rect;

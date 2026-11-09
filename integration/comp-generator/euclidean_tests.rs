@@ -47,7 +47,7 @@
         engine.toggle_record(2);command(&mut engine,"stop");(engine,trace)
     }
     fn view(engine:&Engine)->Vec<i32> {
-        engine.generator_info(2).split('|').nth(6).unwrap().split_whitespace().map(|value|value.parse().unwrap()).collect()
+        engine.generator_info(2).split('|').nth(6).unwrap_or("").split_whitespace().map(|value|value.parse().unwrap()).collect()
     }
     #[test] fn euclidean_observation_uses_played_phase_and_is_read_only() {
         for rate in 0..4 {

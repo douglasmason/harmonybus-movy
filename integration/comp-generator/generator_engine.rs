@@ -88,7 +88,8 @@ impl Engine {
             let (values,cursor)=observed.map_or((config.euclidean,-1),|(_,values,phase)|(values,((phase>>values[3])%values[1] as u64) as i32));
             format!("{} {} {} {} {}",values[0],values[1],values[2],values[3],cursor)
         }else{String::new()};
-        format!("{}|{}|{}|{}|{}|{}|{}",mode,target.active_clip,config.wire(),self.generator_result,self.generator_record_track().map_or(-1,|owner|owner as i32),u8::from(self.generator_library[track].is_some()),visual)
+        let mut info=format!("{}|{}|{}|{}|{}|{}",mode,target.active_clip,config.wire(),self.generator_result,self.generator_record_track().map_or(-1,|owner|owner as i32),u8::from(self.generator_library[track].is_some()));
+        if !visual.is_empty(){info.push('|');info.push_str(&visual);}info
     }
     /// Audition commands never enter the edit/dirty/Undo path.
     pub fn generator_explore_set(&mut self,message:&str,out:&mut Vec<OutEvent>)->bool {

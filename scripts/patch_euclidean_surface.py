@@ -16,7 +16,7 @@ def patch_euclidean_surface(root: Path) -> None:
 export function tickChord():void{
     tickEuclidean(euclideanPageView());''')
     # Reuse the existing held-step release path even when the user changes page.
-    source = replace_once(source, '    const ownerTrack=conductorTrack(),conductorOwner', '''    if((down||up)&&key>=16&&key<32&&euclideanPageView()&&!seqState.loopMode&&!seqState.trackSelectHold&&!appState.shiftHeld&&!muteHeld()&&!deleteActive()&&!dupActive()){
+    source = replace_once(source, '    const ownerTrack=conductorTrack(),conductorOwner', '''    if(!surface&&panels&&(down||up)&&key>=16&&key<32&&euclideanPageView()&&!seqState.loopMode&&!seqState.trackSelectHold&&!appState.shiftHeld&&!muteHeld()&&!deleteActive()&&!dupActive()){
         if(down){steps.add(key);generatorRotateStep(key-16);appState.dirty=true;}return true;
     }
     const ownerTrack=conductorTrack(),conductorOwner''')
