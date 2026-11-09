@@ -11,7 +11,7 @@ On the receiving actor's **Sources** page:
 3. Use **knob 8, Follow Amount**, to blend from **0 = Own rhythm** to
    **100 = selected source rhythm**. Intermediate amounts make a repeatable blend.
 
-Pitch Source, Expression Source, operations and rendering retain their existing
+For ordinary clip receivers, Pitch Source, Expression Source, operations and rendering retain their existing
 settings. This control changes attack selection, not velocity or volume. At zero,
 Source Weaving still applies those other dimensions; it is not an Off switch.
 When Rhythm Source itself is Own, the amount has no effect and its lane filter
@@ -55,8 +55,9 @@ is reused at intermediate amounts.
 The tradeoff is that blending can remove a characteristic own-only accent, and
 50 does not promise half the audible notes came from each source: density and
 overlap matter. This is rhythmic crossfading, not accent weighting, proximity
-matching, automatic counterpoint, fills or protected-motif regeneration. Generated
-receivers still own their timing; recorded generator donors remain supported.
+matching, automatic counterpoint, fills or protected-motif regeneration. Recorded
+Comp/Bass/Euclidean receivers also support [phase-preserving rhythm following](generated-rhythm-receivers.md);
+Cloud and free exploration retain their own timing. Recorded generator donors remain supported.
 Those broader behaviors need separate musical policies, not extra hidden work
 inside this control. Follow Amount is saved/undoable route state, not a newly
 recordable automation lane or a temporary generator audition.

@@ -343,6 +343,16 @@ static void test_source_weaving(void){
         assert(energy>0&&sent_on==4&&sent_off==4&&rendered_mask==((1u<<0)|(1u<<4)));
     }
     puts("Generator rhythm donors: unbaked Comp/Bass recipes, destination pitches/velocity and paired production releases pass");
+    /* The generated receiver keeps its abstract Bass Sustain material while
+       borrowing selected kicks. Amount zero restores its one own attack. */
+    for(int amount=0;amount<=100;amount+=50){
+        set("state","movy1\nbpm 12000\nlink 0\ntk 4 0 0\ntk 3 0 0\ncl 4 0 16 0 0:9:36:100:0;24:9:36:100:1;96:9:36:100:4;144:9:36:100:6;48:96:38:100:2\ncl 3 0 16 0 \ncg1 3 0 5 0 64 31 384\n");
+        snprintf(parameter,sizeof(parameter),"source 3 1 -1 -1 4 0 0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 0 0 36 %d",amount);set("cmd",parameter);
+        render(16);sent_on=sent_off=0;rendered_mask=0;source_velocity_check=96;
+        set("cmd","play");energy=render(600);set("cmd","stop");render(32);source_velocity_check=0;
+        assert(energy>0&&sent_on==(amount==0?1:amount==50?3:4)&&sent_off==sent_on&&rendered_mask==(1u<<0));
+    }
+    puts("Generated rhythm receivers: Own/50/100, abstract Bass material, PCM and balanced production releases pass");
     /* Fit compresses a two-bar pitch loop into the actor's one-bar window.
        Timeline remains independent; both use the same attacks and releases. */
     for(int alignment=1;alignment<=2;alignment++){

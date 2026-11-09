@@ -153,15 +153,20 @@ mod generator_source_tests {
     }
 
     #[test]
-    fn generated_rhythm_routes_do_not_recurse_or_mutate_generated_actors() {
+    fn generated_rhythm_cycle_preserves_raw_donation_without_mutating_recipes() {
         let mut engine=fixture(1,3,0);
         assert!(engine.source_route_set("1 1 -1 -1 3 0 0"));
-        let mut attacks=0;
-        for _ in 0..384 {
-            let output=tick(&mut engine);let count=attack_count(&output,1);
-            assert!(count<=1);assert_eq!(attack_count(&output,3),count);attacks+=count;
+        let config=engine.tracks[1].clips[0].generator.unwrap();
+        let mut generated=Vec::new();let mut ordinary=Vec::new();
+        for position in 0..384 {
+            let output=tick(&mut engine);
+            assert!(attack_count(&output,1)<=1);assert!(attack_count(&output,3)<=1);
+            if attack_count(&output,1)>0 {generated.push(position);}
+            if attack_count(&output,3)>0 {ordinary.push(position);}
         }
-        assert!(attacks>0);assert!(engine.tracks[1].clips[0].notes.is_empty());
+        assert_eq!(generated,vec![0,192],"generated receiver borrows raw ordinary attacks");
+        assert_eq!(ordinary,(0..16).filter_map(|step|config.note(step).map(|note|note.tick)).collect::<Vec<_>>(),"ordinary receiver borrows raw generated attacks, never their woven output");
+        assert_eq!(engine.tracks[1].clips[0].generator,Some(config));assert!(engine.tracks[1].clips[0].notes.is_empty());
     }
 
     #[test]

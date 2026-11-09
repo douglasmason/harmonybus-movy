@@ -310,6 +310,14 @@ for(const group of [0,3]){
  assert.equal(page.performanceGet('joint_preview_3_rhythm'),'T5C1 n36 25%');
  previewValue=JSON.stringify({schema:1,actor:group*4+3,enabled:true,playing:true,rhythm_pitch:36,rhythm_amount:50,sources:[null,{track:4,slot:0,active:true,phase_ticks:48,length_ticks:192}]});now+=101;
  assert.equal(page.performanceGet('joint_preview_3_rhythm'),'T5C1 n36 50% follow 25%');
+ previewValue=JSON.stringify({schema:1,actor:group*4+3,playing:true,enabled:true,generator_owned:true,generator_rhythm:true});now+=101;
+ assert.equal(page.performanceGet('joint_preview_3_state'),'Generator follow');
+ previewValue=JSON.stringify({schema:1,actor:group*4+3,playing:true,enabled:true,generator_owned:true,generator_rhythm:true,rhythm_amount:0});now+=101;
+ assert.equal(page.performanceGet('joint_preview_3_state'),'Generator own');
+ previewValue=JSON.stringify({schema:1,actor:group*4+3,playing:true,enabled:true,generator_owned:true,generator_rhythm:false});now+=101;
+ assert.equal(page.performanceGet('joint_preview_3_state'),'Generator own');
+ previewValue=JSON.stringify({schema:1,actor:group*4+3,playing:true,recording:true,enabled:true,generator_owned:true,generator_rhythm:true});now+=101;
+ assert.equal(page.performanceGet('joint_preview_3_state'),'Recording own');
  previewValue='bad JSON';now+=101;
  assert.equal(page.performanceGet('joint_preview_3_notes'),'Unavailable','failure replaces old output');
  previewValue=null;now+=101;

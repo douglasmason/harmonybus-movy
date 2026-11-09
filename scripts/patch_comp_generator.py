@@ -57,8 +57,10 @@ def patch_comp_generator(root: Path) -> None:
     pub generator_library:[Option<crate::part_load::PreparedPart>;16],
     pub generator_restore:[Option<crate::part_settings::Settings>;16],
     pub generator_result:String,
+    source_generator_previews:[Option<crate::generator::Explore>;16],
     generator_emitting:bool,''')
-    source = replace_once(source,'            variations:', '            generator_explore:[None;16],generator_visuals:[None;16],generator_library:std::array::from_fn(|_|None),generator_restore:[None;16],generator_result:String::new(),generator_emitting:false,\n            variations:')
+    source = replace_once(source,'            variations:', '            generator_explore:[None;16],generator_visuals:[None;16],generator_library:std::array::from_fn(|_|None),generator_restore:[None;16],generator_result:String::new(),source_generator_previews:[None;16],generator_emitting:false,\n            variations:')
+    source = replace_once(source,'            self.source_automation_tick(out);','            self.source_generator_previews=self.generator_explore;\n            self.source_automation_tick(out);')
     source = replace_once(source,'struct Gate {','struct Gate {\n    generated:bool,')
     source = replace_once(source,'self.gates.push(Gate {','self.gates.push(Gate {\n                            generated:self.generator_emitting,')
     source = replace_once(source,'    pub fn clip_transpose(&self, track: usize, slot: usize) -> i32 {','    pub fn clip_transpose(&self, track: usize, slot: usize) -> i32 {\n        if self.generator_free(track) {return 0;}')
@@ -92,12 +94,21 @@ def patch_comp_generator(root: Path) -> None:
     source = replace_once(source,'            if !muted {\n                    let len', '            if !muted && !self.generator_free(ti) {\n                    let len')
     source = replace_once(source,'        self.shared_transport(out);','        self.generator_check_target(out);\n        self.shared_transport(out);')
     source = replace_once(source,'            self.recipe_tick(out);','            self.generator_check_target(out);\n            self.recipe_tick(out);')
-    # Suppress only incoming weaving while this actor owns a generator source.
-    source = source.replace('for actor in 0..NUM_TRACKS {\n            let route=self.source_routes[actor];','for actor in 0..NUM_TRACKS {\n            if self.generator_owns(actor) {continue;}\n            let route=self.source_routes[actor];')
+    # Recorded generated receivers can borrow rhythm; free/Cloud/recording
+    # ownership remains unchanged. Generated material is never routed recursively.
+    source = source.replace('for actor in 0..NUM_TRACKS {\n            let route=self.source_routes[actor];','for actor in 0..NUM_TRACKS {\n            if self.generator_owns(actor)&&!self.generator_rhythm_following(actor) {continue;}\n            let route=self.source_routes[actor];')
+    source = replace_once(source,'            let source=route.pitch.unwrap_or(own);','''            if self.generator_owns(actor) {
+                if rhythm_track!=actor {self.generator_rhythm_attack(actor,actor_slot,rhythm_track,duration,out);}
+                continue;
+            }
+            let source=route.pitch.unwrap_or(own);''')
+    source = replace_once(source,'if !self.source_routes[ti].enabled || joint_recording_here {','if !self.source_routes[ti].enabled || joint_recording_here || self.generator_rhythm_own(ti) {')
     source = source.replace('.recipe.as_ref().filter(|_|!self.drum_output(ti))', '.recipe.as_ref().filter(|_|!self.drum_output(ti)&&!self.generator_free(ti))')
     source = source.replace('&& !(self.recording && self.records_track(ti)) {', '&& (self.generator_owns(ti)||!(self.recording && self.records_track(ti))) {')
     source = replace_once(source, '                if let Some(lv) = clip.lock_at(lane, step) {', '                if clip.generator.is_some() {crate::generator::lane_value(clip,lane,step,base)} else if let Some(lv) = clip.lock_at(lane, step) {')
     source += '\n' + (assets / 'generator_engine.rs').read_text()
+    source += '\n' + (assets / 'generator_rhythm.rs').read_text()
+    source += '\n' + (assets / 'generator_rhythm_tests.rs').read_text()
     if (assets / 'generator_tests.rs').exists():
         source += '\n' + (assets / 'generator_tests.rs').read_text()
     source += '\n' + (assets / 'generator_source_tests.rs').read_text()

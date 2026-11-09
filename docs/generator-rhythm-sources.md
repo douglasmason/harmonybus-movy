@@ -30,8 +30,9 @@ The scope is deliberately the existing clip contract:
 * A recorded recipe or its live preview can donate; free Explore and an in-progress
   first take do not impersonate a selected clip. Finish the take to use it as a
   rhythm source. Saved-library auditions become donors once recorded to a clip.
-* Generated actors still own their incoming timing; the receiver must use ordinary
-  clip material. This does not yet add generator-to-generator rhythmic affinity.
+* Recorded Comp/Bass/Euclidean receivers can now borrow these attacks through
+  [generated rhythm following](generated-rhythm-receivers.md). Cloud and free
+  exploration retain their own timing; no automatic rhythmic affinity is inferred.
 * Generated pitch and expression donation still require Bake. Rhythm donation
   does not silently materialize or modify the donor recipe.
 * Recording on the receiver retains the established Own-material behavior. It
