@@ -53,7 +53,7 @@ def patch_comp_generator(root: Path) -> None:
     path = core / 'engine.rs'
     source = replace_once(path.read_text(),'pub struct Engine {','''pub struct Engine {
     pub generator_explore:[Option<crate::generator::Explore>;16],
-    pub generator_visuals:[Option<(usize,[u8;4],u64)>;16],
+    pub generator_visuals:[Option<(usize,[u8;7],u64)>;16],
     pub generator_library:[Option<crate::part_load::PreparedPart>;16],
     pub generator_restore:[Option<crate::part_settings::Settings>;16],
     pub generator_result:String,

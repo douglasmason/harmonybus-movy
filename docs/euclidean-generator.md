@@ -19,8 +19,27 @@ Range remains on the existing chord settings pages; this generator uses all
 eight knobs. Comp triggers mapped root inputs through the actor's chord/voicing
 settings; Bass plays mapped single roots. Both follow conductor harmony.
 
+The adjacent **Expression** page adds:
+
+| Knob | Control |
+| --- | --- |
+| 1 | Accents, 0–16, bounded by the number of hits |
+| 2 | Accent Depth, 0–100% |
+| 3 | Gate, 1–100% of the selected step rate |
+| 4 | Intensity |
+| 6–8 touch | Explore / Stop, Bake, Revert |
+
+Accents are distributed evenly among the rhythm's hits and rotate with them.
+Depth keeps accented hits at the chosen intensity and lowers the other hits;
+100% leaves the softer hits at minimum MIDI velocity rather than deleting them.
+Zero Accents or zero Depth disables the emphasis. Gate changes note length,
+not hit timing. Its default 50% exactly preserves earlier Euclidean playback.
+Both pages retain step-button rotation, the normal Record button, and Revert.
+
 On the **Euclidean Generator page**, the 16 step buttons show one cycle:
 red for hits, dim for rests, white for the current position, and off beyond Steps.
+With accents enabled, accented hits are bright red and softer hits are dark red.
+On the display, full hit boxes are accented and inset hit boxes are softer.
 Tap a valid step to place the unrotated pattern's first hit there. For example,
 step 5 sets Rotation to 4. Zero-hit patterns remain silent. Taps outside the
 cycle do nothing. The same gesture edits a temporary draft, previews a recorded
@@ -50,17 +69,23 @@ Recorded recipes repeat with the clip's loop, so a cycle that does not divide it
 length is cut at the loop boundary. Free audition can therefore change alignment
 when a new recording begins. Harmony changes do not restart either source.
 
-Hits, Steps, Rotation, Rate and Intensity use five named automation lanes.
-Recording requires five available/matching lanes and never steals another lane.
+New recordings use eight named automation lanes: Hits, Steps, Rotation, Rate,
+Intensity, Accents, Accent Depth and Gate. Existing five-lane recipes still load,
+audition, replay and bake with their original sound. Previewing expression adds
+no persistent lanes. Recording a new expression control on an older recipe
+allocates only that control's missing lane, atomically, and retains its earlier
+default outside the recorded interval. Other automation lanes are never stolen;
+insufficient space refuses the edit. Ordinary Undo restores lane additions too.
 Control preview, overdub, Revert, Undo, save/reload, User recipes and Bake all reuse
 the existing generator paths. Bake materializes the recorded clip, including its
 accepted controls. Existing gate ownership, swing, speed and release behavior are
-retained. Euclidean attacks initially have a half-step gate at the selected rate;
-saved recipe gate scaling applies through the usual path.
+retained. Saved recipe gate scaling applies through the usual path.
 
-Recorded Euclidean clips can donate their attacks through Source Weaving. Free
-exploration and incoming rhythm-following remain subject to the existing generator
-limitations. This source does not redistribute motif interiors or launch whole
+Recorded Euclidean clips can donate their attacks through Source Weaving and
+follow another clip's rhythm through the existing generated rhythm receiver.
+When following a donor, the donor retains gate ownership; the Euclidean Gate
+control shapes the actor's own attacks. Free exploration keeps its own clock.
+This source does not redistribute motif interiors or launch whole
 motifs; those are separate integrations.
 
 The source adds bounded integer attack membership matching HB's existing Fill
@@ -70,6 +95,7 @@ Euclidean Fill editor remains available for the four shared User rhythm slots.
 
 Validation covers every supported length/hit/rotation/rate combination, source
 format validation, long-running phase, harmony changes, temporary state isolation,
-all five automation controls, replay/reload/User recipe/Bake event equality,
-zero-hit preview, Restore, lane exhaustion, and native-controller Record routing.
+all eight automation controls, replay/reload/User recipe/Bake event equality,
+accent spacing and subset membership, zero-hit preview, Restore, legacy lane
+upgrades, atomic lane exhaustion, and native-controller Record routing.
 A physical Move listening test is still needed.

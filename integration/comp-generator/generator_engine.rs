@@ -85,8 +85,8 @@ impl Engine {
         let visual=if mode!="Off"&&config.is_euclidean() {
             let free=state.is_some_and(|state|state.source.is_none());
             let observed=self.generator_visuals[track].filter(|(slot,_,_)|self.playing&&!target.muted&&(free||*slot==target.active_clip&&target.playing_slot==Some(*slot)));
-            let (values,cursor)=observed.map_or((config.euclidean,-1),|(_,values,phase)|(values,((phase>>values[3])%values[1] as u64) as i32));
-            format!("{} {} {} {} {}",values[0],values[1],values[2],values[3],cursor)
+            let (values,cursor)=observed.map_or((config.visual_values(),-1),|(_,values,phase)|(values,((phase>>values[3])%values[1] as u64) as i32));
+            format!("{} {} {} {} {} {} {} {}",values[0],values[1],values[2],values[3],cursor,values[4],values[5],values[6])
         }else{String::new()};
         let mut info=format!("{}|{}|{}|{}|{}|{}",mode,target.active_clip,config.wire(),self.generator_result,self.generator_record_track().map_or(-1,|owner|owner as i32),u8::from(self.generator_library[track].is_some()));
         if !visual.is_empty(){info.push('|');info.push_str(&visual);}info
@@ -99,7 +99,7 @@ impl Engine {
             let Some(track)=fields[1].parse::<usize>().ok().filter(|track|*track<NUM_TRACKS) else{return false;};
             self.generator_cancel_track(track,out);return true;
         }
-        if !matches!(fields.len(),6|11|13) {self.generator_result="Invalid generator".into();return false;}
+        if !matches!(fields.len(),6|11|13|14) {self.generator_result="Invalid generator".into();return false;}
         let Some(track)=fields[1].parse::<usize>().ok().filter(|track|*track<NUM_TRACKS&&!self.track_is_drum(*track)) else {self.generator_result="Choose a melodic actor track".into();return false;};
         let Some(config)=crate::generator::Config::parse(&fields[2..].join(" ")) else {return false;};
         if self.generator_library[track].is_some(){self.generator_result="Stop saved recipe before choosing a stock source".into();return false;}
@@ -236,7 +236,7 @@ impl Engine {
         let clip=track.active();
         if let Some(slot)=state.source {
             if slot!=track.active_clip||clip.generator.is_none() {self.generator_result="Clip changed".into();return false;}
-            if state.current.labels().iter().any(|label|!(0..8).any(|lane|track.lane_assigned[lane]&&track.lane_label[lane]==*label)) {
+            if state.current.labels().iter().enumerate().any(|(field,label)|!state.current.optional_control(field)&&!(0..8).any(|lane|track.lane_assigned[lane]&&track.lane_label[lane]==*label)) {
                 self.generator_result="Generator automation lanes missing".into();return false;
             }
         }else if clip.exists() {self.generator_result="Choose an empty actor clip".into();return false;}
@@ -245,8 +245,9 @@ impl Engine {
             let mut clip=part.clip.clone();
             if let Err(error)=crate::part_load::remap_part_lanes(&mut clip,&part.lanes,track){self.generator_result=error.into();return false;}
         }
-        let available=(0..8).filter(|lane|!track.lane_assigned[*lane]||state.current.labels().contains(&track.lane_label[*lane].as_str())).count();
-        if available<state.current.labels().len() {self.generator_result="Generator automation lanes needed".into();return false;}
+        let required:Vec<_>=state.current.labels().iter().enumerate().filter(|(field,label)|state.source.is_none()&&self.generator_library[state.track].is_none()||!state.current.optional_control(*field)||state.touched&(1<<field)!=0||track.lane_label.iter().any(|name|name==**label)).map(|(_,label)|*label).collect();
+        let available=(0..8).filter(|lane|!track.lane_assigned[*lane]&&track.clips.iter().all(|clip|clip.locks.iter().all(|lock|lock.lane as usize!=*lane))||required.contains(&track.lane_label[*lane].as_str())).count();
+        if available<required.len() {self.generator_result="Generator automation lanes needed".into();return false;}
         self.generator_explore[state.track].as_mut().unwrap().destination=Some(track.active_clip);
         self.generator_result="Recording armed".into();true
     }
@@ -293,17 +294,27 @@ impl Engine {
         }
     }
     /// Replace only the visited control interval and restore its old curve at
-    /// the next boundary. Six bounded edits are preflighted before any writes.
+    /// the next boundary. All edits and optional legacy-lane additions are
+    /// preflighted before any writes; unrelated lanes are never reassigned.
     fn generator_overdub_step(&mut self,track:usize,slot:usize,step:u16,state:crate::generator::Explore)->Result<bool,&'static str> {
         let target=&self.tracks[track];let clip=&target.clips[slot];
         let config=clip.generator.ok_or("Generator clip removed")?;
-        let mut edits:[Option<(u8,u16,Option<u8>)>;16]=[None;16];let mut count=0;
+        let mut edits:[Option<(u8,u16,Option<u8>)>;24]=[None;24];let mut count=0;
+        let mut labels:[Option<(usize,&str)>;3]=[None;3];let mut added_labels=0;
         for (field,label) in state.current.labels().iter().enumerate() {
             if state.touched&(1<<field)==0||(state.current.bar_control(field)&&step%16!=0&&step!=clip.loop_start_steps){continue;}
-            let lane=(0..8).find(|lane|target.lane_assigned[*lane]&&target.lane_label[*lane]==*label).ok_or("Generator automation lane removed")? as u8;
+            let existing=(0..8).find(|lane|target.lane_assigned[*lane]&&target.lane_label[*lane]==*label);
+            let lane=if let Some(lane)=existing{lane}else{
+                if !config.optional_control(field){return Err("Generator automation lane removed");}
+                let lane=(0..8).find(|lane|!target.lane_assigned[*lane]&&target.clips.iter().all(|clip|clip.locks.iter().all(|lock|lock.lane as usize!=*lane))&&!labels.iter().flatten().any(|(used,_)|used==lane)).ok_or("Generator automation lanes needed")?;
+                labels[added_labels]=Some((lane,*label));added_labels+=1;
+                lane
+            } as u8;
+            let initialize=config.optional_control(field)&&!clip.locks.iter().any(|lock|lock.lane==lane);
+            if initialize&&step!=clip.loop_start_steps {edits[count]=Some((lane,clip.loop_start_steps,Some(config.values()[field])));count+=1;}
             let value=state.current.values()[field];
             let previous=if step==clip.loop_start_steps {config.values()[field]}else{crate::generator::lane_value(clip,lane,step-1,config.values()[field])};
-            let current=(previous!=value).then_some(value);
+            let current=(previous!=value||initialize&&step==clip.loop_start_steps).then_some(value);
             if clip.lock_at(lane,step)!=current {edits[count]=Some((lane,step,current));count+=1;}
             let next=if state.current.bar_control(field) {(step/16+1)*16}else{step+1};
             if next<clip.loop_start_steps+clip.length_steps&&clip.lock_at(lane,next).is_none() {
@@ -314,6 +325,7 @@ impl Engine {
         let added=edits.iter().flatten().filter(|(lane,step,value)|value.is_some()&&clip.lock_at(*lane,*step).is_none()).count();
         let removed=edits.iter().flatten().filter(|(_,_,value)|value.is_none()).count();
         if clip.locks.len()+added-removed>crate::clip::MAX_LOCKS {return Err("Automation capacity reached");}
+        for (lane,label) in labels.into_iter().flatten(){self.auto_label(track,lane,label);}
         let clip=&mut self.tracks[track].clips[slot];
         for (lane,step,value) in edits.into_iter().flatten() {
             if let Some(value)=value {clip.set_lock(lane,step,value);}else{clip.locks.retain(|lock|lock.lane!=lane||lock.step!=step);}
@@ -400,7 +412,7 @@ impl Engine {
             let config=if let Some(state)=self.generator_explore[track] {state.current}
                 else {let clip=&self.tracks[track].clips[slot];clip.generator.unwrap().at(clip,&self.tracks[track].lane_label,step)};
             let phase=if free&&self.generator_library[track].is_none(){self.master_tick.saturating_sub(1)/TICKS_PER_STEP as u64}else{step as u64};
-            self.generator_visuals[track]=config.is_euclidean().then_some((slot,config.euclidean,phase));
+            self.generator_visuals[track]=config.is_euclidean().then_some((slot,config.visual_values(),phase));
             let generated=if config.is_cloud(){self.cloud_notes(track,slot,step,config,free)}else{config.note_at(step,phase).into_iter().collect()};
             for note in generated {
                 crate::source_route::RhythmAttack::accept(&mut source_duration,note.pitch,note.gate);

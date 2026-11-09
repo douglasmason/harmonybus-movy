@@ -8,9 +8,11 @@ def patch_euclidean_surface(root: Path) -> None:
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/comp-generator'
     (root / 'src/seq/euclidean-surface.ts').write_text((assets / 'euclidean-surface.ts').read_text())
     path: Path = root / 'src/seq/chord-play.ts'
-    source: str = "import {generatorEuclideanView,generatorRotateStep} from './comp-generator.js';\nimport {tickEuclidean,paintEuclideanSteps,drawEuclidean} from './euclidean-surface.js';\nimport {deleteActive} from './edit-ops.js';\nimport {dupActive} from './duplicate.js';\n" + path.read_text()
+    source: str = "import {generatorEuclideanView,generatorRotateStep,generatorEuclidean,euclideanExpressionKeys} from './comp-generator.js';\nimport {tickEuclidean,paintEuclideanSteps,drawEuclidean} from './euclidean-surface.js';\nimport {deleteActive} from './edit-ops.js';\nimport {dupActive} from './duplicate.js';\n" + path.read_text()
+    source = replace_once(source, "    if(generatorCloud())add('cp_cloud_field'", "    if(generatorEuclidean())add('cp_euclidean_expression',generatorActor()+' Expression',euclideanExpressionKeys);\n    if(generatorCloud())add('cp_cloud_field'")
+    source = source.replace("['cp_comp_generator','cp_generator_browser','cp_cloud_field']", "['cp_comp_generator','cp_generator_browser','cp_cloud_field','cp_euclidean_expression']")
     source = replace_once(source, 'export function tickChord():void{', '''function euclideanPageView() {
-    if(!chordActive()||settingsActive()||paramPageActive()||page?.ctl.hbNavigation?.isMenu()||page?.ctl.state.pickerOpen||partModalActive()||motifLoaderActive(performanceOwner(setup.conductor))||page?.ctl.page?.level!=='cp_comp_generator')return null;
+    if(!chordActive()||settingsActive()||paramPageActive()||page?.ctl.hbNavigation?.isMenu()||page?.ctl.state.pickerOpen||partModalActive()||motifLoaderActive(performanceOwner(setup.conductor))||!['cp_comp_generator','cp_euclidean_expression'].includes(page?.ctl.page?.level??''))return null;
     return generatorEuclideanView(generatorTarget(setup.comp,setup.bass,appState.activeTrack.index));
 }
 export function tickChord():void{
@@ -21,7 +23,12 @@ export function tickChord():void{
     }
     const ownerTrack=conductorTrack(),conductorOwner''')
     source = replace_once(source, '    if(chordActive())for(let index=0;index<16;index++){', '    const euclidean=euclideanPageView();if(euclidean)paintEuclideanSteps(euclidean);\n    else if(chordActive())for(let index=0;index<16;index++){')
-    source = replace_once(source, "drawBankBar(current.pageIndex,current.pageCount);current.render('Chord Play');", "drawBankBar(current.pageIndex,current.pageCount);current.render('Chord Play');\n    const euclidean=euclideanPageView();if(euclidean&&contextVisible(current))drawEuclidean(euclidean);")
+    source = replace_once(source, "drawBankBar(current.pageIndex,current.pageCount);current.render('Chord Play');", "drawBankBar(current.pageIndex,current.pageCount);current.render('Chord Play');\n    const euclidean=euclideanPageView();if(euclidean&&current.ctl.page?.level==='cp_comp_generator'&&contextVisible(current))drawEuclidean(euclidean);")
     path.write_text(source)
+    path = root / 'src/seq/chord-settings-layout.ts'
+    path.write_text(path.read_text().replace("['cp_comp_generator','cp_cloud_field']", "['cp_comp_generator','cp_cloud_field','cp_euclidean_expression']"))
+    path = root / 'src/renderer/panel-catalog.ts'
+    source = replace_once(path.read_text(), "cp_comp_generator:'Libraries',", "cp_comp_generator:'Libraries',cp_euclidean_expression:'Libraries',")
+    path.write_text(source.replace("['cp_comp_generator','cp_generator_browser','cp_cloud_field']", "['cp_comp_generator','cp_generator_browser','cp_cloud_field','cp_euclidean_expression']"))
     path = root / 'build/browser.mjs'
     path.write_text(replace_once(path.read_text(), '    entryPoints: [', "    entryPoints: [\n        resolve(root, 'src/seq/euclidean-surface.ts'),"))
