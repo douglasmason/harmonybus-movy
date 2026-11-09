@@ -23,6 +23,7 @@ try{
  assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),savedBefore,'choosing and editing a draft does not persist a clip');
  await editor.getByRole('button',{name:'Explore',exact:true}).click();await editor.getByRole('button',{name:'Play',exact:true}).click();
  await until(async()=>JSON.parse(await __wasmRead('cloud_ui_state')).euclidean.cursor>=0);
+ await editor.locator('[aria-current=step]').waitFor({state:'visible'});
  assert.equal(await editor.locator('[aria-current=step]').count(),1);
  assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),savedBefore,'audition remains temporary');
  await editor.getByRole('button',{name:'Record',exact:true}).click();
@@ -34,6 +35,7 @@ try{
  const bassBefore=await page.evaluate(async()=>(await __wasmRead('generator_info_1')).split('|').slice(0,3));
  await editor.getByRole('combobox',{name:'Euclidean actor'}).selectOption('Bass');
  await until(async()=>{const state=JSON.parse(await __wasmRead('cloud_ui_state'));return state.track===1&&state.transport.track===2&&state.transport.phase==='recording';});
+ await editor.locator('.transport').filter({hasText:'Recording · Track 3 · Clip 1'}).waitFor();
  assert.match(await editor.locator('.transport').textContent(),/Recording · Track 3 · Clip 1/);
  await editor.getByRole('button',{name:'Stop recording',exact:true}).click();await until(async()=>(await __wasmRead('status')).includes('rec=0'));
  assert.deepEqual(await page.evaluate(async()=>(await __wasmRead('generator_info_1')).split('|').slice(0,3)),bassBefore,'finishing Comp does not start a Bass source');
