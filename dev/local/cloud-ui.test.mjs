@@ -51,6 +51,14 @@ try{
  await page.evaluate(()=>{window.state.transport={playing:false,phase:'idle',track:null,slot:null};window.state.cloud=true;});
  await page.getByRole('button',{name:'Record',exact:true}).waitFor();
  assert.match(await page.locator('.cloud-status').textContent(),/Melody · Track 4 · Clip 1/);
+ for(const width of [390,820]){
+  await page.setViewportSize({width,height:860});const before=await canvas.boundingBox();
+  for(const phase of ['armed','count-in','recording','idle']){
+   await page.evaluate(phase=>window.state.transport={playing:phase==='recording',phase,track:phase==='idle'?null:15,slot:phase==='idle'?null:7},phase);
+   await page.waitForTimeout(100);assert.equal((await canvas.boundingBox()).y,before.y,'recording labels cannot move the field under held fingers');
+  }
+ }
+ await page.setViewportSize({width:1000,height:860});
  await canvas.evaluate(element=>element.addEventListener('pointerdown',event=>window.activePointer=event.pointerId,{once:true}));
  await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[touches[0]]});
  await canvas.evaluate(element=>{
