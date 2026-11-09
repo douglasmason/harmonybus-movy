@@ -27,6 +27,12 @@ try{
  assert(sent.some(value=>value.startsWith('touch 3 96 ')));assert(sent.some(value=>value.startsWith('touch 3 97 ')));
  await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  sent=await page.evaluate(()=>window.sent);assert(sent.some(value=>/^touch 3 96 .* 0$/.test(value)));assert(sent.some(value=>/^touch 3 97 .* 0$/.test(value)));
+ await page.getByRole('button',{name:'Hold cloud',exact:true}).click();assert.equal((await page.evaluate(()=>window.sent)).at(-1),'hold 1');
+ assert.equal(await page.getByRole('button',{name:'Hold cloud',exact:true}).getAttribute('aria-pressed'),'false','Hold waits for engine confirmation');
+ await page.evaluate(()=>window.state.holding=true);await page.getByRole('button',{name:'Release cloud',exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Release cloud',exact:true}).getAttribute('aria-pressed'),'true');
+ await page.getByRole('button',{name:'Release cloud',exact:true}).click();assert.equal((await page.evaluate(()=>window.sent)).at(-1),'hold 0');
+ await page.evaluate(()=>window.state.holding=false);await page.getByRole('button',{name:'Hold cloud',exact:true}).waitFor();
  await page.getByRole('combobox',{name:'Cloud field boundary'}).selectOption('Wrap');await page.getByRole('button',{name:'Draw x positive'}).click();
  assert((await page.evaluate(()=>window.sent)).includes('edge Wrap'));assert((await page.evaluate(()=>window.sent)).includes('draw x 4'));
  await page.getByRole('combobox',{name:'Cloud field axes'}).selectOption('pitch-x');assert((await page.evaluate(()=>window.sent)).includes('axes pitch-x'));
@@ -54,7 +60,7 @@ try{
  for(const width of [390,820]){
   await page.setViewportSize({width,height:860});const before=await canvas.boundingBox();
   for(const phase of ['armed','count-in','recording','idle']){
-   await page.evaluate(phase=>window.state.transport={playing:phase==='recording',phase,track:phase==='idle'?null:15,slot:phase==='idle'?null:7},phase);
+   await page.evaluate(phase=>{window.state.holding=phase==='recording';window.state.transport={playing:phase==='recording',phase,track:phase==='idle'?null:15,slot:phase==='idle'?null:7};},phase);
    await page.waitForTimeout(100);assert.equal((await canvas.boundingBox()).y,before.y,'recording labels cannot move the field under held fingers');
   }
  }

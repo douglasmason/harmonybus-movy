@@ -31,6 +31,21 @@ try{
  await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:points.map(point=>({...point,x:point.x-60,y:point.y+20}))});
  await page.waitForTimeout(180);await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  await until(async()=>(await __wasmRead('cloud_view_3')).split('|')[1]==='');
+ await panel.getByRole('button',{name:'Hold cloud',exact:true}).click();
+ await until(async()=>JSON.parse(await __wasmRead('cloud_ui_state')).holding===true);
+ await panel.getByRole('button',{name:'Release cloud',exact:true}).waitFor();
+ await panel.getByRole('combobox',{name:'Follower actor'}).selectOption('Comp');
+ await until(async()=>JSON.parse(await __wasmRead('cloud_ui_state')).track===2);
+ await page.waitForTimeout(5000); // More than both contact leases and the four-beat trail at 120 BPM.
+ assert.equal(await page.evaluate(()=>__wasmRead('cloud_hold_3')),'1');
+ assert.equal(await page.evaluate(()=>__wasmRead('cloud_hold_2')),'0','Hold belongs to the captured actor');
+ const heldView=(await page.evaluate(()=>__wasmRead('cloud_view_3'))).split('|');
+ assert.equal(heldView[1],'','held clouds never synthesize green finger contacts');assert(heldView[2].length>0&&heldView[3].length>0);
+ assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),before,'Hold is a transient audition until Record');
+ await panel.getByRole('combobox',{name:'Follower actor'}).selectOption('Melody');
+ await panel.getByRole('button',{name:'Release cloud',exact:true}).waitFor();await panel.getByRole('button',{name:'Release cloud',exact:true}).click();
+ await until(async()=>(await __wasmRead('cloud_hold_3'))==='0');
+ await until(async()=>{const view=(await __wasmRead('cloud_view_3')).split('|');return view[2]===''&&view[3]==='';});
  await panel.getByRole('button',{name:'Stop',exact:true}).click();
  await until(async()=>(await __wasmRead('status')).includes('play=0'));
  assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),before,'live field leaves the saved Set untouched');

@@ -1,5 +1,5 @@
 /** Native, external and browser gestures share the same follower source. */
-import {generatorCloud,generatorSelectedTrack,generatorCloudContact,generatorCloudSnapshot,generatorTouch,generatorRead,generatorCloud as cloudSelected} from './comp-generator.js';
+import {generatorCloud,generatorSelectedTrack,generatorCloudContact,generatorCloudSnapshot,generatorCloudHeld,generatorCloudHold,generatorTouch,generatorRead,generatorCloud as cloudSelected} from './comp-generator.js';
 import {cloudCoordinate,cloudPosition,readCloud,emptyCloud,cloudCells,cloudFade} from './cloud-view.js';
 import {trailStyle} from './trail-settings.js';
 import {sendPadLedFrame} from './led-cache.js';
@@ -9,6 +9,7 @@ import {seqCmd,seqCmdFlush,engineReady,fieldEngineSet} from './engine.js';
 import {syncPadRoute} from '../track/pad-route.js';
 import {markUiStateDirty} from './ui-dirty.js';
 let owner:number|null=null,lastRead=-Infinity,lastRefresh=-Infinity,snapshot=emptyCloud();
+let holding=false;
 let paint:number[]=Array(32).fill(-1);
 let cursorX=64,cursorY=64,wrap=false,flipped=false,lastDraw=-Infinity;
 let activity:'Probability'|'Rate'='Probability';
@@ -26,9 +27,14 @@ export function cloudInput(x:number,y:number):{x:number;y:number} {return cloudP
 function contactInput(track:number,id:number,x:number,y:number,pressure:number,start=true):void {const position=cloudInput(x,y);generatorCloudContact(track,id,position.x,position.y,pressure,start,activity);}
 export function cloudSurfaceActive():boolean {return owner!==null;}
 export function cloudRunning():boolean {return owner!==null&&generatorRead('cg_explore',owner)==='Stop';}
+/** Cached feedback: LED painters must not poll or mutate the engine. */
+export function cloudHolding():boolean {return owner!==null&&holding;}
+export function toggleCloudHold():void {
+ if(owner===null)return;generatorCloudHold(!generatorCloudHeld(owner),owner);holding=generatorCloudHeld(owner);lastRead=-Infinity;appState.dirty=true;
+}
 export function setCloudSurface(visible:boolean):void {
  const next=visible&&generatorCloud()?generatorSelectedTrack():null;
- if(next===owner)return;releaseCloud();owner=next;paint.fill(-1);snapshot=emptyCloud();lastRead=-Infinity;
+ if(next===owner)return;releaseCloud();owner=next;holding=false;paint.fill(-1);snapshot=emptyCloud();lastRead=-Infinity;
  if(engineReady()){syncPadRoute(fieldEngineSet);if(next!==null){fieldEngineSet('joint_map','off');fieldEngineSet('joint_release','1');}}appState.dirty=true;
 }
 export function cloudRead(key:string):string|null {return key==='cg_x'?String(cursorX):key==='cg_y'?String(cursorY):key==='cg_activity'?activity:key==='cg_edge'?(wrap?'Wrap':'Bounded'):key==='cg_axes'?(flipped?'Pitch / Activity':'Activity / Pitch'):null;}
@@ -76,6 +82,7 @@ export function tickCloud(now=Date.now()):void {
  if(now-lastRefresh>=250){lastRefresh=now;for(const [id,contact] of held)contactInput(contact.track,id,contact.x,contact.y,contact.pressure,false);}
  if(owner===null)return;
  if(now-lastRead<80)return;lastRead=now;
+ holding=generatorCloudHeld(owner);
  const next=readCloud(generatorCloudSnapshot(owner));if(next){snapshot=next;appState.dirty=true;}
 }
 export function cloudColors(height=4):number[]{return cloudCells(snapshot,8,height,trailStyle().settings,flipped);}
@@ -88,7 +95,7 @@ export function drawCloud():void {
   fill_rect(x,y,level>.5?2:1,level>.5?2:1,1);
  }
  for(const point of snapshot.contacts.map(point=>cloudPosition(point,flipped))){const x=Math.round(point.x*123)+2,y=53-Math.round(point.y*38);fill_rect(x-1,y,3,1,1);fill_rect(x,y-1,1,3,1);}
- fontPrint(1,56,Date.now()-lastDraw<1500?`X ${cursorX} Y ${cursorY} ${wrap?'Wrap':'Bounded'}`:flipped?`X Pitch / Y ${activity}`:`X ${activity} / Y Pitch`,1);
+ fontPrint(1,56,Date.now()-lastDraw<1500?`X ${cursorX} Y ${cursorY} ${wrap?'Wrap':'Bounded'}`:holding?'Hold / Sample releases':flipped?`X Pitch / Y ${activity}`:`X ${activity} / Y Pitch`,1);
 }
 
-export function clearCloud():void {releaseCloud();if(owner!==null&&engineReady()){seqCmd(`gcloud ${owner} clear`);seqCmdFlush();snapshot=emptyCloud();appState.dirty=true;}}
+export function clearCloud():void {releaseCloud();if(owner!==null&&engineReady()){seqCmd(`gcloud ${owner} clear`);seqCmdFlush();holding=false;snapshot=emptyCloud();appState.dirty=true;}}
