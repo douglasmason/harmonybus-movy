@@ -9,7 +9,7 @@ export function tickEuclidean(view:EuclideanView|null):void {
  if(next!==previous){previous=next;appState.dirty=true;}
 }
 export function euclideanStepColors(view:EuclideanView):number[] {
- return Array.from({length:16},(_,index)=>index>=view.steps?0:index===view.cursor?120:(view.mask&(1<<index))!==0?127:119);
+ return Array.from({length:16},(_,index)=>index>=view.steps?0:index===view.cursor?120:(view.mask&(1<<index))!==0?(view.depth>0&&view.accents>0&&!(view.accentMask&(1<<index))?2:127):119);
 }
 export function paintEuclideanSteps(view:EuclideanView):void {
  euclideanStepColors(view).forEach((color,index)=>cachedSetAnimLED(16+index,color,color,0));
@@ -21,6 +21,7 @@ export function drawEuclidean(view:EuclideanView):void {
   const x=2+index%8*16,y=23+Math.floor(index/8)*13;
   fill_rect(x,y,12,8,1);
   if(!(view.mask&(1<<index)))fill_rect(x+1,y+1,10,6,0);
+  else if(view.depth>0&&view.accents>0&&!(view.accentMask&(1<<index))){fill_rect(x+1,y+1,10,6,0);fill_rect(x+3,y+2,6,4,1);}
   if(index===view.cursor)fill_rect(x,y+9,12,2,1);
  }
  fontPrint(2,49,'Tap step: rotate',1);

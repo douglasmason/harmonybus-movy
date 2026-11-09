@@ -19,23 +19,28 @@ const cached=new Map<number,{at:number;value:string[]}>();
 export const cloudDefaults=[96,48,64,40,64,32];
 export const cloudControls=['density','dynamics','rate','length','register','spread','contour','variation'];
 export const cloudKeys=['rate','density','length','register','spread','contour','variation','dynamics'].map(field=>'cg_cloud_'+field);
-export const euclideanDefaults=[3,8,0,0];
-export const euclideanControls=['hits','steps','rotation','rate'];
+export const euclideanDefaults=[3,8,0,0,0,50,50];
+export const euclideanControls=['hits','steps','rotation','rate','accents','depth','gate'];
 export const euclideanRates=['1/16','1/8','1/4','1/2'];
-export const euclideanKeys=[...euclideanControls.map(field=>'cg_euclid_'+field),'cg_intensity','cg_explore','cg_bake','cg_restore'];
-export type EuclideanView={hits:number;steps:number;rotation:number;rate:number;cursor:number;mask:number};
+export const euclideanKeys=[...euclideanControls.slice(0,4).map(field=>'cg_euclid_'+field),'cg_intensity','cg_explore','cg_bake','cg_restore'];
+export const euclideanExpressionKeys=['cg_euclid_accents','cg_euclid_depth','cg_euclid_gate','cg_intensity','cp_blank_0','cg_explore','cg_bake','cg_restore'];
+export type EuclideanView={hits:number;steps:number;rotation:number;rate:number;cursor:number;mask:number;accents:number;depth:number;gate:number;accentMask:number};
 /** A stopped draft uses its controls; running views use the engine observation. */
 export function generatorEuclideanView(track=selectedTrack):EuclideanView|null {
  const state=readState(track);if(!compatible(state)||!generatorEuclidean(track))return null;
- let [hits,steps,rotation,rate]=draft(track).config.slice(5,9),cursor=-1;
+ let [hits,steps,rotation,rate,accents,depth,gate]=euclideanDefaults.map((fallback,index)=>draft(track).config[5+index]??fallback),cursor=-1;
  const observed=state[6]?.trim().split(' ').map(Number);
- if(state[0]!=='Off'&&observed?.length===5&&observed.every(Number.isInteger)&&observed[0]>=0&&observed[0]<=16&&observed[1]>=1&&observed[1]<=16&&observed[2]>=0&&observed[2]<16&&observed[3]>=0&&observed[3]<4&&observed[4]>=-1&&observed[4]<observed[1]){
+ if(state[0]!=='Off'&&observed&&[5,8].includes(observed.length)&&observed.every(Number.isInteger)&&observed[0]>=0&&observed[0]<=16&&observed[1]>=1&&observed[1]<=16&&observed[2]>=0&&observed[2]<16&&observed[3]>=0&&observed[3]<4&&observed[4]>=-1&&observed[4]<observed[1]){
   [hits,steps,rotation,rate,cursor]=observed;
+  if(observed.length===8&&observed[5]>=0&&observed[5]<=16&&observed[6]>=0&&observed[6]<=100&&observed[7]>=1&&observed[7]<=100)[accents,depth,gate]=observed.slice(5);
  }
  if(![hits,steps,rotation,rate].every(Number.isInteger)||steps<1||steps>16)return null;
- const count=Math.min(hits,steps);let mask=0;
- for(let index=0;index<steps;index++)if(count>0&&((index+steps-rotation%steps)%steps*count)%steps<count)mask|=1<<index;
- return {hits:count,steps,rotation:rotation%steps,rate,cursor,mask};
+ const count=Math.min(hits,steps),accentCount=Math.min(accents,count);let mask=0,accentMask=0;
+ for(let index=0;index<steps;index++){
+  const offset=(index+steps-rotation%steps)%steps;
+  if(count>0&&(offset*count)%steps<count){mask|=1<<index;if(accentCount>0&&(Math.floor(offset*count/steps)*accentCount)%count<accentCount)accentMask|=1<<index;}
+ }
+ return {hits:count,steps,rotation:rotation%steps,rate,cursor,mask,accents:accentCount,depth,gate,accentMask};
 }
 /** A step tap is the same control edit as turning Rotation, including overdub. */
 export function generatorRotateStep(index:number,track=selectedTrack):boolean {
@@ -90,6 +95,7 @@ export function generatorParameters():any[]{return [
  ...cloudControls.map(field=>({key:'cg_cloud_'+field,name:'Cloud '+field,short_name:field.slice(0,6),type:'int',min:0,max:127,step:1,default:64})),
  ...euclideanControls.slice(0,3).map((field,index)=>({key:'cg_euclid_'+field,name:'Euclidean '+field,short_name:['Hits','Steps','Rotate'][index],type:'int',min:field==='steps'?1:0,max:field==='rotation'?15:16,step:1,default:euclideanDefaults[index]})),
  {key:'cg_euclid_rate',name:'Euclidean Step Rate',short_name:'Rate',type:'enum',options:euclideanRates,options_as_string:true,default:'1/16'},
+ ...['accents','depth','gate'].map((field,index)=>({key:'cg_euclid_'+field,name:['Euclidean Accents','Accent Depth %','Euclidean Gate %'][index],short_name:['Accents','Depth','Gate'][index],type:'int',min:field==='gate'?1:0,max:field==='accents'?16:100,step:1,default:euclideanDefaults[4+index]})),
  ...['complexity','intensity'].map(field=>({key:'cg_'+field,name:field==='complexity'?'Complexity %':'Intensity %',short_name:field==='complexity'?'Complex':'Intens',type:'int',min:0,max:100,step:1,default:field==='complexity'?25:50})),
  {key:'cg_seed',name:'Variation Seed',short_name:'Seed',type:'int',min:1,max:65535,step:1,default:1},
  ...['explore','bake','restore'].map(field=>({key:'cg_'+field,name:field==='explore'?'Explore / Stop':field==='bake'?'Bake Recorded Clip':'Restore Saved Controls',short_name:field==='explore'?'Explore':field==='bake'?'Bake':'Revert',type:'string',readOnly:true}))
@@ -124,7 +130,7 @@ function readState(track:number,fresh=false):string[]{
  const state=info(track,fresh),current=draft(track);
  if((liveModes.includes(state[0])||state[0]==='Recorded')&&compatible(state)){
   const values=state[2]?.split(' ').map(Number);
-  if(values&&[4,5,9,11].includes(values.length)&&values.every(Number.isFinite)&&Number.isInteger(values[0])&&styles[values[0]]){
+  if(values&&[4,5,9,11,12].includes(values.length)&&values.every(Number.isFinite)&&Number.isInteger(values[0])&&styles[values[0]]){
    if(styles[current.config[0]].family!==styles[values[0]].family)pageDirty=true;
    current.config=values.length>=9?values:values.slice(0,4);
    if(recordedModes.includes(state[0])&&current.user!==null&&current.auditioned){current.user=null;pageDirty=true;}
@@ -184,10 +190,10 @@ export function generatorWrite(key:string,value:string,track:number):boolean|nul
   const control=euclideanControls.indexOf(field.slice(7));
   const number=control===3?euclideanRates.indexOf(value):Number(value);
   if(control<0||!Number.isFinite(number)||number<0||!generatorEuclidean(track))return false;
-  const amount=Math.max(control===1?1:0,Math.min(control===2?15:control===3?3:16,Math.round(number)));
-  if(current.user!==null)return active(track)?editUser(track,control,amount):false;
-  if(recorded)return preview(track,Number(state[1]),control,amount);
-  current.config=[...current.config.slice(0,4),0,...(current.config.length===9?current.config.slice(5):euclideanDefaults)];
+  const amount=Math.max(control===1||control===6?1:0,Math.min(control===2?15:control===3?3:control>=5?100:16,Math.round(number))),lane=control>=4?control+1:control;
+  if(current.user!==null)return active(track)?editUser(track,lane,amount):false;
+  if(recorded)return preview(track,Number(state[1]),lane,amount);
+  current.config=[...current.config.slice(0,4),0,...euclideanDefaults.map((fallback,index)=>current.config[5+index]??fallback)];
   current.config[5+control]=amount;return active(track)?send(track):true;
  }
  if(field.startsWith('cloud_')){
@@ -259,7 +265,7 @@ export function generatorFooter(track:number):string {
  const target=selectedActor+' T'+(track+1)+':'+(Number(state[1])+1),owner=recordingTarget();
  if(owner!==null&&seqState.countingIn)return owner===track?'Count-in '+target:target+' / Count-in T'+(owner+1);
  if(owner!==null&&owner!==track)return target+' / Rec T'+(owner+1);
- if(draft(track).user!==null&&owner===null){const entry=userParts(actorKind())[draft(track).user!];return target+' '+(entry?.steps?entry.steps%16?entry.steps+'s':entry.steps/16+'b':'?b')+(entry?.automation?' Auto:'+(entry.euclidean?['H','S','R','T','I']:entry.cloud?['D','V','R','L','H','S','C','J']:['C','I','S']).filter((_,index)=>entry.automation!&(1<<index)).join(''):'');}
+ if(draft(track).user!==null&&owner===null){const entry=userParts(actorKind())[draft(track).user!];return target+' '+(entry?.steps?entry.steps%16?entry.steps+'s':entry.steps/16+'b':'?b')+(entry?.automation?' Auto:'+(entry.euclidean?['H','S','R','T','I','A','D','G']:entry.cloud?['D','V','R','L','H','S','C','J']:['C','I','S']).filter((_,index)=>entry.automation!&(1<<index)).join(''):'');}
  return (state[0]==='Overdub'?'Overdub ':state[0]==='Preview'?'Preview ':state[0]==='Recording'?'Recording ':active(track)?'Explore ':state[0]==='Recorded'?'Recorded ':'Temporary ')+target;
 }
 

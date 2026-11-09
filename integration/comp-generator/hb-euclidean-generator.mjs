@@ -17,10 +17,10 @@ globalThis.host_module_get_param=key=>key.startsWith('generator_info_')?states.g
 globalThis.host_module_set_param_blocking=(key,value)=>{
  if(key==='cmd')for(const command of value.split(';')){
   commands.push(command);const fields=command.split(' '),track=Number(fields[1]);
-  if(fields[0]==='gexplore'&&fields.length===11)states.set(track,'Exploring|0|'+fields.slice(2).join(' ')+'|Explore|-1|0');
+  if(fields[0]==='gexplore'&&[11,14].includes(fields.length))states.set(track,'Exploring|0|'+fields.slice(2).join(' ')+'|Explore|-1|0');
   if(fields[0]==='gexplore'&&fields[2]==='off')states.set(track,states.get(track).replace(/^Exploring/,'Off').replace(/^Preview/,'Recorded'));
   if(fields[0]==='gpreview'){
-   const state=states.get(track).split('|'),values=state[2].split(' ');if(fields.length===5)values[Number(fields[3])<4?5+Number(fields[3]):2]=fields[4];
+   const state=states.get(track).split('|'),values=state[2].split(' ');if(fields.length===5){while(values.length<12)values.push(String(generator.euclideanDefaults[values.length-5]));const control=Number(fields[3]);values[control<4?5+control:control===4?2:control+4]=fields[4];}
    states.set(track,'Preview|0|'+values.join(' ')+'|Preview|-1|0');
   }
  }
@@ -39,7 +39,7 @@ for(const [actor,track,style] of [['Comp',2,19],['Bass',1,20]]){
  assert.equal(generator.generatorRead('cg_euclid_rate',track),'1/8');assert.equal(commands.length,0,'draft controls never write or launch a clip');
  assert.equal(generator.generatorWrite('cg_euclid_rate','bad',track),false);
  const draftView=generator.generatorEuclideanView(track);
- assert.deepEqual(draftView,{hits:3,steps:7,rotation:2,rate:1,cursor:-1,mask:37});
+ assert.deepEqual(draftView,{hits:3,steps:7,rotation:2,rate:1,cursor:-1,mask:37,accents:0,depth:50,gate:50,accentMask:0});
  const selected=chord.chordSnapshot().selected;
  chord.chordMidi([144,20,127]);chord.chordMidi([128,20,0]);
  assert.equal(generator.generatorRead('cg_euclid_rotation',track),'4','step 5 sets a four-step rotation');
@@ -50,7 +50,7 @@ for(const [actor,track,style] of [['Comp',2,19],['Bass',1,20]]){
  generator.generatorWrite('cg_euclid_rotation','2',track);
  chord.chordMidi([144,5,127]);chord.chordMidi([128,5,0]);seqCmdFlush();
  const explore=commands.find(command=>command.startsWith(`gexplore ${track} ${style} `));assert(explore);
- assert.deepEqual(explore.split(' ').slice(-4),['3','7','2','1']);
+ assert.deepEqual(explore.split(' ').slice(7,11),['3','7','2','1']);
  assert(!commands.some(command=>/^(pload|clipfill|launch|aset|alabel)\b/.test(command)));
  states.set(track,states.get(track)+'|3 7 2 1 5');now+=101;seqState.playing=true;
  const liveView=generator.generatorEuclideanView(track);assert.equal(liveView.cursor,5);
@@ -80,6 +80,17 @@ for(const [actor,track,style] of [['Comp',2,19],['Bass',1,20]]){
  page.goToPage(page.ctl.pages.findIndex(entry=>entry.level==='cp_comp_generator'));
  commands=[];appState.shiftHeld=true;chord.chordMidi([144,19,127]);chord.chordMidi([128,19,0]);appState.shiftHeld=false;seqCmdFlush();
  assert(!commands.some(command=>command.startsWith('gpreview')),'Shift retains its existing step behavior');
+ page.goToPage(page.ctl.pages.findIndex(entry=>entry.level==='cp_euclidean_expression'));
+ assert.deepEqual(Array.from({length:8},(_,index)=>page.keyAt(index)),generator.euclideanExpressionKeys);
+ commands=[];assert(generator.generatorWrite('cg_euclid_accents','2',track));assert(generator.generatorWrite('cg_euclid_depth','60',track));assert(generator.generatorWrite('cg_euclid_gate','25',track));
+ for(const [field,value] of [[5,2],[6,60],[7,25]])assert(commands.includes(`gpreview ${track} 0 ${field} ${value}`));
+ assert.equal(generator.generatorRead('cg_euclid_gate',track),'25');
+ states.set(track,states.get(track)+'|3 7 0 0 1 2 60 25');now+=101;
+ const accented=generator.generatorEuclideanView(track);assert.equal(accented.accentMask,33);assert.equal(accented.gate,25);
+ assert.equal(visual.euclideanStepColors(accented)[3],2,'unaccented hits use dim red');
+ commands=[];chord.chordMidi([176,86,127]);chord.chordMidi([176,86,0]);seqCmdFlush();assert(commands.includes(`rec ${track}`),'Expression page retains actor Record routing');
+ seqState.recording=false;seqState.countingIn=false;endEdit();resetRecPass();
+ page.goToPage(page.ctl.pages.findIndex(entry=>entry.level==='cp_comp_generator'));
  assert.equal(generator.generatorWrite('cg_source_style','Quarters',track),false,'saved recipes cannot silently change their source schema');
  commands=[];chord.chordMidi([144,7,127]);chord.chordMidi([128,7,0]);seqCmdFlush();
  assert(commands.includes(`grestore ${track} 0`));assert(!commands.some(command=>/harmony|chord_select/.test(command)));
@@ -89,6 +100,8 @@ const originalRead=globalThis.host_read_file,originalWrite=globalThis.host_write
 globalThis.host_write_file=(path,value)=>files.set(path,value);globalThis.host_read_file=path=>files.get(path)??originalRead(path);
 assert(storage.saveUserPart(7,{payload:'70617274320a',synth:'plaits',generator:'Comp',euclidean:true,automation:31,steps:32,name:'Euclid test'},'comp'));
 assert.equal(storage.userParts('comp')[7].automation,31);assert.match(storage.userPartDetails(storage.userParts('comp')[7]),/Auto HSRTI/);
+assert(storage.saveUserPart(7,{...storage.userParts('comp')[7],automation:255},'comp'));
+assert.equal(storage.userParts('comp')[7].automation,255);assert.match(storage.userPartDetails(storage.userParts('comp')[7]),/Auto HSRTIADG/);
 globalThis.host_read_file=originalRead;globalThis.host_write_file=originalWrite;
 globalThis.host_module_get_param=originalGet;globalThis.host_module_set_param_blocking=originalSet;
 console.log('Euclidean: both actors, shared step preview and rotation, observed playhead, temporary exploration, Record routing, preview, Restore and saved metadata pass');
