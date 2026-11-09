@@ -10,7 +10,7 @@ export function openDeviceControl({url,key,onState,onObservation=()=>{},onDiagno
  try{
   if(!/^[a-f0-9]{64}$/.test(key))throw new Error('Enter the 64-character pairing key printed by the transport companion.');
   const endpoint=new URL('/ws/movy-transport',url);endpoint.protocol=endpoint.protocol==='https:'?'wss:':'ws:';
-  onDiagnostic('transport-connecting');socket=new WebSocketClass(endpoint.href,['hb-movy-v1','hb-key.'+key]);watchdog();
+  onDiagnostic('transport-connecting');socket=new WebSocketClass(endpoint.href,['hb-movy-v1','hb-key.'+key,'hb-movy-status-v1']);watchdog();
   socket.onmessage=event=>{
    if(closed)return;
    try{

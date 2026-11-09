@@ -25,8 +25,8 @@ async function setup({tool='movy',version='0.34.1-hbclean.289',enabled=true,pers
  const server=createDeviceServer({siteRoot:new URL('../wasm/build/site/',import.meta.url),moveAddress,origin,pairingKey:enabled?key:null});
  server.listen(new URL(origin).port,'127.0.0.1');await once(server,'listening');
  const clients=[];
- function connect({token=key,requestOrigin=origin}={}){
-  const socket=new WebSocket(origin.replace('http:','ws:')+'/ws/movy-transport',['hb-movy-v1','hb-key.'+token],{origin:requestOrigin});clients.push(socket);
+ function connect({token=key,requestOrigin=origin,observe=true}={}){
+  const socket=new WebSocket(origin.replace('http:','ws:')+'/ws/movy-transport',['hb-movy-v1','hb-key.'+token,...(observe?['hb-movy-status-v1']:[])],{origin:requestOrigin});clients.push(socket);
   const messages=[];socket.on('message',data=>messages.push(JSON.parse(data.toString())));socket.on('error',()=>{});
   return {socket,messages};
  }
@@ -76,6 +76,14 @@ test('explicit future persistence capability plus stock 1.8.2 tool identity and 
   assert.equal(f.commands.filter(message=>message.type==='set_param').length,2);
   for(const upstream of f.wss.clients)upstream.send(JSON.stringify({type:'tool_info',id:''}));
   await until(()=>again.messages.some(message=>message.type==='error'));await until(()=>again.socket.readyState===WebSocket.CLOSED);
+ }finally{await f.close();}
+});
+test('older browser clients keep transport without receiving unsupported optional status frames',async()=>{
+ const f=await setup();try{
+  const {socket,messages}=f.connect({observe:false});await until(()=>messages.some(message=>message.type==='ready'));
+  for(const upstream of f.wss.clients)upstream.send(JSON.stringify({type:'param_update',slot:0,params:{'overtake_dsp:cloud_ui_state':JSON.stringify({transport:{playing:false,phase:'idle',track:null,slot:null}})}}));
+  socket.send(JSON.stringify({type:'transport',action:'play'}));await until(()=>messages.some(message=>message.type==='sent'));
+  assert.equal(messages.some(message=>message.type==='transport_state'),false);
  }finally{await f.close();}
 });
 test('read-only default, pairing and exact origin checks reject before contacting Move',async()=>{

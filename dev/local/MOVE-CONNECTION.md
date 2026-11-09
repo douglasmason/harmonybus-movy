@@ -206,6 +206,9 @@ The paired companion now relays only the validated `transport` object from
 `cloud_ui_state`: playing, recording phase, and optional recording track/clip.
 This is the same controller-owned snapshot used by the Cloud Remote UI, with
 no extra polling, `refetch_tool`, new native parameter, or write command.
+The browser advertises `hb-movy-status-v1` alongside the existing pairing
+subprotocols. Older clients receive no new frame type; newer clients still
+work with older companions, with the optional status unavailable.
 
 The workspace labels it **Move last reported** and shows time since receipt.
 Five seconds without another report adds **no recent report**. Receipt time
