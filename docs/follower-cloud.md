@@ -76,7 +76,8 @@ cloud rendering on every surface; its spatial history has a four-beat lifetime.
 ## Pressure and feedback (hbclean.333)
 
 Move and Launchpad X aftertouch update the pressure of the pad's existing cloud
-contact. Pressure shapes newly deposited points and their resulting velocities
+contact. Pressure bursts and contact heartbeats are coalesced into one batch per
+UI tick; note-off and Hold first flush the final pending pressure. Pressure shapes newly deposited points and their resulting velocities
 and brightness. Previously emitted trail points and a captured Hold cloud keep
 the pressure they were created with. A zero aftertouch value means the pad is
 still held at minimum pressure; only note-off releases it. Late pressure cannot
