@@ -3,7 +3,7 @@ import {timingSafeEqual} from 'node:crypto';
 import {request as httpRequest} from 'node:http';
 import {request as httpsRequest} from 'node:https';
 import {WebSocket,WebSocketServer} from 'ws';
-import {deviceTransportMessage} from './move-transport.mjs';
+import {deviceTransportMessage,deviceTransportState} from './move-transport.mjs';
 
 export function moduleInfo(address){
  return new Promise((resolve,reject)=>{
@@ -81,7 +81,13 @@ export function attachTransport(server,{origin,allowedOrigin,moveAddress,pairing
        timer=setInterval(()=>{if(!alive||!clientAlive){finish('Transport heartbeat lost');client.terminate();return;}alive=false;clientAlive=false;upstream.ping();client.ping();send({type:'heartbeat'});},2000);
       }
      }else if(message.type==='error')throw new Error('Move rejected the transport request');
-     // custom_ui and param_update are not semantic Movy state. Do not synthesize any.
+     else if(ready&&message.type==='param_update'&&message.slot===0&&message.params&&Object.hasOwn(message.params,'overtake_dsp:cloud_ui_state')){
+      // Reuse the existing safe subscription. No refetch, extra reads or writes.
+      let state=null;const raw=message.params['overtake_dsp:cloud_ui_state'];
+      if(typeof raw==='string'&&raw.length<=4096){try{state=deviceTransportState(JSON.parse(raw)?.transport);}catch{}}
+      send({type:'transport_state',state});
+     }
+     // Other parameters and custom UI assets are not the workspace's rich surface protocol.
     }catch(error){finish(error.message);}
    });
   }).catch(error=>finish(error.message));

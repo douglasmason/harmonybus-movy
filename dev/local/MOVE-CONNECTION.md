@@ -198,8 +198,28 @@ metadata is not a host-version probe. Writable 1.7.3 operation is not certified.
 
 ### Semantic device adapter still needed
 
-Production Movy returns persisted `movy1` text for `state`, while Manager expects
-a JSON object and `rui_poll`. Manager has no arbitrary `get_param` WebSocket
+Current Movy returns a small flat JSON object for `state`, including its existing
+`cloud_ui_state` and `cloud_view`; non-consuming Set serialization uses
+`persistent_state`, and only `save_state` consumes the autosave flag. Manager
+pushes these fields through `param_update`, slot 0, with the `overtake_dsp:` prefix.
+The paired companion now relays only the validated `transport` object from
+`cloud_ui_state`: playing, recording phase, and optional recording track/clip.
+This is the same controller-owned snapshot used by the Cloud Remote UI, with
+no extra polling, `refetch_tool`, new native parameter, or write command.
+
+The workspace labels it **Move last reported** and shows time since receipt.
+Five seconds without another report adds **no recent report**. Receipt time
+does not establish device-cache freshness; no acknowledgment or audio result
+is inferred. Commands never alter the observation, and status does not enable
+controls. Missing/invalid reports clear the readout without revoking otherwise
+valid Play/Stop. Unrelated parameters and unverified tool/slot messages are not
+forwarded. Tool changes, mirror/control loss, hiding, disconnect and engine
+changes clear the readout. Values are not included in the passive report file.
+Older builds without the structured transport object remain usable with status
+unavailable. Actual Move/iPad acceptance remains unrun.
+
+This narrow observation does not supply the richer shared workspace contract.
+Manager has no arbitrary `get_param` WebSocket
 request. `get_hierarchy` covers stock chains, not the 16 Movy-owned chains.
 The native development host's rich surface/watch protocol is unavailable on
 hardware. A host upgrade alone does not supply it. Do not change persistence
@@ -212,7 +232,9 @@ release semantics. Exact source evidence: Schwung v1.8.2
 (`handleSubscribeTool`, `fetchAllParams`); pinned Movy
 `5c01a4fe7745b730ee98111194fc64328ea2659b`,
 `engine/crates/movy-dsp/src/lib.rs` (`get_param("state")`) and
-`src/seq/set-save.ts` (autosave dirty ownership).
+`src/seq/set-save.ts` (autosave dirty ownership), composed with this repository's
+`scripts/patch_cloud_generator.py` and
+`integration/cloud-generator/cloud-remote.ts` (`cloudRemoteSnapshot`).
 
 ### Validation and physical acceptance
 

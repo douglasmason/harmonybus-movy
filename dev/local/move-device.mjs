@@ -32,11 +32,11 @@ export function blankDeviceFrame(){
  return {device:true,ready:false,track:null,screen:new Uint8Array(8192),surface:new Uint8Array(2232),displayRevision:0,display:null,panels:null,knobLabels:null,padLabels:null,stepLabels:null};
 }
 /** One explicit connection. EventSource retries are closed; reconnect is a user action. */
-export function openDeviceConnection({url,onFrame,onState,EventSourceClass=globalThis.EventSource,timeout=7000,pairingKey,onControlState=()=>{},onDiagnostic=()=>{},openControl=openDeviceControl}){
+export function openDeviceConnection({url,onFrame,onState,EventSourceClass=globalThis.EventSource,timeout=7000,pairingKey,onControlState=()=>{},onObservation=()=>{},onDiagnostic=()=>{},openControl=openDeviceControl}){
  let stream,control,closed=false,connected=false,timer,frame=blankDeviceFrame();
  const capabilities={...deviceCapabilities,leds:false};
  function finish(state,message,code,detail){
-  if(closed)return;closed=true;clearTimeout(timer);onDiagnostic(code,detail);stream?.close();control?.close();capabilities.transport=false;onControlState(false,'Transport disconnected');onState(state,message,{...capabilities});
+  if(closed)return;closed=true;clearTimeout(timer);onDiagnostic(code,detail);stream?.close();control?.close();onObservation(null);capabilities.transport=false;onControlState(false,'Transport disconnected');onState(state,message,{...capabilities});
  }
  const watchdog=()=>{clearTimeout(timer);timer=setTimeout(()=>finish(connected?'disconnected':'error',connected?'Move stream stopped. Reconnect when ready.':'No valid Move display received. Check the address and Schwung mirror service.','mirror-timeout'),timeout);};
  function receive(kind,event){
@@ -48,7 +48,7 @@ export function openDeviceConnection({url,onFrame,onState,EventSourceClass=globa
     onDiagnostic('mirror-screen');
     if(!connected){
      connected=true;onState('connected','Connected to Move · live screen',{...capabilities});
-     if(pairingKey)control=openControl({url,key:pairingKey,onDiagnostic,onState:(available,message)=>{if(closed)return;capabilities.transport=available;onControlState(available,message);}});
+     if(pairingKey)control=openControl({url,key:pairingKey,onDiagnostic,onObservation:state=>{if(!closed)onObservation(state);},onState:(available,message)=>{if(closed)return;capabilities.transport=available;onControlState(available,message);}});
     }
    }else if(kind==='surface'){
     frame={...frame,surface:decodeDeviceSurface(message)};capabilities.leds=true;onDiagnostic('mirror-surface');

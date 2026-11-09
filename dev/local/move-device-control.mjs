@@ -1,9 +1,10 @@
 /** Explicit, authenticated companion connection. Never connects to stock WS directly. */
-export function openDeviceControl({url,key,onState,onDiagnostic=()=>{},WebSocketClass=globalThis.WebSocket,timeout=7000}){
+import {deviceTransportState} from './move-transport.mjs';
+export function openDeviceControl({url,key,onState,onObservation=()=>{},onDiagnostic=()=>{},WebSocketClass=globalThis.WebSocket,timeout=7000}){
  let socket,closed=false,ready=false,timer,pending=false;
  const notify=(message)=>onState(ready,message);
  function close(message='Transport disconnected',code='transport-closed'){
-  if(closed)return;closed=true;ready=false;clearTimeout(timer);onDiagnostic(code);socket?.close();notify(message);
+  if(closed)return;closed=true;ready=false;clearTimeout(timer);onObservation(null);onDiagnostic(code);socket?.close();notify(message);
  }
  const watchdog=()=>{clearTimeout(timer);timer=setTimeout(()=>close('Transport timed out. Reconnect explicitly.','transport-timeout'),timeout);};
  try{
@@ -18,6 +19,9 @@ export function openDeviceControl({url,key,onState,onDiagnostic=()=>{},WebSocket
      ready=true;onDiagnostic('transport-ready',{version:message.version});notify(`Transport ready · Movy ${message.version} · host version unreported`);
     }else if(message.type==='sent'&&['play','stop'].includes(message.action)){
      pending=false;onDiagnostic('transport-sent',{action:message.action});notify(`${message.action==='play'?'Play':'Stop'} request sent · verify on Move`);
+    }else if(message.type==='transport_state'){
+     if(!ready)throw new Error('Status before transport handshake');
+     onObservation(deviceTransportState(message.state));
     }else if(message.type==='error'){close(message.message||'Transport unavailable','transport-rejected');return;}
     else if(message.type!=='heartbeat')throw new Error('Unsupported companion response');
     watchdog();
