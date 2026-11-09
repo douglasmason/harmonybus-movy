@@ -80,7 +80,16 @@ impl Engine {
         }
         let mode=if let Some(state)=state {if self.recording&&self.records_track(track){if state.source.is_some(){"Overdub"}else{"Recording"}}else if state.source.is_some(){"Preview"}else{"Exploring"}}
             else if target.active().generator.is_some(){"Recorded"}else{"Off"};
-        format!("{}|{}|{}|{}|{}|{}",mode,target.active_clip,config.wire(),self.generator_result,self.generator_record_track().map_or(-1,|owner|owner as i32),u8::from(self.generator_library[track].is_some()))
+        // Observe the last evaluated grid position, including swing and clip
+        // speed. The display never extrapolates a second transport clock.
+        let visual=if mode!="Off"&&config.is_euclidean() {
+            let free=state.is_some_and(|state|state.source.is_none());
+            let observed=self.generator_visuals[track].filter(|(slot,_,_)|self.playing&&!target.muted&&(free||*slot==target.active_clip&&target.playing_slot==Some(*slot)));
+            let (values,cursor)=observed.map_or((config.euclidean,-1),|(_,values,phase)|(values,((phase>>values[3])%values[1] as u64) as i32));
+            format!("{} {} {} {} {}",values[0],values[1],values[2],values[3],cursor)
+        }else{String::new()};
+        let mut info=format!("{}|{}|{}|{}|{}|{}",mode,target.active_clip,config.wire(),self.generator_result,self.generator_record_track().map_or(-1,|owner|owner as i32),u8::from(self.generator_library[track].is_some()));
+        if !visual.is_empty(){info.push('|');info.push_str(&visual);}info
     }
     /// Audition commands never enter the edit/dirty/Undo path.
     pub fn generator_explore_set(&mut self,message:&str,out:&mut Vec<OutEvent>)->bool {
@@ -202,6 +211,7 @@ impl Engine {
         for track in 0..NUM_TRACKS {self.generator_cancel_track(track,out);}
     }
     pub fn generator_cancel_track(&mut self,track:usize,out:&mut Vec<OutEvent>) {
+        self.generator_visuals[track]=None;
         if let Some(state)=self.generator_explore[track].take() {
             if self.part_recording_busy()&&self.records_track(track) {if self.pending_rec {self.tracks[track].queued_slot=None;}self.recording=false;self.pending_rec=false;self.count_in_left=0;}
             self.flush_track_gates(track,out);
@@ -365,6 +375,7 @@ impl Engine {
             let config=if let Some(state)=self.generator_explore[track] {state.current}
                 else {let clip=&self.tracks[track].clips[slot];clip.generator.unwrap().at(clip,&self.tracks[track].lane_label,step)};
             let phase=if free&&self.generator_library[track].is_none(){self.master_tick.saturating_sub(1)/TICKS_PER_STEP as u64}else{step as u64};
+            self.generator_visuals[track]=config.is_euclidean().then_some((slot,config.euclidean,phase));
             let generated=if config.is_cloud(){self.cloud_notes(track,slot,step,config,free)}else{config.note_at(step,phase).into_iter().collect()};
             for mut note in generated {
                 crate::source_route::RhythmAttack::accept(&mut source_duration,note.pitch,note.gate);

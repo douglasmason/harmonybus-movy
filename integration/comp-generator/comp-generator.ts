@@ -23,6 +23,25 @@ export const euclideanDefaults=[3,8,0,0];
 export const euclideanControls=['hits','steps','rotation','rate'];
 export const euclideanRates=['1/16','1/8','1/4','1/2'];
 export const euclideanKeys=[...euclideanControls.map(field=>'cg_euclid_'+field),'cg_intensity','cg_explore','cg_bake','cg_restore'];
+export type EuclideanView={hits:number;steps:number;rotation:number;rate:number;cursor:number;mask:number};
+/** A stopped draft uses its controls; running views use the engine observation. */
+export function generatorEuclideanView(track=selectedTrack):EuclideanView|null {
+ const state=readState(track);if(!compatible(state)||!generatorEuclidean(track))return null;
+ let [hits,steps,rotation,rate]=draft(track).config.slice(5,9),cursor=-1;
+ const observed=state[6]?.trim().split(' ').map(Number);
+ if(state[0]!=='Off'&&observed?.length===5&&observed.every(Number.isInteger)&&observed[0]>=0&&observed[0]<=16&&observed[1]>=1&&observed[1]<=16&&observed[2]>=0&&observed[2]<16&&observed[3]>=0&&observed[3]<4&&observed[4]>=-1&&observed[4]<observed[1]){
+  [hits,steps,rotation,rate,cursor]=observed;
+ }
+ if(![hits,steps,rotation,rate].every(Number.isInteger)||steps<1||steps>16)return null;
+ const count=Math.min(hits,steps);let mask=0;
+ for(let index=0;index<steps;index++)if(count>0&&((index+steps-rotation%steps)%steps*count)%steps<count)mask|=1<<index;
+ return {hits:count,steps,rotation:rotation%steps,rate,cursor,mask};
+}
+/** A step tap is the same control edit as turning Rotation, including overdub. */
+export function generatorRotateStep(index:number,track=selectedTrack):boolean {
+ const view=generatorEuclideanView(track);if(!view||!Number.isInteger(index)||index<0||index>=view.steps)return false;
+ return generatorWrite('cg_euclid_rotation',String(index),track)===true;
+}
 function sourceKind(style:number):string {const name=styles[style]?.name;return name==='Cloud'||name==='Euclidean'?name:'Authored';}
 export function generatorEuclidean(track=selectedTrack):boolean{return sourceKind(draft(track).config[0])==='Euclidean';}
 export function generatorCloud(track=selectedTrack):boolean{return styles[draft(track).config[0]]?.name==='Cloud';}

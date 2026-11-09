@@ -46,6 +46,45 @@
         }
         engine.toggle_record(2);command(&mut engine,"stop");(engine,trace)
     }
+    fn view(engine:&Engine)->Vec<i32> {
+        engine.generator_info(2).split('|').nth(6).unwrap_or("").split_whitespace().map(|value|value.parse().unwrap()).collect()
+    }
+    #[test] fn euclidean_observation_uses_played_phase_and_is_read_only() {
+        for rate in 0..4 {
+            let mut engine=fixture();let mut current=config(false);current.euclidean[3]=rate;
+            command(&mut engine,&format!("gexplore 2 {}",current.wire()));
+            assert_eq!(view(&engine),vec![3,7,0,rate as i32,-1]);
+            engine.dirty=false;let saved=engine.undo_snapshot();engine.play();
+            for tick in 0..3200 {
+                if tick==800 {engine.follower_inputs[2]=crate::follower_input::InputKey::new(7,1);}
+                ticks(&mut engine,1);
+                let observation=view(&engine);
+                assert_eq!(observation,vec![3,7,0,rate as i32,((tick/TICKS_PER_STEP>>rate)%7) as i32]);
+                assert!(!engine.dirty,"reading feedback cannot dirty the Set");
+            }
+            engine.tracks[2].muted=true;assert_eq!(view(&engine)[4],-1);
+            engine.tracks[2].muted=false;engine.follower_inputs[2]=crate::follower_input::InputKey::new(0,1);
+            assert_eq!(engine.undo_snapshot(),saved);
+            command(&mut engine,"stop");assert!(view(&engine).is_empty());assert!(engine.generator_visuals[2].is_none());
+        }
+    }
+    #[test] fn euclidean_observation_waits_for_accepted_controls_and_swung_step() {
+        let mut engine=fixture();let mut current=config(false);engine.swing_pct=67;
+        command(&mut engine,&format!("gexplore 2 {}",current.wire()));engine.play();ticks(&mut engine,1);
+        current.euclidean=[5,11,4,1];command(&mut engine,&format!("gexplore 2 {}",current.wire()));
+        assert_eq!(view(&engine),vec![3,7,0,0,0],"pending knob edits are not already sounding");
+        ticks(&mut engine,TICKS_PER_STEP);assert_eq!(view(&engine),vec![3,7,0,0,0],"swung odd step has not fired");
+        let mut moved=false;
+        for _ in 0..TICKS_PER_STEP {
+            ticks(&mut engine,1);
+            if view(&engine)[0]==5 {assert_eq!(view(&engine),vec![5,11,4,1,0]);moved=true;break;}
+        }
+        assert!(moved);
+        let (mut recorded,_)=record(false);recorded.play();ticks(&mut recorded,1);
+        assert_eq!(view(&recorded)[4],0);
+        recorded.tracks[2].active_clip=1;assert!(view(&recorded).is_empty(),"another selected clip cannot borrow this cursor");
+        let saved=recorded.undo_snapshot();assert!(crate::persist::load(&mut recorded,&saved));assert!(recorded.generator_visuals.iter().all(Option::is_none));
+    }
     #[test] fn euclidean_record_automation_reload_user_recipe_and_bake_match() {
         for bass in [false,true]{
             let (engine,recorded)=record(bass);let clip=&engine.tracks[2].clips[0];
