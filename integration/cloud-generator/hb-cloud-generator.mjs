@@ -67,8 +67,9 @@ globalThis.host_module_set_param_blocking=(key,value)=>{
  }
  return originalSet?.(key,value);
 };
-for(const actor of ['Comp','Bass'])for(const countIn of [false,true]){
- seqState.recording=false;seqState.countingIn=false;seqState.playing=!countIn;owner=-1;endEdit();resetRecPass();
+for(const actor of ['Comp','Bass'])for(const phase of ['armed','count-in','recording']){
+ const playing=phase==='recording';
+ seqState.recording=false;seqState.countingIn=false;seqState.playing=playing;owner=-1;endEdit();resetRecPass();
  states.set(1,'Off|2|4 32 64 1 0|');states.set(2,'Off|1|0 32 64 1 0|');now+=101;
  const target=actor==='Comp'?2:1,other=3-target,otherActor=actor==='Comp'?'Bass':'Comp';
  remote.cloudRemoteAction('actor '+otherActor);generator.generatorWrite('cg_source_style','Quarters',other);
@@ -76,20 +77,20 @@ for(const actor of ['Comp','Bass'])for(const countIn of [false,true]){
  remote.cloudRemoteAction('record');now+=101;
  assert.equal(owner,target);assert(commands.includes('rec '+target));
  assert.equal(JSON.parse(remote.cloudRemoteSnapshot()).transport.phase,'armed','engine binding is shown before the status mirror confirms recording');
- seqState.recording=!countIn;seqState.countingIn=countIn;recPassTick();now+=101;
+ seqState.recording=phase==='recording';seqState.countingIn=phase==='count-in';recPassTick();now+=101;
  let snapshot=JSON.parse(remote.cloudRemoteSnapshot());
- assert.deepEqual(snapshot.transport,{playing:!countIn,phase:countIn?'count-in':'recording',track:target,slot:target===2?1:2});
+ assert.deepEqual(snapshot.transport,{playing,phase,track:target,slot:target===2?1:2});
  assert.equal(snapshot.slot,target===2?1:2);
- if(countIn)assert.match(generator.generatorFooter(target),/^Count-in /,'native page shows the shared count-in');
+ if(phase==='count-in')assert.match(generator.generatorFooter(target),/^Count-in /,'native page shows the shared count-in');
  remote.cloudRemoteAction('actor '+otherActor);now+=101;snapshot=JSON.parse(remote.cloudRemoteSnapshot());
  assert.equal(snapshot.cloud,false);assert.equal(snapshot.track,other);assert.equal(snapshot.transport.track,target);
  const before=commands.length;for(let read=0;read<5;read++)remote.cloudRemoteSnapshot();assert.equal(commands.length,before,'transport observation is read-only');
  remote.cloudRemoteAction('record');seqCmdFlush();
  assert.equal(owner,-1);assert.deepEqual(commands.slice(before),['rec '+target],'ending the original take cannot start the browsed actor');
- seqState.recording=false;seqState.countingIn=false;recPassTick();seqCmdFlush();now+=101;
+ seqState.recording=false;seqState.countingIn=false;for(let tick=0;tick<41;tick++)recPassTick();seqCmdFlush();now+=101;
  assert.equal(commands.filter(command=>command.startsWith('usnap ')).length,1);
  assert.equal(commands.filter(command=>command.startsWith('ucommit ')).length,1,'ending or cancelling closes the same Undo pass');
- assert.deepEqual(JSON.parse(remote.cloudRemoteSnapshot()).transport,{playing:!countIn,phase:'idle',track:null,slot:null});
+ assert.deepEqual(JSON.parse(remote.cloudRemoteSnapshot()).transport,{playing,phase:'idle',track:null,slot:null});
 }
 seqState.playing=false;endEdit();resetRecPass();
 globalThis.host_module_get_param=originalGet;globalThis.host_module_set_param_blocking=originalSet;
