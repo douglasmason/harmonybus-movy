@@ -64,13 +64,22 @@ export function cloudPad(source:string,index:number,down:boolean,height=4,pressu
  const contact={track:owner,x:Math.round(index%8*127/7),y:Math.round(Math.floor(index/8)*127/(height-1)),pressure};
  held.set(id,contact);contactInput(owner,id,contact.x,contact.y,pressure);appState.dirty=true;return true;
 }
+/** Pressure changes an existing contact; only a note-off ends its ownership. */
+export function cloudPadPressure(source:'move'|'launchpad',index:number,pressure:number):boolean {
+ if(!Number.isInteger(index)||index<0||index>=(source==='move'?32:64)||!Number.isInteger(pressure)||pressure<0||pressure>127)return false;
+ const id=(source==='move'?0:32)+index,contact=held.get(id);
+ if(!contact)return cloudSurfaceActive();
+ // Zero aftertouch still means a held pad. The cloud wire reserves zero for up,
+ // so retain the smallest sounding pressure until a real note-off arrives.
+ contact.pressure=Math.max(1,pressure);contactInput(contact.track,id,contact.x,contact.y,contact.pressure,false);appState.dirty=true;return true;
+}
 export function releaseCloud(source?:string):void {
  for(const [id,contact] of held){if(source&&(source==='move'?id>=32:source==='launchpad'?id<32||id>=96:id<96))continue;contactInput(contact.track,id,contact.x,contact.y,0);held.delete(id);}
 }
 export function cloudMidi(data:number[]):boolean {
  const type=data[0]&240,key=data[1],value=data[2];
  if(key>=68&&key<100&&[128,144,160].includes(type)){
-  if(type===160){const contact=held.get(key-68);if(contact){contact.pressure=value;contactInput(contact.track,key-68,contact.x,contact.y,value);}return cloudSurfaceActive();}
+  if(type===160)return cloudPadPressure('move',key-68,value);
   return cloudPad('move',key-68,type===144&&value>0,4,value);
  }
  if(!cloudSurfaceActive())return false;

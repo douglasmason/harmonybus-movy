@@ -26,6 +26,22 @@ assert.equal(page.keyAt(7),'cg_cloud_dynamics');assert(cloud.cloudSurfaceActive(
 commands=[];chord.chordMidi([144,68,110]);chord.chordMidi([144,99,90]);seqCmdFlush();
 assert(commands.includes('gcloud 2 0 0 0 110'));assert(commands.includes('gcloud 2 31 127 127 90'));
 chord.chordMidi([128,68,0]);chord.chordMidi([128,99,0]);seqCmdFlush();assert(commands.includes('gcloud 2 0 0 0 0'));assert(commands.includes('gcloud 2 31 127 127 0'));
+commands=[];chord.chordMidi([144,68,110]);chord.chordMidi([160,68,0]);chord.chordMidi([160,68,73]);seqCmdFlush();
+assert(commands.includes('gcloud 2 0 0 0 1'),'zero Move aftertouch remains a softly held contact');
+assert(commands.includes('gcloud 2 0 0 0 73'));assert(!commands.includes('gcloud 2 0 0 0 0'),'pressure does not synthesize a release');
+chord.chordMidi([128,68,0]);seqCmdFlush();commands=[];chord.chordMidi([160,68,99]);seqCmdFlush();assert.equal(commands.length,0,'late pressure cannot create a new contact');
+const launchpad=await import('../dist/esm/surfaces/launchpad.js');
+const {setFlag}=await import('../dist/esm/seq/flags.js');
+globalThis.move_midi_external_send=()=>true;globalThis.host_ext_midi_remap_set=()=>true;globalThis.host_ext_midi_remap_enable=()=>true;globalThis.host_external_surface=()=>true;
+setFlag('hblaunchpad',2);launchpad.tickLaunchpad(now);commands=[];
+launchpad.onMidiMessageExternal([144,88,90]);launchpad.onMidiMessageExternal([160,88,38]);launchpad.onMidiMessageExternal([160,88,0]);seqCmdFlush();
+assert(commands.includes('gcloud 2 95 127 127 90'));assert(commands.includes('gcloud 2 95 127 127 38'),'Launchpad X pressure reaches Cloud through the real external MIDI route');
+assert(commands.includes('gcloud 2 95 127 127 1'));assert(!commands.includes('gcloud 2 95 127 127 0'));
+launchpad.onMidiMessageExternal([128,88,0]);seqCmdFlush();assert(commands.includes('gcloud 2 95 127 127 0'));
+commands=[];launchpad.onMidiMessageExternal([160,88,95]);seqCmdFlush();assert.equal(commands.length,0);
+launchpad.onMidiMessageExternal([144,88,90]);cloud.setCloudSurface(false);seqCmdFlush();commands=[];
+launchpad.onMidiMessageExternal([160,88,95]);seqCmdFlush();assert.equal(commands.length,0,'pressure cannot revive a contact after leaving Cloud');
+cloud.setCloudSurface(true);launchpad.unloadLaunchpad();setFlag('hblaunchpad',0);
 cloud.cloudWrite('cg_edge','Wrap');cloud.cloudWrite('cg_x','127');seqCmdFlush();commands=[];
 cloud.cloudTurn('cg_x',3);seqCmdFlush();assert.equal(cloud.cloudRead('cg_x'),'2');
 assert.deepEqual(commands.filter(command=>command.startsWith('gcloud ')),['gcloud 2 112 127 64 0','gcloud 2 112 2 64 100'],'wrap starts a new stroke instead of drawing across the field');
@@ -38,6 +54,23 @@ cloud.cloudWrite('cg_x','127');cloud.cloudWrite('cg_edge','Bounded');
 const settings={scope:'pitch',window:'infinite',windowBeats:4,curve:'linear',decayBeats:4,strength:1,peak:1,floor:0};
 const snapshot=view.readCloud('cf1|0,0,127|0,0,127,4;127,127,127,8|');assert(snapshot);
 const colors=view.cloudCells(snapshot,8,4,settings);assert.equal(colors[0],126,'direct green wins over every trail');assert.notEqual(colors[31],126);
+for(const height of [4,8]){
+ const middle={x:3.5/7,y:1.5/(height-1),pressure:1,age:0},field={contacts:[],trails:[middle],grains:[]};
+ const blended=view.cloudCells(field,8,height,settings),lit=blended.flatMap((color,index)=>color?[index]:[]);
+ assert.deepEqual(lit,[11,12,19,20],'a source between pads shares its cloud across four neighbors');assert(!blended.includes(126));
+ assert.deepEqual(view.cloudCells({...field,trails:Array(256).fill(middle)},8,height,settings),blended,'repeated held deposits cannot amplify visual energy');
+ const mixed=[middle,{...middle,age:2}];
+ assert.deepEqual(view.cloudCells({...field,trails:mixed},8,height,{...settings,curve:'none'}),view.cloudCells({...field,trails:mixed.slice().reverse()},8,height,{...settings,curve:'none'}),'equally bright fresh and old deposits keep the fresh color regardless of storage order');
+ assert.deepEqual(view.cloudCells({...field,contacts:[middle]},8,height,settings).filter(color=>color===126),[126],'direct touch stays one green pad above the cloud');
+ assert(view.cloudCells({...field,trails:[{...middle,age:4}]},8,height,settings).every(color=>color===0));
+ for(let index=0;index<8*height;index++){
+  const centered={x:Math.round(index%8*127/7)/127,y:Math.round(Math.floor(index/8)*127/(height-1))/127,pressure:1,age:0};
+  const centeredColors=view.cloudCells({contacts:[],trails:[centered],grains:[]},8,height,settings);
+  assert.deepEqual(centeredColors.flatMap((color,cell)=>color?[cell]:[]),[index],'7-bit rounding does not light phantom neighbors at pad centers');
+ }
+ const normal=view.cloudCells(field,8,height,settings),flipped=view.cloudCells({contacts:[],trails:[{...middle,x:middle.y,y:middle.x}],grains:[]},8,height,settings,true);
+ assert.deepEqual(normal,flipped,'axis exchange preserves the spatial footprint');
+}
 assert.equal(view.readCloud('cf1|NaN,0,1||'),null);assert.equal(view.cloudCoordinate(-257,true),127);
 commands=[];cloud.setCloudSurface(false);seqCmdFlush();assert(commands.some(command=>command==='gcloud 2 112 127 126 0'),'leaving the field releases the drawing cursor');
 cloud.setCloudSurface(true);cloud.cloudWrite('cg_axes','Pitch / Activity');commands=[];

@@ -43,7 +43,13 @@ try{
  assert.equal(heldView[1],'','held clouds never synthesize green finger contacts');assert(heldView[2].length>0&&heldView[3].length>0);
  assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),before,'Hold is a transient audition until Record');
  await panel.getByRole('combobox',{name:'Follower actor'}).selectOption('Melody');
- await panel.getByRole('button',{name:'Release cloud',exact:true}).waitFor();await panel.getByRole('button',{name:'Release cloud',exact:true}).click();
+ await panel.getByRole('button',{name:'Release cloud',exact:true}).waitFor();
+ assert.equal(await canvas.evaluate(element=>{
+  const pixels=element.getContext('2d').getImageData(0,0,element.width,element.height).data;
+  for(let offset=0;offset<pixels.length;offset+=4)if(pixels[offset+1]>90&&pixels[offset+1]>pixels[offset]*1.4&&pixels[offset+1]>pixels[offset+2]*1.1)return true;
+  return false;
+ }),false,'the compiled browser renders a neutral parked cursor while the cloud remains held');
+ await panel.getByRole('button',{name:'Release cloud',exact:true}).click();
  await until(async()=>(await __wasmRead('cloud_hold_3'))==='0');
  await until(async()=>{const view=(await __wasmRead('cloud_view_3')).split('|');return view[2]===''&&view[3]==='';});
  await panel.getByRole('button',{name:'Stop',exact:true}).click();

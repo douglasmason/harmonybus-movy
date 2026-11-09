@@ -1,3 +1,7 @@
+## Cloud pressure and pad feedback (hbclean.333)
+
+Move and Launchpad X pressure now share the cloud contact path: easing pressure keeps the pad held until note-off. Cloud light blends across neighboring Move/Launchpad pads, with green reserved for direct contacts. The Remote UI/standalone X/Y locator stays neutral when parked. See [Follower cloud](docs/follower-cloud.md).
+
 ## Hold the follower cloud (hbclean.331)
 
 Draw a cloud, then press **Sample** on Move or **Hold cloud** in the Remote UI/standalone workspace to keep it generating after lifting your fingers. New touches play over the captured field; Release lets it fade. Ordinary Record captures the result for exact replay, recipes and Bake. See [Follower cloud](docs/follower-cloud.md).
