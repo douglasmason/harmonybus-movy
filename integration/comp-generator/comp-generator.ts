@@ -40,7 +40,7 @@ export function generatorEuclideanView(track=selectedTrack):EuclideanView|null {
 /** A step tap is the same control edit as turning Rotation, including overdub. */
 export function generatorRotateStep(index:number,track=selectedTrack):boolean {
  const view=generatorEuclideanView(track);if(!view||!Number.isInteger(index)||index<0||index>=view.steps)return false;
- return generatorWrite('cg_euclid_rotation',String(index),track);
+ return generatorWrite('cg_euclid_rotation',String(index),track)===true;
 }
 function sourceKind(style:number):string {const name=styles[style]?.name;return name==='Cloud'||name==='Euclidean'?name:'Authored';}
 export function generatorEuclidean(track=selectedTrack):boolean{return sourceKind(draft(track).config[0])==='Euclidean';}
