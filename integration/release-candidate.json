@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.330",
-  "previous_version": "0.34.1-hbclean.329",
+  "version": "0.34.1-hbclean.331",
+  "previous_version": "0.34.1-hbclean.330",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.330 — Generated rhythm followers",
-  "notes": "docs/generated-rhythm-receivers.md",
+  "title": "Movy 0.34.1-hbclean.331 — Hold the follower cloud",
+  "notes": "docs/follower-cloud.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

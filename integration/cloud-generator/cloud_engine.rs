@@ -9,6 +9,12 @@ impl Engine {
     /// A contact belongs to one track and one input surface; up never re-targets.
     pub fn cloud_touch(&mut self,message:&str)->bool {
         let clear:Vec<_>=message.split_whitespace().collect();
+        if clear.len()==4&&clear[2]=="hold" {
+            let Ok(track)=clear[1].parse::<usize>() else{return false;};
+            if track>=NUM_TRACKS||!matches!(clear[3],"0"|"1")||!self.generator_explore[track].is_some_and(|state|state.current.is_cloud()){return false;}
+            self.cloud_expire_contacts();
+            return self.clouds[track].hold(clear[3]=="1",self.master_tick);
+        }
         if clear.len()==3&&clear[2]=="clear" {
             if let Ok(track)=clear[1].parse::<usize>() {if track<NUM_TRACKS {self.clouds[track]=crate::cloud::Runtime{field:true,..Default::default()};return true;}}return false;
         }

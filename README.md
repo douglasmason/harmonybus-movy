@@ -1,3 +1,7 @@
+## Hold the follower cloud (hbclean.331)
+
+Draw a cloud, then press **Sample** on Move or **Hold cloud** in the Remote UI/standalone workspace to keep it generating after lifting your fingers. New touches play over the captured field; Release lets it fade. Ordinary Record captures the result for exact replay, recipes and Bake. See [Follower cloud](docs/follower-cloud.md).
+
 ## Cloud recording feedback (hbclean.329)
 
 The shared Remote UI and standalone cloud controls show transport, count-in, recording and the take's destination clip. Record becomes Cancel count-in or Stop recording as appropriate, and can finish the original take after browsing another actor without starting that actor's generator. Native generator footers also identify count-in. See [Follower cloud](docs/follower-cloud.md).

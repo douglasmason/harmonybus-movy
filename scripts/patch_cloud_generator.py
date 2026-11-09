@@ -71,9 +71,12 @@ export function tickChord():void{
     source = replace_once(source, '    if(fieldActive()&&index>=0)', "    if(cloudSurfaceActive()&&index>=0){if(type===128||type===144)cloudPad('launchpad',index,type===144&&value>0,8,value);return;}\n    if(fieldActive()&&index>=0)")
     path.write_text(source)
     path = root / 'src/seq/mode-buttons.ts'
-    source = "import {cloudSurfaceActive,cloudRunning,cloudMidi,clearCloud} from './cloud-surface.js';\n" + path.read_text()
-    source = replace_once(source, '    if(cc===CC_MODE_LOOP){', '    if(cloudSurfaceActive()&&(cc===CC_MODE_LOOP||cc===CC_MODE_CLEAR)){if(cc===CC_MODE_LOOP)cloudMidi([176,cc,down?127:0]);else if(down)clearCloud();return true;}\n    if(cc===CC_MODE_LOOP){')
-    source = replace_once(source, '    if(mode===0)set(', "    if(cloudSurfaceActive()){set(CC_MODE_LOOP,'Cloud Explore','Start or stop this follower cloud',true,cloudRunning());set(CC_MODE_CLEAR,'Clear cloud','Release contacts and clear this cloud trail',true,false);return result;}\n    if(mode===0)set(")
+    source = "import {cloudSurfaceActive,cloudRunning,cloudHolding,toggleCloudHold,cloudMidi,clearCloud} from './cloud-surface.js';\n" + path.read_text()
+    source = replace_once(source, 'export function modeButtonColor(cc:number,fallback:number):number {', 'export function modeButtonColor(cc:number,fallback:number):number {\n    if(cloudSurfaceActive()&&cc===CC_MODE_SAMPLE)return cloudHolding()?WHITE_BRIGHT:WHITE_DIM;')
+    source = replace_once(source, '    if(cc===CC_MODE_LOOP){', '    if(cloudSurfaceActive()&&(cc===CC_MODE_LOOP||cc===CC_MODE_CLEAR||cc===CC_MODE_SAMPLE)){if(down)capturedReleases.add(cc);if(cc===CC_MODE_SAMPLE){if(down)toggleCloudHold();}else if(cc===CC_MODE_LOOP)cloudMidi([176,cc,down?127:0]);else if(down)clearCloud();return true;}\n    if(cc===CC_MODE_LOOP){')
+    source = replace_once(source, 'reopenable:!!guide,lines:guide?.lines??[]', "reopenable:!!guide,lines:cloudSurfaceActive()?['Pads: draw cloud','Sample: hold / release','Loop: explore on / off','X: clear cloud']:guide?.lines??[]")
+    source = replace_once(source, '    guide.lines.forEach((label,index)=>fontPrint(2,13+index*(guide.lines.length>4?8:10),label,1));', '    snapshot.lines.forEach((label,index)=>fontPrint(2,13+index*(snapshot.lines.length>4?8:10),label,1));')
+    source = replace_once(source, '    if(mode===0)set(', "    if(cloudSurfaceActive()){set(CC_MODE_SAMPLE,cloudHolding()?'Release cloud':'Hold cloud','Capture the cloud; new touches play over it. Release lets it fade.',true,cloudHolding());set(CC_MODE_LOOP,'Cloud Explore','Start or stop this follower cloud',true,cloudRunning());set(CC_MODE_CLEAR,'Clear cloud','Release contacts and clear this cloud trail',true,false);return result;}\n    if(mode===0)set(")
     path.write_text(source)
     path = root / 'build/browser.mjs'
     source = replace_once(path.read_text(), '    entryPoints: [', "    entryPoints: [\n        resolve(root,'src/seq/cloud-view.ts'),\n        resolve(root,'src/seq/cloud-surface.ts'),\n        resolve(root,'src/seq/cloud-remote.ts'),")
@@ -110,7 +113,7 @@ export function tickChord():void{
     path = root / 'src/undo/verbs.ts'
     path.write_text(path.read_text().replace("'grestore', 'gexplore'", "'gcloud', 'grestore', 'gexplore'"))
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
-    source = replace_once(path.read_text(), '            key if key.starts_with("generator_info_")', '            key if key.starts_with("cloud_view_")=>key[11..].parse::<usize>().ok().map(|track|self.engine.cloud_view(track)),\n            key if key.starts_with("generator_info_")')
+    source = replace_once(path.read_text(), '            key if key.starts_with("generator_info_")', '            key if key.starts_with("cloud_hold_")=>key[11..].parse::<usize>().ok().and_then(|track|self.engine.clouds.get(track)).map(|runtime|u8::from(runtime.holding()).to_string()),\n            key if key.starts_with("cloud_view_")=>key[11..].parse::<usize>().ok().map(|track|self.engine.cloud_view(track)),\n            key if key.starts_with("generator_info_")')
     source = replace_once(source, 'struct Instance {', '''struct Instance {
     cloud_ui:String,cloud_focus:usize,cloud_revision:u64,cloud_watch_until:u64,cloud_view_frame:u64,cloud_actions:Vec<String>,''')
     source = replace_once(source, '        Instance {', '        Instance {\n            cloud_ui:String::new(),cloud_focus:2,cloud_revision:0,cloud_watch_until:0,cloud_view_frame:0,cloud_actions:Vec::new(),')

@@ -73,6 +73,33 @@ are cyan and older trails blue. The Move display uses crosses and dots on its
 monochrome screen. Existing trail curve, strength and brightness settings govern
 cloud rendering on every surface; its spatial history has a four-beat lifetime.
 
+## Hold the cloud (hbclean.331)
+
+Draw with fingers, pads or X/Y knobs, then press **Sample** on a Cloud page or
+**Hold cloud** in the Remote UI/standalone workspace. This captures up to 16
+representative source positions from the current cloud, including pending quick
+strokes. Those positions keep emitting on the existing clock after you lift your
+fingers. Drawing into an empty field is required before Hold can capture it.
+
+New touches play over the captured cloud; they do not replace its shape. Press
+Sample again or **Release cloud** to stop replenishing it and let the normal
+four-beat tail fade. **Clear cloud / X**, stopping exploration, and transport
+Stop clear Hold. Browsing another actor or leaving the field panel releases real
+contacts but keeps that actor's captured cloud until its exploration ends.
+
+Sample lights brightly when Hold is confirmed by the engine; the native footer
+and button help describe its contextual action. Held emitters remain cyan/blue
+consequences. Only actual contacts are green (crosses on Move's monochrome display).
+Hold and Record labels reserve their width so changing state cannot move the
+field underneath a finger.
+
+The capture is runtime-only. Ordinary Record stores the resulting deposits in
+the existing point stream, so replay, saved recipes and Bake need no new Hold
+lane or file format. Each deposit keeps its Probability/Rate interpretation.
+Live endpoints and stroke interiors get priority over held emitters; remaining
+capacity is shared by rotating through the captured positions. The same 16
+points per sixteenth and 256-point live history limits remain in force.
+
 ## Record and reuse
 
 Explore and drawing alone do not edit the Set. Ordinary **Record** captures the
@@ -119,6 +146,9 @@ rate, in either orientation; the Rate knob remains the fastest allowed subdivisi
   IDs 0–31 belong to Move, 32–95 to Launchpad, 96–111 to the touchscreen and 112
   to X/Y drawing. Contact heartbeats stop stale input after two seconds, including
   while transport is stopped. One touchscreen controller owns that ID range.
+- `gcloud track hold 1|0` sets Hold explicitly for an exploring Cloud actor.
+  Repeated requests are idempotent; an empty capture is refused.
+  `cloud_hold_track` reads confirmed state without advancing music or autosave.
 - `cf1` and `cp1` records extend the existing `movy1` Set. Old Sets still load.
   Rate points append `,1` to the existing four-field point; legacy points retain
   their original serialization and behavior. A rate clip needs hbclean.324 or newer.

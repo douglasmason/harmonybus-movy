@@ -4,13 +4,17 @@ const generator=await import('../dist/esm/seq/comp-generator.js');
 const cloud=await import('../dist/esm/seq/cloud-surface.js');
 const view=await import('../dist/esm/seq/cloud-view.js');
 const chord=await import('../dist/esm/seq/chord-play.js');
+const buttons=await import('../dist/esm/seq/mode-buttons.js');
+const remote=await import('../dist/esm/seq/cloud-remote.js');
+const {WHITE_DIM,WHITE_BRIGHT}=await import('../dist/esm/seq/colors.js');
 const {padsPlayNotes}=await import('../dist/esm/seq/router-pads.js');
 const {seqCmdFlush}=await import('../dist/esm/seq/engine.js');
 const originalGet=globalThis.host_module_get_param,originalSet=globalThis.host_module_set_param_blocking;
+let holding=false;
 let now=Date.now()+2000,commands=[],state='Off|0|0 32 64 1 0|';Date.now=()=>now;
-globalThis.host_module_get_param=key=>key==='generator_info_2'?state:key==='cloud_view_2'?'cf1|127,127,100|0,0,100,2|64,64,100,1':originalGet(key);
+globalThis.host_module_get_param=key=>key==='cloud_hold_2'?(holding?'1':'0'):key==='generator_info_2'?state:key==='cloud_view_2'?'cf1|127,127,100|0,0,100,2|64,64,100,1':originalGet(key);
 globalThis.host_module_set_param_blocking=(key,value)=>{
- if(key==='cmd')for(const command of value.split(';')){commands.push(command);const fields=command.split(' ');if(fields[0]==='gexplore'&&fields[1]==='2'&&fields.length>=6)state='Exploring|0|'+fields.slice(2).join(' ')+'|';}
+ if(key==='cmd')for(const command of value.split(';')){commands.push(command);const fields=command.split(' ');if(fields[0]==='gcloud'&&fields[1]==='2'&&fields[2]==='hold')holding=fields[3]==='1';if(fields[0]==='gexplore'&&fields[1]==='2'&&fields.length>=6)state='Exploring|0|'+fields.slice(2).join(' ')+'|';}
  return originalSet?.(key,value);
 };
 generator.generatorWrite('cg_actor','Comp',2);generator.generatorTarget(2,1);
@@ -47,10 +51,22 @@ cloud.cloudWrite('cg_activity','Probability');seqCmdFlush();assert(commands.incl
 cloud.cloudWrite('cg_activity','Rate');cloud.cloudPad('launchpad',63,true,8,100);seqCmdFlush();assert(commands.includes('gcloud 2 95 127 127 100 1'));
 cloud.cloudWrite('cg_x','80');seqCmdFlush();assert(commands.includes('gcloud 2 112 126 80 100 1'));
 const saved=cloud.cloudSurfaceSnapshot();cloud.restoreCloudSurface(null);assert.equal(cloud.cloudRead('cg_axes'),'Activity / Pitch');assert.equal(cloud.cloudRead('cg_activity'),'Probability');cloud.restoreCloudSurface(saved);assert.equal(cloud.cloudRead('cg_axes'),'Pitch / Activity');assert.equal(cloud.cloudRead('cg_activity'),'Rate');
+commands=[];cloud.tickCloud(now+200);
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,0),WHITE_DIM);
+assert(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,127,false));assert(holding);assert(cloud.cloudHolding());
+assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,0),WHITE_BRIGHT);
+assert(buttons.modeHelpSnapshot().lines.includes('Sample: hold / release'));
+assert.equal(buttons.modeActionDescriptors().find(action=>action.cc===buttons.CC_MODE_SAMPLE).label,'Release cloud');
+cloud.setCloudSurface(false);assert(holding,'leaving the field releases fingers but keeps the captured cloud');
+assert(buttons.modeButtonMidi(buttons.CC_MODE_SAMPLE,0,false),'a consumed Sample release cannot open the stock sampler after leaving');
+cloud.setCloudSurface(true);cloud.tickCloud(now+400);assert(cloud.cloudHolding());
+remote.cloudRemoteAction('hold 0');assert(!holding);assert.equal(JSON.parse(remote.cloudRemoteSnapshot()).holding,false);
+const sent=commands.length;for(const value of ['hold','hold 2','hold 1 extra','hold -1'])remote.cloudRemoteAction(value);
+assert.equal(commands.length,sent,'malformed Hold actions cannot reach the engine');
+remote.cloudRemoteAction('hold 1');assert(holding);assert.equal(JSON.parse(remote.cloudRemoteSnapshot()).holding,true);
 cloud.setCloudSurface(false);
 // Remote Record has the same bound destination and one-Undo lifetime as the
 // physical button, including after browsing an actor that is not using Cloud.
-const remote=await import('../dist/esm/seq/cloud-remote.js');
 const {seqState}=await import('../dist/esm/seq/state.js');
 const {endEdit}=await import('../dist/esm/undo/group.js');
 const {resetRecPass,recPassTick}=await import('../dist/esm/undo/rec-pass.js');
