@@ -19,6 +19,20 @@ Range remains on the existing chord settings pages; this generator uses all
 eight knobs. Comp triggers mapped root inputs through the actor's chord/voicing
 settings; Bass plays mapped single roots. Both follow conductor harmony.
 
+On the **Euclidean Generator page**, the 16 step buttons show one cycle:
+red for hits, dim for rests, white for the current position, and off beyond Steps.
+Tap a valid step to place the unrotated pattern's first hit there. For example,
+step 5 sets Rotation to 4. Zero-hit patterns remain silent. Taps outside the
+cycle do nothing. The same gesture edits a temporary draft, previews a recorded
+recipe, or records rotation automation during an ordinary take/overdub.
+
+The display shows the pattern while no knob is touched; touching a knob shows
+its usual controls. The cursor observes the engine's evaluated steps, including
+swing, rate, and clip timing, and disappears when stopped or muted. Pending
+control edits appear in the sounding pattern when the engine accepts them.
+Feedback uses the existing bounded status refresh, so very fast steps can be
+skipped visually. Leaving this page restores normal chord step controls.
+
 Hits are bounded by Steps when sounding; rotation wraps by Steps and moves
 attacks later. Zero hits is silence. Three hits over eight steps gives the same
 3–3–2 pattern as HB Euclidean Fill. Increasing Hits may relocate existing attacks:
