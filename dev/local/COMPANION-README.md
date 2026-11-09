@@ -27,7 +27,7 @@ is accessible to devices on that LAN; the hosted trial remains private.
 ## What you get
 
 Actual device screen pixels and available LEDs, with explicit connection status.
-The current device protocol does not supply rich knob/pad labels, settings
+This workspace's Move adapter does not provide rich knob/pad labels, settings
 navigation or semantic editors. Those stay unavailable in Move mode. No
 emulator state is presented as device state.
 
@@ -59,6 +59,19 @@ queued or replayed after a lost connection. Reconnect explicitly and enter the
 key again; the page does not save it. Every launcher restart generates a new
 key. Keep it private: plain LAN HTTP does not encrypt keys or commands. Use
 only a trusted LAN, or the trusted HTTPS setup in MOVE-CONNECTION.md.
+
+On newer Movy builds, **Move last reported** shows the existing controller's
+playback and recording state: stopped/playing, idle/armed/count-in/recording,
+and the reported recording track and clip when available. It receives the same
+snapshot used by the native Cloud Remote UI through the existing authenticated
+subscription. It adds no device polling or commands. Older builds or missing/
+malformed snapshots show **not reported**; the mirror and Play/Stop remain usable.
+
+The age is time since receipt by this page, not the age of the device's cached
+snapshot. After five seconds without a report, the readout says **no recent
+report**. A command never changes this readout optimistically, and a report is
+not a command acknowledgment or proof of sound. Disconnect, tool changes and
+connection loss clear it. The connection report download excludes these values.
 
 Launch without `--enable-transport` to return to read-only mirroring.
 

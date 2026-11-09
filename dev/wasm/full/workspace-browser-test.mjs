@@ -22,6 +22,13 @@ const move=createServer((request,response)=>{
  response.on('close',()=>{clearInterval(timer);clients.delete(response);});
 }).listen(0,'127.0.0.1');await once(move,'listening');
 const moveWS=new WebSocketServer({server:move});
+// Source-shaped controller snapshots travel through the real DSP serializer and
+// stock Manager's flat/prefixed param_update format. No physical device is used.
+function reportTransport(state){
+ physicalFixture.request('set','cloud_ui_state',JSON.stringify({transport:state,footer:'private session label'}));
+ const snapshot=JSON.parse(physicalFixture.request('get','state').value);
+ for(const socket of moveWS.clients)socket.send(JSON.stringify({type:'param_update',slot:0,params:Object.fromEntries(Object.entries(snapshot).map(([key,value])=>['overtake_dsp:'+key,value]))}));
+}
 moveWS.on('connection',(socket,request)=>{
  assert.equal(request.url,'/ws/remote-ui');
  socket.on('message',data=>{
@@ -194,15 +201,36 @@ try{
  await page.locator('#move-pairing-key').fill(pairingKey);await page.locator('#move-connect').click();
  await page.waitForFunction(()=>!document.querySelector('[data-move-transport=play]').disabled);
  assert.equal(await page.locator('#move-pairing-key').inputValue(),'');assert.equal(commands.length,1,'capable fixture connects with a subscription only');
+ assert.match(await page.locator('#move-observed-status').textContent(),/not reported/,'legacy/missing status is not guessed');
+ const stateBeforeReports=physicalFixture.request('get','persistent_state').value;
+ for(const phase of ['armed','count-in','recording']){
+  reportTransport({playing:true,phase,track:2,slot:1});
+  await page.locator('#move-observed-status').filter({hasText:phase==='armed'?'Recording armed':phase==='count-in'?'Count-in':'Playing · Recording ·'}).waitFor();
+  assert.match(await page.locator('#move-observed-status').textContent(),/Track 3 \/ Clip 2/);
+ }
+ for(const width of [390,768,1440]){await page.setViewportSize({width,height:850});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'reported status fits phone/tablet');}
+ await page.setViewportSize({width:1024,height:768});
+ assert.equal(commands.length,1,'reports add no polling or device writes');assert.equal(physicalFixture.request('get','persistent_state').value,stateBeforeReports,'observation preserves the Set');
+ assert(!JSON.stringify(await downloadReport()).includes('private session label'));
+ reportTransport({playing:false,phase:'idle',track:null,slot:null});
+ await page.locator('#move-observed-status').filter({hasText:'Stopped · Not recording'}).waitFor();
+ await page.locator('#move-observed-status').filter({hasText:'no recent report'}).waitFor({timeout:8000});
+ assert.equal(commands.length,1,'receipt age is local, not a device poll');
+ reportTransport({playing:true,phase:'recording',track:99,slot:1});await page.locator('#move-observed-status').filter({hasText:'not reported'}).waitFor();
+ assert(!(await page.locator('[data-move-transport=play]').isDisabled()),'invalid optional status does not revoke transport');
+ reportTransport({playing:false,phase:'idle',track:null,slot:null});await page.locator('#move-observed-status').filter({hasText:'Stopped · Not recording'}).waitFor();
  physicalFixture.request('set','cmd','jrec 1 1');physicalFixture.request('step',1200);
  physicalFixture.request('midi','144,68,100');physicalFixture.request('step',64);physicalFixture.request('midi','128,68,0');
  await page.locator('[data-move-transport=stop]').click();await page.waitForFunction(()=>document.querySelector('#move-transport-status').textContent.includes('Stop request sent'));
  assert.match(physicalFixture.request('get','status').value,/rec=0/);assert.match(physicalFixture.request('get','status').value,/play=0/);
  await page.locator('[data-move-transport=play]').click();await page.waitForFunction(()=>document.querySelector('#move-transport-status').textContent.includes('Play request sent'));
  assert.match(physicalFixture.request('get','status').value,/play=1/);
+ assert.match(await page.locator('#move-observed-status').textContent(),/Stopped · Not recording/,'sent commands do not fabricate a device report');
+ reportTransport({playing:true,phase:'idle',track:null,slot:null});await page.locator('#move-observed-status').filter({hasText:'Playing · Not recording'}).waitFor();
  assert(physicalFixture.request('step',1500).events.some(packet=>(packet[1]&240)===144&&packet[2]===60&&packet[3]>0),'remote Play replays the production recording');
  assert(await page.getByRole('button',{name:'Pad 1',exact:true}).isDisabled());
  for(const socket of moveWS.clients)socket.terminate();await page.waitForFunction(()=>document.querySelector('[data-move-transport=play]').disabled);
+ assert.match(await page.locator('#move-observed-status').textContent(),/not reported/,'loss clears the reported state');
  const lossReport=await downloadReport();assert.equal(lossReport.metadata.stateReadPreservesDirty,true);assert.equal(lossReport.transport.everReady,true);assert.equal(lossReport.transport.lastFailure,'transport-rejected');assert.deepEqual(lossReport.transport.sent,{play:1,stop:1});assert(lossReport.build.hostCommit);assert(lossReport.build.wasmSha256);
  const sent=commands.length;await page.waitForTimeout(300);assert.equal(commands.length,sent,'transport loss never reconnects or replays');
  await page.locator('#move-disconnect').click();assert.match(physicalFixture.request('get','status').value,/play=1/,'disconnect does not stop the device');
