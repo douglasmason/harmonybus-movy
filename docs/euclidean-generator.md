@@ -34,6 +34,10 @@ Tool's Remote UI; the device mirror does not supply these semantic controls.
 Range remains on the existing chord settings pages; this generator uses all
 eight knobs. Comp triggers mapped root inputs through the actor's chord/voicing
 settings; Bass plays mapped single roots. Both follow conductor harmony.
+Exploration temporarily uses the Follower role and keeps an existing Relative
+or Closest Split mapping. Other mappings use Relative for the audition, so a
+fresh track can play immediately. Stopping exploration restores its original
+role and mapping; Record captures the effective follower settings with the take.
 
 The adjacent **Expression** page adds:
 

@@ -40,7 +40,7 @@ impl Config {
     /// Bass articulation overrides only note expansion. Mapping and expression
     /// stay with the captured actor; cancellation restores the original settings.
     pub fn settings(self,mut settings:crate::part_settings::Settings)->crate::part_settings::Settings {
-        if self.is_cloud() {
+        if self.is_cloud()||self.is_euclidean() {
             settings.0[CLOUD_ROLE_INDEX]=1;
             if !matches!(settings.0[CLOUD_TRAVEL_INDEX],1|5){settings.0[CLOUD_TRAVEL_INDEX]=1;}
         }
