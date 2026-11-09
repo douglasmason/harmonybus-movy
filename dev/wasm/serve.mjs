@@ -7,7 +7,7 @@ export const downloads=new Set(['/downloads/move-companion.tar.gz','/downloads/m
 for(const [route,file] of [
  ['/joint','../local/workspace-redirect.html'],
  ['/move','../local/move.html'],
- ...['workspace-theme.css','workspace-theme.mjs','workspace-palette.mjs','lighting.css','move.mjs','scale-finder-ui.mjs','scale-microphone.mjs','harmonic-function.mjs','move-workspace.mjs','lighting-ui.mjs','lighting.mjs','lighting-profile.mjs','lighting-sections.mjs','song-ui.mjs','build/hb-components.mjs','build/cloud-web.mjs','build/cloud-view.mjs','move-device-control.mjs','move-transport.mjs','move-connection.mjs','move-diagnostics.mjs','move-device.mjs','move-input.mjs','session-ui.mjs','build/move-runtime.mjs','build/move-surface.mjs','move.css'].map(name=>['/local/'+name,'../local/'+name]),
+ ...['workspace-theme.css','workspace-theme.mjs','workspace-palette.mjs','lighting.css','move.mjs','scale-finder-ui.mjs','scale-microphone.mjs','harmonic-function.mjs','move-workspace.mjs','lighting-ui.mjs','lighting.mjs','lighting-profile.mjs','lighting-sections.mjs','song-ui.mjs','build/hb-components.mjs','build/cloud-web.mjs','build/cloud-view.mjs','build/euclidean-web.mjs','build/generator-web.mjs','move-device-control.mjs','move-transport.mjs','move-connection.mjs','move-diagnostics.mjs','move-device.mjs','move-input.mjs','session-ui.mjs','build/move-runtime.mjs','build/move-surface.mjs','move.css'].map(name=>['/local/'+name,'../local/'+name]),
  ['/local/protocol-policy.mjs','../local/protocol-policy.mjs'],
  ['/local/observations.mjs','../local/observations.mjs'],
  ['/local/build/session-codecs.mjs','../local/build/session-codecs.mjs'],

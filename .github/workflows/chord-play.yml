@@ -117,7 +117,7 @@ jobs:
           python3 scripts/test_device_startup.py movy schwung
           bash movy/scripts/build-dsp.sh
           mkdir -p package/movy/configs
-          cp movy/module.json movy/ui.js movy/dist/dsp.so movy/web_ui.html movy/cloud-web.mjs movy/cloud-view.mjs package/movy/
+          cp movy/module.json movy/ui.js movy/dist/dsp.so movy/web_ui.html movy/cloud-web.mjs movy/cloud-view.mjs movy/euclidean-web.mjs movy/generator-web.mjs package/movy/
           cp movy/src/module-configs/*.json package/movy/configs/
           cp movy/harmonybus-core-source.json package/movy/
           file package/movy/dsp.so | grep 'ARM aarch64'

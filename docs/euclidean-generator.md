@@ -15,6 +15,22 @@ then the **Euclidean** family/style. The existing Generator page has:
 | 8 touch | Revert temporary edits to saved controls |
 
 The same controller is used by native Move and the browser/remote surface.
+For direct touchscreen editing, open **Follower generators → Euclidean** in the
+standalone workspace, or **Euclidean** in the Movy Tool's Schwung Remote UI.
+Choose Comp or Bass, then **Choose Euclidean**. Opening the editor itself changes
+no musical source. Cloud and Euclidean share the same workspace and connection.
+
+The touch editor shows all eight controls together and one cycle of numbered
+steps. Tap a step to rotate; it does not toggle individual hits. Strong and soft
+hits use distinct brightness, and the cursor uses the engine's observed step.
+Explore, Play/Stop, Record, Revert and Bake use the same controller paths as the
+native surface. Recording feedback identifies the actual take's track and clip,
+including when another actor is being browsed; Stop recording finishes that take.
+Bake becomes available after a recipe is recorded and exploration is stopped.
+Fast slider gestures are coalesced, delayed edits retain their target actor,
+and hidden editors stop polling. The device mirror links to the Movy Tool's
+Remote UI for semantic editing; it does not pretend to provide that data itself.
+
 Range remains on the existing chord settings pages; this generator uses all
 eight knobs. Comp triggers mapped root inputs through the actor's chord/voicing
 settings; Bass plays mapped single roots. Both follow conductor harmony.
