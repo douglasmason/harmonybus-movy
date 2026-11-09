@@ -48,5 +48,50 @@ cloud.cloudWrite('cg_activity','Rate');cloud.cloudPad('launchpad',63,true,8,100)
 cloud.cloudWrite('cg_x','80');seqCmdFlush();assert(commands.includes('gcloud 2 112 126 80 100 1'));
 const saved=cloud.cloudSurfaceSnapshot();cloud.restoreCloudSurface(null);assert.equal(cloud.cloudRead('cg_axes'),'Activity / Pitch');assert.equal(cloud.cloudRead('cg_activity'),'Probability');cloud.restoreCloudSurface(saved);assert.equal(cloud.cloudRead('cg_axes'),'Pitch / Activity');assert.equal(cloud.cloudRead('cg_activity'),'Rate');
 cloud.setCloudSurface(false);
+// Remote Record has the same bound destination and one-Undo lifetime as the
+// physical button, including after browsing an actor that is not using Cloud.
+const remote=await import('../dist/esm/seq/cloud-remote.js');
+const {seqState}=await import('../dist/esm/seq/state.js');
+const {endEdit}=await import('../dist/esm/undo/group.js');
+const {resetRecPass,recPassTick}=await import('../dist/esm/undo/rec-pass.js');
+const states=new Map();let owner=-1;
+globalThis.host_module_get_param=key=>key.startsWith('generator_info_')?(states.get(Number(key.slice(15)))??'Off|0|0 32 64 1 0|')+'|'+owner:originalGet(key);
+globalThis.host_module_set_param_blocking=(key,value)=>{
+ if(key==='cmd')for(const command of value.split(';')){
+  commands.push(command);const fields=command.split(' '),track=Number(fields[1]);
+  if(fields[0]==='gexplore'&&fields.length>=6)states.set(track,'Exploring|'+(states.get(track)?.split('|')[1]??0)+'|'+fields.slice(2).join(' ')+'|');
+  if(fields[0]==='rec'){
+   if(owner>=0){states.set(owner,states.get(owner).replace(/^(Recording|Overdub)/,'Recorded'));owner=-1;}
+   else {owner=track;states.set(track,states.get(track).replace(/^Exploring/,'Recording'));}
+  }
+ }
+ return originalSet?.(key,value);
+};
+for(const actor of ['Comp','Bass'])for(const phase of ['armed','count-in','recording']){
+ const playing=phase==='recording';
+ seqState.recording=false;seqState.countingIn=false;seqState.playing=playing;owner=-1;endEdit();resetRecPass();
+ states.set(1,'Off|2|4 32 64 1 0|');states.set(2,'Off|1|0 32 64 1 0|');now+=101;
+ const target=actor==='Comp'?2:1,other=3-target,otherActor=actor==='Comp'?'Bass':'Comp';
+ remote.cloudRemoteAction('actor '+otherActor);generator.generatorWrite('cg_source_style','Quarters',other);
+ remote.cloudRemoteAction('actor '+actor);remote.cloudRemoteAction('choose');seqCmdFlush();commands=[];
+ remote.cloudRemoteAction('record');now+=101;
+ assert.equal(owner,target);assert(commands.includes('rec '+target));
+ assert.equal(JSON.parse(remote.cloudRemoteSnapshot()).transport.phase,'armed','engine binding is shown before the status mirror confirms recording');
+ seqState.recording=phase==='recording';seqState.countingIn=phase==='count-in';recPassTick();now+=101;
+ let snapshot=JSON.parse(remote.cloudRemoteSnapshot());
+ assert.deepEqual(snapshot.transport,{playing,phase,track:target,slot:target===2?1:2});
+ assert.equal(snapshot.slot,target===2?1:2);
+ if(phase==='count-in')assert.match(generator.generatorFooter(target),/^Count-in /,'native page shows the shared count-in');
+ remote.cloudRemoteAction('actor '+otherActor);now+=101;snapshot=JSON.parse(remote.cloudRemoteSnapshot());
+ assert.equal(snapshot.cloud,false);assert.equal(snapshot.track,other);assert.equal(snapshot.transport.track,target);
+ const before=commands.length;for(let read=0;read<5;read++)remote.cloudRemoteSnapshot();assert.equal(commands.length,before,'transport observation is read-only');
+ remote.cloudRemoteAction('record');seqCmdFlush();
+ assert.equal(owner,-1);assert.deepEqual(commands.slice(before),['rec '+target],'ending the original take cannot start the browsed actor');
+ seqState.recording=false;seqState.countingIn=false;for(let tick=0;tick<41;tick++)recPassTick();seqCmdFlush();now+=101;
+ assert.equal(commands.filter(command=>command.startsWith('usnap ')).length,1);
+ assert.equal(commands.filter(command=>command.startsWith('ucommit ')).length,1,'ending or cancelling closes the same Undo pass');
+ assert.deepEqual(JSON.parse(remote.cloudRemoteSnapshot()).transport,{playing,phase:'idle',track:null,slot:null});
+}
+seqState.playing=false;endEdit();resetRecPass();
 globalThis.host_module_get_param=originalGet;globalThis.host_module_set_param_blocking=originalSet;
-console.log('Cloud: shared controls, multitouch, owned releases, X/Y wrap/clamp, reversible axis projection and trail palette pass');
+console.log('Cloud: shared controls, multitouch, X/Y, trails, transport feedback, count-in and cross-actor Record ownership/Undo pass');

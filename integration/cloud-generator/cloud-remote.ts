@@ -1,5 +1,5 @@
 /** Remote actions re-enter the production controller, including ordinary Record/Undo. */
-import {generatorActor,generatorCloud,generatorSelectedTrack,generatorRead,generatorWrite,generatorTouch,generatorEnsureCloud,generatorCloudContact,generatorPrepareRecord,generatorFooter,cloudControls} from './comp-generator.js';
+import {generatorActor,generatorCloud,generatorSelectedTrack,generatorRead,generatorWrite,generatorTouch,generatorEnsureCloud,generatorCloudContact,generatorPrepareRecord,generatorFooter,generatorClipSlot,generatorRecording,cloudControls} from './comp-generator.js';
 import {cloudRead,cloudWrite,cloudTurn,cloudInput,releaseCloud} from './cloud-surface.js';
 import {trailStyle} from './trail-settings.js';
 import {seqState} from './state.js';
@@ -12,6 +12,14 @@ export function cloudRemoteAction(message:string):void {
  if(action==='play'||action==='stop'){if(action==='stop'||!seqState.playing){if(action==='stop')releaseCloud();seqCmd(action);seqCmdFlush();}return;}
  if(action==='actor'&&fields.length===1){generatorWrite('cg_actor',fields[0],track);return;}
  if(action==='choose'&&fields.length===0){generatorWrite('cg_source_style','Cloud',track);return;}
+ if(action==='record'&&fields.length===0){
+  const recording=generatorRecording();
+  // Finish the existing take even after browsing another actor/source. Starting
+  // that actor's exploration here would alter the session just to end a take.
+  if(recording.phase!=='idle')recToggle(recording.track??track);
+  else if(generatorCloud()&&generatorEnsureCloud(track)&&generatorPrepareRecord(track)!==false)recToggle(track);
+  seqCmdFlush();return;
+ }
  if(!generatorCloud())return;
  if(action==='control'&&fields.length===2&&(/^(?:cg_cloud_(?:rate|density|length|register|spread|contour|variation|dynamics)|cg_seed)$/.test(fields[0])))generatorWrite(fields[0],fields[1],track);
  else if(action==='edge'&&fields.length===1)cloudWrite('cg_edge',fields[0]);
@@ -21,13 +29,12 @@ export function cloudRemoteAction(message:string):void {
  else if(action==='touch'&&[5,6].includes(fields.length)){
   const [target,id,x,y,pressure,activity=0]=fields.map(Number);
   if([target,id,x,y,pressure,activity].every(Number.isInteger)&&[0,1].includes(activity)&&target>=0&&target<16&&id>=96&&id<112&&[x,y,pressure].every(value=>value>=0&&value<=127)&&(pressure===0||target===track)){const position=cloudInput(x,y);generatorCloudContact(target,id,position.x,position.y,pressure,true,activity===1?'Rate':'Probability');}
- }else if(action==='record'&&fields.length===0){if(generatorEnsureCloud(track)&&generatorPrepareRecord(track)!==false)recToggle(track);}
- else if(['explore','bake','restore'].includes(action)&&fields.length===0)generatorTouch('cg_'+action,track,true);
+ }else if(['explore','bake','restore'].includes(action)&&fields.length===0)generatorTouch('cg_'+action,track,true);
  else if(action==='clear'&&fields.length===0){releaseCloud();seqCmd(`gcloud ${track} clear`);seqCmdFlush();}
 }
 export function cloudRemoteSnapshot():string {
  const track=generatorSelectedTrack();
- return JSON.stringify({actor:generatorActor(),track,cloud:generatorCloud(),values:cloudControls.map(field=>Number(generatorRead('cg_cloud_'+field,track))),seed:generatorRead('cg_seed',track),explore:generatorRead('cg_explore',track),footer:generatorFooter(track),x:Number(cloudRead('cg_x')),y:Number(cloudRead('cg_y')),edge:cloudRead('cg_edge'),axes:cloudRead('cg_axes'),activity:cloudRead('cg_activity'),trail:trailStyle().settings});
+ return JSON.stringify({actor:generatorActor(),track,slot:generatorClipSlot(track),transport:{playing:seqState.playing,...generatorRecording()},cloud:generatorCloud(),values:cloudControls.map(field=>Number(generatorRead('cg_cloud_'+field,track))),seed:generatorRead('cg_seed',track),explore:generatorRead('cg_explore',track),footer:generatorFooter(track),x:Number(cloudRead('cg_x')),y:Number(cloudRead('cg_y')),edge:cloudRead('cg_edge'),axes:cloudRead('cg_axes'),activity:cloudRead('cg_activity'),trail:trailStyle().settings});
 }
 export function tickCloudRemote(now=Date.now()):void {
  if(!engineReady()||!cloudRemoteRequested||now-lastPoll<50)return;lastPoll=now;
