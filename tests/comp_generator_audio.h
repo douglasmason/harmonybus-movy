@@ -265,4 +265,17 @@ static void test_comp_generator(void){
         assert(api->get_param(instance,"persistent_state",after,sizeof(after))>0&&!strcmp(before,after));
     }
     puts("Euclidean followers: real Comp/Bass harmony mapping, temporary persistence and paired releases pass");
+    /* Strong and soft hits traverse the production renderer; both actors
+       release all rendered notes when the exploration stops. */
+    for(int actor=0;actor<2;actor++){
+        const int track=actor?1:2,style=actor?20:19;
+        char parameter[64],command[128];
+        snprintf(parameter,sizeof(parameter),"ch%d:midi_fx1:render_velocity_percent",track);set(parameter,"100");
+        snprintf(command,sizeof(command),"gexplore %d %d 32 64 1 0 3 7 0 0 1 60 25;play",track,style);
+        source_velocity_count=0;capture_source_velocity=1;sent_on=sent_off=0;
+        set("cmd",command);render(200);set("cmd","gexplore off;stop");render(16);capture_source_velocity=0;
+        int strong=0,soft=0;for(int index=0;index<source_velocity_count;index++){assert(source_velocities[index]==90||source_velocities[index]==36);strong+=source_velocities[index]==90;soft+=source_velocities[index]==36;}
+        assert(strong>0&&soft>0&&sent_on==sent_off);
+    }
+    puts("Euclidean expression: accented/soft velocities survive production Comp/Bass rendering with paired releases");
 }

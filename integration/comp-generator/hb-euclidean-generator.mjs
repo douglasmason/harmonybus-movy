@@ -39,7 +39,7 @@ for(const [actor,track,style] of [['Comp',2,19],['Bass',1,20]]){
  assert.equal(generator.generatorRead('cg_euclid_rate',track),'1/8');assert.equal(commands.length,0,'draft controls never write or launch a clip');
  assert.equal(generator.generatorWrite('cg_euclid_rate','bad',track),false);
  const draftView=generator.generatorEuclideanView(track);
- assert.deepEqual(draftView,{hits:3,steps:7,rotation:2,rate:1,cursor:-1,mask:37,accents:0,depth:0,gate:50,accentMask:0});
+ assert.deepEqual(draftView,{hits:3,steps:7,rotation:2,rate:1,cursor:-1,mask:37,accents:0,depth:50,gate:50,accentMask:0});
  const selected=chord.chordSnapshot().selected;
  chord.chordMidi([144,20,127]);chord.chordMidi([128,20,0]);
  assert.equal(generator.generatorRead('cg_euclid_rotation',track),'4','step 5 sets a four-step rotation');

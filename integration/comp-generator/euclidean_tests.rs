@@ -127,7 +127,9 @@
             assert!(Config::parse("19 32 64 1 0 3 8 0 0 2 50 0").is_none());
             assert!(Config::parse("0 32 64 1 0 3 8 0 0 2 50 50").is_none());
             expressive.expression=[0,100,50];
-            assert!((0..26).filter_map(|step|expressive.note(step)).any(|note|note.vel!=90),"zero accents disables emphasis");
+            assert!((0..26).filter_map(|step|expressive.note(step)).all(|note|note.vel==90),"zero accents disables emphasis");
+            expressive.expression=[2,0,50];
+            assert!((0..26).filter_map(|step|expressive.note(step)).all(|note|note.vel==90),"zero depth disables emphasis");
         }
     }
     #[test] fn euclidean_expression_automation_replays_reloads_and_bakes_exactly() {

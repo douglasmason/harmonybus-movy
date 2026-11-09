@@ -32,7 +32,8 @@ The adjacent **Expression** page adds:
 Accents are distributed evenly among the rhythm's hits and rotate with them.
 Depth keeps accented hits at the chosen intensity and lowers the other hits;
 100% leaves the softer hits at minimum MIDI velocity rather than deleting them.
-Zero Accents or zero Depth disables the emphasis. Gate changes note length,
+Zero Accents or zero Depth disables the emphasis. Depth starts at 50%, so
+increasing Accents immediately gives audible emphasis. Gate changes note length,
 not hit timing. Its default 50% exactly preserves earlier Euclidean playback.
 Both pages retain step-button rotation, the normal Record button, and Revert.
 

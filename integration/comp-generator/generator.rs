@@ -4,7 +4,7 @@ pub const CLOUD_DEFAULTS:[u8;6]=[96,48,64,40,64,32];
 pub const CLOUD_LABELS:[&str;8]=["generator:density","generator:dynamics","generator:rate","generator:length","generator:register","generator:spread","generator:contour","generator:variation"];
 pub const LABELS:[&str;3]=["generator:complexity","generator:intensity","generator:style"];
 pub const EUCLIDEAN_DEFAULTS:[u8;4]=[3,8,0,0];
-pub const EUCLIDEAN_EXPRESSION:[u8;3]=[0,0,50];
+pub const EUCLIDEAN_EXPRESSION:[u8;3]=[0,50,50];
 pub const EUCLIDEAN_LABELS:[&str;8]=["generator:hits","generator:steps","generator:rotation","generator:division","generator:intensity","generator:accents","generator:accent_depth","generator:gate"];
 #[cfg(test)]
 std::thread_local! {

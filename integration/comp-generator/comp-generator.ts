@@ -19,7 +19,7 @@ const cached=new Map<number,{at:number;value:string[]}>();
 export const cloudDefaults=[96,48,64,40,64,32];
 export const cloudControls=['density','dynamics','rate','length','register','spread','contour','variation'];
 export const cloudKeys=['rate','density','length','register','spread','contour','variation','dynamics'].map(field=>'cg_cloud_'+field);
-export const euclideanDefaults=[3,8,0,0,0,0,50];
+export const euclideanDefaults=[3,8,0,0,0,50,50];
 export const euclideanControls=['hits','steps','rotation','rate','accents','depth','gate'];
 export const euclideanRates=['1/16','1/8','1/4','1/2'];
 export const euclideanKeys=[...euclideanControls.slice(0,4).map(field=>'cg_euclid_'+field),'cg_intensity','cg_explore','cg_bake','cg_restore'];
