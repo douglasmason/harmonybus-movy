@@ -10,8 +10,10 @@ Launchpad Mini button or knob touch alone cannot provide a continuous Z value.
 
 In Normal Play or Motif Play, open Operation Settings → Approach Pressure.
 Choose Row 1, Row 2, Row 3 (triple approach) or Single (single approach), then an
-operation slot 1–16. Slot 0 disconnects pressure. Operation and Amount edit that
-slot's existing shared settings. Rows keep their existing note/approach meanings;
+operation slot 1–16. Slot 0 disconnects pressure. Selecting a row or slot also
+focuses that slot in the existing operation editor, where Operation and Amount
+remain editable. The pressure page owns only the row assignment and gesture
+settings. Rows keep their existing note/approach meanings;
 pressure adds an amount control affecting subsequent operation evaluation.
 
 | Mode | Press and release |

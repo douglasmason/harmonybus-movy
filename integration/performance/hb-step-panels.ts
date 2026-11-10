@@ -30,7 +30,6 @@ export function hbStepHierarchy(hierarchy: any, mode: number): any {
             {key: 'approach_pressure_lane', name: 'Operation slot', type: 'int', min: 0, max: 16},
             choice('approach_pressure_mode', 'Pressure mode', ['Off', 'Momentary', 'Tap Latch', 'Peak Latch']),
             choice('approach_pressure_reverse', 'Direction', ['Normal', 'Reverse']),
-            {key: 'motion_operation'}, {key: 'motion_amount'},
             {key: 'approach_pressure_prepared', name: 'Tap amount %', type: 'int', min: 0, max: 100},
             {key: 'approach_pressure_value', name: 'Pressure', type: 'string', access: 'read'},
         ];
