@@ -40,32 +40,43 @@ impl Engine {
         let clip=&mut self.tracks[track].clips[slot];
         if !clip.cloud_field {clip.cloud_field_start=step as u16;}
         if state.take.is_none()&&state.source.is_none(){
-            clip.cloud_points=runtime.points.iter().map(|point|crate::cloud::Point{step:point.step-origin+step,..*point}).collect();
+            clip.cloud_points.clear();
+            clip.cloud_points.extend(runtime.points.iter().map(|point|crate::cloud::Point{step:point.step-origin+step,..*point}));
         }else {
-            let fresh:Vec<_>=runtime.points.iter().filter(|point|point.step==origin).map(|point|crate::cloud::Point{step,..*point}).collect();
-            let count=clip.cloud_points.iter().filter(|point|point.step!=step).count()+fresh.len();
+            let fresh=runtime.points.iter().filter(|point|point.step==origin).map(|point|crate::cloud::Point{step,..*point});
+            let count=clip.cloud_points.iter().filter(|point|point.step!=step).count()+fresh.clone().count();
             if count>crate::cloud::MAX_POINTS {self.recording=false;self.generator_result="Cloud gesture capacity reached".into();return;}
             clip.cloud_points.retain(|point|point.step!=step);clip.cloud_points.extend(fresh);
         }
         clip.cloud_field=true;self.dirty=true;
     }
-    fn cloud_notes(&mut self,track:usize,slot:usize,step:u16,config:crate::generator::Config,free:bool)->Vec<crate::clip::Note> {
+    fn cloud_notes(&mut self,track:usize,slot:usize,step:u16,config:crate::generator::Config,free:bool)->[Option<crate::clip::Note>;4] {
         let runtime=&mut self.clouds[track];
         let live=self.generator_explore[track].is_some()&&runtime.field;
-        let (points,field)=if live {
+        let points=&mut runtime.work;
+        points.clear();
+        let field=if live {
             let now=(self.master_tick.saturating_sub(1)/TICKS_PER_STEP as u64) as i32;
-            let mut points=runtime.points.iter().map(|point|crate::cloud::Point{step:point.step-now+step as i32,..*point}).collect::<Vec<_>>();
+            points.extend(runtime.points.iter().map(|point|crate::cloud::Point{step:point.step-now+step as i32,..*point}));
             if self.generator_explore[track].is_some_and(|state|state.source.is_some()) {
                 points.extend(self.tracks[track].clips[slot].cloud_points.iter().filter(|point|point.step>=0&&point.step<=step as i32&&step as i32-point.step<crate::cloud::TAIL_STEPS&&!runtime.overridden.contains(&(point.step as u16))).copied());
             }
-            (points,true)
-        }else if let Some(part)=&self.generator_library[track] {(part.clip.cloud_points.iter().filter(|point|point.step<=step as i32&&step as i32-point.step<crate::cloud::TAIL_STEPS).copied().collect(),part.clip.cloud_field&&step>=part.clip.cloud_field_start)}
-        else if free {(Vec::new(),false)}else{let clip=&self.tracks[track].clips[slot];(clip.cloud_points.iter().filter(|point|point.step<=step as i32&&step as i32-point.step<crate::cloud::TAIL_STEPS).copied().collect(),clip.cloud_field&&step>=clip.cloud_field_start)};
+            true
+        }else if let Some(part)=&self.generator_library[track] {
+            points.extend(part.clip.cloud_points.iter().filter(|point|point.step<=step as i32&&step as i32-point.step<crate::cloud::TAIL_STEPS).copied());
+            part.clip.cloud_field&&step>=part.clip.cloud_field_start
+        }else if free {false}else{
+            let clip=&self.tracks[track].clips[slot];
+            points.extend(clip.cloud_points.iter().filter(|point|point.step<=step as i32&&step as i32-point.step<crate::cloud::TAIL_STEPS).copied());
+            clip.cloud_field&&step>=clip.cloud_field_start
+        };
         let now=(self.master_tick.saturating_sub(1)/TICKS_PER_STEP as u64) as i32;
-        runtime.view=points.iter().filter(|point|point.step<=step as i32&&step as i32-point.step<crate::cloud::TAIL_STEPS).map(|point|crate::cloud::Point{step:point.step-step as i32+now,..*point}).collect();
-        let grains=crate::cloud::grains(config,step,&points,field);
-        runtime.pending=grains.iter().map(|(note,point)|(note.pitch,*point)).collect();
-        grains.into_iter().map(|(note,_)|note).collect()
+        runtime.view.clear();
+        runtime.view.extend(points.iter().filter(|point|point.step<=step as i32&&step as i32-point.step<crate::cloud::TAIL_STEPS).map(|point|crate::cloud::Point{step:point.step-step as i32+now,..*point}));
+        let grains=crate::cloud::grains_in_place(config,step,points,field);
+        runtime.pending.clear();
+        runtime.pending.extend(grains.iter().flatten().map(|(note,point)|(note.pitch,*point)));
+        grains.map(|entry|entry.map(|(note,_)|note))
     }
     fn cloud_observe(&mut self,track:usize,note:&crate::clip::Note) {
         let now=(self.master_tick.saturating_sub(1)/TICKS_PER_STEP as u64) as i32;
@@ -75,10 +86,28 @@ impl Engine {
         if let Some((_,point))=runtime.pending.iter().find(|(pitch,_)|*pitch==note.pitch){runtime.grains.push(crate::cloud::Point{step:now,..*point});}
     }
     pub fn cloud_view(&self,track:usize)->String {
-        let Some(runtime)=self.clouds.get(track) else{return String::new();};
+        let mut output=String::new();
+        self.append_cloud_view(track,&mut output).expect("writing a String cannot fail");
+        output
+    }
+    /// Append the unchanged wire snapshot into the caller's reusable buffer.
+    pub fn append_cloud_view(&self,track:usize,output:&mut impl std::fmt::Write)->std::fmt::Result {
+        let Some(runtime)=self.clouds.get(track) else{return Ok(());};
         let now=self.master_tick.saturating_sub(1) as f64/TICKS_PER_STEP as f64;
-        let points=|points:&[crate::cloud::Point]|points.iter().filter(|point|now-(point.step as f64)<crate::cloud::TAIL_STEPS as f64).map(|point|format!("{},{},{},{:.3}",point.x,point.y,point.pressure,(now-point.step as f64).max(0.0))).collect::<Vec<_>>().join(";");
-        let contacts=runtime.contacts.iter().filter(|contact|self.master_tick.saturating_sub(contact.refreshed)<192&&self.frame_now.saturating_sub(contact.frame)<self.clock.sample_rate() as u64*2).map(|contact|format!("{},{},{}",contact.point.x,contact.point.y,contact.point.pressure)).collect::<Vec<_>>().join(";");
-        format!("cf1|{}|{}|{}",contacts,points(&runtime.view),points(&runtime.grains))
+        output.write_str("cf1|")?;
+        let mut separator="";
+        for contact in runtime.contacts.iter().filter(|contact|self.master_tick.saturating_sub(contact.refreshed)<192&&self.frame_now.saturating_sub(contact.frame)<self.clock.sample_rate() as u64*2) {
+            write!(output,"{separator}{},{},{}",contact.point.x,contact.point.y,contact.point.pressure)?;
+            separator=";";
+        }
+        for points in [&runtime.view,&runtime.grains] {
+            output.write_char('|')?;
+            let mut separator="";
+            for point in points.iter().filter(|point|now-(point.step as f64)<crate::cloud::TAIL_STEPS as f64) {
+                write!(output,"{separator}{},{},{},{:.3}",point.x,point.y,point.pressure,(now-point.step as f64).max(0.0))?;
+                separator=";";
+            }
+        }
+        Ok(())
     }
 }
