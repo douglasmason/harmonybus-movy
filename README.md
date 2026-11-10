@@ -1,3 +1,7 @@
+## Pressure note repeat (hbclean.338)
+
+Squeeze to divide the beat into faster repeats. Choose straight powers of two or every integer division from 1 to 16. Supports held chords, Momentary, both latch modes and Reverse. See [Pressure repeat](docs/pressure-repeat.md).
+
 ## Pressure performance (hbclean.337)
 
 Approach rows can shape operation amounts with Momentary, Tap Latch, Peak Latch and Reverse. Grid steps gain opt-in pressure editing of Velocity, Chance and Length. Existing sets default to Off. See [Pressure performance](docs/pressure-performance.md).

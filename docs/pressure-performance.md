@@ -1,5 +1,8 @@
 # Pressure performance — Movy hbclean.337 / HarmonyBus 0.2.314
 
+hbclean.338 / HB 0.2.315 add [pressure note repeat](pressure-repeat.md), with
+powers-of-two and all-integer beat divisions, live rate feedback and held chords.
+
 This release adds opt-in pressure control to approach layouts and pressure editing
 of existing Grid Sequencer notes. All existing sets start with pressure modes Off.
 The implementation shares the native engine, Move screen, Remote UI and standalone
