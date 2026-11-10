@@ -1,8 +1,8 @@
 {
-  "version": "0.34.1-hbclean.335",
-  "previous_version": "0.34.1-hbclean.334",
+  "version": "0.34.1-hbclean.336",
+  "previous_version": "0.34.1-hbclean.335",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.335 — Reliable cloud gesture cancellation",
+  "title": "Movy 0.34.1-hbclean.336 — Reliable cloud gesture cancellation",
   "notes": "docs/follower-cloud.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
@@ -10,6 +10,7 @@
     "source-benchmark.txt",
     "context-benchmark.txt",
     "chroma-benchmark.txt",
-    "param-reply-benchmark.txt"
+    "param-reply-benchmark.txt",
+    "cloud-benchmark.txt"
   ]
 }

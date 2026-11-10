@@ -113,10 +113,12 @@ export function tickChord():void{
     path = root / 'src/undo/verbs.ts'
     path.write_text(path.read_text().replace("'grestore', 'gexplore'", "'gcloud', 'grestore', 'gexplore'"))
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
-    source = replace_once(path.read_text(), '            key if key.starts_with("generator_info_")', '            key if key.starts_with("cloud_hold_")=>key[11..].parse::<usize>().ok().and_then(|track|self.engine.clouds.get(track)).map(|runtime|u8::from(runtime.holding()).to_string()),\n            key if key.starts_with("cloud_view_")=>key[11..].parse::<usize>().ok().map(|track|self.engine.cloud_view(track)),\n            key if key.starts_with("generator_info_")')
+    source = path.read_text()
     source = replace_once(source, 'struct Instance {', '''struct Instance {
-    cloud_ui:String,cloud_focus:usize,cloud_revision:u64,cloud_watch_until:u64,cloud_view_frame:u64,cloud_actions:Vec<String>,''')
-    source = replace_once(source, '        Instance {', '        Instance {\n            cloud_ui:String::new(),cloud_focus:2,cloud_revision:0,cloud_watch_until:0,cloud_view_frame:0,cloud_actions:Vec::new(),')
+    cloud_reply:String,cloud_ui:String,cloud_focus:usize,cloud_revision:u64,cloud_watch_until:u64,cloud_view_frame:u64,cloud_actions:Vec<String>,''')
+    # One ABI scratch buffer covers the bounded saved history plus UI JSON.
+    # It is allocated at instance creation, not on the SPI parameter callback.
+    source = replace_once(source, '        Instance {', '        Instance {\n            cloud_reply:String::with_capacity(128*1024),cloud_ui:String::new(),cloud_focus:2,cloud_revision:0,cloud_watch_until:0,cloud_view_frame:0,cloud_actions:Vec::new(),')
     source = replace_once(source, '        match key {\n            "cmd" =>', '''        if key=="cloud_action" {
             if val.len()<=180&&!val.chars().any(char::is_control)&&self.cloud_actions.len()<64 {self.cloud_actions.push(val.into());self.cloud_revision=self.cloud_revision.wrapping_add(1);}
             return;
@@ -128,8 +130,6 @@ export function tickChord():void{
     source = replace_once(source, '            "state" => Some(seq_core::persist::serialize(&self.engine)),', '''            "persistent_state" => Some(seq_core::persist::serialize(&self.engine)),
             "module_id"=>Some("movy".into()),
             "cloud_actions"=>Some(std::mem::take(&mut self.cloud_actions).join("\\n")),
-            "cloud_ui_state"=>{self.cloud_watch_until=self.blocks+1200;Some(self.cloud_ui.clone())},
-            "cloud_view"=>Some(self.engine.cloud_view(self.cloud_focus)),
             "rui_poll"=>{
                 // The host probes this even without a browser. Only a real
                 // snapshot reader enables controller work and view refreshes.
@@ -137,20 +137,20 @@ export function tickChord():void{
                 if self.blocks<self.cloud_watch_until&&frame!=self.cloud_view_frame {self.cloud_view_frame=frame;self.cloud_revision=self.cloud_revision.wrapping_add(1);}
                 Some(format!("{}:{}:{}:{}",self.cloud_revision,u8::from(self.engine.playing),self.engine.hb_master_tick(),self.engine.clock.bpm_x100()/100))
             },
-            // Manager requires a small flat JSON snapshot. Persistence remains
-            // on its dedicated non-consuming key; save_state alone acknowledges.
-            "state"=>{self.cloud_watch_until=self.blocks+1200;Some(format!("{{\\"cloud_ui_state\\":{},\\"cloud_view\\":{:?}}}",remote_json_string(&self.cloud_ui),self.engine.cloud_view(self.cloud_focus)))},''')
-    source += '''
-fn remote_json_string(value:&str)->String {
-    let mut output=String::with_capacity(value.len()+2);output.push('"');
-    for character in value.chars(){if matches!(character,'"'|'\\\\'){output.push('\\\\');}if !character.is_control(){output.push(character);}}
-    output.push('"');output
-}
-'''
+''')
+    source += '\n' + (assets / 'cloud_reply.rs').read_text()
+    source = replace_once(source, '    fn get_param(&mut self, key: &str) -> Option<String> {', '''    fn get_param(&mut self, key: &str) -> Option<String> {
+        if let Some(snapshot) = self.cloud_snapshot(key) { return Some(snapshot.to_owned()); }''')
+    source = replace_once(source, '        let Some(value) = i.get_param(key_text) else { return -1 };', '''        if let Some(snapshot) = i.cloud_snapshot(key_text) {
+            return hb_param_reply::copy_text_reply(snapshot, output);
+        }
+        let Some(value) = i.get_param(key_text) else { return -1 };''')
     source = replace_once(source, '                let mut s = self.engine.status();', '                let mut s = self.engine.status();\n                s.push_str(if self.blocks<self.cloud_watch_until||!self.cloud_actions.is_empty(){\" cloudremote=1\"}else{\" cloudremote=0\"});')
     # Read-only serialization tests continue to exercise the explicit persistence contract.
     source = source.replace('instance.get_param("state")', 'instance.get_param("persistent_state")')
     source += '\n' + (assets / 'cloud_dsp_tests.rs').read_text()
+    source += '\n' + (assets / 'cloud_performance_tests.rs').read_text()
+    (path.parent / 'cloud_grain_reference.rs').write_text((assets / 'cloud_grain_reference.rs').read_text())
     path.write_text(source)
 
     path = root / 'src/seq/engine.ts'

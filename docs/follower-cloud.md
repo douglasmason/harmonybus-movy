@@ -97,7 +97,7 @@ native display retains its monochrome contact crosses and grain dots. All these
 views keep the existing shared trail fade, strength and pressure settings; this
 change does not alter generation timing, stored gestures, recipes or Bake.
 
-## Gesture cancellation (hbclean.335)
+## Gesture cancellation (hbclean.336)
 
 Only a fresh finger-down, pad attack or X/Y turn may start a cloud gesture.
 Movement, pressure and contact heartbeats update an existing contact; they cannot

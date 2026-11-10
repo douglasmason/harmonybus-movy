@@ -87,6 +87,7 @@ jobs:
           cargo test --release --manifest-path movy/engine/Cargo.toml -p movy-dsp hb_loop_snapshot_benchmark -- --ignored --nocapture --test-threads=1 | tee -a source-benchmark.txt
           cargo run --release --manifest-path movy/engine/Cargo.toml -p movy-dsp --example hb_context_benchmark | tee context-benchmark.txt
           cargo test --release --manifest-path movy/engine/Cargo.toml -p movy-dsp --test param_reply_allocations param_reply_benchmark -- --ignored --nocapture --test-threads=1 | tee param-reply-benchmark.txt
+          cargo test --release --manifest-path movy/engine/Cargo.toml -p movy-dsp cloud_performance_benchmark -- --ignored --nocapture --test-threads=1 | tee cloud-benchmark.txt
       - name: ARM toolchain
         if: steps.plan.outputs.mode == 'full'
         timeout-minutes: 5

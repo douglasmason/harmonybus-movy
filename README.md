@@ -1,6 +1,13 @@
-## Cloud gesture cancellation (hbclean.335)
+## Cloud gesture cancellation (hbclean.336)
 
 Stop exploring, Clear and transport Stop now stay stopped or cleared when fingers remain down. Movement, pad pressure and heartbeats can only update an existing cloud contact; lift and touch again to start a new gesture. Late releases retain their original actor across browsing. Native Move, Remote UI and standalone share the engine rule, with existing recording, recipes and Bake preserved. See [Follower cloud](docs/follower-cloud.md).
+
+## Cloud allocation reduction (hbclean.335)
+
+Cloud snapshots reuse a native reply buffer, and follower playback reuses point
+storage and fixed note arrays. Exact snapshot and seeded-note comparisons retain
+the existing musical behavior across Move, Remote UI and standalone builds.
+See [measurements and scope](docs/cloud-performance.md).
 
 ## Cloud pressure and pad feedback (hbclean.333)
 
