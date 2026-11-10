@@ -124,7 +124,7 @@ try{
   await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:held});
   await until(async()=>(await __wasmRead('cloud_view_3')).split('|')[1]!=='');
   await panel.getByRole('button',{name:'Stop exploring',exact:true}).waitFor();
-  if(action==='Stop'){await panel.getByRole('button',{name:'Play',exact:true}).evaluate(button=>button.click());await until(async()=>(await __wasmRead('status')).includes('play=1'));}
+  if(action==='Stop'){await panel.getByRole('button',{name:'Play',exact:true}).evaluate(button=>button.click());await until(async()=>(await __wasmRead('status')).includes('play=1'));await panel.locator('button[data-action=stop]:enabled').waitFor();}
   await panel.getByRole('button',{name:action,exact:true}).evaluate(button=>button.click());
   await until(async()=>(await __wasmRead('cloud_view_3')).split('|')[1]==='');
   await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:held.map(point=>({...point,x:point.x+40}))});
