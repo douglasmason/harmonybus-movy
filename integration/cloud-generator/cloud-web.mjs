@@ -19,19 +19,19 @@ export function mountCloud({root,api}){
  let suspended=false,requested=true,disposed=false,inFlight=false,state=null,snapshot=emptyCloud(),timer=null,lastHeartbeat=0,generation=0;
  const command=value=>{if(!suspended&&!disposed)api.send(value);};
  const coordinates=event=>{const bounds=canvas.getBoundingClientRect();return {x:Math.max(0,Math.min(127,Math.round((event.clientX-bounds.left)/bounds.width*127))),y:Math.max(0,Math.min(127,Math.round((1-(event.clientY-bounds.top)/bounds.height)*127))),pressure:Math.round((event.pointerType==='pen'?event.pressure||.75:.85)*127)};};
- function touch(pointer,pressure=pointer.pressure){command(`touch ${pointer.track} ${pointer.id} ${pointer.x} ${pointer.y} ${pressure}${pointer.activity==='Rate'?' 1':''}`);}
+ function touch(pointer,pressure=pointer.pressure,start=false){command(`${start||pressure===0?'touch':'move'} ${pointer.track} ${pointer.id} ${pointer.x} ${pointer.y} ${pressure}${pointer.activity==='Rate'?' 1':''}`);}
  function finishTouch(pointer){if(pointer.pending){pointer.pending=false;touch(pointer);}touch(pointer,0);}
  function release(){for(const pointer of pointers.values())finishTouch(pointer);pointers.clear();}
  function finish(event){const pointer=pointers.get(event.pointerId);if(!pointer)return;finishTouch(pointer);pointers.delete(event.pointerId);if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);paint();}
  canvas.onpointerdown=event=>{
   if(suspended||!state?.cloud||pointers.size>=16)return;event.preventDefault();
   const used=new Set([...pointers.values()].map(pointer=>pointer.id)),id=Array.from({length:16},(_,index)=>96+index).find(id=>!used.has(id));
-  const pointer={...coordinates(event),id,track:state.track,activity:state.activity,pending:false};pointers.set(event.pointerId,pointer);canvas.setPointerCapture(event.pointerId);touch(pointer);paint();
+  const pointer={...coordinates(event),id,track:state.track,activity:state.activity,pending:false};pointers.set(event.pointerId,pointer);canvas.setPointerCapture(event.pointerId);touch(pointer,pointer.pressure,true);paint();
  };
  canvas.onpointermove=event=>{const pointer=pointers.get(event.pointerId);if(!pointer)return;Object.assign(pointer,coordinates(event),{pending:true});paint();};
  canvas.onpointerup=finish;canvas.onpointercancel=finish;canvas.onlostpointercapture=finish;
  root.querySelector('[data-actor]').onchange=event=>{release();command('actor '+event.target.value);};
- for(const button of root.querySelectorAll('[data-action]'))button.onclick=()=>{if(['stop','clear','choose'].includes(button.dataset.action))release();if(button.dataset.action==='hold'){for(const pointer of pointers.values())if(pointer.pending){pointer.pending=false;touch(pointer);}command(`hold ${state?.holding?0:1}`);}else command(button.dataset.action);};
+ for(const button of root.querySelectorAll('[data-action]'))button.onclick=()=>{if(['stop','clear','choose','explore'].includes(button.dataset.action))release();if(button.dataset.action==='hold'){for(const pointer of pointers.values())if(pointer.pending){pointer.pending=false;touch(pointer);}command(`hold ${state?.holding?0:1}`);}else command(button.dataset.action);};
  for(const input of root.querySelectorAll('[data-control]'))input.oninput=()=>{root.querySelector(`[data-value="${input.dataset.control}"]`).textContent=input.value;command(`control cg_cloud_${input.dataset.control} ${input.value}`);};
  root.querySelector('[data-axes]').onchange=event=>{release();command('axes '+event.target.value);};
  root.querySelector('[data-activity]').onchange=event=>{release();command('activity '+event.target.value);};
@@ -66,7 +66,7 @@ export function mountCloud({root,api}){
    const result=await api.read();if(suspended||disposed||token!==generation)return;
    const next=typeof result.ui==='string'?JSON.parse(result.ui||'null'):result.ui;
    if(next&&Number.isInteger(next.track)&&Array.isArray(next.values)&&next.values.length===8){
-    if(state&&(state.track!==next.track||state.axes!==next.axes||state.activity!==next.activity))release();state=next;
+    if(state&&(state.track!==next.track||state.axes!==next.axes||state.activity!==next.activity||state.cloud&&!next.cloud||state.explore==='Stop'&&next.explore!=='Stop'||state.transport?.playing&&!next.transport?.playing))release();state=next;
     const flipped=state.axes==='Pitch / Activity';
     const rate=state.activity==='Rate',activity=rate?'Rate':'Probability',meaning=rate?'trigger rate':'trigger probability';
     root.querySelector('[data-activity]').value=activity;

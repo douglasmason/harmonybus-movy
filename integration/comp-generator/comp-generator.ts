@@ -283,7 +283,7 @@ function ensureGenerator(track:number):boolean {
 }
 export function generatorCloudContact(track:number,id:number,x:number,y:number,pressure:number,start=true,activity='Probability',flush=true):void {
  if(!engineReady()||pressure>0&&(start?!generatorEnsureCloud(track):!active(track)))return;
- seqCmd(`gcloud ${track} ${id} ${Math.round(x)} ${Math.round(y)} ${Math.round(pressure)}${activity==='Rate'?' 1':''}`);if(flush)seqCmdFlush();
+ seqCmd(`gcloud ${track} ${start?'':'move '}${id} ${Math.round(x)} ${Math.round(y)} ${Math.round(pressure)}${activity==='Rate'?' 1':''}`);if(flush)seqCmdFlush();
 }
 export function generatorCloudSnapshot(track=selectedTrack):string {return String(host_module_get_param('cloud_view_'+track)??'');}
 export function generatorCloudHeld(track=selectedTrack):boolean {return engineReady()&&String(host_module_get_param('cloud_hold_'+track))==='1';}

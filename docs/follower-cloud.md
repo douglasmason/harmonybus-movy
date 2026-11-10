@@ -97,6 +97,21 @@ native display retains its monochrome contact crosses and grain dots. All these
 views keep the existing shared trail fade, strength and pressure settings; this
 change does not alter generation timing, stored gestures, recipes or Bake.
 
+## Gesture cancellation (hbclean.336)
+
+Only a fresh finger-down, pad attack or X/Y turn may start a cloud gesture.
+Movement, pressure and contact heartbeats update an existing contact; they cannot
+recreate one after release, Clear, transport Stop, ending exploration or expiry.
+Lift and touch again to start another gesture. This rule lives in the shared
+engine, so native pads, Remote UI and standalone obey the same cancellation.
+
+The web field releases its local fingers before Stop exploring, Clear or Stop.
+It also releases them when it observes transport/exploration stopping, a source
+change or an actor change. A late finger-up still targets the original actor,
+even if the newly selected actor is not using Cloud. Final pending movement is
+flushed before ordinary release, preserving quick recorded strokes. Existing
+clip, recipe, Hold and Bake formats are unchanged.
+
 ## Hold the cloud (hbclean.331)
 
 Draw with fingers, pads or X/Y knobs, then press **Sample** on a Cloud page or
@@ -170,6 +185,10 @@ rate, in either orientation; the Rate knob remains the fastest allowed subdivisi
   IDs 0–31 belong to Move, 32–95 to Launchpad, 96–111 to the touchscreen and 112
   to X/Y drawing. Contact heartbeats stop stale input after two seconds, including
   while transport is stopped. One touchscreen controller owns that ID range.
+- `gcloud track move id x y pressure [activity]` updates only a still-owned,
+  unexpired contact. It never acquires one. Remote `touch` marks down/up and
+  `move` carries ongoing movement/heartbeats; the legacy touch command remains
+  supported. Refresh the web Tool page after installing an updated module.
 - `gcloud track hold 1|0` sets Hold explicitly for an exploring Cloud actor.
   Repeated requests are idempotent; an empty capture is refused.
   `cloud_hold_track` reads confirmed state without advancing music or autosave.

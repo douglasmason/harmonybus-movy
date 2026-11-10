@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.335",
-  "previous_version": "0.34.1-hbclean.334",
+  "version": "0.34.1-hbclean.336",
+  "previous_version": "0.34.1-hbclean.335",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.335 — Reuse Cloud snapshot and playback buffers",
-  "notes": "docs/cloud-performance.md",
+  "title": "Movy 0.34.1-hbclean.336 — Reliable cloud gesture cancellation",
+  "notes": "docs/follower-cloud.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

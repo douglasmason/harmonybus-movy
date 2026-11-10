@@ -8,7 +8,7 @@ const server=createServer(async(request,response)=>{
   import {mountCloud} from '/cloud-web.mjs';window.sent=[];window.reads=0;
   window.state={actor:'Melody',track:3,slot:0,transport:{playing:false,phase:'idle',track:null,slot:null},cloud:true,values:[96,96,127,48,64,80,64,90],seed:71,explore:'Stop',footer:'Explore Melody T4:1',x:64,y:64,edge:'Bounded',trail:{scope:'pitch',window:'infinite',windowBeats:4,curve:'linear',decayBeats:4,strength:1,peak:1,floor:0}};
   window.view='cf1|64,64,127|20,30,100,6;35,50,100,4;52,65,110,2;64,64,120,0|30,35,95,5;50,60,100,2';
-  window.component=mountCloud({root:document.querySelector('#cloud').attachShadow({mode:'open'}),api:{send:value=>sent.push(value),read:async()=>{window.reads++;return {ui:state,view};}}});
+  window.component=mountCloud({root:document.querySelector('#cloud').attachShadow({mode:'open'}),api:{send:value=>sent.push(value),read:async()=>{window.reads++;return {ui:JSON.stringify(state),view};}}});
   </script>`);return;
  }
  if(!['/cloud-web.mjs','/cloud-view.mjs'].includes(request.url)){response.writeHead(404).end();return;}
@@ -74,6 +74,32 @@ try{
   }
  }
  await page.setViewportSize({width:1000,height:860});
+ for(const action of ['Stop exploring','Clear cloud','Stop']){
+  await page.evaluate(()=>{window.sent=[];window.state.cloud=true;window.state.explore='Stop';window.state.transport.playing=true;});
+  await page.getByRole('button',{name:'Stop exploring',exact:true}).waitFor();await page.waitForTimeout(100);
+  const current=await canvas.boundingBox();
+  await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{id:1,x:current.x+80,y:current.y+90,force:.8}]});
+  await page.waitForTimeout(300);sent=await page.evaluate(()=>window.sent);
+  assert.equal(sent.filter(value=>value.startsWith('touch ')&&!/ 0(?: 1)?$/.test(value)).length,1,'only pointer down may acquire a contact');
+  assert(sent.some(value=>value.startsWith('move ')),'heartbeats only update existing contacts');
+  await page.getByRole('button',{name:action,exact:true}).evaluate(button=>button.click());
+  assert.equal(await page.evaluate(()=>window.component.isHeld()),false,action+' releases local ownership immediately');
+  const after=await page.evaluate(()=>window.sent.length);await page.waitForTimeout(350);
+  assert.equal(await page.evaluate(()=>window.sent.length),after,'a cancelled finger cannot keep sending heartbeats');
+  await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+ }
+ for(const reason of ['explore','transport','source','actor']){
+  await page.evaluate(()=>{window.state.track=3;window.state.actor='Melody';window.state.cloud=true;window.state.explore='Stop';window.state.transport.playing=true;});await page.waitForTimeout(100);
+  const current=await canvas.boundingBox();
+  await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{id:1,x:current.x+80,y:current.y+90,force:.8}]});
+  await page.evaluate(reason=>{if(reason==='explore')window.state.explore='Explore';else if(reason==='transport')window.state.transport.playing=false;else if(reason==='source')window.state.cloud=false;else{window.state.track=1;window.state.actor='Bass';window.state.cloud=false;}},reason);
+  await page.waitForFunction(()=>!window.component.isHeld());
+  const after=await page.evaluate(()=>window.sent.length);await page.waitForTimeout(300);
+  assert.equal(await page.evaluate(()=>window.sent.length),after,'observed '+reason+' cancellation cannot revive input');
+  assert.match((await page.evaluate(()=>window.sent)).at(-1),/^touch 3 96 \d+ \d+ 0 1$/,'up retains the original track');
+  await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+ }
+ await page.evaluate(()=>{window.state.track=3;window.state.actor='Melody';window.state.cloud=true;window.state.explore='Stop';window.state.transport.playing=false;});await page.waitForTimeout(100);
  await canvas.evaluate(element=>element.addEventListener('pointerdown',event=>window.activePointer=event.pointerId,{once:true}));
  await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[touches[0]]});
  await canvas.evaluate(element=>{
@@ -82,7 +108,7 @@ try{
   window.component.suspend();
  });assert.equal(await page.evaluate(()=>window.component.isHeld()),false);
  sent=await page.evaluate(()=>window.sent);
- assert.deepEqual(sent.slice(-2),['touch 3 96 102 25 108 1','touch 3 96 102 25 0 1'],'suspension flushes the final pending position before releasing its captured activity mode');
+ assert.deepEqual(sent.slice(-2),['move 3 96 102 25 108 1','touch 3 96 102 25 0 1'],'suspension flushes the final pending position before releasing its captured activity mode');
  const reads=await page.evaluate(()=>window.reads);await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await page.waitForTimeout(150);assert.equal(await page.evaluate(()=>window.reads),reads,'visibility cannot revive a hidden workspace component');
  await page.evaluate(()=>window.component.resume());await page.waitForTimeout(100);
  await mkdir(new URL('../../artifacts/',import.meta.url),{recursive:true});await page.screenshot({path:new URL('../../artifacts/follower-cloud.png',import.meta.url).pathname,fullPage:true});
