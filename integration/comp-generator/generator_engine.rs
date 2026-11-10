@@ -413,8 +413,8 @@ impl Engine {
                 else {let clip=&self.tracks[track].clips[slot];clip.generator.unwrap().at(clip,&self.tracks[track].lane_label,step)};
             let phase=if free&&self.generator_library[track].is_none(){self.master_tick.saturating_sub(1)/TICKS_PER_STEP as u64}else{step as u64};
             self.generator_visuals[track]=config.is_euclidean().then_some((slot,config.visual_values(),phase));
-            let generated=if config.is_cloud(){self.cloud_notes(track,slot,step,config,free)}else{config.note_at(step,phase).into_iter().collect()};
-            for note in generated {
+            let generated=if config.is_cloud(){self.cloud_notes(track,slot,step,config,free)}else{[config.note_at(step,phase),None,None,None]};
+            for note in generated.into_iter().flatten() {
                 crate::source_route::RhythmAttack::accept(&mut source_duration,note.pitch,note.gate);
                 if self.generator_rhythm_following(track)&&!self.generator_rhythm_own(track) {continue;}
                 self.generator_emit_note(track,slot,note,config,None,track,out);

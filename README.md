@@ -1,3 +1,10 @@
+## Cloud allocation reduction (hbclean.335)
+
+Cloud snapshots reuse a native reply buffer, and follower playback reuses point
+storage and fixed note arrays. Exact snapshot and seeded-note comparisons retain
+the existing musical behavior across Move, Remote UI and standalone builds.
+See [measurements and scope](docs/cloud-performance.md).
+
 ## Cloud pressure and pad feedback (hbclean.333)
 
 Move and Launchpad X pressure now share the cloud contact path: easing pressure keeps the pad held until note-off. Cloud light blends across neighboring Move/Launchpad pads, with green reserved for direct contacts. The Remote UI/standalone X/Y locator stays neutral when parked. See [Follower cloud](docs/follower-cloud.md).

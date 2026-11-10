@@ -1,15 +1,16 @@
 {
-  "version": "0.34.1-hbclean.334",
-  "previous_version": "0.34.1-hbclean.333",
+  "version": "0.34.1-hbclean.335",
+  "previous_version": "0.34.1-hbclean.334",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.334 — Shared Euclidean touch editor",
-  "notes": "docs/euclidean-generator.md",
+  "title": "Movy 0.34.1-hbclean.335 — Reuse Cloud snapshot and playback buffers",
+  "notes": "docs/cloud-performance.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",
     "source-benchmark.txt",
     "context-benchmark.txt",
     "chroma-benchmark.txt",
-    "param-reply-benchmark.txt"
+    "param-reply-benchmark.txt",
+    "cloud-benchmark.txt"
   ]
 }
