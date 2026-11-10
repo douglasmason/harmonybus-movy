@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.334",
-  "previous_version": "0.34.1-hbclean.333",
+  "version": "0.34.1-hbclean.335",
+  "previous_version": "0.34.1-hbclean.334",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.334 — Shared Euclidean touch editor",
-  "notes": "docs/euclidean-generator.md",
+  "title": "Movy 0.34.1-hbclean.335 — Reliable cloud gesture cancellation",
+  "notes": "docs/follower-cloud.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

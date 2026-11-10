@@ -8,6 +8,35 @@
         result
     }
     fn start(engine:&mut Engine){command(engine,"gexplore 2 16 127 96 71 0 127 50 64 80 64 100");}
+    #[test] fn cloud_updates_cannot_reacquire_released_cleared_stopped_or_expired_contacts() {
+        // Exercise each surface's ID range through the production command path.
+        for id in [0,32,96,112] {
+            for ending in ["up","clear","stop","explore","expire"] {
+                let mut engine=fixture();start(&mut engine);let before=engine.undo_snapshot();
+                let update=format!("gcloud 2 move {id} 100 80 70 1");
+                assert!(!engine.cloud_touch(&update));
+                command(&mut engine,&format!("gcloud 2 {id} 20 30 100 1"));
+                assert!(engine.cloud_touch(&update));
+                assert_eq!((engine.clouds[2].contacts[0].point.x,engine.clouds[2].contacts[0].point.pressure),(100,70));
+                match ending {
+                    "up"=>command(&mut engine,&format!("gcloud 2 {id} 100 80 0 1")),
+                    "clear"=>command(&mut engine,"gcloud 2 clear"),
+                    "stop"=>command(&mut engine,"stop"),
+                    "explore"=>command(&mut engine,"gexplore 2 off"),
+                    _=>engine.advance_block(96000,&mut Vec::new()),
+                }
+                let pending=engine.clouds[2].pending_touches.len();
+                assert!(!engine.cloud_touch(&update),"{ending}: update cannot resurrect contact {id}");
+                assert!(engine.clouds[2].contacts.is_empty());assert_eq!(engine.clouds[2].pending_touches.len(),pending);
+                assert_eq!(engine.undo_snapshot(),before,"cancellation and stale updates do not edit a clip");
+                start(&mut engine);command(&mut engine,&format!("gcloud 2 {id} 30 40 90"));
+                assert_eq!(engine.clouds[2].contacts.len(),1,"a fresh touch can start the next gesture");
+            }
+        }
+        let mut engine=fixture();start(&mut engine);command(&mut engine,"gcloud 2 96 20 30 100");
+        for message in ["gcloud 2 move","gcloud 2 move 96 20 30 100 2","gcloud 2 move move 96 20 30 100","gcloud 2 move 96 128 30 100","gcloud 16 move 96 20 30 100"]{assert!(!engine.cloud_touch(message));}
+        engine.master_tick=192;assert!(!engine.cloud_touch("gcloud 2 move 96 20 30 100"),"musical lease also gates updates before the next sampler tick");
+    }
     #[test] fn cloud_hold_is_transient_track_owned_and_cleared_by_stop_or_cancel() {
         let mut engine=fixture();let before=engine.undo_snapshot();engine.dirty=false;start(&mut engine);
         for message in ["gcloud 2 hold 1","gcloud 16 hold 1","gcloud 2 hold 2","gcloud 2 hold 1 extra","gcloud 1 hold 1"]{assert!(!engine.cloud_touch(message));}
@@ -81,7 +110,7 @@
         let mut engine=fixture();start(&mut engine);engine.play();engine.toggle_record(2);
         let mut heard=Vec::new();
         for step in 0..32 {
-            if step<8 {command(&mut engine,&format!("gcloud 2 96 0 {} 100 {};gcloud 2 96 127 {} 120 {};gcloud 2 96 127 {} 0",step*16,step%2,step*16,step%2,step*16));}
+            if step<8 {command(&mut engine,&format!("gcloud 2 96 0 {} 100 {};gcloud 2 move 96 127 {} 120 {};gcloud 2 96 127 {} 0",step*16,step%2,step*16,step%2,step*16));}
             heard.extend(trace(&mut engine,24).into_iter().map(|(tick,pitch,velocity,on)|(tick+step*24,pitch,velocity,on)));
         }
         engine.toggle_record(2);let points=engine.tracks[2].clips[0].cloud_points.clone();

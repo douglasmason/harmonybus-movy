@@ -41,16 +41,20 @@ export function cloudRemoteAction(message:string):void {
   else if(generatorCloud()&&generatorEnsureCloud(track)&&generatorPrepareRecord(track)!==false)recToggle(track);
   seqCmdFlush();return;
  }
+ // Up belongs to the original track even after selecting a non-cloud actor.
+ // Only a new down may start exploration; movement cannot revive stopped input.
+ if(['touch','move'].includes(action)&&[5,6].includes(fields.length)){
+  const [target,id,x,y,pressure,activity=0]=fields.map(Number);
+  if([target,id,x,y,pressure,activity].every(Number.isInteger)&&[0,1].includes(activity)&&target>=0&&target<16&&id>=96&&id<112&&[x,y,pressure].every(value=>value>=0&&value<=127)&&(pressure===0||target===track&&generatorCloud())){const position=cloudInput(x,y);generatorCloudContact(target,id,position.x,position.y,pressure,action==='touch',activity===1?'Rate':'Probability');}
+  return;
+ }
  if(!generatorCloud())return;
  if(action==='control'&&fields.length===2&&(/^(?:cg_cloud_(?:rate|density|length|register|spread|contour|variation|dynamics)|cg_seed)$/.test(fields[0])))generatorWrite(fields[0],fields[1],track);
  else if(action==='edge'&&fields.length===1)cloudWrite('cg_edge',fields[0]);
  else if(action==='activity'&&fields.length===1)cloudWrite('cg_activity',fields[0]);
  else if(action==='axes'&&fields.length===1&&['pitch-x','pitch-y'].includes(fields[0]))cloudWrite('cg_axes',fields[0]==='pitch-x'?'Pitch / Activity':'Activity / Pitch');
  else if(action==='draw'&&fields.length===2&&['x','y'].includes(fields[0])&&Number.isInteger(Number(fields[1]))&&Math.abs(Number(fields[1]))<=127)cloudTurn('cg_'+fields[0],Number(fields[1]));
- else if(action==='touch'&&[5,6].includes(fields.length)){
-  const [target,id,x,y,pressure,activity=0]=fields.map(Number);
-  if([target,id,x,y,pressure,activity].every(Number.isInteger)&&[0,1].includes(activity)&&target>=0&&target<16&&id>=96&&id<112&&[x,y,pressure].every(value=>value>=0&&value<=127)&&(pressure===0||target===track)){const position=cloudInput(x,y);generatorCloudContact(target,id,position.x,position.y,pressure,true,activity===1?'Rate':'Probability');}
- }else if(['explore','bake','restore'].includes(action)&&fields.length===0)generatorTouch('cg_'+action,track,true);
+ else if(['explore','bake','restore'].includes(action)&&fields.length===0)generatorTouch('cg_'+action,track,true);
  else if(action==='hold'&&fields.length===1&&['0','1'].includes(fields[0])){flushCloudPressure();generatorCloudHold(fields[0]==='1',track);}
  else if(action==='clear'&&fields.length===0){releaseCloud();seqCmd(`gcloud ${track} clear`);seqCmdFlush();}
 }

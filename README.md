@@ -1,3 +1,7 @@
+## Cloud gesture cancellation (hbclean.335)
+
+Stop exploring, Clear and transport Stop now stay stopped or cleared when fingers remain down. Movement, pad pressure and heartbeats can only update an existing cloud contact; lift and touch again to start a new gesture. Late releases retain their original actor across browsing. Native Move, Remote UI and standalone share the engine rule, with existing recording, recipes and Bake preserved. See [Follower cloud](docs/follower-cloud.md).
+
 ## Cloud pressure and pad feedback (hbclean.333)
 
 Move and Launchpad X pressure now share the cloud contact path: easing pressure keeps the pad held until note-off. Cloud light blends across neighboring Move/Launchpad pads, with green reserved for direct contacts. The Remote UI/standalone X/Y locator stays neutral when parked. See [Follower cloud](docs/follower-cloud.md).

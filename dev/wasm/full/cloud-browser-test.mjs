@@ -112,6 +112,26 @@ try{
  await page.reload();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
  await until(async()=>{try{const state=JSON.parse(await __wasmRead('cloud_ui_state'));return state.axes==='Pitch / Activity'&&state.activity==='Rate';}catch{return false;}});
  assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),saved);assert.deepEqual(errors,[]);
+ // Keep real fingers down while another control ends or clears their input.
+ // Subsequent movement must not silently resume exploration or refill Clear.
+ for(const action of ['Stop exploring','Clear cloud','Stop']){
+  await canvas.scrollIntoViewIfNeeded();const current=await canvas.boundingBox();
+  const held=[{id:1,x:current.x+current.width*.6,y:current.y+current.height*.4,force:.8}];
+  await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:held});
+  await until(async()=>(await __wasmRead('cloud_view_3')).split('|')[1]!=='');
+  await panel.getByRole('button',{name:'Stop exploring',exact:true}).waitFor();
+  if(action==='Stop'){await panel.getByRole('button',{name:'Play',exact:true}).evaluate(button=>button.click());await until(async()=>(await __wasmRead('status')).includes('play=1'));}
+  await panel.getByRole('button',{name:action,exact:true}).evaluate(button=>button.click());
+  await until(async()=>(await __wasmRead('cloud_view_3')).split('|')[1]==='');
+  await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:held.map(point=>({...point,x:point.x+40}))});
+  await page.waitForTimeout(700);
+  assert.equal((await page.evaluate(()=>__wasmRead('cloud_view_3'))).split('|')[1],'',action+' remains released across old movement and heartbeats');
+  if(action==='Stop exploring')assert.notEqual(JSON.parse(await page.evaluate(()=>__wasmRead('cloud_ui_state'))).explore,'Stop');
+  if(action==='Stop')assert((await page.evaluate(()=>__wasmRead('status'))).includes('play=0'));
+  if(action==='Clear cloud')assert.equal(await page.evaluate(()=>__wasmRead('cloud_view_3')),'cf1|||');
+  await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+ }
+ assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),saved,'cancelled gestures do not edit the recorded clip');
  console.log('Standalone cloud: real multitouch, reversible axes, temporary audition, Record/replay and saved projection preferences pass');
 }catch(error){if(page)console.error(await page.evaluate(async()=>({ui:await __wasmRead('cloud_ui_state'),status:await __wasmRead('status'),error:document.querySelector('#error')?.textContent,points:(await __wasmRead('persistent_state')).split('\n').filter(line=>line.startsWith('cp1 3 0 ')).slice(0,40),canvas:document.querySelector('[data-workspace=cloud] .component-content').shadowRoot.querySelector('canvas').getBoundingClientRect().toJSON()})).catch(String));throw error;}
 finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
