@@ -18,6 +18,11 @@ for(const [mode,surface] of Object.entries(pages)){
  console.log('CATALOG',mode,JSON.stringify(Object.fromEntries([...new Set(surface.ctl.pages.map(page=>panelSpec(mode,page).group))].map(group=>[group,surface.ctl.pages.filter(page=>panelSpec(mode,page).group===group).length]))));
 }
 const normal=pages['Normal Play'];normal.goToPage(0);
+const pressure=normal.ctl.pages.findIndex(page=>page.level==='approach_pressure');assert(pressure>=0);
+normal.goToPage(pressure);assert.equal(normal.keyAt(0),'approach_pressure_row');assert.equal(normal.keyAt(2),'approach_pressure_mode');
+normal.ctl.commitEnum('approach_pressure_mode',3);
+assert.equal(portFor(3).getParam('midi_fx1:approach_pressure_mode'),'3','inline pressure control writes the native numeric parameter');
+normal.goToPage(0);
 assert.deepEqual(normal.ctl.hbNavigation.state().indices.map(index=>normal.ctl.pages[index].level),['root','harmony_status','follower_touch','operations_9_16']);
 const motif=pages['Motif Play'];motif.goToPage(0);motif.changePage(1);assert.equal(motif.ctl.page.level,'approach_bank_0','motif banks immediately follow Main');
 for(const page of pages['Joint Play'].ctl.pages){

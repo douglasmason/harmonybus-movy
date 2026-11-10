@@ -11,6 +11,37 @@ pub fn mask(clip:&Clip,position:u32)->u16 {
         .fold(0,|bits,gate|bits|(1<<gate.lane))
 }
 impl Engine {
+    /// Pressure painting edits existing input events in their original clip.
+    /// It never inserts notes, edits rendered output, or changes operation gates.
+    pub fn grid_expression(&mut self,track:usize,slot:usize,start:u32,duration:u32,
+                           assignment:u16,parameter:u8,value:u8) {
+        if track>=self.tracks.len()||slot>=self.tracks[track].clips.len()||
+           ![24,48,96,192,384].contains(&duration)||start%duration!=0||
+           start>=6144||assignment>=128||parameter>2||value>127{return;}
+        let clip=&mut self.tracks[track].clips[slot];
+        if start<clip.loop_start_ticks()||start>=clip.loop_start_ticks()+clip.length_ticks(){return;}
+        let indices:Vec<usize>=clip.notes.iter().enumerate().filter(|(_,note)|
+            !note.rendered&&note.pitch==assignment as u8&&note.tick>=start&&note.tick<start+duration)
+            .map(|(index,_)|index).collect();
+        if indices.is_empty(){return;}
+        for index in indices {
+            if parameter==0 {clip.notes[index].vel=value.max(1);}
+            else if parameter==1 {
+                let step=clip.notes[index].step;
+                let previous=clip.governing_trig(step,assignment as u8);
+                clip.set_trig_cond(step,step,Some(assignment as u8),previous.cond_a,previous.cond_b);
+                clip.set_trig_invert(step,step,Some(assignment as u8),previous.invert);
+                clip.set_trig_prob(step,step,Some(assignment as u8),((value as u16*100+63)/127) as u8);
+            }else{
+                let onset=clip.notes[index].tick;
+                let next=clip.notes.iter().filter(|note|note.pitch==assignment as u8&&note.tick>onset)
+                    .map(|note|note.tick).min().unwrap_or(u32::MAX)
+                    .min(clip.loop_start_ticks()+clip.length_ticks());
+                clip.notes[index].gate=((duration*value as u32+63)/127).max(1).min(next.saturating_sub(onset).max(1));
+            }
+        }
+        self.dirty=true;
+    }
     pub fn grid_release(&mut self,track:usize,out:&mut Vec<OutEvent>) {
         self.grid_performance[track]=Default::default();
         if self.grid_masks[track]!=0 {self.grid_masks[track]=0;out.push(OutEvent::GridMask{track:track as u8,mask:0});}
@@ -108,6 +139,40 @@ impl Engine {
 #[cfg(test)] mod lifecycle_tests {
     use super::*;
     use crate::{command,persist};
+    #[test] fn pressure_paint_preserves_other_voices_conditions_and_clip_ownership(){
+        let mut engine=Engine::new(44100,12000);let mut out=Vec::new();
+        engine.grid_toggle(0,0,24,60,100);engine.grid_toggle(0,0,24,64,90);
+        engine.tracks[0].active_mut().set_trig_cond(0,0,None,2,3);
+        engine.tracks[0].active_mut().set_trig_invert(0,0,None,true);
+        command::apply_batch(&mut engine,"usnap 7;gexpr 0 0 0 24 60 0 50;gexpr 0 0 0 24 60 1 64",&mut out);
+        let clip=engine.tracks[0].active();assert_eq!(clip.notes[0].vel,50);assert_eq!(clip.notes[1].vel,90);
+        let props=clip.governing_trig(0,60);assert_eq!(props.prob,50);assert_eq!((props.cond_a,props.cond_b,props.invert),(2,3,true));
+        engine.tracks[0].active_clip=1;
+        command::apply_batch(&mut engine,"gexpr 0 0 0 24 60 2 64",&mut out);
+        assert_eq!(engine.tracks[0].clips[0].notes[0].gate,12);assert!(engine.tracks[0].active().notes.is_empty());
+        let saved=persist::serialize(&engine);let mut restored=Engine::new(44100,12000);assert!(persist::load(&mut restored,&saved));
+        assert_eq!(restored.tracks[0].clips[0].notes[0].vel,50);
+        command::apply_batch(&mut engine,"uswap 7 8",&mut out);assert_eq!(engine.tracks[0].clips[0].notes[0].vel,100);
+    }
+    #[test] fn pressure_paint_never_creates_or_erases_notes(){
+        let mut engine=Engine::new(44100,12000);
+        engine.grid_expression(0,0,0,24,60,0,100);assert!(engine.tracks[0].active().notes.is_empty());
+        engine.grid_toggle(0,0,24,60,100);engine.grid_expression(0,0,0,24,60,0,0);
+        assert_eq!(engine.tracks[0].active().notes[0].vel,1);
+        engine.tracks[0].active_mut().notes[0].rendered=true;
+        engine.grid_expression(0,0,0,24,60,0,100);assert_eq!(engine.tracks[0].active().notes[0].vel,1);
+    }
+    #[test] fn pressure_length_stops_at_next_onset_and_loop_end(){
+        let mut engine=Engine::new(44100,12000);
+        let clip=engine.tracks[0].active_mut();clip.length_steps=16;
+        clip.add_note_raw(0,0,4,60,100);clip.add_note_raw(0,10,4,60,100);
+        clip.add_note_raw(15,380,4,60,100);clip.add_note_raw(17,410,4,60,100);
+        clip.length_steps=16;
+        engine.grid_expression(0,0,0,24,60,2,127);
+        engine.grid_expression(0,0,360,24,60,2,127);
+        assert_eq!(engine.tracks[0].active().notes[0].gate,10);
+        assert_eq!(engine.tracks[0].active().notes[2].gate,4);
+    }
     #[test] fn gates_survive_save_copy_and_undo_and_stop_releases(){
         let mut engine=Engine::new(44100,12000);let mut out=Vec::new();
         command::apply_batch(&mut engine,"usnap 7;gtog 0 0 24 128 100;gtog 0 24 24 60 100",&mut out);

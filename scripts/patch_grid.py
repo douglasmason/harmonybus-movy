@@ -3,6 +3,16 @@ from pathlib import Path
 from patch_responsive_persistence import replace_once
 
 
+def finalize_grid_expression(root: Path) -> None:
+    """Register the edit after older integration patches match their contexts."""
+    command_path: Path = root / 'engine/crates/seq-core/src/command.rs'
+    command_source: str = command_path.read_text()
+    command_path.write_text(command_source.replace('"gtog" | "tog"', '"gexpr" | "gtog" | "tog"'))
+    verbs_path: Path = root / 'src/undo/verbs.ts'
+    verbs_source: str = verbs_path.read_text()
+    verbs_path.write_text(verbs_source.replace("'gtog', 'tog'", "'gexpr', 'gtog', 'tog'"))
+
+
 def patch_grid(root: Path) -> None:
     """Add grid storage, scheduling, commands, and surface adapters."""
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/grid'
@@ -37,6 +47,16 @@ def patch_grid(root: Path) -> None:
             if fields.len()==1 {engine.grid_view=fields[0]!=0;}
             if fields.len()==11&&(0..2).contains(&fields[0])&&(0..6144).contains(&fields[1])&&[24,48,96,192,384].contains(&fields[2])&&fields[3..].iter().all(|value|(0..144).contains(value)||*value==65535){
                 engine.grid_views[fields[0] as usize]=crate::grid::View{start:fields[1] as u32,division:fields[2] as u32,rows:std::array::from_fn(|index|fields[3+index] as u16)};
+            }
+        },
+        "gexpr"=>{
+            let fields:Vec<i64>=it.map(str::parse).collect::<Result<_,_>>().unwrap_or_default();
+            if let [track,slot,start,duration,assignment,parameter,value]=fields.as_slice(){
+                if (0..16).contains(track)&&(0..8).contains(slot)&&(0..6144).contains(start)&&
+                    [24,48,96,192,384].contains(duration)&&(0..128).contains(assignment)&&
+                    (0..3).contains(parameter)&&(0..128).contains(value){
+                    engine.grid_expression(*track as usize,*slot as usize,*start as u32,*duration as u32,*assignment as u16,*parameter as u8,*value as u8);
+                }
             }
         },
         "gtog"=>{
@@ -105,13 +125,13 @@ def patch_grid(root: Path) -> None:
     source = source.replace('    restoreJoint(null);','    restoreGrid(null);\n    restoreJoint(null);')
     path.write_text(source)
     path = root / 'src/surfaces/launchpad.ts'
-    source = "import { gridActive, gridColors, gridPad, gridNavigate, gridSurfaceControl } from '../seq/grid.js';\n"+path.read_text()
+    source = "import { gridActive, gridColors, gridPad, gridPressure, gridNavigate, gridSurfaceControl } from '../seq/grid.js';\n"+path.read_text()
     source = source.replace('    sample(now);','    if(gridActive()){frameReady=true;}else sample(now);')
     source = source.replace('const desired = withSteadyHarmonyLights(() => withHarmonyPadFrame(colors));','const desired = gridActive()?gridColors("launchpad",8,8):withSteadyHarmonyLights(() => withHarmonyPadFrame(colors));')
     source = source.replace('    if (top >= 0 && top < 8) {','''    if(gridActive()&&top>=0&&top<4){if(value)gridNavigate('launchpad',top===2?-1:top===3?1:0,top===0?1:top===1?-1:0,8,8);return;}
     if(gridActive()&&top>=4&&top<8){if(value)gridSurfaceControl('launchpad',top);return;}
     if(gridActive()&&index>=0&&(type===128||type===144||type===160)){
-        if(type!==160)gridPad('launchpad',index,type===144&&value>0,value,8,8,modifier);return;
+        if(type===160)gridPressure('launchpad',index,value);else gridPad('launchpad',index,type===144&&value>0,value,8,8,modifier);return;
     }
     if (top >= 0 && top < 8) {''')
     path.write_text(source)

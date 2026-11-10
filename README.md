@@ -1,3 +1,7 @@
+## Pressure performance (hbclean.337)
+
+Approach rows can shape operation amounts with Momentary, Tap Latch, Peak Latch and Reverse. Grid steps gain opt-in pressure editing of Velocity, Chance and Length. Existing sets default to Off. See [Pressure performance](docs/pressure-performance.md).
+
 ## Cloud gesture cancellation (hbclean.336)
 
 Stop exploring, Clear and transport Stop now stay stopped or cleared when fingers remain down. Movement, pad pressure and heartbeats can only update an existing cloud contact; lift and touch again to start a new gesture. Late releases retain their original actor across browsing. Native Move, Remote UI and standalone share the engine rule, with existing recording, recipes and Bake preserved. See [Follower cloud](docs/follower-cloud.md).

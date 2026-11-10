@@ -108,3 +108,30 @@ grid.setGridEraseHeld(false);
 assert(!grid.gridEraseActive());
 grid.setGridEnabled(false);
 console.log('Grid held-X erase: occupied-only native toggle, red feedback, empty-cell guard and clean release pass');
+
+// Opt-in pressure painting shares the grid controller on both surfaces.
+grid.restoreGrid(null);grid.setGridEnabled(true);seqState.reportedTrack=0;seqState.sessionMode=false;seqState.playing=false;
+seqState.loopStart=0;seqState.lenSteps=16;seqState.session[0].selected=0;
+const pressurePage=grid.gridPage();for(let tick=0;tick<5;tick++){now+=100;pressurePage.tick();}
+pressurePage.goToPage(0);assert.equal(pressurePage.keyAt(4),'grid_pressure');
+pressurePage.ctl.commitEnum('grid_pressure',1);pressurePage.ctl.revalue();
+seqEngineTick();const pressureStart=engine.ops.length;
+grid.gridPad('move',0,true,90,4,8,true);grid.gridPressure('move',0,90);grid.gridPressure('move',0,10);
+grid.gridTick();seqEngineTick();assert(!anyStepHeld(),'pressure shaping never opens step focus');
+grid.gridPad('launchpad',1,true,90,8,8,true);grid.gridPressure('launchpad',1,50);grid.gridTick();
+grid.gridPad('move',0,false,0);seqEngineTick();
+assert.equal(engine.ops.slice(pressureStart).filter(op=>op.startsWith('ucommit ')).length,0,'remaining pad keeps the shared gesture open');
+grid.gridPad('launchpad',1,false,0);seqEngineTick();
+const pressureOps=engine.ops.slice(pressureStart);
+assert.deepEqual(pressureOps.filter(op=>op.startsWith('gexpr ')),['gexpr 0 0 0 24 60 0 90','gexpr 0 0 24 24 60 0 50'],'both surfaces send peak amounts to original clip');
+assert.equal(pressureOps.filter(op=>op.startsWith('usnap ')).length,1);
+assert.equal(pressureOps.filter(op=>op.startsWith('ucommit ')).length,1,'multi-pad pressure gesture is one Undo');
+pressurePage.ctl.commitEnum('grid_pressure_reverse',1);pressurePage.ctl.revalue();
+grid.gridPad('move',0,true,90,4,8,true);grid.gridPressure('move',0,100);grid.gridTick();grid.gridPressure('move',0,0);grid.gridPad('move',0,false,0);seqEngineTick();
+assert.equal(engine.ops.filter(op=>op.startsWith('gexpr ')).at(-1),'gexpr 0 0 0 24 60 0 27','Reverse retains minimum despite release pressure');
+const beforeClipChange=engine.ops.filter(op=>op.startsWith('gexpr ')).length;
+grid.gridPad('move',0,true,90,4,8,true);grid.gridPressure('move',0,80);seqState.session[0].selected=1;
+grid.gridTick();grid.gridPad('move',0,false,0);seqEngineTick();
+assert.equal(engine.ops.filter(op=>op.startsWith('gexpr ')).length,beforeClipChange,'browsing clips cancels pending pressure edits');
+grid.setGridEnabled(false);assert(!anyStepHeld());
+console.log('grid pressure: peak/reverse, both surfaces, grouped Undo and clip ownership passed');

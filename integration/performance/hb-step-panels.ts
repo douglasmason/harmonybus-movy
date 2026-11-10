@@ -20,6 +20,25 @@ export function hbPanelVisible(condition: any): boolean {
 
 export function hbStepHierarchy(hierarchy: any, mode: number): any {
     const levels = hierarchy.levels;
+    if (levels?.root) {
+        // Inline metadata uses the shared native/remote/standalone controller.
+        // The HB manifest is close to the host's 64 KiB limit.
+        const choice = (key: string, name: string, options: string[]): any =>
+            ({key, name, type: 'enum', options, options_as_string: false});
+        const pressureParams = [
+            choice('approach_pressure_row', 'Approach row', ['Row 1', 'Row 2', 'Row 3', 'Single']),
+            {key: 'approach_pressure_lane', name: 'Operation slot', type: 'int', min: 0, max: 16},
+            choice('approach_pressure_mode', 'Pressure mode', ['Off', 'Momentary', 'Tap Latch', 'Peak Latch']),
+            choice('approach_pressure_reverse', 'Direction', ['Normal', 'Reverse']),
+            {key: 'motion_operation'}, {key: 'motion_amount'},
+            {key: 'approach_pressure_prepared', name: 'Tap amount %', type: 'int', min: 0, max: 100},
+            {key: 'approach_pressure_value', name: 'Pressure', type: 'string', access: 'read'},
+        ];
+        levels.approach_pressure = {name: 'Approach Pressure', params: pressureParams,
+            knobs: pressureParams.map(parameter => parameter.key)};
+        if (!levels.root.params.some((parameter: any) => parameter.level === 'approach_pressure'))
+            levels.root.params.push({level: 'approach_pressure'});
+    }
     // A compact native hierarchy may declare controls only in its knob list.
     // Preserve discovery while chain metadata is still arriving at startup.
     for (const level of Object.values<any>(levels ?? {})) {
@@ -30,7 +49,7 @@ export function hbStepHierarchy(hierarchy: any, mode: number): any {
     }
     if (!levels?.root) return hierarchy;
     for (const [key, level] of Object.entries<any>(levels)) {
-        const visible = hiddenPanels.has(key) ? false : harmonyPlay.has(key) ? mode === 2 : operations.has(key) ? mode === 1 : motifs.has(key) ? mode === 2 : commonPanels.has(key) || mode === 0 || (mode === 1 ? performSetup : harmonySetup).has(key);
+        const visible = key === 'approach_pressure' ? mode === 0 || mode === 2 : hiddenPanels.has(key) ? false : harmonyPlay.has(key) ? mode === 2 : operations.has(key) ? mode === 1 : motifs.has(key) ? mode === 2 : commonPanels.has(key) || mode === 0 || (mode === 1 ? performSetup : harmonySetup).has(key);
         if (!visible) level.visible_if = { movyStepVisible: false };
         // Render Rhythm has multiple incoming links. Place it once, at the end.
         if (key !== 'root') level.params = level.params?.filter((p: any) => p.level !== 'motif_global');

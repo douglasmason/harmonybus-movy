@@ -1,5 +1,9 @@
 # Grid Sequencer — hbclean.200 / HarmonyBus 0.2.278
 
+hbclean.337 adds opt-in Shift + pressure editing of Velocity, Chance and Length,
+with per-pad peaks, Reverse and one Undo for overlapping contacts. These controls
+live on Grid Window K5/K6. See [Pressure performance](pressure-performance.md).
+
 Tap Session to open the mode selector, then choose Grid Sequencer. Double-click
 Session to visit Clips; double-click again in Clips to return to the prior view.
 Track buttons retain their normal track-selection meaning. Each track saves 32 row
