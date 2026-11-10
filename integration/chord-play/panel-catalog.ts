@@ -4,7 +4,7 @@ export type PanelSpec = {id:string; group:string; order:number; owner:string; kn
 const shared:Record<string,string> = {};
 function register(group:string,levels:string[]):void {for(const level of levels)shared[level]=group;}
 register('Core',['root','harmony_status','follower_touch','operations_9_16','approach_bank_0','approach_bank_1','harm_play_controls','pitch_play','secondary']);
-register('Operation Settings',['motion_operation','motion_timing','motion_conditions','harm_play_settings','motif_record','motif_tools','motifs']);
+register('Operation Settings',['motion_operation','motion_timing','motion_conditions','approach_pressure','harm_play_settings','motif_record','motif_tools','motifs']);
 register('Harmony & Scales',['global_transpose','explicit_key','track_scales','secondary_scale']);
 register('Harmony & Timing',['follower_root','next_harm','grid_timing']);
 register('Chords & Arp',['chord_player','chord_forms','arp_player']);

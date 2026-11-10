@@ -11,6 +11,7 @@ import { seqState } from './state.js';
 import { seqCmd } from './engine.js';
 import { watchedTrack } from './watch.js';
 import { undoableEdit } from '../undo/edit.js';
+import { beginEdit, endEdit, openGroupKey, CLOSE } from '../undo/group.js';
 import { trackLabel } from '../undo/label.js';
 import { markUiStateDirty } from './ui-dirty.js';
 import { createSchwungPage, type SchwungPage } from '../renderer/schwung-page.js';
@@ -51,7 +52,8 @@ let lastPaint:number[]=new Array(32).fill(-1);
 let wasActive=false;
 const pages=new Map<number,SchwungPage>();
 const touched=new Map<number,SchwungPage>();
-const held=new Map<string,{track:number;assignment:number;tick:number;duration:number;velocity:number;at:number;focus:boolean;erase:boolean}>();
+let pressureParameter=0,pressureReverse=false,pressureUndoKey:string|null=null;
+const held=new Map<string,{slot:number;expression:number;reverse:boolean;peak:number;sent:number;track:number;assignment:number;tick:number;duration:number;velocity:number;at:number;focus:boolean;erase:boolean}>();
 /** The currently visible Grid surface owns these input gestures. */
 export function gridEraseActive():boolean{return gridActive()&&gridEraseHeld;}
 export function setGridEraseHeld(value:boolean):void {
@@ -71,13 +73,13 @@ export function gridEnabled():boolean{return enabled;}
 export function gridActive():boolean{return enabled&&!seqState.sessionMode;}
 export function setGridEnabled(value:boolean):void {
     if(enabled===value)return;
-    clearNoteFocus();resetKnobLedCache();gridEraseHeld=false;
+    finishGridPressure();clearNoteFocus();resetKnobLedCache();gridEraseHeld=false;
     for(const [slot,page] of touched)page.knobTouch(slot,false);
     touched.clear();held.clear();enabled=value;lastPaint.fill(-1);queries.clear();appState.initLedsDone=false;appState.initLedIndex=0;seqCmd('gview '+Number(value));appState.dirty=true;
 }
 export function gridSnapshot():number[][]{return rows.map(row=>row.slice());}
 export function restoreGrid(value:unknown):void {
-    setGridEnabled(false);overview=true;timeline=[];occupied=[];lastWindow='';rows=Array.from({length:16},freshRows);pages.clear();events=[[],[]];queries.clear();eventTrack=-1;lastPayload='';
+    setGridEnabled(false);pressureParameter=0;pressureReverse=false;overview=true;timeline=[];occupied=[];lastWindow='';rows=Array.from({length:16},freshRows);pages.clear();events=[[],[]];queries.clear();eventTrack=-1;lastPayload='';
     for(const view of Object.values(gridViews)){view.lane=0;view.page=0;view.division=0;view.follow=true;}
     if(Array.isArray(value))value.slice(0,16).forEach((row,track)=>{if(Array.isArray(row))row.slice(0,32).forEach((assignment,index)=>{if(Number.isInteger(assignment)&&assignment>=0&&assignment<144)rows[track][index]=assignment;});});
 }
@@ -120,7 +122,9 @@ export function gridColors(surface:string,height:number,width:number):number[] {
 export function gridPad(surface:string,index:number,down:boolean,velocity:number,height=4,width=8,focus=false):boolean {
     const key=surface+':'+index;
     if(!down){
-        const owner=held.get(key);if(!owner)return gridActive();held.delete(key);
+        const owner=held.get(key);if(!owner)return gridActive();
+        if(owner.expression>=0){flushGridPressure();held.delete(key);if(![...held.values()].some(entry=>entry.expression>=0))finishGridPressure();return true;}
+        held.delete(key);
         if(!gridActive()||owner.track!==watchedTrack())return true;
         if(owner.erase){
             // A toggle on an empty cell would ADD a note. Never send gtog unless
@@ -139,7 +143,34 @@ export function gridPad(surface:string,index:number,down:boolean,velocity:number
     if(!gridActive())return false;
     const view=gridWindow(surface,width),row=Math.floor(index/width),assignment=rows[watchedTrack()][view.lane+row];
     if(index<0||row>=height||assignment===undefined)return true;
-    held.set(key,{track:watchedTrack(),assignment,tick:(view.page*width+index%width)*divisions[view.division],duration:divisions[view.division],velocity:Math.max(1,velocity),at:Date.now(),focus,erase:gridEraseHeld});return true;
+    const expression=focus&&!gridEraseHeld&&pressureParameter>0&&assignment<128?pressureParameter-1:-1;
+    if(expression>=0)view.follow=false;
+    held.set(key,{slot:seqState.session[watchedTrack()]?.selected??0,expression,reverse:pressureReverse,peak:0,sent:-1,track:watchedTrack(),assignment,tick:(view.page*width+index%width)*divisions[view.division],duration:divisions[view.division],velocity:Math.max(1,velocity),at:Date.now(),focus,erase:gridEraseHeld});return true;
+}
+/** A new press can lower a value; unloading the pad retains its peak. */
+export function gridPressure(surface:string,index:number,value:number):boolean {
+    const owner=held.get(surface+':'+index);
+    if(!owner||owner.expression<0)return gridActive();
+    if(Number.isInteger(value)&&value>0&&value<=127)owner.peak=Math.max(owner.peak,value);
+    return true;
+}
+function finishGridPressure():void {
+    if(pressureUndoKey&&openGroupKey()===pressureUndoKey)endEdit();
+    pressureUndoKey=null;
+}
+/** Coalesce pressure traffic into at most one command frame per UI tick. */
+function flushGridPressure():void {
+    const commands:string[]=[];
+    for(const owner of held.values()){
+        if(owner.expression<0||!owner.peak||owner.sent===owner.peak)continue;
+        if(!gridActive()||owner.track!==watchedTrack()||owner.slot!==(seqState.session[owner.track]?.selected??0))continue;
+        pressureUndoKey='grid-pressure:'+owner.track+':'+owner.slot;
+        beginEdit({key:pressureUndoKey,verb:'SHAPE GRID',target:trackLabel(owner.track),close:CLOSE.TOUCH_RELEASE,idleMs:1e9,seq:true});
+        const amount=owner.reverse?127-owner.peak:owner.peak;
+        commands.push(`gexpr ${owner.track} ${owner.slot} ${owner.tick} ${owner.duration} ${owner.assignment} ${owner.expression} ${amount}`);
+        owner.sent=owner.peak;
+    }
+    if(commands.length){seqCmd(commands.join(';'));appState.dirty=true;}
 }
 function gridDestination(surface:string,horizontal:number,vertical:number,height=4,width=8):[number,number] {
     const view=gridWindow(surface,width),last=Math.ceil((seqState.loopStart+Math.max(16,seqState.lenSteps))*24/(width*divisions[view.division]))-1;
@@ -172,14 +203,16 @@ function focusRow(assignment:number,tick:number,duration:number):void {
     appState.dirty=true;
 }
 const enumeration=(key:string,name:string,options:string[])=>({key,name,short_name:name,type:'enum',options,options_as_string:true,default:options[0]});
-const parameters=[...Array.from({length:4},(_,index)=>enumeration('grid_row_'+index,'Row '+(index+1),names)),enumeration('grid_div','Grid',divisionNames),enumeration('grid_page','Page',Array.from({length:256},(_,index)=>String(index+1))),enumeration('grid_bank','Lanes',Array.from({length:29},(_,index)=>String(index+1)+'-'+String(index+4))),enumeration('grid_follow','Follow',['Off','On'])];
+const parameters=[...Array.from({length:4},(_,index)=>enumeration('grid_row_'+index,'Row '+(index+1),names)),enumeration('grid_div','Grid',divisionNames),enumeration('grid_page','Page',Array.from({length:256},(_,index)=>String(index+1))),enumeration('grid_bank','Lanes',Array.from({length:29},(_,index)=>String(index+1)+'-'+String(index+4))),enumeration('grid_follow','Follow',['Off','On']),enumeration('grid_pressure','Shift + pressure',['Off','Velocity','Chance','Length']),enumeration('grid_pressure_reverse','Pressure direction',['Normal','Reverse'])];
 function gridGet(key:string):string|null {
     const view=gridWindow('move');
     if(key.startsWith('grid_row_'))return names[rows[watchedTrack()][view.lane+Number(key.slice(9))]];
     if(key==='grid_div')return divisionNames[view.division];
     if(key==='grid_page')return String(view.page+1);
     if(key==='grid_bank')return String(view.lane+1)+'-'+String(view.lane+4);
-    if(key==='grid_follow')return view.follow?'On':'Off';return null;
+    if(key==='grid_follow')return view.follow?'On':'Off';
+    if(key==='grid_pressure')return ['Off','Velocity','Chance','Length'][pressureParameter];
+    if(key==='grid_pressure_reverse')return pressureReverse?'Reverse':'Normal';return null;
 }
 function gridSet(key:string,value:string):void {
     const view=gridWindow('move');
@@ -187,7 +220,9 @@ function gridSet(key:string,value:string):void {
     if(key==='grid_div'){const division=divisionNames.indexOf(value);if(division>=0){view.division=division;view.page=0;}}
     if(key==='grid_page'){view.follow=false;view.page=Math.max(0,Math.min(255,Number(value)-1));}
     if(key==='grid_bank')view.lane=Math.max(0,Math.min(28,Number(value.split('-')[0])-1));
-    if(key==='grid_follow')view.follow=value==='On';appState.dirty=true;
+    if(key==='grid_follow')view.follow=value==='On';
+    if(key==='grid_pressure'){const parameter=['Off','Velocity','Chance','Length'].indexOf(value);if(parameter>=0)pressureParameter=parameter;}
+    if(key==='grid_pressure_reverse')pressureReverse=value==='Reverse';appState.dirty=true;
 }
 export function gridPage():SchwungPage {
     const track=watchedTrack();let page=pages.get(track);if(page)return followPanel(page);
@@ -221,7 +256,7 @@ export function gridMidi(data:number[]):boolean {
     if(noteFocus&&type===176&&key>=71&&key<=78){editStepPageKnob(key-71,value<64?value:value-128);appState.dirty=true;return true;}
     if(noteFocus&&(type===128||type===144)&&key<8){setStepTouchedKnob(down?key:-1);appState.dirty=true;return true;}
     if((type===128||type===144)&&key>=68&&key<100)return gridPad('move',key-68,down,value,4,8,appState.shiftHeld);
-    if(type===160&&key>=68&&key<100)return true;
+    if(type===160&&key>=68&&key<100)return gridPressure('move',key-68,value);
     if(type===176&&[62,63,54,55].includes(key)){if(value)gridNavigate('move',key===62?-1:key===63?1:0,key===54?-1:key===55?1:0);return true;}
     if(type===176&&key===14){
         const delta=value<64?value:value-128;
@@ -255,6 +290,7 @@ export function renderGrid():void {
 }
 
 export function gridTick():void {const active=gridActive();if(active!==wasActive){lastPaint.fill(-1);wasActive=active;}if(active){
+    flushGridPressure();
     const view=gridWindow('move'),signature=[watchedTrack(),view.page,view.lane,view.division,seqState.playing,Math.floor(seqState.posTick/divisions[view.division])].join(':');
     if(signature!==lastWindow){lastWindow=signature;appState.dirty=true;}
     gridTouchPage()?.tick();

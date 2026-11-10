@@ -724,6 +724,8 @@ def main() -> int:
     patch_cloud_generator(root)
     from patch_euclidean_surface import patch_euclidean_surface
     patch_euclidean_surface(root)
+    from patch_grid import finalize_grid_expression
+    finalize_grid_expression(root)
     print("HarmonyBus clean integration applied")
     return 0
 
