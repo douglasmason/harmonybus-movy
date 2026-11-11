@@ -5,9 +5,6 @@
 #include "host/plugin_api_v1.h"
 #include <assert.h>
 #include <dlfcn.h>
-#include <execinfo.h>
-#include <signal.h>
-#include <unistd.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -72,9 +69,7 @@ static host_api_v1_t host={.api_version=1,.sample_rate=44100,.frames_per_block=1
     .get_bpm=bpm,.get_beat_position=position,.get_clock_status=clock_status};
 static const plugin_api_v2_t *api;
 static void *instance;
-static int trace_position;
-static void position_crash(int signal_number){void *frames[32];int count=backtrace(frames,32);backtrace_symbols_fd(frames,count,2);_exit(128+signal_number);}
-static void set(const char *key,const char *value){if(trace_position)fprintf(stderr,"position set %s=%s\n",key,value);api->set_param(instance,key,value);}
+static void set(const char *key,const char *value){api->set_param(instance,key,value);}
 static long render(int blocks){
     long energy=0;int16_t output[256];
     for(int block=0;block<blocks;block++){
@@ -143,7 +138,6 @@ static void test_field_lfos(void){
 
 #ifdef HB_TEST_SEQUENCE_POSITION
 static void test_sequence_positions(void){
-    fprintf(stderr,"sequence position: setup\n");trace_position=1;signal(SIGSEGV,position_crash);
     set("cmd","stop");render(16);
     set("ch0:midi_fx1:performance_reset","1");
     set("ch3:midi_fx1:role","Follower");set("ch3:midi_fx1:render_channel","4");
@@ -159,14 +153,12 @@ static void test_sequence_positions(void){
     set("ch3:lfo1:target","midi_fx1");set("ch3:lfo1:target_param","sequence_input_1");
     set("ch3:lfo1:shape","3");set("ch3:lfo1:sync","0");set("ch3:lfo1:rate_hz","0.1");
     set("ch3:lfo1:phase_offset","0");set("ch3:lfo1:depth","1");set("ch3:lfo1:polarity","1");set("ch3:lfo1:enabled","1");render(16);
-    fprintf(stderr,"sequence position: start driven playback\n");
     sent_on=sent_off=0;set("cmd","play");assert(render(16)>0);
     assert(field_get("ch3:synth:cutoff")==96);
     set("ch3:lfo1:phase_offset","0.5");render(16);assert(field_get("ch3:synth:cutoff")==0);
     set("ch3:lfo1:enabled","0");render(16);assert(field_get("ch3:synth:cutoff")==90);
     set("ch3:midi_fx1:sequence_input_1","0.25");render(16);assert(field_get("ch3:synth:cutoff")==45);
     assert(sent_on==1&&sent_off==0); // Position never retriggers the held voice.
-    fprintf(stderr,"sequence position: Field takeover\n");
     set("ch0:midi_fx1:field_glide","0");
     set("ch0:midi_fx1:field_outputs","fo1,5000,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1");
     set("cmd","source 3 0 -1 -1 -1 -1 0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 0 0 -1 100 1 0 3 0");
@@ -178,7 +170,6 @@ static void test_sequence_positions(void){
     assert(sent_on==1&&sent_off==0);
     set("cmd","stop");render(16);assert(field_get("ch3:synth:cutoff")==19);assert(sent_on==sent_off);
     set("ch0:midi_fx1:field_outputs","fo1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1");
-    trace_position=0;signal(SIGSEGV,SIG_DFL);
     puts("sequence position: stock LFO and shared Field overrides drive numeric automation, preserve voices and restore base on stop");
 }
 #endif
