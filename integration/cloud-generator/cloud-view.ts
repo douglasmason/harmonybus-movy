@@ -19,7 +19,7 @@ export function cloudFade(point:CloudPoint,settings:TrailSettings):number {
  return trailFade(point.age,settings.decayBeats,settings.curve,settings.exponent,settings.floor,settings.peak)*settings.strength*point.pressure;
 }
 /** Wrap preserves overshoot on either side; a bounded cursor stops at the edge. */
-export function cloudCoordinate(value:number,wrap:boolean):number {return wrap?((value%128)+128)%128:Math.max(0,Math.min(127,value));}
+export function cloudCoordinate(value:number,wrap:boolean,maximum=127):number {return wrap?((value%(maximum+1))+(maximum+1))%(maximum+1):Math.max(0,Math.min(maximum,value));}
 export function cloudCells(snapshot:CloudSnapshot,width:number,height:number,settings:TrailSettings,flipped=false):number[] {
  const colors=Array(width*height).fill(0),strength=Array(width*height).fill(0),age=Array(width*height).fill(Infinity);
  const cell=(point:CloudPoint)=>{const projected=cloudPosition(point,flipped);return Math.round(projected.y*(height-1))*width+Math.round(projected.x*(width-1));};

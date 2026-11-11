@@ -54,14 +54,15 @@ export function cloudRemoteAction(message:string):void {
  else if(action==='edge'&&fields.length===1)cloudWrite('cg_edge',fields[0]);
  else if(action==='activity'&&fields.length===1)cloudWrite('cg_activity',fields[0]);
  else if(action==='axes'&&fields.length===1&&['pitch-x','pitch-y'].includes(fields[0]))cloudWrite('cg_axes',fields[0]==='pitch-x'?'Pitch / Activity':'Activity / Pitch');
- else if(action==='draw'&&fields.length===2&&['x','y'].includes(fields[0])&&Number.isInteger(Number(fields[1]))&&Math.abs(Number(fields[1]))<=127)cloudTurn('cg_'+fields[0],Number(fields[1]));
+ else if(action==='pressure'&&fields.length===1)cloudWrite('cg_pressure',fields[0]);
+ else if(['draw','drawfine'].includes(action)&&fields.length===2&&['x','y'].includes(fields[0])&&Number.isInteger(Number(fields[1]))&&Math.abs(Number(fields[1]))<=127)cloudTurn('cg_'+fields[0],Number(fields[1]),action==='drawfine');
  else if(['explore','bake','restore'].includes(action)&&fields.length===0)generatorTouch('cg_'+action,track,true);
  else if(action==='hold'&&fields.length===1&&['0','1'].includes(fields[0])){flushCloudPressure();generatorCloudHold(fields[0]==='1',track);}
  else if(action==='clear'&&fields.length===0){releaseCloud();seqCmd(`gcloud ${track} clear`);seqCmdFlush();}
 }
 export function cloudRemoteSnapshot():string {
  const track=generatorSelectedTrack();
- return JSON.stringify({xyBits:14,ready:engineReady(),canBake:generatorCanBake(track),actor:generatorActor(),track,slot:generatorClipSlot(track),transport:{playing:seqState.playing,...generatorRecording()},euclidean:generatorEuclideanView(track),euclideanValues:generatorEuclidean(track)?[...euclideanControls.map(field=>generatorRead('cg_euclid_'+field,track)),generatorRead('cg_intensity',track)]:null,cloud:generatorCloud(),holding:generatorCloudHeld(track),values:cloudControls.map(field=>Number(generatorRead('cg_cloud_'+field,track))),seed:generatorRead('cg_seed',track),explore:generatorRead('cg_explore',track),footer:generatorFooter(track),x:Number(cloudRead('cg_x')),y:Number(cloudRead('cg_y')),edge:cloudRead('cg_edge'),axes:cloudRead('cg_axes'),activity:cloudRead('cg_activity'),trail:trailStyle().settings});
+ return JSON.stringify({xyBits:14,drawBits:14,pressure:Number(cloudRead('cg_pressure')),ready:engineReady(),canBake:generatorCanBake(track),actor:generatorActor(),track,slot:generatorClipSlot(track),transport:{playing:seqState.playing,...generatorRecording()},euclidean:generatorEuclideanView(track),euclideanValues:generatorEuclidean(track)?[...euclideanControls.map(field=>generatorRead('cg_euclid_'+field,track)),generatorRead('cg_intensity',track)]:null,cloud:generatorCloud(),holding:generatorCloudHeld(track),values:cloudControls.map(field=>Number(generatorRead('cg_cloud_'+field,track))),seed:generatorRead('cg_seed',track),explore:generatorRead('cg_explore',track),footer:generatorFooter(track),x:Number(cloudRead('cg_x')),y:Number(cloudRead('cg_y')),edge:cloudRead('cg_edge'),axes:cloudRead('cg_axes'),activity:cloudRead('cg_activity'),trail:trailStyle().settings});
 }
 export function tickCloudRemote(now=Date.now()):void {
  if(!engineReady()||!cloudRemoteRequested||now-lastPoll<50)return;lastPoll=now;

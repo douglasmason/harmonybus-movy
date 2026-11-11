@@ -6,6 +6,37 @@ Strokes, captured Hold emitters, recorded clips and recipes retain the finer
 coordinates. Legacy clips and hardware gestures retain their existing musical
 results. Cloud generation still produces harmony-aware, quantized notes.
 
+## Precise knob drawing and pressure (hbclean.344)
+
+On **Cloud X / Y**, K1/K2 draw X/Y. Ordinary turns move 129 units on the
+14-bit field; **Shift + turn** moves one unit. The existing 0–127 control range
+is retained, with fractional coordinates in fine mode. **K6 Draw Pressure**
+replaces Seed on this page; Seed remains available in the cloud web editor.
+
+Remote UI and standalone share **Drawing precision → Coarse / Fine** and
+**Draw pressure**. Shift-click or Shift-wheel temporarily chooses fine drawing.
+The pressure control changes the current knob stroke, and supplies Z for the
+next stroke. It never starts a stroke by itself. Idle knob contacts release after
+300 ms, flushing the last pressure change before release.
+
+X/Y use the same 14-bit contact protocol as fingers and MPE. Bounded stops at
+an edge; Wrap crosses the complete 14-bit field and ends the old segment first,
+so the cloud does not draw a line across the opposite edges. Axes can still be
+swapped. Fine positions and drawing pressure flow through existing Hold,
+recording, saved strokes, replay and Bake; the renderer has no separate knob path.
+
+Cloud Z scales generated note velocity with the existing Dynamics control.
+Move/Launchpad aftertouch and touchscreen/MPE pressure retain their own per-contact
+values: Draw Pressure only controls the knob cursor. Pressure returning to zero
+while a pad remains held still does not release it. An iPad without measured
+force has precise X/Y but no invented force sensing.
+
+This complements the shared [pressure operation mappings](pressure-performance.md),
+[repeat](pressure-repeat.md) and [Chord Spread](chord-spread.md); those assignments
+and latch modes are unchanged. This change does not map cloud Z to arbitrary
+synth parameters or add MPE pitch output. Drawing pressure settings persist;
+live cursor contacts do not restart when restoring a set.
+
 ## Touch and playing pads
 
 Open **Follower generators → Cloud**, choose an actor and Cloud, then draw.
