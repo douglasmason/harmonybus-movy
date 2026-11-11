@@ -9,13 +9,15 @@ def patch_source_routing(root: Path) -> None:
     core: Path = root / 'engine/crates/seq-core/src'
     (core / 'source_route.rs').write_text((assets / 'source_route.rs').read_text())
     (core / 'automation_reader.rs').write_text((assets / 'automation_reader.rs').read_text())
+    (core / 'position_inputs.rs').write_text((assets / 'position_inputs.rs').read_text())
     path: Path = core / 'lib.rs'
-    path.write_text(path.read_text() + '\npub mod source_route;\npub mod automation_reader;\n')
+    path.write_text(path.read_text() + '\npub mod source_route;\npub mod automation_reader;\npub mod position_inputs;\n')
     path = core / 'engine.rs'
     source: str = path.read_text()
     source = replace_once(source, 'struct Gate {', 'struct Gate {\n    clock_track: u8,')
     source = replace_once(source, 'pub struct Engine {', '''pub struct Engine {
     pub source_routes: [crate::source_route::Route; NUM_TRACKS],
+    pub source_position_inputs: crate::position_inputs::Inputs,
     source_cursors: [crate::source_route::Cursor; NUM_TRACKS],
     source_positions: [u32; NUM_TRACKS],
     source_playing_slots: [Option<usize>; NUM_TRACKS],
@@ -24,6 +26,7 @@ def patch_source_routing(root: Path) -> None:
     source_automation_cache: [[Option<crate::automation_reader::Cache>;8];NUM_TRACKS],
     source_automation_mask: [u8; NUM_TRACKS],''')
     source = replace_once(source, '            hb_weave:', '''            source_routes: [Default::default(); NUM_TRACKS],
+            source_position_inputs: Default::default(),
             source_cursors: [Default::default(); NUM_TRACKS],
             source_positions: [0; NUM_TRACKS],
             source_playing_slots: [None; NUM_TRACKS],
@@ -192,6 +195,11 @@ impl Engine {
         hierarchy.levels[automationLevel]={name:name+' Source Automation',knobs:automationKeys,params:automationKeys.map(key=>({key}))};
         hierarchy.levels['joint_actor_'+role].params.push({level:automationLevel});
         root.params.push({level:automationLevel});
+        const positionLevel='joint_source_position_'+role;
+        const positionKeys=allSourceKeys.slice(24,26);
+        hierarchy.levels[positionLevel]={name:name+' Sequence Position',knobs:positionKeys,params:positionKeys.map(key=>({key}))};
+        hierarchy.levels['joint_actor_'+role].params.push({level:positionLevel});
+        root.params.push({level:positionLevel});
         hierarchy.levels[sourceLevel]={name:name+' Sources',knobs:routeKeys,params:[...routeKeys.map(key=>({key})),{level:expressionLevel}]};
         hierarchy.levels['joint_actor_'+role].params.push({level:sourceLevel});
         root.params.push({level:sourceLevel});

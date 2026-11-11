@@ -30,11 +30,12 @@ impl Engine {
             let recording=self.recording && self.records_track(actor);
             let routed=sources.map(|source|route.enabled && source.is_some() && !recording);
             let requested=[route.instrument_linear,route.hb_render_linear];
+            let positions=[route.instrument_driver,route.hb_render_driver].map(|driver|if recording {None}else{self.source_position_inputs.position(actor,driver)});
             let linear=std::array::from_fn::<_,2,_>(|dimension|requested[dimension] && !recording &&
                 (0..8).any(|lane|self.tracks[actor].lane_assigned[lane] && self.tracks[actor].lane_numeric[lane] &&
                     crate::source_route::continuous_destination(&self.tracks[actor].lane_label[lane]) &&
                     crate::source_route::automation_dimension(&self.tracks[actor].lane_label[lane])==Some(dimension)));
-            if !routed.iter().any(|enabled|*enabled) && !linear.iter().any(|enabled|*enabled) && self.source_automation_mask[actor]==0 {continue;}
+            if !routed.iter().any(|enabled|*enabled) && !linear.iter().any(|enabled|*enabled) && positions.iter().all(Option::is_none) && self.source_automation_mask[actor]==0 {continue;}
             let own=self.tracks[actor].playing_slot.and_then(|slot|
                 self.source_automation_phase(ClipRef{track:actor,slot})).map(|(reference,step,cycle)|(reference.slot,step,cycle));
             let donors=std::array::from_fn(|dimension|if routed[dimension] {sources[dimension].and_then(|reference| {
@@ -48,7 +49,7 @@ impl Engine {
                     donor_clip.loop_start_ticks(),donor_clip.length_ticks());
                 Some((reference,position,cycle))
             })} else {None});
-            let phase=AutomationPhase{own,donors,routed,linear};
+            let phase=AutomationPhase{own,donors,routed,linear,positions};
             let seen=self.source_automation_seen[actor];
             if seen.is_some_and(|previous|(0..2).all(|dimension|previous.same_dimension(phase,dimension,linear[dimension]))) {continue;}
             self.source_automation_seen[actor]=Some(phase);
@@ -62,8 +63,9 @@ impl Engine {
                 let routed=routed[dimension];
                 let donor=donors[dimension];
                 let continuous=linear[dimension] && track.lane_numeric[lane] && crate::source_route::continuous_destination(label);
-                if !((routed || continuous) && own.is_some()) && previous & (1<<lane)==0 {continue;}
-                let owns=(routed || continuous) && track.playing_slot.is_some_and(|slot|track.clips[slot].exists());
+                let position=positions[dimension].filter(|_|track.lane_numeric[lane]&&crate::source_route::continuous_destination(label));
+                if !((routed || continuous || position.is_some()) && own.is_some()) && previous & (1<<lane)==0 {continue;}
+                let owns=(routed || continuous || position.is_some()) && track.playing_slot.is_some_and(|slot|track.clips[slot].exists());
                 if owns {managed |= 1<<lane;}
                 if previous & (1<<lane)!=0 && seen.is_some_and(|old|old.same_dimension(phase,dimension,continuous)) {continue;}
                 let borrowed=donor.and_then(|(reference,tick,_)| {
@@ -74,10 +76,11 @@ impl Engine {
                 let selected=own.and_then(|(slot,tick,_)|borrowed.or(Some((ClipRef{track:actor,slot},lane,tick))));
                 let value=selected.map_or(track.lane_base[lane],|(reference,source_lane,tick)| {
                     let source=&self.tracks[reference.track];let clip=&source.clips[reference.slot];
+                    let tick=position.map_or(f64::from(tick),|value|crate::position_inputs::tick(clip,value));
                     if continuous {
-                        crate::automation_reader::read(&mut self.source_automation_cache[actor][lane],clip,reference,
-                            source_lane as u8,source.lane_base[source_lane],f64::from(tick),self.recording)
-                    } else {clip.effective_at(source_lane as u8,(tick/TICKS_PER_STEP) as u16,source.lane_base[source_lane])}
+                        crate::automation_reader::read_mode(&mut self.source_automation_cache[actor][lane],clip,reference,
+                            source_lane as u8,source.lane_base[source_lane],tick,self.recording,position.is_some())
+                    } else {clip.effective_at(source_lane as u8,(tick/f64::from(TICKS_PER_STEP)) as u16,source.lane_base[source_lane])}
                 });
                 // A muted actor must keep its base until unmuted; otherwise
                 // the ordinary muted-track scheduler can reapply its locks.

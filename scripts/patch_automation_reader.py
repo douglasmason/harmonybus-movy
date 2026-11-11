@@ -113,4 +113,4 @@ const liveVal = new Map<string, number>();''')
     path.write_text(source)
     for relative in ("src/seq/constants.ts", "engine/crates/movy-dsp/src/lib.rs"):
         path = root / relative
-        path.write_text(path.read_text().replace("0.105.0-cloud4", "0.107.0-cloud-xy1"))
+        path.write_text(path.read_text().replace("0.105.0-cloud4", "0.108.0-position1"))

@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.340",
-  "previous_version": "0.34.1-hbclean.339",
+  "version": "0.34.1-hbclean.341",
+  "previous_version": "0.34.1-hbclean.340",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.340 — Precise cloud X/Y and MPE input",
-  "notes": "docs/expressive-cloud-input.md",
+  "title": "Movy 0.34.1-hbclean.341 \u2014 LFO and Field sequence positions",
+  "notes": "docs/sequence-position.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

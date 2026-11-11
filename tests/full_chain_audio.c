@@ -135,6 +135,45 @@ static void test_field_lfos(void){
     assert(field_get("ch0:lfo1:shape")==0&&field_get("ch0:synth:cutoff:effective")==20);
     puts("Field LFOs: real Movy source selection, two routes, bypass/resume, save/restore and stock waveform return pass");
 }
+
+#ifdef HB_TEST_SEQUENCE_POSITION
+static void test_sequence_positions(void){
+    set("cmd","stop");render(16);
+    set("ch0:midi_fx1:performance_reset","1");
+    set("ch3:midi_fx1:role","Follower");set("ch3:midi_fx1:render_channel","4");
+    set("ch3:midi_fx1:content_map","Free");set("ch3:midi_fx1:travel_map","None");
+    set("ch3:midi_fx1:chord_mode","Off");set("ch3:midi_fx1:arp_playback","Together");
+    set("ch3:mix","1,0,0,0,0");
+    set("state","movy1\nbpm 12000\nlink 0\ntk 3 0 0\ncl 3 0 16 0 0:384:60:100:0\n");render(16);
+    set("ch3:knob_2_set","synth:cutoff");
+    char view[8192];api->get_param(instance,"ch3:chain_params",view,sizeof(view));
+    set("cmd","alabel 3 1 synth:cutoff;akind 3 1 1 synth:cutoff;abase 3 1 19;aset 3 1 0 0;aset 3 1 8 96");
+    set("cmd","source 3 0 -1 -1 -1 -1 0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 0 0 -1 100 1 0 1 0");
+    set("ch3:midi_fx1:sequence_input_1","0.5");
+    set("ch3:lfo1:target","midi_fx1");set("ch3:lfo1:target_param","sequence_input_1");
+    set("ch3:lfo1:shape","3");set("ch3:lfo1:sync","0");set("ch3:lfo1:rate_hz","0.1");
+    set("ch3:lfo1:phase_offset","0");set("ch3:lfo1:depth","1");set("ch3:lfo1:polarity","1");set("ch3:lfo1:enabled","1");render(16);
+    sent_on=sent_off=0;set("cmd","play");assert(render(16)>0);
+    assert(field_get("ch3:synth:cutoff")==96);
+    set("ch3:lfo1:phase_offset","0.5");render(16);assert(field_get("ch3:synth:cutoff")==0);
+    set("ch3:lfo1:enabled","0");render(16);assert(field_get("ch3:synth:cutoff")==90);
+    set("ch3:midi_fx1:sequence_input_1","0.25");render(16);assert(field_get("ch3:synth:cutoff")==45);
+    assert(sent_on==1&&sent_off==0); // Position never retriggers the held voice.
+    set("ch0:midi_fx1:field_glide","0");
+    set("ch0:midi_fx1:field_outputs","fo1,5000,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1");
+    set("cmd","source 3 0 -1 -1 -1 -1 0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 0 0 -1 100 1 0 3 0");
+    render(16);assert(field_get("ch3:synth:cutoff")==90);
+    set("ch0:midi_fx1:field_outputs","fo1,10000,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1");
+    render(16);assert(field_get("ch3:synth:cutoff")==96);
+    set("ch0:midi_fx1:field_outputs","fo1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1");
+    render(16);assert(field_get("ch3:synth:cutoff")==0);
+    assert(sent_on==1&&sent_off==0);
+    set("cmd","stop");render(16);assert(field_get("ch3:synth:cutoff")==19);assert(sent_on==sent_off);
+    set("ch0:midi_fx1:field_outputs","fo1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1");
+    puts("sequence position: stock LFO and shared Field overrides drive numeric automation, preserve voices and restore base on stop");
+}
+#endif
+
 static void test_shared_context(void){
     char state[65536],view[2048];
     set("ch0:midi_fx1:performance_reset","1");
@@ -849,6 +888,9 @@ int main(int argc,char **argv){
     test_source_weaving();
     test_diagnostic_tone();
     test_field_lfos();
+#ifdef HB_TEST_SEQUENCE_POSITION
+    test_sequence_positions();
+#endif
     test_drum_fill_output();
     test_drum_destination();
     test_drum_clip_fill();
