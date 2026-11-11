@@ -138,6 +138,7 @@ static void test_field_lfos(void){
 
 #ifdef HB_TEST_SEQUENCE_POSITION
 static void test_sequence_positions(void){
+    fprintf(stderr,"sequence position: setup\n");
     set("cmd","stop");render(16);
     set("ch0:midi_fx1:performance_reset","1");
     set("ch3:midi_fx1:role","Follower");set("ch3:midi_fx1:render_channel","4");
@@ -153,12 +154,14 @@ static void test_sequence_positions(void){
     set("ch3:lfo1:target","midi_fx1");set("ch3:lfo1:target_param","sequence_input_1");
     set("ch3:lfo1:shape","3");set("ch3:lfo1:sync","0");set("ch3:lfo1:rate_hz","0.1");
     set("ch3:lfo1:phase_offset","0");set("ch3:lfo1:depth","1");set("ch3:lfo1:polarity","1");set("ch3:lfo1:enabled","1");render(16);
+    fprintf(stderr,"sequence position: start driven playback\n");
     sent_on=sent_off=0;set("cmd","play");assert(render(16)>0);
     assert(field_get("ch3:synth:cutoff")==96);
     set("ch3:lfo1:phase_offset","0.5");render(16);assert(field_get("ch3:synth:cutoff")==0);
     set("ch3:lfo1:enabled","0");render(16);assert(field_get("ch3:synth:cutoff")==90);
     set("ch3:midi_fx1:sequence_input_1","0.25");render(16);assert(field_get("ch3:synth:cutoff")==45);
     assert(sent_on==1&&sent_off==0); // Position never retriggers the held voice.
+    fprintf(stderr,"sequence position: Field takeover\n");
     set("ch0:midi_fx1:field_glide","0");
     set("ch0:midi_fx1:field_outputs","fo1,5000,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1");
     set("cmd","source 3 0 -1 -1 -1 -1 0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 0 0 -1 100 1 0 3 0");
