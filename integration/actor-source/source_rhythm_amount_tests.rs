@@ -33,6 +33,17 @@ mod source_rhythm_amount_tests {
     }
 
     #[test]
+    fn answer_offbeats_preserves_own_accents_and_is_order_independent() {
+        for donor in [0,4] {
+            let mut engine=fixture(donor,100);let mut route=engine.source_routes[3];route.rhythm_answer=true;
+            assert!(engine.source_route_set(&route.message(3)));
+            assert_eq!(crate::source_route::Route::parse(&route.message(3)),Some((3,route)));
+            assert_eq!(onsets(&mut engine,384),vec![(0,60),(96,62),(144,64),(192,65)]);
+            route.rhythm_amount=0;let mut own=fixture(donor,0);assert!(own.source_route_set(&route.message(3)));
+            assert_eq!(onsets(&mut own,384),vec![(0,60),(48,62),(96,64),(192,65)]);
+        }
+    }
+    #[test]
     fn rhythm_amount_endpoints_and_repeatable_blends_keep_pitch_and_expression() {
         for donor in [0,4] {
             for (amount,expected) in [(0,vec![0,48,96,192]),(50,vec![0,48,96,144,192]),

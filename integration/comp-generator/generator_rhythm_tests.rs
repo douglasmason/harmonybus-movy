@@ -41,6 +41,15 @@ mod generator_rhythm_tests {
     }
 
     #[test]
+    fn generated_answer_keeps_beat_accents_and_borrows_only_offbeats() {
+        for donor in [0,4] {
+            let mut engine=fixture(donor,100);engine.source_routes[3].rhythm_answer=true;
+            let events=trace(&mut engine,384);
+            assert_eq!(attacks(&events).into_iter().map(|(position,_,_)|position).collect::<Vec<_>>(),vec![0,53,96,192,288]);
+            finish(&mut engine,&events);
+        }
+    }
+    #[test]
     fn generated_receiver_samples_own_phrase_not_donor_pitch_or_hit_count() {
         for donor in [0,4] {
             let mut engine=fixture(donor,100);let events=trace(&mut engine,384);

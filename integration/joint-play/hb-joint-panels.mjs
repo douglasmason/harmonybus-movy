@@ -155,7 +155,7 @@ const sourceRoutes=new Map();
 globalThis.host_module_get_param=key=>key.startsWith('source_route_')?(sourceRoutes.get(Number(key.slice(13)))??`${key.slice(13)} 0 -1 -1 -1 -1 0`):nativeGet(key);
 globalThis.host_module_set_param_blocking=(key,value,timeout)=>{
  if(key==='cmd')for(const command of value.split(';'))if(command.startsWith('source ')){
-  const fields=command.slice(7).split(' ').map(Number);assert.equal(fields.length,23);sourceRoutes.set(fields[0],fields.join(' '));
+  const fields=command.slice(7).split(' ').map(Number);assert([23,28].includes(fields.length));sourceRoutes.set(fields[0],fields.join(' '));
  }
  return nativeSet?.(key,value,timeout);
 };
@@ -238,6 +238,14 @@ for(const group of [0,3]){
  assert.equal(page.performanceGet('joint_source_3_pitch_track'),'Own','external state edits read back');
  assert.equal(page.performanceGet('joint_source_3_rhythm_pitch'),'All','legacy routes keep all lanes');
  assert.equal(page.performanceGet('joint_source_3_rhythm_amount'),'100','legacy routes follow fully');
+ assert.equal(page.performanceGet('joint_source_3_rhythm_answer'),'Follow');
+ const answerPage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_source_3_rhythm_answer'));
+ assert(answerPage>=0);page.goToPage(answerPage);page.ctl.revalue();flush(page);
+ page.knobTurn(3,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[27],'1');
+ assert.equal(page.performanceGet('joint_source_3_rhythm_answer'),'Answer Offbeats');
+ page.knobTurn(3,-4);flush(page);
+ assert.equal(page.performanceGet('joint_source_3_rhythm_answer'),'Follow');
  const encoded=[actor,1,-1,-1,0,0,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,0,127];
  sourceRoutes.set(actor,encoded.join(' '));flush(page);
  assert.equal(page.performanceGet('joint_source_3_rhythm_pitch'),'Note 127','custom kit lanes read back');

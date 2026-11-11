@@ -131,10 +131,10 @@ def patch_comp_generator(root: Path) -> None:
             Some("pr1")=>{''')
     path.write_text(source)
     path = core / 'command.rs'
-    source = replace_once(path.read_text(),'            if verb=="filllibrary"', '            if verb=="guser" {engine.generator_user_set(op,out);continue;}\n            if verb=="gexplore" {engine.generator_explore_set(op,out);continue;}\n            if verb=="gpreview" {engine.generator_preview_set(op,out);continue;}\n            if verb=="grestore" {engine.generator_follow_set(op);continue;}\n            if verb=="filllibrary"')
+    source = replace_once(path.read_text(),'            if verb=="filllibrary"', '            if verb=="gvariation" {engine.generator_variation_set(op,out);continue;}\n            if verb=="guser" {engine.generator_user_set(op,out);continue;}\n            if verb=="gexplore" {engine.generator_explore_set(op,out);continue;}\n            if verb=="gpreview" {engine.generator_preview_set(op,out);continue;}\n            if verb=="grestore" {engine.generator_follow_set(op);continue;}\n            if verb=="filllibrary"')
     source = source.replace('| "clipfill"', '| "gbake" | "clipfill"')
     source = replace_once(source,'        "clipfill" =>', '        "gbake" => engine.generator_bake(op,out),\n        "clipfill" =>')
-    source = replace_once(source, '"play" | "stop"', '"grestore" | "gexplore" | "gpreview" | "guser" | "play" | "stop"')
+    source = replace_once(source, '"play" | "stop"', '"gvariation" | "grestore" | "gexplore" | "gpreview" | "guser" | "play" | "stop"')
     path.write_text(source)
     path = root / 'engine/crates/movy-dsp/src/lib.rs'
     source = replace_once(path.read_text(),'    fn drain_out(&mut self) {','    fn drain_out(&mut self) {\n        self.joint_links.generator_mask=self.engine.generator_mask();')
@@ -154,7 +154,7 @@ def patch_comp_generator(root: Path) -> None:
     path.write_text(source)
     path = root / 'src/undo/verbs.ts'
     source = path.read_text().replace("'clipfill',", "'gbake', 'clipfill',")
-    source = replace_once(source, "'play', 'stop'", "'grestore', 'gexplore', 'gpreview', 'guser', 'play', 'stop'")
+    source = replace_once(source, "'play', 'stop'", "'gvariation', 'grestore', 'gexplore', 'gpreview', 'guser', 'play', 'stop'")
     path.write_text(source)
     path = root / 'src/seq/lane-mapping.ts'
     source = replace_once(path.read_text(),'    const sep = targetParam.indexOf', "    if(targetParam.startsWith('generator:'))return true;\n    const sep = targetParam.indexOf")

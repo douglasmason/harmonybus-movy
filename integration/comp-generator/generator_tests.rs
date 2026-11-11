@@ -546,6 +546,49 @@
         command(&mut engine,"gpreview 2 0 2 11;play");ticks(&mut engine,10);command(&mut engine,"grestore 2 0");
         ticks(&mut engine,111);assert_eq!(engine.generator_explore[2].unwrap().touched,0,"a trimmed loop restores style at its own start without waiting for an unreachable bar");
     }
+    #[test] fn generator_variation_is_transient_restorable_and_records_a_fork() {
+        for bass in [false,true] {
+            let (mut engine,payload)=saved_user_recipe(bass);
+            let original=engine.tracks[2].clips[0].clone();let before=engine.undo_snapshot();engine.dirty=false;
+            command(&mut engine,"gvariation 2 0 1234");
+            assert!(engine.generator_result.starts_with("Variation audition"),"{}",engine.generator_result);
+            assert_eq!(engine.generator_explore[2].unwrap().desired.seed,1234);
+            engine.play();ticks(&mut engine,390);
+            assert_eq!(engine.generator_explore[2].unwrap().current.seed,1234);
+            assert_eq!(engine.undo_snapshot(),before);assert!(!engine.dirty);
+            command(&mut engine,"grestore 2 0");ticks(&mut engine,384);
+            assert_eq!(engine.generator_explore[2].unwrap().current.seed,37);
+            command(&mut engine,"stop");
+            assert_eq!(engine.undo_snapshot(),before);
+            command(&mut engine,"gvariation 2 0 1234;rec 2");
+            assert!(engine.generator_result.contains("empty actor clip"));assert!(!engine.part_recording_busy());
+            engine.tracks[2].active_clip=1;
+            command(&mut engine,"rec 2");ticks(&mut engine,crate::TICKS_PER_BAR-1+1536);
+            command(&mut engine,"rec 2;stop");
+            assert_eq!(engine.tracks[2].clips[0].generator,original.generator);
+            assert_eq!(engine.tracks[2].clips[0].locks,original.locks);
+            assert_eq!(engine.tracks[2].clips[1].generator.unwrap().seed,1234);
+            // Library and recorded forks share the same seed adoption path.
+            let mut fork=fixture();
+            command(&mut fork,&format!("guser 2 {} {payload};gvariation 2 0 1234;rec 2",if bass{"bass"}else{"comp"}));
+            ticks(&mut fork,crate::TICKS_PER_BAR-1);
+            let performed=ticks(&mut fork,1536);
+            command(&mut fork,"gvariation 2 0 9");assert!(fork.generator_result.contains("locked"));
+            command(&mut fork,"rec 2;stop");
+            let clip=&fork.tracks[2].clips[0];assert_eq!(clip.generator.unwrap().seed,1234);
+            assert_eq!(clip.locks,original.locks);assert_eq!(clip.recipe,original.recipe);
+            let saved=fork.undo_snapshot();let mut replay=fixture();assert!(crate::persist::load(&mut replay,&saved));
+            replay.play();assert_eq!(ticks(&mut replay,1536),performed);
+        }
+    }
+    #[test] fn generator_variation_invalid_inputs_leave_source_unchanged() {
+        let (mut engine,_)=saved_user_recipe(false);let before=engine.undo_snapshot();
+        for invalid in ["gvariation 2 0 0","gvariation 2 0 65536","gvariation 2 0 nope","gvariation 2 1 8","gvariation 99 0 8"] {
+            command(&mut engine,invalid);assert!(engine.generator_library[2].is_none());assert_eq!(engine.undo_snapshot(),before);
+        }
+        engine.tracks[2].clips[0].transpose=1;
+        command(&mut engine,"gvariation 2 0 8");assert!(engine.generator_library[2].is_none());
+    }
     fn saved_user_recipe(bass:bool)->(Engine,String) {
         let mut engine=fixture();let style=if bass{12}else{8};
         command(&mut engine,&format!("gexplore 2 {style} 0 32 37"));engine.play();engine.toggle_record(2);

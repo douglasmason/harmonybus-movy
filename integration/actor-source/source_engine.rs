@@ -22,7 +22,7 @@ impl Engine {
                 write!(&mut text,"{{\"track\":{},\"slot\":{},\"active\":{},\"phase_ticks\":{},\"selection_phase_ticks\":{},\"length_ticks\":{}}}",reference.track,reference.slot,active,phase,selected,clip.length_ticks()).unwrap();
             } else {text.push_str("null");}
         }
-        write!(&mut text,"],\"rhythm_pitch\":{},\"rhythm_amount\":{},\"generator_owned\":{},\"generator_rhythm\":{},\"notes\":[",route.rhythm_pitch.map_or(-1,i32::from),route.rhythm_amount,self.generator_owns(actor),self.generator_rhythm_following(actor)).unwrap();
+        write!(&mut text,"],\"rhythm_pitch\":{},\"rhythm_amount\":{},\"rhythm_answer\":{},\"generator_owned\":{},\"generator_rhythm\":{},\"notes\":[",route.rhythm_pitch.map_or(-1,i32::from),route.rhythm_amount,route.rhythm_answer,self.generator_owns(actor),self.generator_rhythm_following(actor)).unwrap();
         let mut count=0;
         let mut pitches=[false;128];let mut gates=0;
         for gate in &self.gates {if gate.track as usize==actor {pitches[gate.pitch as usize]=true;gates+=1;}}
@@ -54,7 +54,7 @@ impl Engine {
                     write!(&mut text,"{{\"track\":{},\"slot\":{},\"active\":{},\"phase_ticks\":{},\"length_ticks\":{},\"speed_num\":{},\"speed_den\":{}}}",reference.track,reference.slot,active,track.pos_tick.saturating_sub(clip.loop_start_ticks()),clip.length_ticks(),clip.scale_num,clip.scale_den).unwrap();
                 } else {text.push_str("null");}
             }
-            write!(&mut text,"],\"rhythm_pitch\":{},\"rhythm_amount\":{},\"generator_owned\":{},\"generator_rhythm\":{}}}",route.rhythm_pitch.map_or(-1,i32::from),route.rhythm_amount,self.generator_owns(actor),self.generator_rhythm_following(actor)).unwrap();
+            write!(&mut text,"],\"rhythm_pitch\":{},\"rhythm_amount\":{},\"rhythm_answer\":{},\"generator_owned\":{},\"generator_rhythm\":{}}}",route.rhythm_pitch.map_or(-1,i32::from),route.rhythm_amount,route.rhythm_answer,self.generator_owns(actor),self.generator_rhythm_following(actor)).unwrap();
         }
         text.push_str("]}");text
     }

@@ -192,7 +192,7 @@ export function generatorWrite(key:string,value:string,track:number):boolean|nul
   const number=control===3?euclideanRates.indexOf(value):Number(value);
   if(control<0||!Number.isFinite(number)||number<0||!generatorEuclidean(track))return false;
   const amount=Math.max(control===1||control===6?1:0,Math.min(control===2?15:control===3?3:control>=5?100:16,Math.round(number))),lane=control>=4?control+1:control;
-  if(current.user!==null)return active(track)?editUser(track,lane,amount):false;
+  if(current.user!==null||state[5]==='1')return active(track)?editUser(track,lane,amount):false;
   if(recorded)return preview(track,Number(state[1]),lane,amount);
   current.config=[...current.config.slice(0,4),0,...euclideanDefaults.map((fallback,index)=>current.config[5+index]??fallback)];
   current.config[5+control]=amount;return active(track)?send(track):true;
@@ -200,7 +200,7 @@ export function generatorWrite(key:string,value:string,track:number):boolean|nul
  if(field.startsWith('cloud_')){
   const control=cloudControls.indexOf(field.slice(6)),number=Number(value);if(control<0||!Number.isFinite(number)||!generatorCloud(track))return false;
   const amount=Math.max(0,Math.min(127,Math.round(number)));
-  if(current.user!==null)return active(track)?editUser(track,control,amount):false;
+  if(current.user!==null||state[5]==='1')return active(track)?editUser(track,control,amount):false;
   if(recorded)return preview(track,Number(state[1]),control,amount);
   current.config=[...current.config.slice(0,4),0,...(current.config.length===11?current.config.slice(5):cloudDefaults)];
   current.config[control<2?control+1:control+3]=amount;return active(track)?send(track):true;
@@ -216,7 +216,16 @@ export function generatorWrite(key:string,value:string,track:number):boolean|nul
   if(active(track))return generatorAuditionUser(track,actorKind(),userChoice,current.genre);
   current.user=userChoice;current.auditioned=false;pageDirty=true;return true;
  }
- if(field==='seed'&&current.user!==null){seqToast('Seed fixed for saved recipes');return false;}
+ if(field==='seed'&&(recorded||state[5]==='1'||current.user!==null)){
+  if(recordingTarget()===track){seqToast('Seed locked during recording');return false;}
+  if(current.user!==null&&!active(track)){seqToast('Start recipe exploration first');return false;}
+  const number=Number(value);if(!Number.isFinite(number))return false;
+  if(!engineReady())return false;
+  seqCmd(`gvariation ${track} ${Number(state[1])} ${Math.max(1,Math.min(65535,Math.round(number)))}`);
+  seqCmdFlush();cached.clear();pageDirty=true;
+  const result=readState(track,true);const okay=result[5]==='1'&&result[3]?.startsWith('Variation audition');
+  if(!okay)seqToast(result[3]??'Variation unavailable');return Boolean(okay);
+ }
  const next=[...current.config];
  if(field==='family'){const index=styles.findIndex(style=>style.actor===selectedActor&&style.family===value&&(current.genre==='All'||style.genres.includes(current.genre)));if(index<0)return false;next[0]=index;}
  else if(field==='style'){const index=styles.findIndex(style=>style.actor===selectedActor&&style.name===value&&style.family===styles[current.config[0]].family&&(current.genre==='All'||style.genres.includes(current.genre)));if(index<0)return false;next[0]=index;}
@@ -229,7 +238,7 @@ export function generatorWrite(key:string,value:string,track:number):boolean|nul
  const control=field==='complexity'?0:field==='intensity'?(generatorEuclidean(track)?4:1):2,controlValue=field==='intensity'?next[2]:next[control===2?0:control+1];
  const changingKind=sourceKind(current.config[0])!==sourceKind(next[0]);
  if(changingKind&&(recorded||recordingTarget()===track||current.user!==null&&field==='source_style')){seqToast('Finish this recipe before changing source');return false;}
- if(current.user!==null){
+ if(current.user!==null||state[5]==='1'){
   if(field==='family'||field==='style'){
    if(recordingTarget()===track){seqToast('Finish this actor take first');return false;}
    const wasActive=active(track);if(wasActive)generatorStop(track);current.user=null;current.config=sourceKind(next[0])==='Euclidean'?[...next.slice(0,4),0,...euclideanDefaults]:sourceKind(next[0])==='Cloud'?[...next.slice(0,4),0,...cloudDefaults]:next.slice(0,4);pageDirty=true;
