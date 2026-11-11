@@ -41,3 +41,8 @@ const globalPitch={key:'motion_operation',options_as_string:true,options:['Globa
 orderHarmonyChoices(globalPitch);
 assert.equal(choiceGroup('Global Transpose'),'Pitch');
 assert.deepEqual(globalPitch.options,['Off','Transpose','Global Transpose']);
+
+const spread={key:'motion_operation',options_as_string:true,options:['Chord Spread','Off','Chord Form']};
+orderHarmonyChoices(spread);
+assert.equal(choiceGroup('Chord Spread'),'Chord / Arp');
+assert.deepEqual(spread.options,['Off','Chord Spread','Chord Form']);

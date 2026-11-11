@@ -187,6 +187,33 @@ static void test_sequence_positions(void){
 }
 #endif
 
+#ifdef HB_TEST_CHORD_SPREAD
+static void test_chord_spread(void){
+    set("cmd","stop");render(16);set("ch0:midi_fx1:performance_reset","1");
+    set("ch0:midi_fx1:role","Conductor");set("ch0:midi_fx1:render_channel","3");
+    set("ch0:midi_fx1:transpose","0");set("ch0:midi_fx1:follower_explicit_root","C");
+    set("ch0:midi_fx1:follower_scale","Major");set("ch0:midi_fx1:chord_mode","Scale Degree");
+    set("ch0:midi_fx1:chord_form","Triad");set("ch0:midi_fx1:chord_inversion","Root");
+    set("ch0:midi_fx1:chord_register","0");set("ch0:midi_fx1:arp_playback","Together");
+    set("ch0:midi_fx1:motion_operation_1","Chord Spread");set("ch0:midi_fx1:motion_control_1","2");
+    set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 16 0 0:384:60:100:0\n");
+    set("ch0:mix","1,0,0,0,0");render(16);sent_on=sent_off=0;
+    set("cmd","play");assert(render(16)>0);
+    assert(field_get("ch0:synth:held_60")==1&&field_get("ch0:synth:held_64")==1&&field_get("ch0:synth:held_67")==1);
+    set("ch0:midi_fx1:motion_hold_1","On");render(16);
+    assert(field_get("ch0:synth:held_60")==1&&field_get("ch0:synth:held_76")==1&&field_get("ch0:synth:held_79")==1);
+    assert(field_get("ch0:synth:held_64")==0&&field_get("ch0:synth:held_67")==0);
+    assert(sent_on==5&&sent_off==2);
+    set("ch0:midi_fx1:motion_hold_1","Off");render(16);
+    assert(field_get("ch0:synth:held_64")==1&&field_get("ch0:synth:held_67")==1);
+    assert(field_get("ch0:synth:held_76")==0&&field_get("ch0:synth:held_79")==0);
+    assert(sent_on==7&&sent_off==4);
+    set("cmd","stop");render(16);assert(sent_on==sent_off);
+    set("ch0:midi_fx1:motion_operation_1","Off");
+    puts("Chord Spread: production clip regenerates voicing, keeps bass, returns upper voices and balances releases");
+}
+#endif
+
 static void test_shared_context(void){
     char state[65536],view[2048];
     set("ch0:midi_fx1:performance_reset","1");
@@ -903,6 +930,9 @@ int main(int argc,char **argv){
     test_field_lfos();
 #ifdef HB_TEST_SEQUENCE_POSITION
     test_sequence_positions();
+#endif
+#ifdef HB_TEST_CHORD_SPREAD
+    test_chord_spread();
 #endif
     test_drum_fill_output();
     test_drum_destination();
