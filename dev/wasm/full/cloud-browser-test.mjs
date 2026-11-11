@@ -135,7 +135,7 @@ try{
  // touch while the panel still shows the previous actor is correctly ignored.
  await panel.locator('.cloud-status').filter({hasText:'Melody · Track 4'}).waitFor();
  await panel.getByRole('button',{name:'Hold cloud',exact:true}).waitFor();
- await page.waitForFunction(()=>!document.querySelector('[data-workspace=cloud] button[data-action=hold]').disabled);
+ assert.equal(await panel.getByRole('button',{name:'Hold cloud',exact:true}).isEnabled(),true,'cloud panel has rendered the selected actor before touch');
  // Keep real fingers down while another control ends or clears their input.
  // Subsequent movement must not silently resume exploration or refill Clear.
  for(const action of ['Stop exploring','Clear cloud','Stop']){
