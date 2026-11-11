@@ -1,3 +1,7 @@
+## Linear automation readers (hbclean.339)
+
+Each actor can independently read Instrument and HB Render automation as Step or Linear. Linear blends numeric controls across existing locks and note-step base resets, including Own clips with Source Weaving off and borrowed clips with Timeline or Fit alignment. Categorical controls stay stepped. See [Linear automation](docs/linear-automation.md).
+
 ## Pressure note repeat (hbclean.338)
 
 Squeeze to divide the beat into faster repeats. Choose straight powers of two or every integer division from 1 to 16. Supports held chords, Momentary, both latch modes and Reverse. See [Pressure repeat](docs/pressure-repeat.md).

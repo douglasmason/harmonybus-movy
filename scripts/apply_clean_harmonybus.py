@@ -726,6 +726,8 @@ def main() -> int:
     patch_euclidean_surface(root)
     from patch_grid import finalize_grid_expression
     finalize_grid_expression(root)
+    from patch_automation_reader import patch_automation_reader
+    patch_automation_reader(root)
     print("HarmonyBus clean integration applied")
     return 0
 
