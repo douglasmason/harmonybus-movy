@@ -111,6 +111,7 @@ try{
  sent=await page.evaluate(()=>window.sent);
  assert.deepEqual(sent.slice(-2),['move 3 96 102 25 1 1','touch 3 96 102 25 0 1'],'suspension flushes the final pending position before releasing its captured activity mode');
  const reads=await page.evaluate(()=>window.reads);await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await page.waitForTimeout(150);assert.equal(await page.evaluate(()=>window.reads),reads,'visibility cannot revive a hidden workspace component');
+ await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  await page.evaluate(()=>window.component.resume());await page.waitForTimeout(100);
  await mkdir(new URL('../../artifacts/',import.meta.url),{recursive:true});await page.screenshot({path:new URL('../../artifacts/follower-cloud.png',import.meta.url).pathname,fullPage:true});
  assert.deepEqual(failures,[]);await page.evaluate(()=>{window.state.xyBits=14;window.state.cloud=true;window.component.resume();window.sent=[];});await page.waitForTimeout(100);
@@ -123,7 +124,8 @@ try{
  assert.match((await page.evaluate(()=>window.sent)).at(-1),/^touch14 3 113 .* 0 1$/);
  await canvas.scrollIntoViewIfNeeded();const preciseBounds=await canvas.boundingBox();
  await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{id:1,x:preciseBounds.x+preciseBounds.width*.5001,y:preciseBounds.y+preciseBounds.height*.5,force:.4}]});await page.waitForTimeout(100);
- assert((await page.evaluate(()=>window.sent)).some(value=>/^touch14 3 96 8193 8192 51 1$/.test(value)),'real pointer retains fractional pad position and pressure');
+ sent=await page.evaluate(()=>window.sent);
+ assert(sent.some(value=>/^touch14 3 96 8193 8192 51 1$/.test(value)),'real pointer retains fractional pad position and pressure: '+JSON.stringify(sent.slice(-5)));
  await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await page.evaluate(()=>window.component.dispose());
  assert.deepEqual(failures,[]);
  console.log('Cloud touchscreen: two real pointers, movement, release, controls, X/Y, suspension and shared renderer pass');

@@ -53,7 +53,7 @@ Clear, cancellation or expiry. Direct touches remain green; cloud consequences
 use the existing cyan/blue trails. The existing sampler, clip store and bounded
 polyline cache are reused.
 
-New clients advertise `xyBits:14` and use `touch14`/`move14`. Legacy clients keep
+Cloud state advertises `xyBits:14`; new clients use `touch14`/`move14`. Legacy clients keep
 the 7-bit commands. Saved points use a trailing `14` marker when needed; old
 point encodings still load. Read-only snapshots use `cf2` for fine coordinates
 and `cf1` when all coordinates have an exact legacy representation. Rollback to

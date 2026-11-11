@@ -96,7 +96,7 @@ impl Engine {
         self.append_cloud_view(track,&mut output).expect("writing a String cannot fail");
         output
     }
-    /// Append the unchanged wire snapshot into the caller's reusable buffer.
+    /// Append a legacy or precise snapshot into the caller's reusable buffer.
     pub fn append_cloud_view(&self,track:usize,output:&mut impl std::fmt::Write)->std::fmt::Result {
         let Some(runtime)=self.clouds.get(track) else{return Ok(());};
         let now=self.master_tick.saturating_sub(1) as f64/TICKS_PER_STEP as f64;
