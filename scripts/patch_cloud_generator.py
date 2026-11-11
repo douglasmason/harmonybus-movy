@@ -36,7 +36,7 @@ export function tickChord():void{
     source = source.replace('if(rangeControlMidi(data,surface??page))', "if(!['cg_cloud_dynamics','cg_restore'].includes((surface??page)?.keyAt(7)??'')&&rangeControlMidi(data,surface??page))")
     source = source.replace('if(key===7)return true;', "if(key===7&&current.keyAt(7)==='cp_off')return true;")
     source = source.replace('if(key===78)return true;', "if(key===78&&current.keyAt(7)==='cp_off')return true;")
-    source = source.replace('if(key>=71&&key<=77){', "if(key>=71&&key<=(cloudSurfaceActive()?78:77)){if(cloudTurn(current.keyAt(key-71)??'',value<64?value:value-128))return true;")
+    source = source.replace('if(key>=71&&key<=77){', "if(key>=71&&key<=(cloudSurfaceActive()?78:77)){if(cloudTurn(current.keyAt(key-71)??'',value<64?value:value-128,appState.shiftHeld))return true;")
     source = replace_once(source, "drawBankBar(current.pageIndex,current.pageCount);current.render('Chord Play');", "drawBankBar(current.pageIndex,current.pageCount);current.render('Chord Play');\n    if(cloudPageVisible()&&(contextVisible(current)||current.ctl.page?.level==='cp_cloud_field'&&current.ctl.state.touched>=0&&current.ctl.state.touched<2))drawCloud();")
     path.write_text(source)
     path = root / 'src/renderer/panel-catalog.ts'

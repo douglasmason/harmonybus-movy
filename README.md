@@ -1,3 +1,7 @@
+## Precise cloud knob drawing (hbclean.345)
+
+X/Y knobs now share the 14-bit finger/MPE contact path. Shift-turn adds fine movement, and Draw Pressure supplies an independent Z control for knob strokes. Remote UI and standalone expose the same fine drawing and pressure controls; existing pad aftertouch and pressure operation mappings remain available. See [Expressive cloud input](docs/expressive-cloud-input.md).
+
 ## Precise cloud X/Y and MPE input (hbclean.340)
 
 Remote UI and standalone retain 14-bit X/Y per finger through cloud strokes, Hold, recording and replay. With the Cloud editor open, the browser's playing pads share that continuous field. Optional Web MIDI MPE input maps per-note pitch/bend, slide and pressure to the same contacts; Move and Launchpad retain their existing pad/pressure controls. See [Expressive cloud input](docs/expressive-cloud-input.md).

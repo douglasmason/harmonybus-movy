@@ -45,6 +45,14 @@ try{
  await page.evaluate(()=>window.state.holding=false);await page.getByRole('button',{name:'Hold cloud',exact:true}).waitFor();
  await page.getByRole('combobox',{name:'Cloud field boundary'}).selectOption('Wrap');await page.getByRole('button',{name:'Draw x positive'}).click();
  assert((await page.evaluate(()=>window.sent)).includes('edge Wrap'));assert((await page.evaluate(()=>window.sent)).includes('draw x 4'));
+ await page.evaluate(()=>{window.state.drawBits=14;window.state.pressure=100;});await page.waitForTimeout(100);
+ await page.getByRole('combobox',{name:'Cloud drawing precision'}).selectOption('fine');
+ await page.getByRole('button',{name:'Draw x positive'}).click();
+ assert((await page.evaluate(()=>window.sent)).includes('drawfine x 1'));
+ await page.getByRole('slider',{name:'Cloud draw pressure',exact:true}).fill('37');
+ assert((await page.evaluate(()=>window.sent)).includes('pressure 37'));
+ await page.getByRole('combobox',{name:'Cloud drawing precision'}).selectOption('coarse');
+
  await page.getByRole('combobox',{name:'Cloud field axes'}).selectOption('pitch-x');assert((await page.evaluate(()=>window.sent)).includes('axes pitch-x'));
  await page.evaluate(()=>window.state.axes='Pitch / Activity');await page.waitForTimeout(100);assert.match(await canvas.getAttribute('aria-label'),/Horizontal movement changes harmonic height/);
  await page.getByRole('combobox',{name:'Cloud field activity'}).selectOption('Rate');assert((await page.evaluate(()=>window.sent)).includes('activity Rate'));

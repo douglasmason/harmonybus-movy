@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.344",
-  "previous_version": "0.34.1-hbclean.343",
+  "version": "0.34.1-hbclean.345",
+  "previous_version": "0.34.1-hbclean.344",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.344 — bidirectional Chord Spread",
-  "notes": "docs/chord-spread.md",
+  "title": "Movy 0.34.1-hbclean.345 \u2014 precise cloud knob drawing and pressure",
+  "notes": "docs/expressive-cloud-input.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

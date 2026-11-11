@@ -8,24 +8,26 @@ import {fontPrint} from '../font/index.js';
 import {seqCmd,seqCmdFlush,engineReady,fieldEngineSet} from './engine.js';
 import {syncPadRoute} from '../track/pad-route.js';
 import {markUiStateDirty} from './ui-dirty.js';
+import {EXPRESSION_MAX} from './expression-input.js';
 let owner:number|null=null,lastRead=-Infinity,lastRefresh=-Infinity,snapshot=emptyCloud();
 let holding=false;
 let paint:number[]=Array(32).fill(-1);
-let cursorX=64,cursorY=64,wrap=false,flipped=false,lastDraw=-Infinity;
+let cursorX=8256,cursorY=8256,drawPressure=100,wrap=false,flipped=false,lastDraw=-Infinity;
 let activity:'Probability'|'Rate'='Probability';
 const held=new Map<number,{track:number;x:number;y:number;pressure:number}>();
 const pendingPressure=new Set<number>();
-export const cloudFieldKeys=['cg_x','cg_y','cg_axes','cg_edge','cg_activity','cg_seed','cg_bake','cg_restore'];
+export const cloudFieldKeys=['cg_x','cg_y','cg_axes','cg_edge','cg_activity','cg_pressure','cg_bake','cg_restore'];
 export function cloudParameters():any[]{return [
- ...['x','y'].map(field=>({key:'cg_'+field,name:'Draw '+field.toUpperCase(),short_name:field.toUpperCase(),type:'int',min:0,max:127,step:1,default:64})),
+ ...['x','y'].map(field=>({key:'cg_'+field,name:'Draw '+field.toUpperCase(),short_name:field.toUpperCase(),type:'float',min:0,max:127,step:1,default:64})),
+ {key:'cg_pressure',name:'Draw Pressure',short_name:'Pressure',type:'int',min:1,max:127,step:1,default:100},
  {key:'cg_edge',name:'Field Boundary',short_name:'Edges',type:'enum',options:['Bounded','Wrap'],options_as_string:true,default:'Bounded'},
  {key:'cg_activity',name:'Field Activity',short_name:'Activity',type:'enum',options:['Probability','Rate'],short_options:['Prob','Rate'],options_as_string:true,default:'Probability'},
  {key:'cg_axes',name:'X / Y Axes',short_name:'Axes',type:'enum',options:['Activity / Pitch','Pitch / Activity'],short_options:['Act/Pitch','Pitch/Act'],options_as_string:true,default:'Activity / Pitch'}
 ];}
-export function cloudSurfaceSnapshot():{wrap:boolean;flipped:boolean;activity:string} {return {wrap,flipped,activity};}
-export function restoreCloudSurface(value:unknown):void {releaseCloud();const state=value as {wrap?:unknown;flipped?:unknown;activity?:unknown}|null;wrap=state?.wrap===true;flipped=state?.flipped===true;activity=state?.activity==='Rate'?'Rate':'Probability';cursorX=cursorY=64;paint.fill(-1);appState.dirty=true;}
+export function cloudSurfaceSnapshot():{wrap:boolean;flipped:boolean;activity:string;pressure:number} {return {wrap,flipped,activity,pressure:drawPressure};}
+export function restoreCloudSurface(value:unknown):void {releaseCloud();const state=value as {wrap?:unknown;flipped?:unknown;activity?:unknown;pressure?:unknown}|null;wrap=state?.wrap===true;flipped=state?.flipped===true;activity=state?.activity==='Rate'?'Rate':'Probability';drawPressure=typeof state?.pressure==='number'&&Number.isInteger(state.pressure)&&state.pressure>=1&&state.pressure<=127?state.pressure:100;cursorX=cursorY=8256;paint.fill(-1);appState.dirty=true;}
 export function cloudInput(x:number,y:number):{x:number;y:number} {return cloudPosition({x,y},flipped);}
-function contactInput(track:number,id:number,x:number,y:number,pressure:number,start=true,flush=true):void {const position=cloudInput(x,y);generatorCloudContact(track,id,position.x,position.y,pressure,start,activity,flush);}
+function contactInput(track:number,id:number,x:number,y:number,pressure:number,start=true,flush=true):void {const position=cloudInput(x,y);generatorCloudContact(track,id,position.x,position.y,pressure,start,activity,flush,id===112);}
 function finishContact(id:number,contact:{track:number;x:number;y:number;pressure:number}):void {
  if(pendingPressure.delete(id))contactInput(contact.track,id,contact.x,contact.y,contact.pressure,false,false);
  contactInput(contact.track,id,contact.x,contact.y,0);
@@ -42,8 +44,13 @@ export function setCloudSurface(visible:boolean):void {
  if(next===owner)return;releaseCloud();owner=next;holding=false;paint.fill(-1);snapshot=emptyCloud();lastRead=-Infinity;
  if(engineReady()){syncPadRoute(fieldEngineSet);if(next!==null){fieldEngineSet('joint_map','off');fieldEngineSet('joint_release','1');}}appState.dirty=true;
 }
-export function cloudRead(key:string):string|null {return key==='cg_x'?String(cursorX):key==='cg_y'?String(cursorY):key==='cg_activity'?activity:key==='cg_edge'?(wrap?'Wrap':'Bounded'):key==='cg_axes'?(flipped?'Pitch / Activity':'Activity / Pitch'):null;}
+export function cloudRead(key:string):string|null {return key==='cg_x'?String(cursorX/129):key==='cg_y'?String(cursorY/129):key==='cg_pressure'?String(drawPressure):key==='cg_activity'?activity:key==='cg_edge'?(wrap?'Wrap':'Bounded'):key==='cg_axes'?(flipped?'Pitch / Activity':'Activity / Pitch'):null;}
 export function cloudWrite(key:string,value:string):boolean|null {
+ if(key==='cg_pressure'){
+  const pressure=Number(value);if(!Number.isInteger(pressure)||pressure<1||pressure>127)return false;
+  drawPressure=pressure;const contact=held.get(112);if(contact){contact.pressure=pressure;pendingPressure.add(112);}
+  markUiStateDirty();appState.dirty=true;return true;
+ }
  if(key==='cg_activity'){if(value!=='Probability'&&value!=='Rate')return false;releaseCloud();activity=value;markUiStateDirty();appState.dirty=true;return true;}
  if(key==='cg_edge'){if(!['Wrap','Bounded'].includes(value))return false;wrap=value==='Wrap';markUiStateDirty();return true;}
  if(key==='cg_axes'){if(!['Activity / Pitch','Pitch / Activity'].includes(value))return false;releaseCloud();flipped=value==='Pitch / Activity';paint.fill(-1);markUiStateDirty();appState.dirty=true;return true;}
@@ -51,15 +58,16 @@ export function cloudWrite(key:string,value:string):boolean|null {
  const number=Number(value);if(!Number.isFinite(number)||!cloudSelected())return false;
  // Wrapping crosses an edge, not the whole field. End the old segment before
  // depositing at the opposite edge; other held contacts keep their ownership.
- if(wrap&&(Math.round(number)<0||Math.round(number)>127)){
-  const contact=held.get(112);if(contact){contactInput(contact.track,112,contact.x,contact.y,0);held.delete(112);}
+ const coordinate=Math.round(number*129);if(!Number.isSafeInteger(coordinate))return false;
+ if(wrap&&(coordinate<0||coordinate>EXPRESSION_MAX)){
+  const contact=held.get(112);if(contact){finishContact(112,contact);held.delete(112);}
  }
- if(key==='cg_x')cursorX=cloudCoordinate(Math.round(number),wrap);else cursorY=cloudCoordinate(Math.round(number),wrap);
- lastDraw=Date.now();const track=generatorSelectedTrack();contactInput(track,112,cursorX,cursorY,100);held.set(112,{track,x:cursorX,y:cursorY,pressure:100});appState.dirty=true;return true;
+ if(key==='cg_x')cursorX=cloudCoordinate(coordinate,wrap,EXPRESSION_MAX);else cursorY=cloudCoordinate(coordinate,wrap,EXPRESSION_MAX);
+ lastDraw=Date.now();const track=generatorSelectedTrack();contactInput(track,112,cursorX,cursorY,drawPressure);held.set(112,{track,x:cursorX,y:cursorY,pressure:drawPressure});appState.dirty=true;return true;
 }
 /** Turn path retains overshoot; enum/int widgets otherwise clamp before writing. */
-export function cloudTurn(key:string,delta:number):boolean {
- if(!['cg_x','cg_y'].includes(key))return false;cloudWrite(key,String((key==='cg_x'?cursorX:cursorY)+delta));return true;
+export function cloudTurn(key:string,delta:number,fine=false):boolean {
+ if(!['cg_x','cg_y'].includes(key))return false;cloudWrite(key,String(((key==='cg_x'?cursorX:cursorY)+delta*(fine?1:129))/129));return true;
 }
 export function cloudPad(source:string,index:number,down:boolean,height=4,pressure=100):boolean {
  const offset=source==='move'?0:source==='launchpad'?32:96;
@@ -98,7 +106,7 @@ export function flushCloudPressure(refresh=false):void {
  pendingPressure.clear();if(queued)seqCmdFlush();
 }
 export function tickCloud(now=Date.now()):void {
- if(held.has(112)&&now-lastDraw>300){const contact=held.get(112)!;contactInput(contact.track,112,contact.x,contact.y,0);held.delete(112);}
+ if(held.has(112)&&now-lastDraw>300){const contact=held.get(112)!;finishContact(112,contact);held.delete(112);}
  const refresh=now-lastRefresh>=250;if(refresh)lastRefresh=now;flushCloudPressure(refresh);
  if(owner===null)return;
  if(now-lastRead<80)return;lastRead=now;
@@ -115,7 +123,7 @@ export function drawCloud():void {
   fill_rect(x,y,level>.5?2:1,level>.5?2:1,1);
  }
  for(const point of snapshot.contacts.map(point=>cloudPosition(point,flipped))){const x=Math.round(point.x*123)+2,y=53-Math.round(point.y*38);fill_rect(x-1,y,3,1,1);fill_rect(x,y-1,1,3,1);}
- fontPrint(1,56,Date.now()-lastDraw<1500?`X ${cursorX} Y ${cursorY} ${wrap?'Wrap':'Bounded'}`:holding?'Hold / Sample releases':flipped?`X Pitch / Y ${activity}`:`X ${activity} / Y Pitch`,1);
+ fontPrint(1,56,Date.now()-lastDraw<1500?`X ${(cursorX/129).toFixed(2)} Y ${(cursorY/129).toFixed(2)}`:holding?'Hold / Sample releases':flipped?`X Pitch / Y ${activity}`:`X ${activity} / Y Pitch`,1);
 }
 
 export function clearCloud():void {releaseCloud();if(owner!==null&&engineReady()){seqCmd(`gcloud ${owner} clear`);seqCmdFlush();holding=false;snapshot=emptyCloud();appState.dirty=true;}}
