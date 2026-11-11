@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.341",
-  "previous_version": "0.34.1-hbclean.340",
+  "version": "0.34.1-hbclean.342",
+  "previous_version": "0.34.1-hbclean.341",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.341 \u2014 LFO and Field sequence positions",
-  "notes": "docs/sequence-position.md",
+  "title": "Movy 0.34.1-hbclean.342 — Global Transpose performance operation",
+  "notes": "docs/global-transpose-operation.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

@@ -36,3 +36,8 @@ for(const name of ['Captured','Leading Tone','Upper Dim','Connector Below','Conn
 assert(!motif.options.includes('Scale Above'),'Legacy Scale Above remains readable; new choices use Secondary II');
 const olderMotif={key:'motif_operation',options_as_string:true,options:['Smart Above','Captured','Smart Below']};
 orderHarmonyChoices(olderMotif);assert.deepEqual(olderMotif.options,['Captured','Smart Below','Smart Above']);
+
+const globalPitch={key:'motion_operation',options_as_string:true,options:['Global Transpose','Transpose','Off']};
+orderHarmonyChoices(globalPitch);
+assert.equal(choiceGroup('Global Transpose'),'Pitch');
+assert.deepEqual(globalPitch.options,['Off','Transpose','Global Transpose']);

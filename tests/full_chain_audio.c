@@ -170,6 +170,19 @@ static void test_sequence_positions(void){
     assert(sent_on==1&&sent_off==0);
     set("cmd","stop");render(16);assert(field_get("ch3:synth:cutoff")==19);assert(sent_on==sent_off);
     set("ch0:midi_fx1:field_outputs","fo1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1");
+    /* Same production chain and render worker: a slot on track 1 retunes a
+       held clip on track 4, then restores its pitch and leaves balanced OFFs. */
+    set("ch0:midi_fx1:motion_operation_1","Global Transpose");
+    set("ch0:midi_fx1:motion_control_1","5");
+    sent_on=sent_off=0;rendered_mask=0;
+    set("cmd","play");assert(render(16)>0);assert(rendered_mask==1u);
+    set("ch0:midi_fx1:motion_hold_1","On");rendered_mask=0;render(16);
+    assert(rendered_mask==(1u<<5));assert(sent_on==2&&sent_off==1);
+    set("ch0:midi_fx1:motion_hold_1","Off");rendered_mask=0;render(16);
+    assert(rendered_mask==1u);assert(sent_on==3&&sent_off==2);
+    set("cmd","stop");render(16);assert(sent_on==sent_off);
+    set("ch0:midi_fx1:motion_operation_1","Off");
+    puts("global transpose: shared operation retunes held production output and balances releases");
     puts("sequence position: stock LFO and shared Field overrides drive numeric automation, preserve voices and restore base on stop");
 }
 #endif
