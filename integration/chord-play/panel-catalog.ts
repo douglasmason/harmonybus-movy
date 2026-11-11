@@ -9,7 +9,7 @@ register('Harmony & Scales',['global_transpose','explicit_key','track_scales','s
 register('Harmony & Timing',['follower_root','next_harm','grid_timing']);
 register('Chords & Arp',['chord_player','chord_forms','arp_player']);
 register('Rhythm & Motifs',['rhythm_generate','rhythm_edit','motif_targets','motif_load','motif_global','motif_play']);
-register('Mapping',['follower_source','follower_play','follower_play_tools']);
+register('Mapping',['sequence_inputs','follower_source','follower_play','follower_play_tools']);
 register('Diagnostics',['follower_this','diagnostics']);
 register('Display',['pad_display','joint_pads']);
 register('Routing',['shared_context']);

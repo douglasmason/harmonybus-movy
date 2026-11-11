@@ -18,6 +18,9 @@ for(const [mode,surface] of Object.entries(pages)){
  console.log('CATALOG',mode,JSON.stringify(Object.fromEntries([...new Set(surface.ctl.pages.map(page=>panelSpec(mode,page).group))].map(group=>[group,surface.ctl.pages.filter(page=>panelSpec(mode,page).group===group).length]))));
 }
 const normal=pages['Normal Play'];normal.goToPage(0);
+const sequenceInputs=normal.ctl.pages.findIndex(page=>page.level==='sequence_inputs');assert(sequenceInputs>=0,'position inputs must be reachable for native and Remote UI LFO assignment');
+normal.goToPage(sequenceInputs);assert.equal(normal.keyAt(0),'sequence_input_1');assert.equal(normal.keyAt(1),'sequence_input_2');normal.goToPage(0);
+for(let role=0;role<4;role++)assert(pages['Joint Play'].ctl.pages.some(page=>page.level==='joint_source_position_'+role),'actor position selectors must survive shared page curation');
 const pressure=normal.ctl.pages.findIndex(page=>page.level==='approach_pressure');assert(pressure>=0);
 normal.goToPage(pressure);assert.equal(normal.keyAt(0),'approach_pressure_row');assert.equal(normal.keyAt(2),'approach_pressure_mode');
 normal.ctl.commitEnum('approach_pressure_mode',3);
@@ -26,7 +29,7 @@ normal.goToPage(0);
 assert.deepEqual(normal.ctl.hbNavigation.state().indices.map(index=>normal.ctl.pages[index].level),['root','harmony_status','follower_touch','operations_9_16']);
 const motif=pages['Motif Play'];motif.goToPage(0);motif.changePage(1);assert.equal(motif.ctl.page.level,'approach_bank_0','motif banks immediately follow Main');
 for(const page of pages['Joint Play'].ctl.pages){
- const match=/^joint_(?:sources|source_expression|source_gestures|source_operations|source_automation|preview|variation)_([0-3])$/.exec(page.level);
+ const match=/^joint_(?:sources|source_expression|source_gestures|source_operations|source_automation|source_position|preview|variation)_([0-3])$/.exec(page.level);
  if(match)assert.equal(panelSpec('Joint Play',page).group,['Root','Bass','Comp','Melody'][Number(match[1])]);
 }
 assert(pages['Joint Play'].ctl.pages.filter(page=>panelSpec('Joint Play',page).group==='Song Sections').length>=3);

@@ -26,3 +26,6 @@ def patch_position_inputs(root: Path) -> None:
     path = root / "engine/crates/seq-core/src/persist.rs"
     source = replace_once(path.read_text(), "    engine.source_routes.fill(Default::default());", "    engine.source_routes.fill(Default::default());\n    engine.source_position_inputs=Default::default();")
     path.write_text(source)
+    path = root / "src/renderer/hb-step-panels.ts"
+    source = replace_once(path.read_text(), "const commonPanels = new Set([", "const commonPanels = new Set(['sequence_inputs', ")
+    path.write_text(source)
