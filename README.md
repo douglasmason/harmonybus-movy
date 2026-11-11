@@ -1,3 +1,7 @@
+## Cloud pressure response (hbclean.346)
+
+Move, Launchpad, touch/MPE and knob drawing share Linear/Soft/Firm pressure response, Reverse, and Low/High bounds. Find Cloud Pressure on Move or Input pressure response in the shared web editor. Deposited and recorded clouds retain their response. See [Expressive cloud input](docs/expressive-cloud-input.md).
+
 ## Precise cloud knob drawing (hbclean.345)
 
 X/Y knobs now share the 14-bit finger/MPE contact path. Shift-turn adds fine movement, and Draw Pressure supplies an independent Z control for knob strokes. Remote UI and standalone expose the same fine drawing and pressure controls; existing pad aftertouch and pressure operation mappings remain available. See [Expressive cloud input](docs/expressive-cloud-input.md).

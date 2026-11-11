@@ -37,6 +37,37 @@ and latch modes are unchanged. This change does not map cloud Z to arbitrary
 synth parameters or add MPE pitch output. Drawing pressure settings persist;
 live cursor contacts do not restart when restoring a set.
 
+## Pressure response (hbclean.346)
+
+Open **Cloud Pressure** on Move, or **Input pressure response** in the shared
+Remote UI/standalone cloud editor. These are shared cloud input settings, applied
+to Move/Launchpad aftertouch, per-finger touch and MPE pressure, and knob Draw
+Pressure before a deposit reaches the existing engine:
+
+- **Linear** is the default 1:1 response; existing sets keep their behavior.
+- **Soft** reaches stronger output with a lighter squeeze.
+- **Firm** gives more room at the quiet end before approaching maximum pressure.
+- **Reverse** reverses the selected curve while a contact is held.
+- **Low / High** bound the mapped output from 1 to 127. Low cannot exceed High;
+  equal limits give a fixed pressure while retaining normal release behavior.
+
+The page uses K1 Draw Pressure, K2 Response, K3 Direction, K4 Low, K5 High,
+then Axes, Edges and Activity. X/Y drawing remains on the Cloud X / Y page.
+These response settings save with the other cloud surface settings. They are
+shared across follower actors, not per-track automation lanes.
+
+Changing response refreshes held pad/knob input on the next UI tick; Remote UI
+contacts refresh on their existing heartbeat. It shapes future deposits only.
+Existing trails, captured Hold emitters and recorded strokes retain their mapped
+values, so recording/replay/Bake need no new format and cannot apply the curve
+a second time. Hold flushes current input before capture, including a response
+change made just before pressing Hold.
+
+Zero aftertouch is still a softly held contact, and Reverse never converts a
+note-off into a new press. These controls shape the cloud's existing velocity
+response through Dynamics; they do not replace Approach Pressure operation
+assignments or add arbitrary synth-parameter pressure routing.
+
 ## Touch and playing pads
 
 Open **Follower generators → Cloud**, choose an actor and Cloud, then draw.

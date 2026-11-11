@@ -16,19 +16,19 @@ def patch_cloud_generator(root: Path) -> None:
     source = replace_once(source, '    pub fn clear(&mut self) {', '    pub fn clear(&mut self) {\n        self.cloud_points.clear();self.cloud_field=false;self.cloud_field_start=0;')
     path.write_text(source)
     # Install the same controller in the native bundle and browser emulator.
-    for filename in ('cloud-view.ts','cloud-surface.ts','cloud-remote.ts','expression-input.ts'):
+    for filename in ('cloud-view.ts','cloud-surface.ts','cloud-remote.ts','expression-input.ts','cloud-pressure.ts'):
         (root / 'src/seq' / filename).write_text((assets / filename).read_text())
     path = root / 'src/seq/chord-play.ts'
-    source = "import {cloudParameters,cloudRead,cloudWrite,cloudFieldKeys,cloudSurfaceActive,setCloudSurface,cloudMidi,cloudTurn,releaseCloud,tickCloud,drawCloud} from './cloud-surface.js';\n" + path.read_text()
+    source = "import {cloudParameters,cloudRead,cloudWrite,cloudFieldKeys,cloudPressureKeys,cloudSurfaceActive,setCloudSurface,cloudMidi,cloudTurn,releaseCloud,tickCloud,drawCloud} from './cloud-surface.js';\n" + path.read_text()
     source = source.replace('generatorParameters,generatorKeys,', 'generatorParameters,generatorPanelKeys,generatorCloud,')
     source = source.replace('generatorTarget(setup.comp,setup.bass)', 'generatorTarget(setup.comp,setup.bass,appState.activeTrack.index)')
     source = source.replace('...generatorParameters(),', '...cloudParameters(),...generatorParameters(),')
     source = replace_once(source, '        const generated=generatorRead', '        const spatial=cloudRead(bare);if(spatial!==null)return spatial;\n        const generated=generatorRead')
     source = replace_once(source, "const bare=key.split(':').pop()??'';const generated", "const bare=key.split(':').pop()??'';const spatial=cloudWrite(bare,value);if(spatial!==null)return spatial;const generated")
-    source = source.replace("+' Generator',generatorKeys);", "+' Generator',generatorPanelKeys());\n    if(generatorCloud())add('cp_cloud_field','Cloud X / Y',cloudFieldKeys);")
-    source = source.replace("['cp_comp_generator','cp_generator_browser']", "['cp_comp_generator','cp_generator_browser','cp_cloud_field']")
+    source = source.replace("+' Generator',generatorKeys);", "+' Generator',generatorPanelKeys());\n    if(generatorCloud()){add('cp_cloud_field','Cloud X / Y',cloudFieldKeys);add('cp_cloud_pressure','Cloud Pressure',cloudPressureKeys);}")
+    source = source.replace("['cp_comp_generator','cp_generator_browser']", "['cp_comp_generator','cp_generator_browser','cp_cloud_field','cp_cloud_pressure']")
     source = replace_once(source, '    if(!value)generatorStop();', '    if(!value){setCloudSurface(false);generatorStop();}')
-    source = replace_once(source, 'export function tickChord():void{', '''function cloudPageVisible():boolean {return chordActive()&&!settingsActive()&&!page?.ctl.hbNavigation?.isMenu()&&['cp_comp_generator','cp_cloud_field'].includes(page?.ctl.page?.level??'')&&generatorCloud();}
+    source = replace_once(source, 'export function tickChord():void{', '''function cloudPageVisible():boolean {return chordActive()&&!settingsActive()&&!page?.ctl.hbNavigation?.isMenu()&&['cp_comp_generator','cp_cloud_field','cp_cloud_pressure'].includes(page?.ctl.page?.level??'')&&generatorCloud();}
 export function tickChord():void{
     setCloudSurface(cloudPageVisible());tickCloud();''')
     source = replace_once(source, 'export function chordMidi(data:number[],panels=true,surface?:SchwungPage):boolean{', '''export function chordMidi(data:number[],panels=true,surface?:SchwungPage):boolean{
@@ -40,11 +40,11 @@ export function tickChord():void{
     source = replace_once(source, "drawBankBar(current.pageIndex,current.pageCount);current.render('Chord Play');", "drawBankBar(current.pageIndex,current.pageCount);current.render('Chord Play');\n    if(cloudPageVisible()&&(contextVisible(current)||current.ctl.page?.level==='cp_cloud_field'&&current.ctl.state.touched>=0&&current.ctl.state.touched<2))drawCloud();")
     path.write_text(source)
     path = root / 'src/renderer/panel-catalog.ts'
-    source = replace_once(path.read_text(), "cp_comp_generator:'Libraries',", "cp_comp_generator:'Libraries',cp_cloud_field:'Libraries',")
-    source = replace_once(source, "['cp_comp_generator','cp_generator_browser'].includes(base)?(String(page?.name??'').startsWith('Bass')?'Bass':'Comp')", "['cp_comp_generator','cp_generator_browser','cp_cloud_field'].includes(base)?(['Bass','Melody','Comp'].find(actor=>String(page?.name??'').startsWith(actor))??'Shared')")
+    source = replace_once(path.read_text(), "cp_comp_generator:'Libraries',", "cp_comp_generator:'Libraries',cp_cloud_field:'Libraries',cp_cloud_pressure:'Libraries',")
+    source = replace_once(source, "['cp_comp_generator','cp_generator_browser'].includes(base)?(String(page?.name??'').startsWith('Bass')?'Bass':'Comp')", "['cp_comp_generator','cp_generator_browser','cp_cloud_field','cp_cloud_pressure'].includes(base)?(['Bass','Melody','Comp'].find(actor=>String(page?.name??'').startsWith(actor))??'Shared')")
     path.write_text(source)
     path = root / 'src/seq/chord-settings-layout.ts'
-    source = replace_once(path.read_text(), '        const level=levels[link.level],keys=', "        if(['cp_comp_generator','cp_cloud_field'].includes(link.level)&&levels[link.level].knobs.length===8)continue;\n        const level=levels[link.level],keys=")
+    source = replace_once(path.read_text(), '        const level=levels[link.level],keys=', "        if(['cp_comp_generator','cp_cloud_field','cp_cloud_pressure'].includes(link.level)&&levels[link.level].knobs.length===8)continue;\n        const level=levels[link.level],keys=")
     path.write_text(source)
     path = root / 'src/seq/ui-state.ts'
     source = "import {cloudSurfaceSnapshot,restoreCloudSurface} from './cloud-surface.js';\n" + path.read_text()
