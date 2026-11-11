@@ -219,6 +219,20 @@ static void test_chord_spread(void){
 #else
     assert(sent_on==7&&sent_off==4);
 #endif
+#ifdef HB_TEST_VOICING_ROTATE
+    int before_rotation_on=sent_on,before_rotation_off=sent_off;
+    set("ch0:midi_fx1:motion_operation_1","Voicing Rotate");set("ch0:midi_fx1:motion_control_1","1");
+    set("ch0:midi_fx1:motion_hold_1","On");render(16);
+    assert(field_get("ch0:synth:held_60")==0&&field_get("ch0:synth:held_64")==1&&field_get("ch0:synth:held_67")==1&&field_get("ch0:synth:held_72")==1);
+    assert(sent_on==before_rotation_on+1&&sent_off==before_rotation_off+1);
+    set("ch0:midi_fx1:motion_control_1","-1");render(16);
+    assert(field_get("ch0:synth:held_55")==1&&field_get("ch0:synth:held_60")==1&&field_get("ch0:synth:held_64")==1&&field_get("ch0:synth:held_72")==0);
+    assert(sent_on==before_rotation_on+3&&sent_off==before_rotation_off+3);
+    set("ch0:midi_fx1:motion_hold_1","Off");render(16);
+    assert(field_get("ch0:synth:held_55")==0&&field_get("ch0:synth:held_60")==1&&field_get("ch0:synth:held_67")==1);
+    assert(sent_on==before_rotation_on+4&&sent_off==before_rotation_off+4);
+    puts("Voicing Rotate: production held clip traverses signed inversions, keeps common tones and returns to base");
+#endif
     set("cmd","stop");render(16);assert(sent_on==sent_off);
     set("ch0:midi_fx1:motion_operation_1","Off");
     puts("Chord Spread: production clip regenerates signed voicings, preserves anchors and balances releases");

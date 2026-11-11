@@ -46,3 +46,7 @@ const spread={key:'motion_operation',options_as_string:true,options:['Chord Spre
 orderHarmonyChoices(spread);
 assert.equal(choiceGroup('Chord Spread'),'Chord / Arp');
 assert.deepEqual(spread.options,['Off','Chord Spread','Chord Form']);
+const rotation={key:'motion_operation',options_as_string:true,options:['Voicing Rotate','Chord Form','Chord Spread','Off']};
+orderHarmonyChoices(rotation);
+assert.equal(choiceGroup('Voicing Rotate'),'Chord / Arp');
+assert.deepEqual(rotation.options,['Off','Chord Spread','Voicing Rotate','Chord Form']);
