@@ -131,6 +131,11 @@ try{
  // Generator browsing restores its default actor independently of saved clips.
  await panel.getByRole('combobox',{name:'Follower actor'}).selectOption('Melody');
  await until(async()=>{const state=JSON.parse(await __wasmRead('cloud_ui_state'));return state.actor==='Melody'&&state.track===3&&state.cloud;});
+ // The engine reply can precede the cloud panel's next polling update. A
+ // touch while the panel still shows the previous actor is correctly ignored.
+ await panel.locator('.cloud-status').filter({hasText:'Melody · Track 4'}).waitFor();
+ await panel.getByRole('button',{name:'Hold cloud',exact:true}).waitFor();
+ await page.waitForFunction(()=>!document.querySelector('[data-workspace=cloud] button[data-action=hold]').disabled);
  // Keep real fingers down while another control ends or clears their input.
  // Subsequent movement must not silently resume exploration or refill Clear.
  for(const action of ['Stop exploring','Clear cloud','Stop']){
