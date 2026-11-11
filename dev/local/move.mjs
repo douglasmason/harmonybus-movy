@@ -27,7 +27,7 @@ try{
  };
  let connection,sessionUI,workspace,workspaceAvailable=true;
  const send=message=>connection?.send(message);
- const inputs=mountMoveInput({controls,send,releaseOthers:()=>workspace?.release(),othersHeld:()=>workspace?.isHeld()??false}),surface=mountMoveSurface(inputs);
+ const inputs=mountMoveInput({controls,send,releaseOthers:()=>workspace?.release(),othersHeld:()=>workspace?.isHeld()??false,padExpression:(...args)=>workspace?.padGesture(...args)??false}),surface=mountMoveSurface(inputs);
  const audioButton=document.querySelector('#audio'),audioStatus=document.querySelector('#audio-status');
  const compSource=document.querySelector('#comp-source');
  const playMode=document.querySelector('#play-mode');

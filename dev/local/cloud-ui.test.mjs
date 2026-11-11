@@ -18,6 +18,7 @@ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
 try{
  const page=await browser.newPage({viewport:{width:1000,height:860},hasTouch:true});const failures=[];page.on('pageerror',error=>failures.push(error.message));
+ await page.addInitScript(()=>{window.midiPort={id:'mpe-fixture',name:'MPE fixture',state:'connected',open:async()=>{},close:async()=>{}};window.midiAccess={inputs:new Map([[window.midiPort.id,window.midiPort]]),onstatechange:null};Object.defineProperty(navigator,'requestMIDIAccess',{value:async()=>window.midiAccess});});
  await page.goto(`http://127.0.0.1:${server.address().port}/`);await page.waitForFunction(()=>window.component);
  await page.waitForTimeout(100);const canvas=page.locator('canvas'),bounds=await canvas.boundingBox();const client=await page.context().newCDPSession(page);
  const touches=[{id:1,x:bounds.x+80,y:bounds.y+90,force:.8},{id:2,x:bounds.x+350,y:bounds.y+180,force:.7}];
@@ -108,10 +109,22 @@ try{
   window.component.suspend();
  });assert.equal(await page.evaluate(()=>window.component.isHeld()),false);
  sent=await page.evaluate(()=>window.sent);
- assert.deepEqual(sent.slice(-2),['move 3 96 102 25 108 1','touch 3 96 102 25 0 1'],'suspension flushes the final pending position before releasing its captured activity mode');
+ assert.deepEqual(sent.slice(-2),['move 3 96 102 25 1 1','touch 3 96 102 25 0 1'],'suspension flushes the final pending position before releasing its captured activity mode');
  const reads=await page.evaluate(()=>window.reads);await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await page.waitForTimeout(150);assert.equal(await page.evaluate(()=>window.reads),reads,'visibility cannot revive a hidden workspace component');
  await page.evaluate(()=>window.component.resume());await page.waitForTimeout(100);
  await mkdir(new URL('../../artifacts/',import.meta.url),{recursive:true});await page.screenshot({path:new URL('../../artifacts/follower-cloud.png',import.meta.url).pathname,fullPage:true});
- assert.deepEqual(failures,[]);await page.evaluate(()=>window.component.dispose());
+ assert.deepEqual(failures,[]);await page.evaluate(()=>{window.state.xyBits=14;window.state.cloud=true;window.component.resume();window.sent=[];});await page.waitForTimeout(100);
+ await page.getByRole('button',{name:'Connect MPE input',exact:true}).click();await page.getByRole('combobox',{name:'MPE MIDI input'}).selectOption('mpe-fixture');
+ await page.evaluate(()=>window.midiPort.onmidimessage({data:new Uint8Array([0x91,60,100])}));
+ assert((await page.evaluate(()=>window.sent)).some(value=>value.startsWith('touch14 3 113 ')));
+ await page.evaluate(()=>{window.midiPort.onmidimessage({data:new Uint8Array([0xe1,1,64])});window.midiPort.onmidimessage({data:new Uint8Array([0xb1,74,90])});window.midiPort.onmidimessage({data:new Uint8Array([0xd1,30])});});await page.waitForTimeout(100);
+ assert((await page.evaluate(()=>window.sent)).some(value=>/^move14 3 113 7741 11610 30 1$/.test(value)),'MPE low-byte bend, slide and pressure share the precise contact');
+ await page.getByRole('button',{name:'Disconnect MPE input',exact:true}).click();assert.equal(await page.evaluate(()=>window.component.isHeld()),false);assert.equal(await page.evaluate(()=>window.midiPort.onmidimessage),null);
+ assert.match((await page.evaluate(()=>window.sent)).at(-1),/^touch14 3 113 .* 0 1$/);
+ await canvas.scrollIntoViewIfNeeded();const preciseBounds=await canvas.boundingBox();
+ await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{id:1,x:preciseBounds.x+preciseBounds.width*.5001,y:preciseBounds.y+preciseBounds.height*.5,force:.4}]});await page.waitForTimeout(100);
+ assert((await page.evaluate(()=>window.sent)).some(value=>/^touch14 3 96 8193 8192 51 1$/.test(value)),'real pointer retains fractional pad position and pressure');
+ await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await page.evaluate(()=>window.component.dispose());
+ assert.deepEqual(failures,[]);
  console.log('Cloud touchscreen: two real pointers, movement, release, controls, X/Y, suspension and shared renderer pass');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

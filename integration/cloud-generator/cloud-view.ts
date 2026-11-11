@@ -6,12 +6,14 @@ export const emptyCloud=():CloudSnapshot=>({contacts:[],trails:[],grains:[]});
 /** The same involution maps physical input to musical axes and back to display. */
 export function cloudPosition<Point extends {x:number;y:number}>(point:Point,flipped=false):Point {return flipped?{...point,x:point.y,y:point.x}:point;}
 export function readCloud(raw:string):CloudSnapshot|null {
- const fields=raw.split('|');if(fields.length!==4||fields[0]!=='cf1')return null;
+ const fields=raw.split('|');if(fields.length!==4||!['cf1','cf2'].includes(fields[0]))return null;
+ const maximum=fields[0]==='cf2'?16383:127;
  const groups=fields.slice(1).map((field,index)=>field?field.split(';').map(record=>record.split(',').map(Number)):[]);
- if(groups.some((group,index)=>group.length>(index===0?16:256)||group.some(point=>point.length!==(index===0?3:4)||point.some(value=>!Number.isFinite(value))||point.slice(0,3).some(value=>value<0||value>127)||(point[3]??0)<0)))return null;
- const points=groups.map(group=>group.map(([x,y,pressure,age=0])=>({x:x/127,y:y/127,pressure:pressure/127,age:age/4})));
+ if(groups.some((group,index)=>group.length>(index===0?16:256)||group.some(point=>point.length!==(index===0?3:4)||point.some(value=>!Number.isFinite(value))||point.slice(0,2).some(value=>value<0||value>maximum)||point[2]<0||point[2]>127||(point[3]??0)<0)))return null;
+ const points=groups.map(group=>group.map(([x,y,pressure,age=0])=>({x:x/maximum,y:y/maximum,pressure:pressure/127,age:age/4})));
  return {contacts:points[0],trails:points[1],grains:points[2]};
 }
+export {cloudPointer,createCloudMpeInput} from './expression-input.js';
 export function cloudFade(point:CloudPoint,settings:TrailSettings):number {
  if(point.age>=4)return 0;
  return trailFade(point.age,settings.decayBeats,settings.curve,settings.exponent,settings.floor,settings.peak)*settings.strength*point.pressure;

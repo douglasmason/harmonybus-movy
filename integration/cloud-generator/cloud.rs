@@ -4,23 +4,37 @@ pub const TAIL_STEPS:i32=16;
 pub const MAX_CONTACTS:usize=16;
 pub const MAX_STROKE_VERTICES:usize=8;
 pub const MAX_POINTS:usize=MAX_CONTACTS*(256+TAIL_STEPS as usize);
+pub const XY_MAX:u16=16383;
+pub const XY_LEGACY_SCALE:u16=129;
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub enum Activity {Probability,Rate}
 impl Activity {
     pub fn parse(value:u32)->Option<Self> {match value {0=>Some(Self::Probability),1=>Some(Self::Rate),_=>None}}
 }
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
-pub struct Point {pub step:i32,pub x:u8,pub y:u8,pub pressure:u8,pub activity:Activity}
+pub struct Point {pub step:i32,pub x:u16,pub y:u16,pub pressure:u8,pub activity:Activity}
 impl Point {
-    pub fn wire(self)->String {format!("{},{},{},{}{}",self.step,self.x,self.y,self.pressure,if self.activity==Activity::Rate {",1"}else{""})}
+    pub fn legacy(step:i32,x:u8,y:u8,pressure:u8,activity:Activity)->Self {
+        Self{step,x:u16::from(x)*XY_LEGACY_SCALE,y:u16::from(y)*XY_LEGACY_SCALE,pressure,activity}
+    }
+    pub fn legacy_xy(self)->bool {self.x%XY_LEGACY_SCALE==0&&self.y%XY_LEGACY_SCALE==0}
+    pub fn wire(self)->String {
+        if self.legacy_xy() {format!("{},{},{},{}{}",self.step,self.x/XY_LEGACY_SCALE,self.y/XY_LEGACY_SCALE,self.pressure,if self.activity==Activity::Rate {",1"}else{""})}
+        else {format!("{},{},{},{},{},14",self.step,self.x,self.y,self.pressure,self.activity as u8)}
+    }
     pub fn parse(text:&str)->Option<Self> {
         let fields:Vec<i32>=text.split(',').map(str::parse).collect::<Result<_,_>>().ok()?;
-        if !matches!(fields.len(),4|5)||!(-TAIL_STEPS..256).contains(&fields[0])||fields[1..].iter().any(|value|!(0..=127).contains(value))||fields[3]==0{return None;}
-        Some(Self{step:fields[0],x:fields[1] as u8,y:fields[2] as u8,pressure:fields[3] as u8,activity:Activity::parse(*fields.get(4).unwrap_or(&0) as u32)?})
+        if !matches!(fields.len(),4|5|6){return None;}
+        let precise=fields.len()==6;
+        if precise&&fields[5]!=14{return None;}
+        let maximum=if precise {i32::from(XY_MAX)}else{127};
+        if !(-TAIL_STEPS..256).contains(&fields[0])||fields[1..3].iter().any(|value|!(0..=maximum).contains(value))||!(1..=127).contains(&fields[3]){return None;}
+        let scale=if precise {1}else{XY_LEGACY_SCALE};
+        Some(Self{step:fields[0],x:fields[1] as u16*scale,y:fields[2] as u16*scale,pressure:fields[3] as u8,activity:Activity::parse(*fields.get(4).unwrap_or(&0) as u32)?})
     }
 }
 #[derive(Clone,Copy,Debug)]
-pub struct Contact {pub id:u8,pub point:Point,pub refreshed:u64,pub frame:u64}
+pub struct Contact {pub id:u8,pub point:Point,pub refreshed:u64,pub frame:u64,pub precise:bool}
 /// A short polyline between clock samples, with no per-move heap allocation.
 #[derive(Clone,Debug)]
 pub struct Stroke {
@@ -46,17 +60,19 @@ impl Stroke {
         }
         self.vertices[self.count]=contact.point;self.count+=1;
     }
-    fn distance(start:Point,end:Point)->u16 {u16::from(start.x.abs_diff(end.x).max(start.y.abs_diff(end.y)))}
+    fn distance(start:Point,end:Point)->u32 {u32::from(start.x.abs_diff(end.x).max(start.y.abs_diff(end.y)))}
     fn interior(&self,index:usize)->Option<Point> {
-        let distance:u16=self.vertices[..self.count].windows(2).map(|pair|Self::distance(pair[0],pair[1])).sum();
-        let count=(usize::from(distance)/16).min(MAX_STROKE_VERTICES);
+        let unit=if self.contact.precise {1}else{u32::from(XY_LEGACY_SCALE)};
+        let distance:u32=self.vertices[..self.count].windows(2).map(|pair|Self::distance(pair[0],pair[1])/unit).sum();
+        let count=(distance as usize/(16*usize::from(XY_LEGACY_SCALE)/unit as usize)).min(MAX_STROKE_VERTICES);
         if index>=count {return None;}
-        let mut remaining=distance*index as u16/count as u16;
+        let mut remaining=distance*index as u32/count as u32;
         for pair in self.vertices[..self.count].windows(2) {
-            let length=Self::distance(pair[0],pair[1]);
+            let length=Self::distance(pair[0],pair[1])/unit;
             if remaining<=length&&length>0 {
-                let interpolate=|start:u8,end:u8| (i32::from(start)+(i32::from(end)-i32::from(start))*i32::from(remaining)/i32::from(length)) as u8;
-                return Some(Point{step:0,x:interpolate(pair[0].x,pair[1].x),y:interpolate(pair[0].y,pair[1].y),pressure:interpolate(pair[0].pressure,pair[1].pressure),activity:self.contact.point.activity});
+                let interpolate=|start:u16,end:u16| (i64::from(start)+(i64::from(end)-i64::from(start))*i64::from(remaining)/i64::from(length)) as u16;
+                let coordinate=|start:u16,end:u16|interpolate(start/unit as u16,end/unit as u16)*unit as u16;
+                return Some(Point{step:0,x:coordinate(pair[0].x,pair[1].x),y:coordinate(pair[0].y,pair[1].y),pressure:interpolate(u16::from(pair[0].pressure),u16::from(pair[1].pressure)) as u8,activity:self.contact.point.activity});
             }
             remaining=remaining.saturating_sub(length);
         }
@@ -88,6 +104,10 @@ impl Runtime {
         self.held_cursor=0;self.field=true;true
     }
     pub fn touch(&mut self,id:u8,x:u8,y:u8,pressure:u8,activity:Activity,tick:u64,frame:u64)->bool {
+        self.touch_xy(id,u16::from(x)*XY_LEGACY_SCALE,u16::from(y)*XY_LEGACY_SCALE,pressure,activity,tick,frame,false)
+    }
+    pub fn touch_xy(&mut self,id:u8,x:u16,y:u16,pressure:u8,activity:Activity,tick:u64,frame:u64,precise:bool)->bool {
+        if x>XY_MAX||y>XY_MAX||pressure>127{return false;}
         let held=self.contacts.iter().position(|contact|contact.id==id);
         if pressure==0 {
             if let Some(index)=held {self.contacts.remove(index);}
@@ -95,9 +115,9 @@ impl Runtime {
             return true;
         }
         if held.is_none()&&self.contacts.len()>=MAX_CONTACTS {return false;}
-        let previous=held.map(|index|self.contacts[index]).filter(|contact|contact.point.activity==activity&&tick.saturating_sub(contact.refreshed)<192);
+        let previous=held.map(|index|self.contacts[index]).filter(|contact|contact.precise==precise&&contact.point.activity==activity&&tick.saturating_sub(contact.refreshed)<192);
         if previous.is_none() {for stroke in &mut self.pending_touches {if stroke.contact.id==id {stroke.open=false;}}}
-        let contact=Contact{id,point:Point{step:0,x,y,pressure,activity},refreshed:tick,frame};
+        let contact=Contact{id,point:Point{step:0,x,y,pressure,activity},refreshed:tick,frame,precise};
         if let Some(index)=held {self.contacts[index]=contact;}else{self.contacts.push(contact);}
         self.field=true;
         if let Some(stroke)=self.pending_touches.iter_mut().find(|stroke|stroke.open&&stroke.contact.id==id) {stroke.push(contact);}
@@ -151,7 +171,7 @@ mod stroke_tests {
         let captured=runtime.held.clone();assert!(runtime.hold(true,0));assert_eq!(runtime.held,captured,"repeated desired state is idempotent");
         for step in 0..40 {runtime.sample(step*24);}
         assert!(runtime.contacts.is_empty());assert!(!runtime.points.is_empty());
-        assert!(runtime.points.iter().all(|point|point.y==0||point.x==127));
+        assert!(runtime.points.iter().all(|point|point.y==0||point.x==XY_MAX));
         let before=runtime.points.clone();runtime.hold(false,40*24);
         assert!(!runtime.holding());assert_eq!(runtime.points,before,"release does not abruptly erase the existing tail");
         runtime.sample(56*24);assert!(runtime.points.is_empty());
@@ -168,7 +188,7 @@ mod stroke_tests {
             for id in 0..15 {touch(&mut runtime,id,id*8,127,100,step*24);}
             runtime.sample(step*24);
             let fresh:Vec<_>=runtime.points.iter().filter(|point|point.step==step as i32).collect();
-            assert_eq!(fresh.len(),MAX_CONTACTS);assert_eq!(fresh.iter().filter(|point|point.y==127).count(),15);
+            assert_eq!(fresh.len(),MAX_CONTACTS);assert_eq!(fresh.iter().filter(|point|point.y==XY_MAX).count(),15);
             seen.insert(fresh.iter().find(|point|point.y==0).unwrap().x);
             assert!(runtime.points.len()<=MAX_CONTACTS*TAIL_STEPS as usize);
         }
@@ -185,10 +205,10 @@ mod stroke_tests {
         runtime.sample(0);
         assert!(runtime.contacts.is_empty());assert!(runtime.pending_touches.is_empty());
         assert!(runtime.points.len()>3&&runtime.points.len()<=MAX_CONTACTS);
-        assert!(runtime.points.iter().all(|point|point.y==0||point.x==127));
-        assert!(runtime.points.iter().any(|point|point.x==127&&point.y==0));
-        assert!(runtime.points.iter().any(|point|point.x>0&&point.x<127&&point.y==0));
-        assert!(runtime.points.iter().any(|point|point.y>0&&point.y<127&&point.x==127));
+        assert!(runtime.points.iter().all(|point|point.y==0||point.x==XY_MAX));
+        assert!(runtime.points.iter().any(|point|point.x==XY_MAX&&point.y==0));
+        assert!(runtime.points.iter().any(|point|point.x>0&&point.x<XY_MAX&&point.y==0));
+        assert!(runtime.points.iter().any(|point|point.y>0&&point.y<XY_MAX&&point.x==XY_MAX));
         assert!(runtime.points.iter().all(|point|point.activity==Activity::Rate&&(80..=120).contains(&point.pressure)));
     }
     #[test]
@@ -202,7 +222,7 @@ mod stroke_tests {
         touch(&mut runtime,96,127,0,100,0);touch(&mut runtime,97,0,127,100,0);
         runtime.sample(0);assert_eq!(runtime.points.len(),MAX_CONTACTS);
         assert_eq!(runtime.points.iter().filter(|point|point.y==0).count(),8);
-        assert_eq!(runtime.points.iter().filter(|point|point.y==127).count(),8);
+        assert_eq!(runtime.points.iter().filter(|point|point.y==XY_MAX).count(),8);
     }
     #[test]
     fn heartbeat_holds_keep_one_deposit_and_movement_crosses_clock_boundaries() {
@@ -212,7 +232,7 @@ mod stroke_tests {
         touch(&mut runtime,96,127,127,100,96);runtime.sample(96);
         let fresh:Vec<_>=runtime.points.iter().filter(|point|point.step==4).collect();
         assert_eq!(fresh.len(),8);assert!(fresh.iter().all(|point|point.x==point.y));
-        assert!(fresh.iter().any(|point|point.x==0));assert!(fresh.iter().any(|point|point.x==127));
+        assert!(fresh.iter().any(|point|point.x==0));assert!(fresh.iter().any(|point|point.x==XY_MAX));
         touch(&mut runtime,96,0,0,100,288);runtime.sample(288);
         assert_eq!(runtime.points.iter().filter(|point|point.step==12).count(),1,"expired input cannot bridge a later gesture");
     }
@@ -239,7 +259,7 @@ mod stroke_tests {
         touch(&mut runtime,96,127,127,100,0);runtime.sample(0);
         assert_eq!(runtime.points.len(),2);
         assert!(runtime.points.iter().any(|point|point.x==0&&point.activity==Activity::Probability));
-        assert!(runtime.points.iter().any(|point|point.x==127&&point.activity==Activity::Rate));
+        assert!(runtime.points.iter().any(|point|point.x==XY_MAX&&point.activity==Activity::Rate));
     }
 }
 /// A seeded, bounded cloud in abstract C-major input space. HB projects it into
@@ -256,8 +276,8 @@ pub fn grains_in_place(config:Config,step:u16,points:&mut Vec<Point>,field:bool)
     let rates=[8,6,4,3,2,1];
     let fastest=usize::from(config.cloud[0])*rates.len()/128;
     if config.complexity==0{return result;}
-    if !field {points.clear();points.push(Point{step:step as i32,x:64,y:64,pressure:127,activity:Activity::Probability});}
-    if step%rates[fastest]!=0&&!points.iter().any(|point|point.activity==Activity::Rate&&step%rates[usize::from(point.x)*(fastest+1)/128]==0){return result;}
+    if !field {points.clear();points.push(Point::legacy(step as i32,64,64,127,Activity::Probability));}
+    if step%rates[fastest]!=0&&!points.iter().any(|point|point.activity==Activity::Rate&&step%rates[usize::from(point.x)*(fastest+1)/(128*usize::from(XY_LEGACY_SCALE))]==0){return result;}
     points.retain(|point|point.step<=step as i32&&step as i32-point.step<TAIL_STEPS);
     // Overdubbing merges recent contacts with untouched clip history. Seeded
     // selection must depend on that history, never on the storage/merge order.
@@ -275,20 +295,20 @@ pub fn grains_in_place(config:Config,step:u16,points:&mut Vec<Point>,field:bool)
         // Each deposit owns its musical interpretation. Switching the surface
         // affects new strokes, never old trails, recorded clips or saved recipes.
         let interval=match point.activity {
-            Activity::Probability=>{if (random>>8)%128>32+u32::from(point.x)*3/4 {continue;}rates[fastest]},
-            Activity::Rate=>rates[usize::from(point.x)*(fastest+1)/128],
+            Activity::Probability=>{if (random>>8)%128>32+u32::from(point.x)*3/(4*u32::from(XY_LEGACY_SCALE)) {continue;}rates[fastest]},
+            Activity::Rate=>rates[usize::from(point.x)*(fastest+1)/(128*usize::from(XY_LEGACY_SCALE))],
         };
         if step%interval!=0 {continue;}
         let spread=i32::from(config.cloud[3])*14/127;
         let scatter=((random>>20)%29) as i32-14;
         let contour=(i32::from(config.cloud[4])-64)*((step%16) as i32-8)/128;
         let variation=scatter*i32::from(config.cloud[5])/127;
-        let degree=((i32::from(point.y)-64)*14/127+(i32::from(config.cloud[2])-64)*21/64+variation*spread/14+contour).clamp(-28,28);
+        let degree=((i32::from(point.y)-64*i32::from(XY_LEGACY_SCALE))*14/i32::from(XY_MAX)+(i32::from(config.cloud[2])-64)*21/64+variation*spread/14+contour).clamp(-28,28);
         let pitch=(if config.bass(){36}else{60})+degree.div_euclid(7)*12+[0,2,4,5,7,9,11][degree.rem_euclid(7) as usize];
         let pitch=pitch.clamp(0,127) as u8;
         if result.iter().flatten().any(|(note,_):&(Note,Point)|note.pitch==pitch){continue;}
         let velocity=((40+u32::from(config.intensity)*87/127)*u32::from(point.pressure)/127*(TAIL_STEPS-age) as u32/TAIL_STEPS as u32).clamp(1,127) as u8;
-        result[count]=Some((Note{tick:u32::from(step)*TICKS_PER_STEP,step,gate:3+u32::from(config.cloud[1])*93/127,pitch,vel:velocity,input_key:InputKey::new(0,1),actions:None,pressure:Vec::new(),rendered:false,suppress:false,fired:false},Point{step:step as i32,x:point.x,y:(i32::from(point.y)+variation*spread/2+contour*8).clamp(0,127) as u8,pressure:velocity,activity:point.activity}));
+        result[count]=Some((Note{tick:u32::from(step)*TICKS_PER_STEP,step,gate:3+u32::from(config.cloud[1])*93/127,pitch,vel:velocity,input_key:InputKey::new(0,1),actions:None,pressure:Vec::new(),rendered:false,suppress:false,fired:false},Point{step:step as i32,x:point.x,y:(i32::from(point.y)+(variation*spread/2+contour*8)*i32::from(XY_LEGACY_SCALE)).clamp(0,i32::from(XY_MAX)) as u16,pressure:velocity,activity:point.activity}));
         count+=1;
     }
     result

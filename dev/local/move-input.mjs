@@ -1,5 +1,5 @@
 /** Touch and keyboard gestures for the adaptable HB/Movy control grid. */
-export function mountMoveInput({controls,send,releaseOthers=()=>{},othersHeld=()=>false}){
+export function mountMoveInput({controls,send,releaseOthers=()=>{},othersHeld=()=>false,padExpression=()=>false}){
  const selector=document.querySelector('#encoder');
  const status=document.querySelector('#control-status');
  const active=new Map(),buttons=new Map(),aliases=new Set(),shiftOwners=new Set(),shiftButtons=new Set();
@@ -25,20 +25,20 @@ export function mountMoveInput({controls,send,releaseOthers=()=>{},othersHeld=()
   if(wasHeld!==(shiftOwners.size>0))midi([176,49,shiftOwners.size?127:0]);
  }
  const edge=(control,on,button)=>control.type==='cc'&&control.index===49?setShift(button,on):midi([control.type==='cc'?176:on?144:128,control.index,on?(control.type==='cc'?127:100):0]);
- function begin(control,button){
+ function begin(control,button,expression=false){
   if(!enabled||active.has(control)||button.disabled||button.hidden)return false;
   active.set(control,button);button.dataset.held='true';
   if(shiftButtons.has(button))setShift(button,true);
   status.dataset.encoder=control.type==='encoder'?String(control.index):'';status.textContent=button.title;
   if(control.type==='encoder'){if(!control.click&&!selector.disabled)selector.value=String(control.index);touch(control,true);}
-  else edge(control,true,button);
+  else if(!expression)edge(control,true,button);
   refreshSelected();
   return true;
  }
- function end(control,button){
+ function end(control,button,expression=false){
   if(active.get(control)!==button)return false;
   active.delete(control);button.dataset.held='false';
-  if(control.type==='encoder')touch(control,false);else edge(control,false,button);
+  if(control.type==='encoder')touch(control,false);else if(!expression)edge(control,false,button);
   if(shiftButtons.has(button))setShift(button,false);
   refreshSelected();
   return true;
@@ -60,30 +60,34 @@ export function mountMoveInput({controls,send,releaseOthers=()=>{},othersHeld=()
   const resolveControl=typeof source==='function'?source:()=>source;
   let control=resolveControl();
   if(shift)shiftButtons.add(button);
-  function start(){const next=resolveControl();if(!begin(next,button))return false;control=next;if(delta)turn(control,delta);return true;}
-  let lastY=0,moved=false,pointer=null;
+  function padBounds(){const rectangles=[...buttons].filter(([item])=>item.group==='pads').map(([,pad])=>pad.getBoundingClientRect());const left=Math.min(...rectangles.map(rect=>rect.left+rect.width/2)),top=Math.min(...rectangles.map(rect=>rect.top+rect.height/2));return {left,top,width:Math.max(...rectangles.map(rect=>rect.right-rect.width/2))-left,height:Math.max(...rectangles.map(rect=>rect.bottom-rect.height/2))-top};}
+  function start(event){const next=resolveControl();if(!enabled||active.has(next)||button.disabled||button.hidden)return false;expression=!!event&&next.group==='pads'&&padExpression('down',event,expressionBounds=padBounds())===true;if(!begin(next,button,expression))return false;control=next;if(delta)turn(control,delta);return true;}
+  let lastY=0,moved=false,pointer=null,expression=false,expressionBounds=null;
   button.onpointerdown=event=>{
    if(pointer!==null)return;event.preventDefault();
-   if(!start())return;
+   if(!start(event))return;
    pointer=event.pointerId;button.setPointerCapture(pointer);lastY=event.clientY;moved=false;
   };
   button.onpointermove=event=>{
+   if(expression&&pointer===event.pointerId&&active.get(control)===button){padExpression('move',event,expressionBounds);return;}
    if(!drag||pointer!==event.pointerId||control.type!=='encoder'||active.get(control)!==button)return;
    const delta=Math.trunc((lastY-event.clientY)/4);if(delta){turn(control,delta);lastY=event.clientY;moved=true;}
   };
   button.onpointerup=event=>{
    if(pointer!==event.pointerId)return;
-   const wasActive=end(control,button);pointer=null;
+   if(expression)padExpression('up',event,expressionBounds);
+   const wasActive=end(control,button,expression);pointer=null;expression=false;
    if(wasActive&&click&&!moved)clickJog();
   };
-  button.onpointercancel=()=>{pointer=null;if(active.get(control)===button)release();};
-  button.onlostpointercapture=()=>{if(pointer!==null){pointer=null;if(active.get(control)===button)release();}};
+  button.onpointercancel=event=>{if(expression)padExpression('up',event,expressionBounds);pointer=null;expression=false;if(active.get(control)===button)release();};
+  button.onlostpointercapture=event=>{if(pointer!==null){if(expression)padExpression('up',event,expressionBounds);pointer=null;expression=false;if(active.get(control)===button)release();}};
   button.onkeydown=event=>{
    if(drag&&control.type==='encoder'&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.key)){
     event.preventDefault();if(active.get(control)===button||start())turn(control,['ArrowUp','ArrowRight'].includes(event.key)?1:-1);
    }else if([' ','Enter'].includes(event.key)){event.preventDefault();if(!event.repeat)start();}
   };
   button.onkeyup=event=>{
+   if(pointer!==null)return;
    if(event.key.startsWith('Arrow')||[' ','Enter'].includes(event.key)){
     event.preventDefault();const held=end(control,button);
     if(held&&click&&[' ','Enter'].includes(event.key))clickJog();

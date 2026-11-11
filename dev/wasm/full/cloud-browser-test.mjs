@@ -8,7 +8,7 @@ const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disab
 let page,cancellationCase=null;
 // Pinned Playwright 1.51 treats an async predicate as immediately truthy.
 // Await the Worker read before deciding whether the musical condition holds.
-async function until(predicate){const deadline=Date.now()+15000;while(!await page.evaluate(predicate)){if(Date.now()>deadline)throw new Error('Timed out: '+predicate);await page.waitForTimeout(40);}}
+async function until(predicate,argument){const deadline=Date.now()+15000;while(!await page.evaluate(predicate,argument)){if(Date.now()>deadline)throw new Error('Timed out: '+predicate);await page.waitForTimeout(40);}}
 try{
  page=await browser.newPage({viewport:{width:1100,height:1000},hasTouch:true});const errors=[];
  page.on('pageerror',error=>errors.push(error.message));
@@ -22,6 +22,21 @@ try{
  await panel.getByRole('slider',{name:'Cloud density',exact:true}).fill('127');
  await panel.getByRole('slider',{name:'Cloud rate',exact:true}).fill('127');
  await panel.getByRole('button',{name:'Explore',exact:true}).click();
+ // The playing pad surface uses the same contact owner as the cloud canvas.
+ // A drag across pads remains one precise contact, without a second MIDI pad.
+ const pad=page.getByRole('button',{name:'Pad 10',exact:true});
+ await pad.scrollIntoViewIfNeeded();const padBounds=await pad.boundingBox();
+ const padClient=await page.context().newCDPSession(page);
+ const padPoint={id:7,x:padBounds.x+padBounds.width/2,y:padBounds.y+padBounds.height/2,force:.4};
+ await padClient.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[padPoint]});
+ await until(async()=>{const view=(await __wasmRead('cloud_view_3')).split('|');return view[0]==='cf2'&&view[1].split(';').length===1&&Number(view[1].split(',')[2])===51;});
+ const padStart=Number((await page.evaluate(()=>__wasmRead('cloud_view_3'))).split('|')[1].split(',')[0]);
+ await padClient.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{...padPoint,x:padPoint.x+padBounds.width+20.25}]});
+ await until(async start=>{const view=(await __wasmRead('cloud_view_3')).split('|');return view[1].split(';').length===1&&Number(view[1].split(',')[0])>start+100;},padStart);
+ await padClient.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+ await until(async()=>(await __wasmRead('cloud_view_3')).split('|')[1]==='');
+ await panel.getByRole('button',{name:'Clear cloud',exact:true}).click();
+ await until(async()=>(await __wasmRead('cloud_view_3'))==='cf1|||');
  const before=await page.evaluate(()=>__wasmRead('persistent_state'));
  await panel.getByRole('button',{name:'Play',exact:true}).click();
  const canvas=panel.locator('canvas'),bounds=await canvas.boundingBox(),client=await page.context().newCDPSession(page);
@@ -69,14 +84,14 @@ try{
  await canvas.scrollIntoViewIfNeeded();const recordingBounds=await canvas.boundingBox();
  const recordingPoints=[{id:1,x:recordingBounds.x+recordingBounds.width*.85,y:recordingBounds.y+recordingBounds.height*.3,force:.8},{id:2,x:recordingBounds.x+recordingBounds.width*.7,y:recordingBounds.y+recordingBounds.height*.7,force:.7}];
  await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:recordingPoints});
- await until(async()=>{const contacts=(await __wasmRead('cloud_view_3')).split('|')[1].split(';').map(value=>value.split(',').map(Number));return contacts.length===2&&contacts.some(point=>Math.abs(point[0]-89)<=1&&Math.abs(point[1]-108)<=1);});
+ await until(async()=>{const view=(await __wasmRead('cloud_view_3')).split('|'),scale=view[0]==='cf2'?129:1;const contacts=view[1].split(';').map(value=>value.split(',').map((number,index)=>Number(number)/(index<2?scale:1)));return contacts.length===2&&contacts.some(point=>Math.abs(point[0]-89)<=1&&Math.abs(point[1]-108)<=1);});
  // Chromium may coalesce a move packet. Wait for its pointer event before up;
  // do not wait for the controller's batched send or a musical clock boundary.
  await canvas.evaluate(element=>{window.cloudMoveSeen=false;element.addEventListener('pointermove',()=>window.cloudMoveSeen=true,{once:true});});
  await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:recordingPoints.map((point,index)=>({...point,x:recordingBounds.x+recordingBounds.width*(index===0?.15:.3)}))});
  await page.waitForFunction(()=>window.cloudMoveSeen);
  await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
- await until(async()=>[...(await __wasmRead('persistent_state')).matchAll(/^cp1 3 0 (-?\d+),(\d+),(\d+),(\d+),1$/gm)].some(match=>Math.abs(Number(match[2])-89)<=1&&Number(match[3])>20&&Number(match[3])<107));
+ await until(async()=>[...(await __wasmRead('persistent_state')).matchAll(/^cp1 3 0 (-?\d+),(\d+),(\d+),(\d+),1(,14)?$/gm)].some(match=>{const scale=match[5]?129:1;return Math.abs(Number(match[2])/scale-89)<=1&&Number(match[3])/scale>20&&Number(match[3])/scale<107;}));
  const otherSource=await page.evaluate(async()=>(await __wasmRead('generator_info_2')).split('|').slice(0,3));
  await panel.getByRole('combobox',{name:'Follower actor'}).selectOption('Comp');
  await until(async()=>{const state=JSON.parse(await __wasmRead('cloud_ui_state'));return state.track===2&&!state.cloud&&state.transport.track===3&&state.transport.phase==='recording';});
@@ -94,7 +109,8 @@ try{
  await until(async()=>(await __wasmRead('status')).includes('play=0'));
  const saved=await page.evaluate(()=>__wasmRead('persistent_state'));
  assert.match(saved,/cg1 3 0 18 /);assert.match(saved,/cp1 3 0 /);assert.match(saved,/generator:density/);
- const deposits=[...saved.matchAll(/^cp1 3 0 (-?\d+),(\d+),(\d+),(\d+),1$/gm)].map(match=>match.slice(1).map(Number));
+ assert.match(saved,/^cp1 3 0 .*?,14$/m,'recorded touch retains high-resolution coordinates');
+ const deposits=[...saved.matchAll(/^cp1 3 0 (-?\d+),(\d+),(\d+),(\d+),1(,14)?$/gm)].map(match=>match.slice(1,5).map((value,index)=>Number(value)/(index===1||index===2?(match[5]?129:1):1)));
  assert(deposits.some(([,activity,pitch])=>Math.abs(pitch-108)<=1&&Math.abs(activity-89)<=1),'recorded field retains rate behavior with horizontal pitch and vertical rate');
  assert(deposits.some(([,activity,pitch])=>Math.abs(activity-89)<=1&&pitch>20&&pitch<107),'fast swipes persist intermediate cloud deposits after finger release');
  await panel.getByRole('combobox',{name:'Cloud field axes'}).selectOption('pitch-y');

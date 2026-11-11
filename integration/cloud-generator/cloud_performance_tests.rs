@@ -14,7 +14,7 @@ mod cloud_performance_tests {
     fn points(count: usize) -> Vec<Point> {
         (0..count).map(|index| Point {
             step: (index % 16) as i32 - 15,
-            x: (index % 128) as u8, y: ((index * 17) % 128) as u8,
+            x: (index % 128) as u16*129, y: ((index * 17) % 128) as u16*129,
             pressure: 127 - (index % 100) as u8,
             activity: if index % 3 == 0 { Activity::Rate } else { Activity::Probability },
         }).collect()
@@ -26,7 +26,7 @@ mod cloud_performance_tests {
         runtime.view = points(count);
         runtime.grains = points(64);
         runtime.contacts = points(16).into_iter().enumerate().map(|(index, point)| Contact {
-            id: index as u8, point, refreshed: 0, frame: 0,
+            id: index as u8, point, refreshed: 0, frame: 0, precise: false,
         }).collect();
         instance.cloud_ui = "quotes \" slash \\ tonic C♯ — 🎹".repeat(90);
         instance
@@ -39,12 +39,12 @@ mod cloud_performance_tests {
         let now = tick.saturating_sub(1) as f64 / seq_core::TICKS_PER_STEP as f64;
         let points = |points: &[Point]| points.iter()
             .filter(|point| now - (point.step as f64) < TAIL_STEPS as f64)
-            .map(|point| format!("{},{},{},{:.3}", point.x, point.y, point.pressure, (now - point.step as f64).max(0.0)))
+            .map(|point| format!("{},{},{},{:.3}", point.x/129, point.y/129, point.pressure, (now - point.step as f64).max(0.0)))
             .collect::<Vec<_>>().join(";");
         let contacts = runtime.contacts.iter().filter(|contact|
             tick.saturating_sub(contact.refreshed) < 192 &&
             frame_now.saturating_sub(contact.frame) < engine.clock.sample_rate() as u64 * 2)
-            .map(|contact| format!("{},{},{}", contact.point.x, contact.point.y, contact.point.pressure))
+            .map(|contact| format!("{},{},{}", contact.point.x/129, contact.point.y/129, contact.point.pressure))
             .collect::<Vec<_>>().join(";");
         format!("cf1|{}|{}|{}", contacts, points(&runtime.view), points(&runtime.grains))
     }
