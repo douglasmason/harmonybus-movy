@@ -16,7 +16,7 @@ def patch_cloud_generator(root: Path) -> None:
     source = replace_once(source, '    pub fn clear(&mut self) {', '    pub fn clear(&mut self) {\n        self.cloud_points.clear();self.cloud_field=false;self.cloud_field_start=0;')
     path.write_text(source)
     # Install the same controller in the native bundle and browser emulator.
-    for filename in ('cloud-view.ts','cloud-surface.ts','cloud-remote.ts'):
+    for filename in ('cloud-view.ts','cloud-surface.ts','cloud-remote.ts','expression-input.ts'):
         (root / 'src/seq' / filename).write_text((assets / filename).read_text())
     path = root / 'src/seq/chord-play.ts'
     source = "import {cloudParameters,cloudRead,cloudWrite,cloudFieldKeys,cloudSurfaceActive,setCloudSurface,cloudMidi,cloudTurn,releaseCloud,tickCloud,drawCloud} from './cloud-surface.js';\n" + path.read_text()

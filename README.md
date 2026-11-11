@@ -1,3 +1,7 @@
+## Precise cloud X/Y and MPE input (hbclean.340)
+
+Remote UI and standalone retain 14-bit X/Y per finger through cloud strokes, Hold, recording and replay. With the Cloud editor open, the browser's playing pads share that continuous field. Optional Web MIDI MPE input maps per-note pitch/bend, slide and pressure to the same contacts; Move and Launchpad retain their existing pad/pressure controls. See [Expressive cloud input](docs/expressive-cloud-input.md).
+
 ## Linear automation readers (hbclean.339)
 
 Each actor can independently read Instrument and HB Render automation as Step or Linear. Linear blends numeric controls across existing locks and note-step base resets, including Own clips with Source Weaving off and borrowed clips with Timeline or Fit alignment. Categorical controls stay stepped. See [Linear automation](docs/linear-automation.md).

@@ -8,6 +8,26 @@
         result
     }
     fn start(engine:&mut Engine){command(engine,"gexplore 2 16 127 96 71 0 127 50 64 80 64 100");}
+    #[test] fn precise_contacts_keep_low_bits_through_hold_record_reload_library_and_bake() {
+        let mut engine=fixture();start(&mut engine);engine.play();engine.toggle_record(2);
+        assert!(!engine.cloud_touch("gcloud 2 move14 96 8193 10001 80"));
+        command(&mut engine,"gcloud 2 touch14 96 8193 10001 80 1;gcloud 2 touch14 113 8194 10002 90 1");
+        assert_eq!(engine.clouds[2].contacts[0].point.x,8193);
+        assert!(engine.cloud_view(2).starts_with("cf2|8193,10001,80;8194,10002,90|"));
+        for message in ["gcloud 2 touch14 97 16384 0 100","gcloud 2 touch14 97 0 0 128","gcloud 2 touch14 97 -1 0 100","gcloud 2 move14 113 9000 10000 80 2"] {assert!(!engine.cloud_touch(message));}
+        command(&mut engine,"gcloud 2 hold 1;gcloud 2 touch14 96 8193 10001 0;gcloud 2 touch14 113 8194 10002 0");
+        let heard=trace(&mut engine,768);engine.toggle_record(2);
+        let points=engine.tracks[2].clips[0].cloud_points.clone();
+        assert!(points.iter().any(|point|point.x==8193&&point.y==10001));
+        let saved=engine.undo_snapshot();assert!(saved.contains(",8193,10001,80,1,14"));
+        let mut restored=fixture();assert!(crate::persist::load(&mut restored,&saved));
+        assert_eq!(restored.tracks[2].clips[0].cloud_points,points);
+        restored.play();assert_eq!(trace(&mut restored,768),heard);restored.stop(&mut Vec::new());
+        let payload=restored.part_export(2);assert_eq!(crate::part_load::prepare_part("user",&payload).unwrap().clip.cloud_points,points);
+        restored.generator_bake("gbake 2 0",&mut Vec::new());restored.play();assert_eq!(trace(&mut restored,768),heard);
+        command(&mut engine,"stop");assert!(!engine.cloud_touch("gcloud 2 move14 113 9000 10000 80"));
+        for malformed in ["0,16384,0,100,0,14","0,10,10,100,0,13","0,-1,10,100,0,14"]{assert!(crate::cloud::Point::parse(malformed).is_none());}
+    }
     #[test] fn cloud_updates_cannot_reacquire_released_cleared_stopped_or_expired_contacts() {
         // Exercise each surface's ID range through the production command path.
         for id in [0,32,96,112] {
@@ -17,7 +37,7 @@
                 assert!(!engine.cloud_touch(&update));
                 command(&mut engine,&format!("gcloud 2 {id} 20 30 100 1"));
                 assert!(engine.cloud_touch(&update));
-                assert_eq!((engine.clouds[2].contacts[0].point.x,engine.clouds[2].contacts[0].point.pressure),(100,70));
+                assert_eq!((engine.clouds[2].contacts[0].point.x,engine.clouds[2].contacts[0].point.pressure),(100*crate::cloud::XY_LEGACY_SCALE,70));
                 match ending {
                     "up"=>command(&mut engine,&format!("gcloud 2 {id} 100 80 0 1")),
                     "clear"=>command(&mut engine,"gcloud 2 clear"),
@@ -114,7 +134,7 @@
             heard.extend(trace(&mut engine,24).into_iter().map(|(tick,pitch,velocity,on)|(tick+step*24,pitch,velocity,on)));
         }
         engine.toggle_record(2);let points=engine.tracks[2].clips[0].cloud_points.clone();
-        assert_eq!(points.len(),64);assert!(points.iter().any(|point|point.x>0&&point.x<127));
+        assert_eq!(points.len(),64);assert!(points.iter().any(|point|point.x>0&&point.x<crate::cloud::XY_MAX));
         let saved=engine.undo_snapshot();let mut restored=fixture();assert!(crate::persist::load(&mut restored,&saved));
         restored.play();assert_eq!(trace(&mut restored,768),heard);
         restored.stop(&mut Vec::new());let payload=restored.part_export(2);
@@ -124,7 +144,7 @@
     #[test] fn cloud_rate_axis_selects_clocked_subdivisions_and_respects_rate_ceiling() {
         use crate::cloud::{Activity,Point};
         let mut config=crate::generator::Config::parse("16 127 96 71 0 127 50 64 0 64 0").unwrap();
-        let attacks=|config,x| (0..32).filter(|step|!crate::cloud::notes(config,*step,&[Point{step:i32::from(*step),x,y:64,pressure:127,activity:Activity::Rate}],true).is_empty()).collect::<Vec<_>>();
+        let attacks=|config,x| (0..32).filter(|step|!crate::cloud::notes(config,*step,&[Point::legacy(i32::from(*step),x,64,127,Activity::Rate)],true).is_empty()).collect::<Vec<_>>();
         assert_eq!(attacks(config,0),vec![0,8,16,24]);
         assert_eq!(attacks(config,127),(0..32).collect::<Vec<_>>());
         config.cloud[0]=48; // Fastest is a quarter note; intermediate is dotted quarter.

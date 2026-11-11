@@ -113,5 +113,5 @@ export function mountMoveWorkspace({connection,inputs,openComponent}){
  }
  const requested=new URLSearchParams(location.search).get('view');if(['cloud','field','choices','song','lights'].includes(requested))shown.add(requested);
  apply();
- return {receive,setAvailable,suspend,release,isHeld,capture,restore};
+ return {receive,setAvailable,suspend,release,isHeld,capture,restore,padGesture:(...args)=>valid()&&shown.has('cloud')&&cloud.padGesture(...args)};
 }

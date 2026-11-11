@@ -1,6 +1,6 @@
 //! Frozen hbclean.334 grain renderer for output-equivalence tests.
-use seq_core::{cloud::{Point, Activity, TAIL_STEPS}, clip::Note, follower_input::InputKey, generator::Config, TICKS_PER_STEP};
-pub fn legacy_grains(config:Config,step:u16,points:&[Point],field:bool)->Vec<(Note,Point)> {
+use seq_core::{cloud::{Point as WidePoint, Activity, TAIL_STEPS}, clip::Note, follower_input::InputKey, generator::Config, TICKS_PER_STEP};
+fn legacy_grains_raw(config:Config,step:u16,points:&[Point],field:bool)->Vec<(Note,Point)> {
     if config.end>0&&u32::from(step)*TICKS_PER_STEP>=config.end{return Vec::new();}
     let rates=[8,6,4,3,2,1];
     let fastest=usize::from(config.cloud[0])*rates.len()/128;
@@ -39,4 +39,12 @@ pub fn legacy_grains(config:Config,step:u16,points:&[Point],field:bool)->Vec<(No
         result.push((Note{tick:u32::from(step)*TICKS_PER_STEP,step,gate:3+u32::from(config.cloud[1])*93/127,pitch,vel:velocity,input_key:InputKey::new(0,1),actions:None,pressure:Vec::new(),rendered:false,suppress:false,fired:false},Point{step:step as i32,x:point.x,y:(i32::from(point.y)+variation*spread/2+contour*8).clamp(0,127) as u8,pressure:velocity,activity:point.activity}));
     }
     result
+}
+
+#[derive(Clone,Copy)]
+struct Point {step:i32,x:u8,y:u8,pressure:u8,activity:Activity}
+/// Adapt storage units only; the frozen legacy renderer above stays unchanged.
+pub fn legacy_grains(config:Config,step:u16,points:&[WidePoint],field:bool)->Vec<(Note,WidePoint)> {
+    let legacy:Vec<_>=points.iter().map(|point|Point{step:point.step,x:(point.x/129) as u8,y:(point.y/129) as u8,pressure:point.pressure,activity:point.activity}).collect();
+    legacy_grains_raw(config,step,&legacy,field).into_iter().map(|(note,point)|(note,WidePoint::legacy(point.step,point.x,point.y,point.pressure,point.activity))).collect()
 }

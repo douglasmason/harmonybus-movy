@@ -69,6 +69,7 @@ jobs:
           node ../tests/field_lfo_ui.mjs .
           node ../tests/relative_operations_ui.mjs .
           node ../tests/automation_reader_ui.mjs .
+          node ../tests/expression_input.mjs .
           node ../tests/scale_cardinality_ui.mjs .
           if test -f ../tests/field_routes_ui.mjs; then node ../tests/field_routes_ui.mjs .; fi
       - name: Native sequencer, DSP and full production chain

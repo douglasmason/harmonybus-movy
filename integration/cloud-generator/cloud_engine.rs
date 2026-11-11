@@ -18,16 +18,18 @@ impl Engine {
         if clear.len()==3&&clear[2]=="clear" {
             if let Ok(track)=clear[1].parse::<usize>() {if track<NUM_TRACKS {self.clouds[track]=crate::cloud::Runtime{field:true,..Default::default()};return true;}}return false;
         }
-        let moving=clear.get(2)==Some(&"move");
-        let fields:Vec<u32>=clear.iter().enumerate().filter(|(index,_)|*index>0&&(!moving||*index!=2)).map(|(_,value)|value.parse()).collect::<Result<_,_>>().unwrap_or_default();
-        if !matches!(fields.len(),5|6)||fields[0]>=NUM_TRACKS as u32||fields[1]>127||fields[2..].iter().any(|value|*value>127){return false;}
+        let precise=matches!(clear.get(2),Some(&"touch14")|Some(&"move14"));
+        let moving=matches!(clear.get(2),Some(&"move")|Some(&"move14"));
+        let fields:Vec<u32>=clear.iter().enumerate().filter(|(index,_)|*index>0&&(!(moving||precise)||*index!=2)).map(|(_,value)|value.parse()).collect::<Result<_,_>>().unwrap_or_default();
+        if !matches!(fields.len(),5|6)||fields[0]>=NUM_TRACKS as u32||fields[1]>127||fields[2..4].iter().any(|value|*value>if precise {16383}else{127})||fields[4]>127{return false;}
         let Some(activity)=crate::cloud::Activity::parse(*fields.get(5).unwrap_or(&0)) else{return false;};
         let track=fields[0] as usize;
         if !self.generator_explore[track].is_some_and(|state|state.current.is_cloud()){return false;}
         // Updates never acquire a contact. Stop, Clear, release and expiry are
         // boundaries that an old pressure packet or browser heartbeat cannot undo.
         if moving&&!self.clouds[track].contacts.iter().any(|contact|contact.id==fields[1] as u8&&self.master_tick.saturating_sub(contact.refreshed)<192&&self.frame_now.saturating_sub(contact.frame)<self.clock.sample_rate() as u64*2){return false;}
-        self.clouds[track].touch(fields[1] as u8,fields[2] as u8,fields[3] as u8,fields[4] as u8,activity,self.master_tick,self.frame_now)
+        if precise {self.clouds[track].touch_xy(fields[1] as u8,fields[2] as u16,fields[3] as u16,fields[4] as u8,activity,self.master_tick,self.frame_now,true)}
+        else {self.clouds[track].touch(fields[1] as u8,fields[2] as u8,fields[3] as u8,fields[4] as u8,activity,self.master_tick,self.frame_now)}
     }
     fn cloud_capture(&mut self,track:usize,slot:usize,pos:u32) {
         let Some(state)=self.generator_explore[track].filter(|state|state.current.is_cloud()) else{return;};
@@ -94,21 +96,23 @@ impl Engine {
         self.append_cloud_view(track,&mut output).expect("writing a String cannot fail");
         output
     }
-    /// Append the unchanged wire snapshot into the caller's reusable buffer.
+    /// Append a legacy or precise snapshot into the caller's reusable buffer.
     pub fn append_cloud_view(&self,track:usize,output:&mut impl std::fmt::Write)->std::fmt::Result {
         let Some(runtime)=self.clouds.get(track) else{return Ok(());};
         let now=self.master_tick.saturating_sub(1) as f64/TICKS_PER_STEP as f64;
-        output.write_str("cf1|")?;
+        let precise=runtime.contacts.iter().any(|contact|!contact.point.legacy_xy())||runtime.view.iter().chain(runtime.grains.iter()).any(|point|!point.legacy_xy());
+        let divisor=if precise {1}else{crate::cloud::XY_LEGACY_SCALE};
+        output.write_str(if precise {"cf2|"}else{"cf1|"})?;
         let mut separator="";
         for contact in runtime.contacts.iter().filter(|contact|self.master_tick.saturating_sub(contact.refreshed)<192&&self.frame_now.saturating_sub(contact.frame)<self.clock.sample_rate() as u64*2) {
-            write!(output,"{separator}{},{},{}",contact.point.x,contact.point.y,contact.point.pressure)?;
+            write!(output,"{separator}{},{},{}",contact.point.x/divisor,contact.point.y/divisor,contact.point.pressure)?;
             separator=";";
         }
         for points in [&runtime.view,&runtime.grains] {
             output.write_char('|')?;
             let mut separator="";
             for point in points.iter().filter(|point|now-(point.step as f64)<crate::cloud::TAIL_STEPS as f64) {
-                write!(output,"{separator}{},{},{},{:.3}",point.x,point.y,point.pressure,(now-point.step as f64).max(0.0))?;
+                write!(output,"{separator}{},{},{},{:.3}",point.x/divisor,point.y/divisor,point.pressure,(now-point.step as f64).max(0.0))?;
                 separator=";";
             }
         }

@@ -13,5 +13,5 @@ export function mountGenerators({root,api}){
   for(const tab of root.querySelectorAll('[data-editor]'))tab.setAttribute('aria-pressed',String(tab.dataset.editor===active));
   if(!suspended)components.get(active).resume();
  };
- return {release(){for(const component of components.values())component.release();},isHeld:()=>components.get(active).isHeld(),suspend(){suspended=true;for(const component of components.values())component.suspend();},resume(){suspended=false;components.get(active).resume();},dispose(){for(const component of components.values())component.dispose();}};
+ return {padGesture:(...args)=>!suspended&&active==='cloud'&&components.get('cloud').padGesture(...args),release(){for(const component of components.values())component.release();},isHeld:()=>components.get(active).isHeld(),suspend(){suspended=true;for(const component of components.values())component.suspend();},resume(){suspended=false;components.get(active).resume();},dispose(){for(const component of components.values())component.dispose();}};
 }

@@ -1,5 +1,5 @@
 /** Canonical touchscreen editor, mounted by Remote UI and the standalone workspace. */
-import {readCloud,emptyCloud,cloudFade,cloudPosition} from './cloud-view.mjs';
+import {readCloud,emptyCloud,cloudFade,cloudPosition,cloudPointer,createCloudMpeInput} from './cloud-view.mjs';
 const fields=['density','dynamics','rate','length','register','spread','contour','variation'];
 export function mountCloud({root,api}){
  root.innerHTML=`<style>
@@ -11,27 +11,63 @@ export function mountCloud({root,api}){
  button[data-action=hold]{min-width:9em}
  </style><div class="cloud-toolbar"><strong>Follower cloud</strong><select aria-label="Follower actor" data-actor><option>Melody</option><option>Comp</option><option>Bass</option></select><button data-action="choose">Choose Cloud</button><button data-action="explore">Explore</button><button data-action="play">Play</button><button data-action="stop">Stop</button><button data-action="record">Record</button><button data-action="hold" aria-pressed="false" title="Capture the current cloud; new touches play over it. Release lets it fade.">Hold cloud</button><button data-action="clear">Clear cloud</button></div>
  <p class="cloud-transport" role="status">Waiting for transport…</p><canvas aria-label="Multitouch cloud field. Horizontal movement changes rhythmic activity; vertical movement changes harmonic height."></canvas>
- <div class="cloud-legend"><span style="color:#00ff00">● Direct touch</span><span style="color:#31adff">● Fresh consequences</span><span style="color:#6060ff">● Fading trail</span><span data-axes-label>← Less probability · More probability → &nbsp; ↑ Higher notes</span></div>
+ <div class="cloud-legend"><span style="color:#00ff00">● Direct touch</span><span style="color:#31adff">● Fresh consequences</span><span style="color:#6060ff">● Fading trail</span><span>Continuous X/Y · pressure when supported</span><span data-axes-label>← Less probability · More probability → &nbsp; ↑ Higher notes</span></div>
  <div class="cloud-toolbar"><label>Activity axis<select aria-label="Cloud field activity" data-activity><option>Probability</option><option>Rate</option></select></label><span class="cloud-legend" data-activity-help></span></div>
  <div class="cloud-controls">${['rate','density','length','register','spread','contour','variation','dynamics'].map(field=>`<label>${field[0].toUpperCase()+field.slice(1)} <output data-value="${field}">—</output><input aria-label="Cloud ${field}" data-control="${field}" type="range" min="0" max="127" value="64"></label>`).join('')}</div>
  <div class="cloud-toolbar"><strong>Draw with X / Y</strong><select aria-label="Cloud field axes" data-axes><option value="pitch-y">X Probability · Y Pitch</option><option value="pitch-x">X Pitch · Y Probability</option></select>${['x','y'].map(axis=>`<button data-draw="${axis}" data-delta="-1" aria-label="Draw ${axis} negative">${axis.toUpperCase()} −</button><button data-draw="${axis}" data-delta="1" aria-label="Draw ${axis} positive">${axis.toUpperCase()} +</button>`).join('')}<select aria-label="Cloud field boundary" data-edge><option>Bounded</option><option>Wrap</option></select><label>Seed<input aria-label="Cloud seed" data-seed type="number" min="1" max="65535" value="1"></label><button data-action="restore">Restore controls</button><button data-action="bake">Bake clip</button></div><p class="cloud-status" role="status">Waiting for the follower generator…</p>`;
+ const midiBar=document.createElement('div');midiBar.className='cloud-toolbar';midiBar.innerHTML='<button data-mpe-connect>Connect MPE input</button><select aria-label="MPE MIDI input" data-mpe-port hidden><option value="">Choose MIDI input</option></select><span class="cloud-legend" data-mpe-status>Lower zone · X pitch/bend · Y slide · Z pressure</span>';root.querySelector('canvas').before(midiBar);
+ const mpeButton=root.querySelector('[data-mpe-connect]'),mpePorts=root.querySelector('[data-mpe-port]'),mpeStatus=root.querySelector('[data-mpe-status]');
  const canvas=root.querySelector('canvas'),context=canvas.getContext('2d'),status=root.querySelector('.cloud-status'),pointers=new Map();
  let suspended=false,requested=true,disposed=false,inFlight=false,state=null,snapshot=emptyCloud(),timer=null,lastHeartbeat=0,generation=0;
  const command=value=>{if(!suspended&&!disposed)api.send(value);};
- const coordinates=event=>{const bounds=canvas.getBoundingClientRect();return {x:Math.max(0,Math.min(127,Math.round((event.clientX-bounds.left)/bounds.width*127))),y:Math.max(0,Math.min(127,Math.round((1-(event.clientY-bounds.top)/bounds.height)*127))),pressure:Math.round((event.pointerType==='pen'?event.pressure||.75:.85)*127)};};
- function touch(pointer,pressure=pointer.pressure,start=false){command(`${start||pressure===0?'touch':'move'} ${pointer.track} ${pointer.id} ${pointer.x} ${pointer.y} ${pressure}${pointer.activity==='Rate'?' 1':''}`);}
+ function touch(pointer,pressure=pointer.pressure,start=false){command(`${start||pressure===0?'touch':'move'}${pointer.maximum===16383?'14':''} ${pointer.track} ${pointer.id} ${pointer.x} ${pointer.y} ${pressure}${pointer.activity==='Rate'?' 1':''}`);}
  function finishTouch(pointer){if(pointer.pending){pointer.pending=false;touch(pointer);}touch(pointer,0);}
- function release(){for(const pointer of pointers.values())finishTouch(pointer);pointers.clear();}
- function finish(event){const pointer=pointers.get(event.pointerId);if(!pointer)return;finishTouch(pointer);pointers.delete(event.pointerId);if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);paint();}
- canvas.onpointerdown=event=>{
-  if(suspended||!state?.cloud||pointers.size>=16)return;event.preventDefault();
-  const used=new Set([...pointers.values()].map(pointer=>pointer.id)),id=Array.from({length:16},(_,index)=>96+index).find(id=>!used.has(id));
-  const pointer={...coordinates(event),id,track:state.track,activity:state.activity,pending:false};pointers.set(event.pointerId,pointer);canvas.setPointerCapture(event.pointerId);touch(pointer,pointer.pressure,true);paint();
+ const mpeContacts=new Map();
+ const mpe=createCloudMpeInput(contact=>{
+  const previous=mpeContacts.get(contact.id);
+  if(contact.action==='up'){if(previous){finishTouch(previous);mpeContacts.delete(contact.id);}return;}
+  if(contact.action==='down'){
+   if(suspended||!state?.cloud||state.xyBits!==14||pointers.size+mpeContacts.size>=16)return;
+   const pointer={...contact,maximum:16383,track:state.track,activity:state.activity,pending:false};mpeContacts.set(contact.id,pointer);touch(pointer,pointer.pressure,true);paint();
+  }else if(previous){Object.assign(previous,contact,{pending:true});}
+ });
+ function release(){for(const pointer of pointers.values())finishTouch(pointer);pointers.clear();mpe.release();mpeContacts.clear();}
+ let midiAccess=null,midiPort=null,midiGeneration=0,midiPending=false;
+ function detachMidi(){mpe.reset();mpeContacts.clear();if(midiPort){midiPort.onmidimessage=null;Promise.resolve(midiPort.close?.()).catch(()=>{});}midiPort=null;}
+ function disconnectMidi(){midiGeneration++;detachMidi();if(midiAccess)midiAccess.onstatechange=null;midiAccess=null;mpePorts.hidden=true;mpeButton.textContent='Connect MPE input';}
+ function refreshMidiPorts(){
+  const selected=midiPort?.id??'';mpePorts.replaceChildren(new Option('Choose MIDI input',''));
+  for(const port of midiAccess?.inputs.values()??[])if(port.state!=='disconnected')mpePorts.add(new Option(port.name||port.id,port.id));
+  if(midiPort?.state==='disconnected'){detachMidi();mpeStatus.textContent='MPE input disconnected';}
+  mpePorts.value=midiPort?selected:'';
+ }
+ mpePorts.onchange=()=>{
+  detachMidi();midiPort=midiAccess?.inputs.get(mpePorts.value)??null;if(!midiPort)return;
+  const port=midiPort;port.onmidimessage=event=>{if(!suspended&&!disposed&&state?.cloud&&state.xyBits===14)mpe.midi(event.data);};
+  Promise.resolve(port.open?.()).catch(()=>{if(midiPort===port){detachMidi();mpePorts.value='';mpeStatus.textContent='Could not open this MIDI input';}});
+  mpeStatus.textContent=`${port.name||'MPE input'} · lower zone · bend range from controller (default ±48)`;
  };
- canvas.onpointermove=event=>{const pointer=pointers.get(event.pointerId);if(!pointer)return;Object.assign(pointer,coordinates(event),{pending:true});paint();};
+ mpeButton.onclick=async()=>{
+  if(midiAccess){disconnectMidi();mpeStatus.textContent='MPE input disconnected';return;}
+  const token=++midiGeneration;midiPending=true;mpeButton.disabled=true;
+  try{const access=await navigator.requestMIDIAccess({sysex:false});if(disposed||token!==midiGeneration)return;midiAccess=access;access.onstatechange=refreshMidiPorts;refreshMidiPorts();mpePorts.hidden=false;mpeButton.textContent='Disconnect MPE input';mpeStatus.textContent='Choose the MPE controller input · lower zone';}
+  catch{mpeStatus.textContent='MIDI input unavailable; touchscreen X/Y remains available';}
+  finally{midiPending=false;if(!disposed)mpeButton.disabled=typeof navigator.requestMIDIAccess!=='function'||state?.xyBits!==14;}
+ };
+ if(typeof navigator.requestMIDIAccess!=='function'){mpeButton.disabled=true;mpeButton.title='This browser supports touchscreen X/Y but does not expose Web MIDI input.';}
+ function finish(event){const pointer=pointers.get(event.pointerId);if(!pointer)return;finishTouch(pointer);pointers.delete(event.pointerId);if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);paint();}
+ function beginPointer(event,bounds){
+  if(suspended||!state?.cloud||pointers.size+mpeContacts.size>=16)return;event.preventDefault();
+  const used=new Set([...pointers.values()].map(pointer=>pointer.id)),id=Array.from({length:16},(_,index)=>96+index).find(id=>!used.has(id));
+  const maximum=state.xyBits===14?16383:127,point=cloudPointer(event,bounds,maximum);if(!point)return false;
+  const pointer={...point,maximum,id,track:state.track,activity:state.activity,pending:false};pointers.set(event.pointerId,pointer);touch(pointer,pointer.pressure,true);paint();return true;
+ }
+ function movePointer(event,bounds){const pointer=pointers.get(event.pointerId);if(!pointer)return false;const point=cloudPointer(event,bounds,pointer.maximum);if(!point)return false;Object.assign(pointer,point,{pending:true});paint();return true;}
+ canvas.onpointerdown=event=>{if(beginPointer(event,canvas.getBoundingClientRect()))canvas.setPointerCapture(event.pointerId);};
+ canvas.onpointermove=event=>movePointer(event,canvas.getBoundingClientRect());
  canvas.onpointerup=finish;canvas.onpointercancel=finish;canvas.onlostpointercapture=finish;
  root.querySelector('[data-actor]').onchange=event=>{release();command('actor '+event.target.value);};
- for(const button of root.querySelectorAll('[data-action]'))button.onclick=()=>{if(['stop','clear','choose','explore'].includes(button.dataset.action))release();if(button.dataset.action==='hold'){for(const pointer of pointers.values())if(pointer.pending){pointer.pending=false;touch(pointer);}command(`hold ${state?.holding?0:1}`);}else command(button.dataset.action);};
+ for(const button of root.querySelectorAll('[data-action]'))button.onclick=()=>{if(['stop','clear','choose','explore'].includes(button.dataset.action))release();if(button.dataset.action==='hold'){for(const pointer of [...pointers.values(),...mpeContacts.values()])if(pointer.pending){pointer.pending=false;touch(pointer);}command(`hold ${state?.holding?0:1}`);}else command(button.dataset.action);};
  for(const input of root.querySelectorAll('[data-control]'))input.oninput=()=>{root.querySelector(`[data-value="${input.dataset.control}"]`).textContent=input.value;command(`control cg_cloud_${input.dataset.control} ${input.value}`);};
  root.querySelector('[data-axes]').onchange=event=>{release();command('axes '+event.target.value);};
  root.querySelector('[data-activity]').onchange=event=>{release();command('activity '+event.target.value);};
@@ -52,7 +88,7 @@ export function mountCloud({root,api}){
   const project=point=>cloudPosition(point,state?.axes==='Pitch / Activity');
   if(state?.trail){for(const point of snapshot.trails.map(project))dot(point,point.age<1?'#31adff':'#3131ff',15+point.age*6,cloudFade(point,state.trail)*.5,true);for(const point of snapshot.grains.map(project))dot(point,point.age<1?'#80eaff':'#5050ff',2+point.pressure*3,cloudFade(point,state.trail));}
   for(const point of snapshot.contacts.map(project))dot(point,'#00ff00',5,1);
-  for(const pointer of pointers.values())dot({x:pointer.x/127,y:pointer.y/127},'#00ff00',6,1);
+  for(const pointer of [...pointers.values(),...mpeContacts.values()])dot({x:pointer.x/pointer.maximum,y:pointer.y/pointer.maximum},'#00ff00',6,1);
   // The parked X/Y cursor is a locator, not an active contact. Green is reserved
   // for actual touch/pad/encoder contacts, including when Hold keeps a cloud alive.
   if(state?.cloud){context.globalAlpha=.75;context.strokeStyle='#929aaa';context.strokeRect(state.x/127*width-4,(1-state.y/127)*height-4,8,8);}
@@ -60,13 +96,14 @@ export function mountCloud({root,api}){
  }
  async function poll(){
   if(suspended||disposed)return;
-  const now=Date.now();for(const pointer of pointers.values())if(pointer.pending||now-lastHeartbeat>=250){pointer.pending=false;touch(pointer);}if(now-lastHeartbeat>=250)lastHeartbeat=now;
+  const now=Date.now();for(const pointer of [...pointers.values(),...mpeContacts.values()])if(pointer.pending||now-lastHeartbeat>=250){pointer.pending=false;touch(pointer);}if(now-lastHeartbeat>=250)lastHeartbeat=now;
   if(inFlight)return;inFlight=true;const token=generation;
   try{
    const result=await api.read();if(suspended||disposed||token!==generation)return;
    const next=typeof result.ui==='string'?JSON.parse(result.ui||'null'):result.ui;
    if(next&&Number.isInteger(next.track)&&Array.isArray(next.values)&&next.values.length===8){
     if(state&&(state.track!==next.track||state.axes!==next.axes||state.activity!==next.activity||state.cloud&&!next.cloud||state.explore==='Stop'&&next.explore!=='Stop'||state.transport?.playing&&!next.transport?.playing))release();state=next;
+    mpeButton.disabled=midiPending||typeof navigator.requestMIDIAccess!=='function'||state.xyBits!==14;
     const flipped=state.axes==='Pitch / Activity';
     const rate=state.activity==='Rate',activity=rate?'Rate':'Probability',meaning=rate?'trigger rate':'trigger probability';
     root.querySelector('[data-activity]').value=activity;
@@ -102,5 +139,5 @@ export function mountCloud({root,api}){
  function resume(){requested=true;activate();}
  const visibility=()=>{if(document.hidden)pause();else activate();};
  document.addEventListener('visibilitychange',visibility);globalThis.addEventListener('pagehide',pause);globalThis.addEventListener('blur',release);activate();
- return {release,suspend,resume,isHeld:()=>pointers.size>0,dispose(){suspend();disposed=true;observer.disconnect();document.removeEventListener('visibilitychange',visibility);globalThis.removeEventListener('pagehide',pause);globalThis.removeEventListener('blur',release);}};
+ return {release,suspend,resume,padGesture(phase,event,bounds){if(phase==='down')return beginPointer(event,bounds);if(phase==='move')return movePointer(event,bounds);finish(event);return true;},isHeld:()=>pointers.size+mpeContacts.size>0,dispose(){suspend();disconnectMidi();disposed=true;observer.disconnect();document.removeEventListener('visibilitychange',visibility);globalThis.removeEventListener('pagehide',pause);globalThis.removeEventListener('blur',release);}};
 }
