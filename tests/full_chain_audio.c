@@ -204,13 +204,24 @@ static void test_chord_spread(void){
     assert(field_get("ch0:synth:held_60")==1&&field_get("ch0:synth:held_76")==1&&field_get("ch0:synth:held_79")==1);
     assert(field_get("ch0:synth:held_64")==0&&field_get("ch0:synth:held_67")==0);
     assert(sent_on==5&&sent_off==2);
+#ifdef HB_TEST_SIGNED_SPREAD
+    set("ch0:midi_fx1:motion_control_1","-2");render(16);
+    assert(field_get("ch0:synth:held_48")==1&&field_get("ch0:synth:held_52")==1&&field_get("ch0:synth:held_67")==1);
+    assert(field_get("ch0:synth:held_60")==0&&field_get("ch0:synth:held_76")==0&&field_get("ch0:synth:held_79")==0);
+    assert(sent_on==8&&sent_off==5);
+#endif
     set("ch0:midi_fx1:motion_hold_1","Off");render(16);
     assert(field_get("ch0:synth:held_64")==1&&field_get("ch0:synth:held_67")==1);
     assert(field_get("ch0:synth:held_76")==0&&field_get("ch0:synth:held_79")==0);
+#ifdef HB_TEST_SIGNED_SPREAD
+    assert(field_get("ch0:synth:held_48")==0&&field_get("ch0:synth:held_52")==0);
+    assert(sent_on==10&&sent_off==7);
+#else
     assert(sent_on==7&&sent_off==4);
+#endif
     set("cmd","stop");render(16);assert(sent_on==sent_off);
     set("ch0:midi_fx1:motion_operation_1","Off");
-    puts("Chord Spread: production clip regenerates voicing, keeps bass, returns upper voices and balances releases");
+    puts("Chord Spread: production clip regenerates signed voicings, preserves anchors and balances releases");
 }
 #endif
 
