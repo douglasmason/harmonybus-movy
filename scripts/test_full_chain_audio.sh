@@ -35,6 +35,7 @@ JSON
 # Older feature workflows deliberately retain their original HB source pin.
 # The Chord Play workflow requires this header, so its new coverage cannot skip.
 CHORD_PLAY_TEST_FLAGS=()
+if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/position_inputs.rs" && grep -q sequence_inputs "$HB_SOURCE/modules/harmonybus/dsp/harmonybus.c"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_SEQUENCE_POSITION); fi
 if grep -q 'operation&96' "$HB_SOURCE/src/motion.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_ADAPTIVE_MOTIF); fi
 if test -f "$HB_SOURCE/src/chord_discovery.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CHORD_DISCOVERY); fi
 if test -f "$HB_SOURCE/src/chord_selection.h"; then

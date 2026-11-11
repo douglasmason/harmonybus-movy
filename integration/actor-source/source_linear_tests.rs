@@ -16,6 +16,60 @@ mod source_linear_tests {
     }
     fn cc(value:u8)->OutEvent {OutEvent::Cc{track:3,lane:1,val:value}}
     #[test]
+    fn position_inputs_select_fractional_values_without_retriggering_or_wrapping_endpoints() {
+        let mut engine=setup();engine.source_routes[3].instrument_driver=1;
+        engine.source_position_inputs.local[3][0]=Some(0);tick(&mut engine);
+        engine.source_position_inputs.local[3][0]=Some(8192);
+        let events=tick(&mut engine);assert_eq!(engine.tracks[3].auto_cur[1],90);
+        assert!(!events.iter().any(|event|matches!(event,OutEvent::NoteOn{..}|OutEvent::NoteOff{..})));
+        engine.source_position_inputs.local[3][0]=Some(16383);tick(&mut engine);
+        assert_eq!(engine.tracks[3].auto_cur[1],96,"last position holds the last point, not the wrap segment");
+        engine.source_position_inputs.local[3][0]=Some(4096);tick(&mut engine);assert_eq!(engine.tracks[3].auto_cur[1],45);
+        engine.source_routes[3].instrument_linear=false;engine.source_automation_invalidate();tick(&mut engine);
+        assert_eq!(engine.tracks[3].auto_cur[1],0,"Step reads can be driven independently of Linear");
+        engine.source_position_inputs.local[3][0]=Some(16383);tick(&mut engine);assert_eq!(engine.tracks[3].auto_cur[1],96);
+    }
+    #[test]
+    fn driver_dimensions_field_snapshots_and_discrete_targets_remain_independent() {
+        let mut engine=setup();engine.source_routes[3].instrument_driver=3;engine.source_routes[3].hb_render_driver=2;
+        engine.source_routes[3].hb_render_linear=true;
+        for (lane,label,numeric) in [(2,"midi_fx1:arp_gate",true),(3,"synth:shape",false)] {
+            engine.auto_label(3,lane,label);engine.auto_numeric(3,lane,label,numeric);
+            engine.tracks[3].clips[0].set_lock(lane as u8,0,0);engine.tracks[3].clips[0].set_lock(lane as u8,8,100);
+        }
+        engine.source_position_inputs.field[0]=Some(8192);engine.source_position_inputs.local[3][1]=Some(16383);tick(&mut engine);
+        assert_eq!(engine.tracks[3].auto_cur[1],90);assert_eq!(engine.tracks[3].auto_cur[2],100);assert_eq!(engine.tracks[3].auto_cur[3],0);
+        let snapshot=engine.source_position_inputs;
+        for _ in 0..8 {tick(&mut engine);}
+        assert_eq!(snapshot,engine.source_position_inputs,"reading sequences never advances their modulation owners");
+        assert_eq!(engine.tracks[3].auto_cur[1],90);
+    }
+    #[test]
+    fn driven_donors_fallback_record_mute_and_stop_use_the_existing_owner() {
+        let mut engine=setup();let donor=0;engine.tracks[donor].playing_slot=Some(0);
+        engine.tracks[donor].clips[0].set_loop(16,32);engine.auto_label(donor,6,"synth:cutoff");
+        engine.tracks[donor].clips[0].set_lock(6,16,10);engine.tracks[donor].clips[0].set_lock(6,32,110);
+        engine.source_routes[3].enabled=true;engine.source_routes[3].instrument=Some(crate::source_route::ClipRef{track:donor,slot:0});
+        engine.source_routes[3].instrument_driver=1;engine.source_position_inputs.local[3][0]=Some(16383);
+        tick(&mut engine);assert_eq!(engine.tracks[3].auto_cur[1],110);
+        engine.tracks[donor].muted=true;tick(&mut engine);assert_eq!(engine.tracks[3].auto_cur[1],96);
+        engine.source_position_inputs.local[3][0]=None;tick(&mut engine);assert_eq!(engine.tracks[3].auto_cur[1],1,"missing input resumes the clock");
+        engine.source_position_inputs.local[3][0]=Some(16383);engine.recording=true;engine.rec_track=3;tick(&mut engine);
+        assert_eq!(engine.tracks[3].auto_cur[1],0);assert_eq!(engine.source_automation_mask[3]&2,0);
+        engine.recording=false;tick(&mut engine);assert_eq!(engine.tracks[3].auto_cur[1],96);
+        engine.tracks[3].muted=true;assert!(tick(&mut engine).contains(&cc(19)));
+        engine.tracks[3].muted=false;tick(&mut engine);let mut events=Vec::new();engine.stop(&mut events);assert!(events.contains(&cc(19)));
+    }
+    #[test]
+    fn position_drivers_persist_but_observed_inputs_do_not() {
+        let mut engine=setup();engine.source_routes[3].instrument_driver=18;engine.source_routes[3].hb_render_driver=1;
+        engine.source_position_inputs.field[15]=Some(12345);
+        let saved=engine.undo_snapshot();let mut restored=setup();restored.source_position_inputs=engine.source_position_inputs;
+        assert!(restored.undo_restore(&saved));assert_eq!(restored.source_routes[3],engine.source_routes[3]);
+        assert_eq!(restored.source_position_inputs,Default::default());
+        let mut invalid=engine.source_routes[3];invalid.instrument_driver=19;assert!(!engine.source_route_set(&invalid.message(3)));
+    }
+    #[test]
     fn own_fractional_reader_runs_before_attacks_without_enabling_weaving() {
         let mut engine=setup();let events=tick(&mut engine);
         assert!(!engine.source_routes[3].enabled);

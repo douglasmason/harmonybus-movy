@@ -728,6 +728,8 @@ def main() -> int:
     finalize_grid_expression(root)
     from patch_automation_reader import patch_automation_reader
     patch_automation_reader(root)
+    from patch_position_inputs import patch_position_inputs
+    patch_position_inputs(root)
     print("HarmonyBus clean integration applied")
     return 0
 

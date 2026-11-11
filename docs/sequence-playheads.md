@@ -1,9 +1,9 @@
 # Continuous sequence playheads
 
-Status: hbclean.339 implements the first stage: independent Step/Linear numeric
-automation readers on existing clock and source routes. See
-[linear-automation.md](linear-automation.md) for shipped behavior. The additional
-drivers, pitch glide and controls below remain a design, not released features.
+Status: hbclean.339 adds Step/Linear numeric automation; hbclean.341 adds
+LFO-input and shared Field position drivers. See [sequence-position.md](sequence-position.md)
+for shipped controls and limits. Pitch glide, signed-speed drivers, Smooth,
+independent windows/boundary choices and slew below remain design work.
 
 An existing sequence can act as a shaped modulation curve or pitch path. Its
 playhead need not advance one step per clock: an LFO, shared Perlin Field, or

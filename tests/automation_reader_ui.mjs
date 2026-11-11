@@ -77,3 +77,22 @@ for(const key of ['instrument_read','hb_render_read']){
     assert.deepEqual(parameter.options,['Step','Linear']);assert.equal(parameter.default,'Step');
 }
 console.log('Linear automation UI: validated types, independent readers, legacy settings and shared command/Undo path pass');
+source.sourcePanelSet(12,'joint_source_3_instrument_driver','Field 16');flush();
+source.sourcePanelSet(12,'joint_source_3_hb_render_driver','Input 2');flush();
+assert.equal(routes.get(15).split(' ').length,27);assert.equal(routes.get(15).split(' ')[25],'18');assert.equal(routes.get(15).split(' ')[26],'2');
+source.sourcePanelSet(12,'joint_source_3_instrument_read','Linear');flush();
+assert.equal(source.sourcePanelGet(12,'joint_source_3_instrument_driver'),'Field 16');
+assert.equal(source.sourcePanelGet(12,'joint_source_3_hb_render_driver'),'Input 2');
+const driven=routes.get(15);source.sourcePanelSet(12,'joint_source_3_instrument_driver','Field 17');flush();assert.equal(routes.get(15),driven);
+source.sourcePanelSet(12,'joint_source_3_instrument_driver','Clock');source.sourcePanelSet(12,'joint_source_3_hb_render_driver','Clock');flush();
+assert.equal(routes.get(15).split(' ').length,25);
+console.log('Sequence position UI: independent Field/input choices, validation, reader retention and legacy wire fallback pass');
+const {jointHierarchy}=await load('dist/esm/seq/joint-panels.js');
+const hierarchy=jointHierarchy({levels:{root:{knobs:[],params:[]}}});
+for(let role=0;role<4;role++){
+    const level='joint_source_position_'+role;
+    assert.deepEqual(hierarchy.levels[level].knobs,[`joint_source_${role}_instrument_driver`,`joint_source_${role}_hb_render_driver`]);
+    assert(hierarchy.levels['joint_actor_'+role].params.some(entry=>entry.level===level));
+    assert(hierarchy.levels.root.params.some(entry=>entry.level===level));
+}
+console.log('Sequence position panels: reachable from all actor and root menus through shared UI metadata');

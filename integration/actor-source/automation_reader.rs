@@ -17,6 +17,9 @@ impl Segment {
 /// Locks win over base resets on the same step, matching Clip::effective_at.
 /// Sparse points connect across the selected loop boundary, ignoring outsiders.
 pub fn segment(clip:&Clip,lane:u8,base:u8,position:f64)->Segment {
+    segment_mode(clip,lane,base,position,false)
+}
+fn segment_mode(clip:&Clip,lane:u8,base:u8,position:f64,clamp:bool)->Segment {
     let length=f64::from(clip.length_ticks().max(1));
     let start=clip.loop_start_steps;let end=start.saturating_add(clip.length_steps);
     let mut previous:Option<(f64,u8)>=None;let mut next:Option<(f64,u8)>=None;
@@ -25,19 +28,21 @@ pub fn segment(clip:&Clip,lane:u8,base:u8,position:f64)->Segment {
         let tick=f64::from(u32::from(step-start)*TICKS_PER_STEP);
         let left=if tick<=position {tick} else {tick-length};
         let right=if tick>position {tick} else {tick+length};
-        if previous.is_none_or(|point|left>=point.0) {previous=Some((left,value));}
-        if next.is_none_or(|point|right<=point.0) {next=Some((right,value));}
+        if (!clamp||tick<=position)&&previous.is_none_or(|point|left>=point.0) {previous=Some((left,value));}
+        if (!clamp||tick>position)&&next.is_none_or(|point|right<=point.0) {next=Some((right,value));}
     };
     for note in clip.notes.iter().take(crate::clip::MAX_NOTES) {offer(note.step,base);}
     for lock in clip.locks.iter().take(crate::clip::MAX_LOCKS) {if lock.lane==lane {offer(lock.step,lock.val);}}
     match (previous,next) {
         (Some(first),Some(last))=>Segment{start:first.0,end:last.0,first:first.1,last:last.1},
+        (Some(first),None)=>Segment{start:first.0,end:length,first:first.1,last:first.1},
+        (None,Some(last))=>Segment{start:0.0,end:last.0,first:last.1,last:last.1},
         _=>Segment{start:0.0,end:length,first:base,last:base},
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Key { source:ClipRef,lane:u8,base:u8,start:u16,length:u16,notes:usize,locks:usize }
+struct Key { source:ClipRef,lane:u8,base:u8,start:u16,length:u16,notes:usize,locks:usize,clamp:bool }
 #[derive(Clone, Copy, Debug)]
 pub struct Cache {
     key:Key,
@@ -45,12 +50,16 @@ pub struct Cache {
     #[cfg(test)] pub rebuilds:usize,
 }
 pub fn read(cache:&mut Option<Cache>,clip:&Clip,source:ClipRef,lane:u8,base:u8,position:f64,refresh:bool)->u8 {
+    read_mode(cache,clip,source,lane,base,position,refresh,false)
+}
+pub fn read_mode(cache:&mut Option<Cache>,clip:&Clip,source:ClipRef,lane:u8,base:u8,position:f64,refresh:bool,clamp:bool)->u8 {
     if !position.is_finite() || !clip.exists() {return base;}
-    let key=Key{source,lane,base,start:clip.loop_start_steps,length:clip.length_steps,notes:clip.notes.len(),locks:clip.locks.len()};
-    let relative=(position-f64::from(clip.loop_start_ticks())).rem_euclid(f64::from(clip.length_ticks().max(1)));
+    let key=Key{source,lane,base,start:clip.loop_start_steps,length:clip.length_steps,notes:clip.notes.len(),locks:clip.locks.len(),clamp};
+    let relative=position-f64::from(clip.loop_start_ticks());
+    let relative=if clamp {relative.clamp(0.0,f64::from(clip.length_ticks().saturating_sub(TICKS_PER_STEP)))} else {relative.rem_euclid(f64::from(clip.length_ticks().max(1)))};
     if refresh || cache.as_ref().is_none_or(|cached|cached.key!=key || !cached.segment.contains(relative)) {
         #[cfg(test)] let rebuilds=cache.as_ref().map_or(1,|cached|cached.rebuilds+1);
-        *cache=Some(Cache{key,segment:segment(clip,lane,base,relative),#[cfg(test)] rebuilds});
+        *cache=Some(Cache{key,segment:segment_mode(clip,lane,base,relative,clamp),#[cfg(test)] rebuilds});
     }
     cache.as_ref().unwrap().segment.sample(relative)
 }
@@ -58,6 +67,16 @@ pub fn read(cache:&mut Option<Cache>,clip:&Clip,source:ClipRef,lane:u8,base:u8,p
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn clamped_sparse_reader_holds_endpoints_and_does_not_reuse_wrap_cache() {
+        let mut clip=Clip::default();clip.set_loop(16,16);clip.set_lock(0,20,20);clip.set_lock(0,24,100);
+        let source=ClipRef{track:0,slot:0};let mut cache=None;
+        assert_eq!(read_mode(&mut cache,&clip,source,0,5,384.0,false,true),20);
+        assert_eq!(read_mode(&mut cache,&clip,source,0,5,528.0,false,true),60);
+        assert_eq!(read_mode(&mut cache,&clip,source,0,5,744.0,false,true),100);
+        assert_ne!(read(&mut cache,&clip,source,0,5,744.0,false),100);
+        assert_eq!(read_mode(&mut cache,&clip,source,0,5,744.0,false,true),100);
+    }
     #[test]
     fn sparse_curve_uses_fractional_position_wrap_and_note_resets() {
         let mut clip=Clip::default();clip.set_loop(0,16);

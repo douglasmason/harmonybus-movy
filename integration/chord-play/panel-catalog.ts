@@ -9,7 +9,7 @@ register('Harmony & Scales',['global_transpose','explicit_key','track_scales','s
 register('Harmony & Timing',['follower_root','next_harm','grid_timing']);
 register('Chords & Arp',['chord_player','chord_forms','arp_player']);
 register('Rhythm & Motifs',['rhythm_generate','rhythm_edit','motif_targets','motif_load','motif_global','motif_play']);
-register('Mapping',['follower_source','follower_play','follower_play_tools']);
+register('Mapping',['sequence_inputs','follower_source','follower_play','follower_play_tools']);
 register('Diagnostics',['follower_this','diagnostics']);
 register('Display',['pad_display','joint_pads']);
 register('Routing',['shared_context']);
@@ -19,7 +19,7 @@ register('Song Sections',['joint_sections','joint_section_shape','joint_section_
 register('Recording',['joint_record']);
 register('Harmony & Timing',['joint_overview']);
 for(const [index,actor] of ['Root','Bass','Comp','Melody'].entries()){
-    for(const family of ['actor','rhythm','weave','conditions','sources','source_expression','source_gestures','source_operations','source_automation','preview','variation'])shared[`joint_${family}_${index}`]=actor;
+    for(const family of ['actor','rhythm','weave','conditions','sources','source_expression','source_gestures','source_operations','source_automation','source_position','preview','variation'])shared[`joint_${family}_${index}`]=actor;
 }
 shared.joint_comp_weave='Comp';
 const chordCore=['root','cp_bank_0','cp_bank_1','cp_bank_2','cp_scale_controls','cp_Conductor_follower_touch','cp_Conductor_operations_9_16','cp_Conductor_motif_play'];
