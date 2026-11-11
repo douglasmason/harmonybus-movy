@@ -238,6 +238,14 @@ for(const group of [0,3]){
  assert.equal(page.performanceGet('joint_source_3_pitch_track'),'Own','external state edits read back');
  assert.equal(page.performanceGet('joint_source_3_rhythm_pitch'),'All','legacy routes keep all lanes');
  assert.equal(page.performanceGet('joint_source_3_rhythm_amount'),'100','legacy routes follow fully');
+ assert.equal(page.performanceGet('joint_source_3_rhythm_answer'),'Follow');
+ const answerPage=page.ctl.pages.findIndex(item=>item.keys?.includes('joint_source_3_rhythm_answer'));
+ assert(answerPage>=0);page.goToPage(answerPage);page.ctl.revalue();flush(page);
+ page.knobTurn(3,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[27],'1');
+ assert.equal(page.performanceGet('joint_source_3_rhythm_answer'),'Answer Offbeats');
+ page.knobTurn(3,-4);flush(page);
+ assert.equal(page.performanceGet('joint_source_3_rhythm_answer'),'Follow');
  const encoded=[actor,1,-1,-1,0,0,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,0,127];
  sourceRoutes.set(actor,encoded.join(' '));flush(page);
  assert.equal(page.performanceGet('joint_source_3_rhythm_pitch'),'Note 127','custom kit lanes read back');

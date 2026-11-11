@@ -17,9 +17,10 @@ globalThis.host_module_set_param_blocking=(key,value)=>{
  if(key==='cmd')for(const command of value.split(';')){
   commands.push(command);const fields=command.split(' '),track=Number(fields[1]);
   if(fields[0]==='guser'){
-   if(fields[2]==='edit'){const parts=states.get(track).split('|'),config=parts[2].split(' ');config[Number(fields[3])===2?0:Number(fields[3])+1]=fields[4];parts[2]=config.join(' ');states.set(track,parts.join('|'));}
+   if(fields[2]==='edit'){const parts=states.get(track).split('|'),config=parts[2].split(' ');config[Number(fields[3])===2?0:Number(fields[3])+1]=fields[4];parts[2]=config.join(' ');parts[3]='Explore saved recipe - Rec saves to an empty clip';states.set(track,parts.join('|'));}
    else states.set(track,'Exploring|0|'+(fields[2]==='bass'?12:8)+' 32 64 37 1536|Explore saved recipe - Rec saves to an empty clip|'+owner+'|1');
   }
+  if(fields[0]==='gvariation'){const parts=states.get(track).split('|'),config=parts[2].split(' ');config[3]=fields[3];parts[0]='Exploring';parts[2]=config.join(' ');parts[3]='Variation audition - Rec saves to an empty clip';parts[5]='1';states.set(track,parts.join('|'));}
   if(fields[0]==='gpreview'&&fields.length===5){const parts=states.get(track).split('|'),config=parts[2].split(' ');config[Number(fields[3])===2?0:Number(fields[3])+1]=fields[4];parts[2]=config.join(' ');parts[0]=owner===track?'Overdub':'Preview';parts[3]='Preview - Record captures changes';states.set(track,parts.join('|'));}
   if(fields[0]==='gexplore'&&fields[1]==='off'){owner=-1;for(const [track,state] of states)states.set(track,state.replace(/^Exploring/,'Off').replace(/^Preview/,'Recorded').replace(/\|1$/,'|0'));}
   if(fields[0]==='rec'){
@@ -67,7 +68,9 @@ for(const [kind,actor,track,style] of [['comp','Comp',2,8],['bass','Bass',1,12]]
  assert.equal(generator.generatorRead('cg_style',track),'User 8');assert.equal(generator.generatorRead('cg_family',track),'User');assert.equal(generator.generatorRead('cg_genre',track),'Pop');
  assert.equal(JSON.stringify(storage.userParts(kind)[7]),savedEntry);
  assert(!commands.some(command=>/^(gexplore|pload|clipfill|usnap|rec)\b/.test(command)),'Style edits do not replace or restart the source');
- assert.equal(generator.generatorWrite('cg_seed','2',track),false);
+ assert.equal(generator.generatorWrite('cg_seed','2',track),true);seqCmdFlush();
+ assert(commands.includes('gvariation '+track+' 0 2'));
+ assert.equal(JSON.stringify(storage.userParts(kind)[7]),savedEntry);
  assert(generator.generatorWrite('cg_complexity','90',track));assert(generator.generatorWrite('cg_intensity','70',track));seqCmdFlush();
  assert(commands.some(command=>command.startsWith('guser '+track+' edit 0 ')));
  visit('cp_comp_generator');chord.chordMidi([176,86,127]);chord.chordMidi([176,86,0]);seqCmdFlush();refresh();

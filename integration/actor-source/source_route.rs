@@ -38,6 +38,7 @@ pub struct Route {
     pub rhythm: Option<ClipRef>,
     pub rhythm_pitch: Option<u8>,
     pub rhythm_amount: u8,
+    pub rhythm_answer: bool,
     pub alignment: Alignment,
     pub expression: Option<ClipRef>,
     pub expression_fit: bool,
@@ -55,7 +56,7 @@ pub struct Route {
 }
 impl Default for Route {
     fn default()->Self {
-        Self {enabled:false,pitch:None,rhythm:None,rhythm_pitch:None,rhythm_amount:100,
+        Self {enabled:false,pitch:None,rhythm:None,rhythm_pitch:None,rhythm_amount:100,rhythm_answer:false,
             alignment:Alignment::default(),expression:None,expression_fit:false,
             instrument:None,instrument_fit:false,hb_render:None,instrument_linear:false,hb_render_linear:false,instrument_driver:0,hb_render_driver:0,note_ops:None,
             grid_holds:None,gestures:None}
@@ -66,6 +67,7 @@ impl Route {
     /// Complementary masks preserve coincident attacks without track-order
     /// dependence, an event queue, a second scheduler or a shared RNG draw.
     pub fn follows_rhythm(self,actor:usize,slot:usize,phase:u32)->bool {
+        if self.rhythm_answer && phase%(crate::TICKS_PER_STEP*4)<crate::TICKS_PER_STEP*2 {return false;}
         self.rhythm_amount>=100 || (self.rhythm_amount>0 &&
             crate::humanize::Humanize::seed(actor,slot,phase)%100<u32::from(self.rhythm_amount))
     }
@@ -89,8 +91,9 @@ impl Route {
     /// A -1 track with -1 slot means that actor's own playing clip.
     pub fn parse(message: &str) -> Option<(usize, Self)> {
         let values: Vec<i32> = message.split_whitespace().map(str::parse).collect::<Result<_,_>>().ok()?;
-        if values.len()!=7 && values.len()!=9 && values.len()!=11 && values.len()!=13 && values.len()!=15 && values.len()!=17 && !(19..=27).contains(&values.len()) {return None;}
-        if values.iter().skip(23).take(2).any(|mode|!(0..=1).contains(mode)) || values.iter().skip(25).any(|driver|!(0..=18).contains(driver)) {return None;}
+        if values.len()!=7 && values.len()!=9 && values.len()!=11 && values.len()!=13 && values.len()!=15 && values.len()!=17 && !(19..=28).contains(&values.len()) {return None;}
+        if values.iter().skip(23).take(2).any(|mode|!(0..=1).contains(mode)) || values.iter().skip(25).take(2).any(|driver|!(0..=18).contains(driver)) {return None;}
+        if values.get(27).is_some_and(|value|!(0..=1).contains(value)){return None;}
         if values.get(19).is_some_and(|value|!(0..=1).contains(value)) || values.get(20).is_some_and(|value|!(0..=1).contains(value)) {return None;}
         if values.get(21).is_some_and(|pitch|!(-1..=127).contains(pitch)) {return None;}
         if values.get(22).is_some_and(|amount|!(0..=100).contains(amount)) {return None;}
@@ -109,6 +112,7 @@ impl Route {
             expression:if values.len()>=9 {reference(values[7],values[8])?} else {None},
             expression_fit:values.get(19)==Some(&1),
             instrument:if values.len()>=11 {reference(values[9],values[10])?} else {None},
+            rhythm_answer:values.get(27)==Some(&1),
             instrument_fit:values.get(20)==Some(&1),
             instrument_linear:values.get(23)==Some(&1),hb_render_linear:values.get(24)==Some(&1),
             instrument_driver:values.get(25).copied().unwrap_or(0) as u8,hb_render_driver:values.get(26).copied().unwrap_or(0) as u8,
@@ -128,7 +132,7 @@ impl Route {
         let gestures=self.gestures.map_or((-1,-1),|source|(source.track as i32,source.slot as i32));
         let mut message=format!("{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}",actor,self.enabled as u8,pitch.0,pitch.1,rhythm.0,rhythm.1,self.alignment as u8,expression.0,expression.1,instrument.0,instrument.1,hb_render.0,hb_render.1,note_ops.0,note_ops.1,grid_holds.0,grid_holds.1,gestures.0,gestures.1);
         // Preserve the older route encoding unless the new mode is selected.
-        let driven=self.instrument_driver!=0 || self.hb_render_driver!=0;
+        let driven=self.instrument_driver!=0 || self.hb_render_driver!=0 || self.rhythm_answer;
         let extended=self.instrument_linear || self.hb_render_linear || driven;
         if extended || self.expression_fit || self.instrument_fit || self.rhythm_pitch.is_some() || self.rhythm_amount!=100 {message.push_str(if self.expression_fit {" 1"} else {" 0"});}
         if extended || self.instrument_fit || self.rhythm_pitch.is_some() || self.rhythm_amount!=100 {message.push_str(if self.instrument_fit {" 1"} else {" 0"});}
@@ -136,6 +140,7 @@ impl Route {
         if extended || self.rhythm_amount!=100 {message.push_str(&format!(" {}",self.rhythm_amount));}
         if extended {message.push_str(&format!(" {} {}",self.instrument_linear as u8,self.hb_render_linear as u8));}
         if driven {message.push_str(&format!(" {} {}",self.instrument_driver,self.hb_render_driver));}
+        if self.rhythm_answer {message.push_str(" 1");}
         message
     }
 }

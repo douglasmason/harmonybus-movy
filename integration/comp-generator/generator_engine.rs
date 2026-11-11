@@ -34,18 +34,51 @@ impl Engine {
         crate::generator::library_valid(&part.clip,&part.lanes.labels)?;
         let config=part.clip.generator.unwrap();
         if config.bass()!=(fields[2]=="bass"){return Err("Saved recipe belongs to another actor");}
+        self.generator_start_part(track,part,out);Ok(())
+    }
+    fn generator_start_part(&mut self,track:usize,part:crate::part_load::PreparedPart,out:&mut Vec<OutEvent>) {
+        let config=part.clip.generator.unwrap();
         self.generator_cancel_track(track,out);self.flush_track_gates(track,out);
         self.generator_restore[track]=self.recipe_seen[track].or(self.recipe_bases[track]);
         let current=config.at(&part.clip,&part.lanes.labels,0);
         self.generator_library[track]=Some(part);
         self.generator_explore[track]=Some(crate::generator::Explore{track,desired:current,current,take:None,destination:None,source:None,touched:0,restore_pending:0});
-        out.push(OutEvent::RecipeCapture{track:track as u8});Ok(())
+        out.push(OutEvent::RecipeCapture{track:track as u8});
+    }
+    /// Fork a reproducible recipe through the existing transient library owner.
+    /// The original clip and template seed remain untouched until ordinary Record.
+    pub fn generator_variation_set(&mut self,message:&str,out:&mut Vec<OutEvent>)->bool {
+        self.generator_result=match self.generator_variation_checked(message,out) {
+            Ok(())=>"Variation audition - Rec saves to an empty clip".into(),Err(error)=>error.into(),
+        };
+        self.generator_result.starts_with("Variation audition")
+    }
+    fn generator_variation_checked(&mut self,message:&str,out:&mut Vec<OutEvent>)->Result<(),&'static str> {
+        let fields:Vec<_>=message.split_whitespace().collect();
+        if fields.len()!=4{return Err("Invalid variation request");}
+        let track=fields[1].parse::<usize>().ok().filter(|track|*track<NUM_TRACKS&&!self.track_is_drum(*track)).ok_or("Choose a melodic actor track")?;
+        let slot=fields[2].parse::<usize>().ok().filter(|slot|*slot<CLIPS_PER_TRACK).ok_or("Invalid actor clip")?;
+        let seed=fields[3].parse::<u16>().ok().filter(|seed|*seed>0).ok_or("Invalid variation seed")?;
+        if self.tracks[track].active_clip!=slot{return Err("Clip changed - retry");}
+        if self.part_recording_busy()&&self.records_track(track){return Err("Seed locked during recording");}
+        let clip=self.generator_library[track].as_ref().map_or(&self.tracks[track].clips[slot],|part|&part.clip);
+        let config=clip.generator.ok_or("Choose a saved generator recipe")?;
+        if config.is_euclidean(){return Err("Euclidean rhythms use Rotation instead of Seed");}
+        if self.generator_library[track].is_none(){
+            let lanes=crate::part_load::PartLanes::from_track(&self.tracks[track]);
+            crate::generator::library_valid(clip,&lanes.labels)?;
+            let part=crate::part_load::PreparedPart{clip:clip.clone(),lanes};
+            self.generator_start_part(track,part,out);
+        }
+        self.generator_explore[track].as_mut().ok_or("Start recipe exploration first")?.desired.seed=seed;
+        Ok(())
     }
     /// Record adopts the complete saved recipe at its first recording tick,
     /// then uses ordinary fixed-length automation overdub. Count-in is transient.
     fn generator_adopt_user(&mut self,track:usize,out:&mut Vec<OutEvent>)->Result<(),&'static str> {
         let part=self.generator_library[track].as_ref().ok_or("Saved recipe unavailable")?;
         let mut clip=part.clip.clone();
+        if let (Some(config),Some(state))=(clip.generator.as_mut(),self.generator_explore[track]){config.seed=state.desired.seed;}
         let lanes=crate::part_load::remap_part_lanes(&mut clip,&part.lanes,&self.tracks[track])?;
         let slot=self.generator_explore[track].and_then(|state|state.destination).ok_or("Recording destination missing")?;
         self.flush_track_gates(track,out);
@@ -76,7 +109,7 @@ impl Engine {
         let mut config=clip.generator.map(|config|config.at(clip,&target.lane_label,step)).unwrap_or_default();
         let state=self.generator_explore[track].filter(|state|state.source.is_none_or(|slot|slot==target.active_clip&&clip.generator.is_some()));
         if let Some(state)=state {
-            if self.generator_library[track].is_some(){config=Self::generator_override(state.current,state.desired,state.touched);}else if state.source.is_none(){config=state.desired;}else{config=Self::generator_override(config,state.desired,state.touched);}
+            if self.generator_library[track].is_some(){config=Self::generator_override(state.current,state.desired,state.touched);config.seed=state.desired.seed;}else if state.source.is_none(){config=state.desired;}else{config=Self::generator_override(config,state.desired,state.touched);}
         }
         let mode=if let Some(state)=state {if self.recording&&self.records_track(track){if state.source.is_some(){"Overdub"}else{"Recording"}}else if state.source.is_some(){"Preview"}else{"Exploring"}}
             else if target.active().generator.is_some(){"Recorded"}else{"Off"};
@@ -184,6 +217,7 @@ impl Engine {
             clip.generator.map(|config|config.at(clip,labels,clip.loop_start_steps))
         }else{None};
         let state=self.generator_explore[track].as_mut().unwrap();
+        if let Some(part)=library{state.desired.seed=part.clip.generator.unwrap().seed;}
         if let Some(base)=stopped_base {state.touched=0;state.restore_pending=0;state.current=base;state.desired=base;}
         else {state.restore_pending|=state.touched;}
         Ok(())
@@ -349,7 +383,8 @@ impl Engine {
         // Ordinary recipe playback reads its curves below at the swung
         // attack, so resolving them here would scan the same locks unused.
         state.current=if let Some(part)=template {
-            let base=part.clip.generator.unwrap().at(&part.clip,&part.lanes.labels,(pos/TICKS_PER_STEP) as u16);
+            let mut base=part.clip.generator.unwrap().at(&part.clip,&part.lanes.labels,(pos/TICKS_PER_STEP) as u16);
+            base.seed=accepted.seed;
             Self::generator_override(base,accepted,state.touched)
         }else if state.source.is_some() {
             let base=clip.generator.unwrap().at(clip,&self.tracks[track].lane_label,(pos/TICKS_PER_STEP) as u16);

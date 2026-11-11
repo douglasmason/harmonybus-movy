@@ -177,7 +177,7 @@ impl Engine {
         const routeKeys=[...allSourceKeys.slice(0,6),allSourceKeys[20],allSourceKeys[21]];
         const automationKeys=[...allSourceKeys.slice(8,12),allSourceKeys[19],allSourceKeys[22],allSourceKeys[23]];
         const gestureKeys=allSourceKeys.slice(16,18);
-        const expressionKeys=[...allSourceKeys.slice(6,8),allSourceKeys[18]];
+        const expressionKeys=[...allSourceKeys.slice(6,8),allSourceKeys[18],allSourceKeys[26]];
         const expressionLevel='joint_source_expression_'+role;
         hierarchy.levels[expressionLevel]={name:name+' Source Expression',knobs:expressionKeys,params:expressionKeys.map(key=>({key}))};
         hierarchy.levels['joint_actor_'+role].params.push({level:expressionLevel});
