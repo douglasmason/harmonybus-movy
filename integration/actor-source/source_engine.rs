@@ -67,6 +67,7 @@ impl Engine {
                 self.source_cursors[actor]=Default::default();
             }
             self.source_automation_seen[actor]=None;
+            self.source_automation_cache[actor].fill(None);
             self.source_routes[actor]=route;
             self.dirty=true;
         }

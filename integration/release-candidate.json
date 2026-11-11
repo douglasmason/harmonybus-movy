@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.338",
-  "previous_version": "0.34.1-hbclean.337",
+  "version": "0.34.1-hbclean.339",
+  "previous_version": "0.34.1-hbclean.338",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.338 — Pressure repeat with straight and odd divisions",
-  "notes": "docs/pressure-repeat.md",
+  "title": "Movy 0.34.1-hbclean.339 — Linear automation readers",
+  "notes": "docs/linear-automation.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

@@ -44,6 +44,8 @@ pub struct Route {
     pub instrument: Option<ClipRef>,
     pub instrument_fit: bool,
     pub hb_render: Option<ClipRef>,
+    pub instrument_linear: bool,
+    pub hb_render_linear: bool,
     pub note_ops: Option<ClipRef>,
     pub grid_holds: Option<ClipRef>,
     pub gestures: Option<ClipRef>,
@@ -52,7 +54,7 @@ impl Default for Route {
     fn default()->Self {
         Self {enabled:false,pitch:None,rhythm:None,rhythm_pitch:None,rhythm_amount:100,
             alignment:Alignment::default(),expression:None,expression_fit:false,
-            instrument:None,instrument_fit:false,hb_render:None,note_ops:None,
+            instrument:None,instrument_fit:false,hb_render:None,instrument_linear:false,hb_render_linear:false,note_ops:None,
             grid_holds:None,gestures:None}
     }
 }
@@ -78,11 +80,13 @@ impl Route {
     /// Optional field 22 selects a raw rhythm note (0..127); -1 means all notes.
     /// Optional field 23 blends Own (0) to the rhythm source (100, default).
     /// Pitch alignment: 0 Sequential, 1 Timeline, 2 Fit to Window.
+    /// Optional fields 24/25 select Instrument/HB read mode (0 Step, 1 Linear).
     /// Legacy seven/nine/eleven/thirteen/fifteen/seventeen-field routes retain Own for omitted dimensions.
     /// A -1 track with -1 slot means that actor's own playing clip.
     pub fn parse(message: &str) -> Option<(usize, Self)> {
         let values: Vec<i32> = message.split_whitespace().map(str::parse).collect::<Result<_,_>>().ok()?;
-        if values.len()!=7 && values.len()!=9 && values.len()!=11 && values.len()!=13 && values.len()!=15 && values.len()!=17 && values.len()!=19 && values.len()!=20 && values.len()!=21 && values.len()!=22 && values.len()!=23 {return None;}
+        if values.len()!=7 && values.len()!=9 && values.len()!=11 && values.len()!=13 && values.len()!=15 && values.len()!=17 && values.len()!=19 && values.len()!=20 && values.len()!=21 && values.len()!=22 && values.len()!=23 && values.len()!=24 && values.len()!=25 {return None;}
+        if values.iter().skip(23).any(|mode|!(0..=1).contains(mode)) {return None;}
         if values.get(19).is_some_and(|value|!(0..=1).contains(value)) || values.get(20).is_some_and(|value|!(0..=1).contains(value)) {return None;}
         if values.get(21).is_some_and(|pitch|!(-1..=127).contains(pitch)) {return None;}
         if values.get(22).is_some_and(|amount|!(0..=100).contains(amount)) {return None;}
@@ -102,6 +106,7 @@ impl Route {
             expression_fit:values.get(19)==Some(&1),
             instrument:if values.len()>=11 {reference(values[9],values[10])?} else {None},
             instrument_fit:values.get(20)==Some(&1),
+            instrument_linear:values.get(23)==Some(&1),hb_render_linear:values.get(24)==Some(&1),
             hb_render:if values.len()>=13 {reference(values[11],values[12])?} else {None},
             note_ops:if values.len()>=15 {reference(values[13],values[14])?} else {None},
             grid_holds:if values.len()>=17 {reference(values[15],values[16])?} else {None},
@@ -118,10 +123,12 @@ impl Route {
         let gestures=self.gestures.map_or((-1,-1),|source|(source.track as i32,source.slot as i32));
         let mut message=format!("{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}",actor,self.enabled as u8,pitch.0,pitch.1,rhythm.0,rhythm.1,self.alignment as u8,expression.0,expression.1,instrument.0,instrument.1,hb_render.0,hb_render.1,note_ops.0,note_ops.1,grid_holds.0,grid_holds.1,gestures.0,gestures.1);
         // Preserve the older route encoding unless the new mode is selected.
-        if self.expression_fit || self.instrument_fit || self.rhythm_pitch.is_some() || self.rhythm_amount!=100 {message.push_str(if self.expression_fit {" 1"} else {" 0"});}
-        if self.instrument_fit || self.rhythm_pitch.is_some() || self.rhythm_amount!=100 {message.push_str(if self.instrument_fit {" 1"} else {" 0"});}
-        if self.rhythm_pitch.is_some() || self.rhythm_amount!=100 {message.push_str(&format!(" {}",self.rhythm_pitch.map_or(-1,i32::from)));}
-        if self.rhythm_amount!=100 {message.push_str(&format!(" {}",self.rhythm_amount));}
+        let extended=self.instrument_linear || self.hb_render_linear;
+        if extended || self.expression_fit || self.instrument_fit || self.rhythm_pitch.is_some() || self.rhythm_amount!=100 {message.push_str(if self.expression_fit {" 1"} else {" 0"});}
+        if extended || self.instrument_fit || self.rhythm_pitch.is_some() || self.rhythm_amount!=100 {message.push_str(if self.instrument_fit {" 1"} else {" 0"});}
+        if extended || self.rhythm_pitch.is_some() || self.rhythm_amount!=100 {message.push_str(&format!(" {}",self.rhythm_pitch.map_or(-1,i32::from)));}
+        if extended || self.rhythm_amount!=100 {message.push_str(&format!(" {}",self.rhythm_amount));}
+        if extended {message.push_str(&format!(" {} {}",self.instrument_linear as u8,self.hb_render_linear as u8));}
         message
     }
 }
@@ -131,13 +138,26 @@ pub struct Cursor { pub source: Option<ClipRef>, pub onset: Option<u32> }
 /// Scheduling watermark only: no musical material or parameter values cached.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AutomationPhase {
-    pub own: Option<(usize,u16,u32)>,
-    pub donors: [Option<(ClipRef,u16,u32)>;2],
+    pub own: Option<(usize,u32,u32)>,
+    pub donors: [Option<(ClipRef,u32,u32)>;2],
     pub routed: [bool;2],
+    pub linear: [bool;2],
+}
+
+impl AutomationPhase {
+    pub fn same_dimension(self,other:Self,dimension:usize,linear:bool)->bool {
+        let divisor=if linear {1} else {crate::TICKS_PER_STEP};
+        self.routed[dimension]==other.routed[dimension] && self.linear[dimension]==other.linear[dimension] &&
+        self.own.map(|(slot,tick,cycle)|(slot,tick/divisor,cycle))==other.own.map(|(slot,tick,cycle)|(slot,tick/divisor,cycle)) &&
+        self.donors[dimension].map(|(source,tick,cycle)|(source,tick/divisor,cycle))==other.donors[dimension].map(|(source,tick,cycle)|(source,tick/divisor,cycle))
+    }
 }
 
 /// Supported local rendering parameters only. Global harmony, routing, latch,
 /// reset/clear actions and held-operation controls retain their existing owners.
+pub fn continuous_destination(label:&str)->bool {
+    label.starts_with("synth:") || matches!(label,"midi_fx1:render_velocity_percent"|"midi_fx1:arp_gate"|"midi_fx1:strum_spread")
+}
 pub fn automation_dimension(label: &str) -> Option<usize> {
     if label.starts_with("synth:") && label.len()>6 {return Some(0);}
     match label.strip_prefix("midi_fx1:")? {

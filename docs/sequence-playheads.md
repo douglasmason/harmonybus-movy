@@ -1,7 +1,9 @@
 # Continuous sequence playheads
 
-Status: implementation design, not a feature of hbclean.338 / HB 0.2.315.
-The repeat release is documented in [pressure-repeat.md](pressure-repeat.md).
+Status: hbclean.339 implements the first stage: independent Step/Linear numeric
+automation readers on existing clock and source routes. See
+[linear-automation.md](linear-automation.md) for shipped behavior. The additional
+drivers, pitch glide and controls below remain a design, not released features.
 
 An existing sequence can act as a shaped modulation curve or pitch path. Its
 playhead need not advance one step per clock: an LFO, shared Perlin Field, or

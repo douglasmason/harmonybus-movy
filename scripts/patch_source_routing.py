@@ -8,8 +8,9 @@ def patch_source_routing(root: Path) -> None:
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/actor-source'
     core: Path = root / 'engine/crates/seq-core/src'
     (core / 'source_route.rs').write_text((assets / 'source_route.rs').read_text())
+    (core / 'automation_reader.rs').write_text((assets / 'automation_reader.rs').read_text())
     path: Path = core / 'lib.rs'
-    path.write_text(path.read_text() + '\npub mod source_route;\n')
+    path.write_text(path.read_text() + '\npub mod source_route;\npub mod automation_reader;\n')
     path = core / 'engine.rs'
     source: str = path.read_text()
     source = replace_once(source, 'struct Gate {', 'struct Gate {\n    clock_track: u8,')
@@ -20,6 +21,7 @@ def patch_source_routing(root: Path) -> None:
     source_playing_slots: [Option<usize>; NUM_TRACKS],
     source_grid_active: [bool; NUM_TRACKS],
     source_automation_seen: [Option<crate::source_route::AutomationPhase>; NUM_TRACKS],
+    source_automation_cache: [[Option<crate::automation_reader::Cache>;8];NUM_TRACKS],
     source_automation_mask: [u8; NUM_TRACKS],''')
     source = replace_once(source, '            hb_weave:', '''            source_routes: [Default::default(); NUM_TRACKS],
             source_cursors: [Default::default(); NUM_TRACKS],
@@ -27,6 +29,7 @@ def patch_source_routing(root: Path) -> None:
             source_playing_slots: [None; NUM_TRACKS],
             source_grid_active: [false; NUM_TRACKS],
             source_automation_seen: [None; NUM_TRACKS],
+            source_automation_cache: [[None;8];NUM_TRACKS],
             source_automation_mask: [0; NUM_TRACKS],
             hb_weave:''')
     source = replace_once(source, '                if let Some(slot) = t.queued_slot.take() {', '''                if let Some(slot) = t.queued_slot.take() {
@@ -101,6 +104,7 @@ impl Engine {
     source += '\n' + (assets / 'source_expression_fit_tests.rs').read_text()
     source += '\n' + (assets / 'source_instrument_tests.rs').read_text()
     source += '\n' + (assets / 'source_instrument_fit_tests.rs').read_text()
+    source += '\n' + (assets / 'source_linear_tests.rs').read_text()
     source += '\n' + (assets / 'source_hb_tests.rs').read_text()
     source += '\n' + (assets / 'source_operations_tests.rs').read_text()
     source = replace_once(source, '.or_else(||clip.operation_intervals.iter().rev().find_map(|interval|interval.window(pos,slot,clip.loop_start_ticks(),clip.length_ticks())));', '.or_else(||self.source_gesture_window(ti,slot,pos));')
@@ -168,7 +172,7 @@ impl Engine {
     source = replace_once(source, "        root.params.push({level:'joint_rhythm_'+role});", '''        const sourceLevel='joint_sources_'+role;
         const allSourceKeys=sourceKeys(role);
         const routeKeys=[...allSourceKeys.slice(0,6),allSourceKeys[20],allSourceKeys[21]];
-        const automationKeys=[...allSourceKeys.slice(8,12),allSourceKeys[19]];
+        const automationKeys=[...allSourceKeys.slice(8,12),allSourceKeys[19],allSourceKeys[22],allSourceKeys[23]];
         const gestureKeys=allSourceKeys.slice(16,18);
         const expressionKeys=[...allSourceKeys.slice(6,8),allSourceKeys[18]];
         const expressionLevel='joint_source_expression_'+role;
