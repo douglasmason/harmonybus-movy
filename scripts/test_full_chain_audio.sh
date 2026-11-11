@@ -36,6 +36,7 @@ JSON
 # The Chord Play workflow requires this header, so its new coverage cannot skip.
 CHORD_PLAY_TEST_FLAGS=()
 if test -f "$HB_SOURCE/core/include/chord_spread.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CHORD_SPREAD); fi
+if grep -q HB_CHORD_SPREAD_SIGNED "$HB_SOURCE/core/include/chord_spread.h" 2>/dev/null; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_SIGNED_SPREAD); fi
 if test -f "$MOVY_SOURCE/engine/crates/seq-core/src/position_inputs.rs" && grep -q sequence_inputs "$HB_SOURCE/modules/harmonybus/dsp/harmonybus.c"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_SEQUENCE_POSITION); fi
 if grep -q 'operation&96' "$HB_SOURCE/src/motion.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_ADAPTIVE_MOTIF); fi
 if test -f "$HB_SOURCE/src/chord_discovery.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CHORD_DISCOVERY); fi

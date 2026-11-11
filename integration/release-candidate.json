@@ -1,8 +1,8 @@
 {
-  "version": "0.34.1-hbclean.343",
-  "previous_version": "0.34.1-hbclean.342",
+  "version": "0.34.1-hbclean.344",
+  "previous_version": "0.34.1-hbclean.343",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.343 — pressure-controlled Chord Spread",
+  "title": "Movy 0.34.1-hbclean.344 — bidirectional Chord Spread",
   "notes": "docs/chord-spread.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
