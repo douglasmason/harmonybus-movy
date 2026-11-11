@@ -40,6 +40,25 @@ commands.length=0;
 automation.syncLabelsFromEngine(labels,()=>{},()=>({min:0,max:1,type:'float',continuous:true}));flush();
 assert(commands.includes('akind 15 0 1 synth:cutoff'));
 
+// A delayed model load must announce newly known types, including replacement
+// modules that reuse a parameter key with a different type.
+const {createModel}=await load('dist/esm/model/index.js');
+const metadata=new Map([
+    ['synth:name','linear-reader-fixture'],
+    ['synth:chain_params',JSON.stringify([{key:'cutoff',type:'float',min:0,max:1}])],
+    ['synth:cutoff','0.5'],
+]);
+const port={track:{index:15},bulkReads:false,getParam:key=>metadata.get(key)??null,setParam:()=>true};
+const model=createModel(port);
+engine.takeLabelSync();model.reloadNow();
+assert(model.hasLoadedParams());assert(engine.takeLabelSync(),'metadata completion schedules lane revalidation');
+model.reload();assert.equal(model.hasLoadedParams(),false,'pending reload cannot validate against stale types');
+metadata.set('synth:chain_params',JSON.stringify([{key:'cutoff',type:'enum',min:0,max:7,options:['A','B','C','D','E','F','G','H']}])) ;
+model.reloadNow();assert(model.hasLoadedParams());assert(engine.takeLabelSync());
+commands.length=0;
+automation.syncLabelsFromEngine(labels,()=>{},()=>model.hasLoadedParams()?model.paramRangeByKey('cutoff'):'unknown');flush();
+assert(commands.includes('akind 15 0 0 synth:cutoff'),'newly loaded enum revokes the previous numeric capability');
+
 assert.equal(source.sourcePanelGet(12,'joint_source_3_instrument_read'),'Step');
 source.sourcePanelSet(12,'joint_source_3_instrument_read','Linear');flush();
 assert.equal(routes.get(15).split(' ').length,25);

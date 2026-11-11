@@ -62,6 +62,14 @@ def patch_automation_reader(root: Path) -> None:
                           "paramRangeByKey(key: string): { min: number; max: number; type: string; continuous?: boolean } | null")
     source = replace_once(source, "{ min: p.min, max: p.max, type: p.type } : null;",
                           "{ min: p.min, max: p.max, type: p.type, continuous: !p.options?.length } : null;")
+    source = replace_once(source, "hasLoadedParams(): boolean { return s.knobParams.some((p) => p != null); },",
+                          "hasLoadedParams(): boolean { return s.hierarchyKey === s.activeModuleName && s.knobParams.some((p) => p != null); },")
+    path.write_text(source)
+    path = root / "src/model/hierarchy.ts"
+    source = path.read_text()
+    source = "import { requestLabelSync } from '../seq/engine.js';\n" + source
+    source = replace_once(source, "export function loadHierarchy(s: ModelState): void {",
+                          "export function loadHierarchy(s: ModelState): void {\n    requestLabelSync(); // revalidate lanes after this synchronous metadata rebuild")
     path.write_text(source)
     path = root / "src/renderer/schwung-page.ts"
     source = path.read_text()

@@ -49,6 +49,22 @@ mod source_linear_tests {
         }}
     }
     #[test]
+    fn instrument_and_numeric_hb_readers_choose_modes_independently() {
+        for instrument_linear in [false,true] {for hb_linear in [false,true] {
+            let mut engine=setup();
+            engine.source_routes[3].instrument_linear=instrument_linear;
+            engine.source_routes[3].hb_render_linear=hb_linear;
+            for (lane,label) in [(2,"midi_fx1:render_velocity_percent"),(3,"midi_fx1:arp_gate"),(4,"midi_fx1:strum_spread")] {
+                engine.auto_label(3,lane,label);engine.auto_numeric(3,lane,label,true);
+                engine.tracks[3].clips[0].set_lock(lane as u8,0,0);
+                engine.tracks[3].clips[0].set_lock(lane as u8,8,96);
+            }
+            for _ in 0..=96 {tick(&mut engine);}
+            assert_eq!(engine.tracks[3].auto_cur[1],if instrument_linear {48} else {0});
+            for lane in 2..=4 {assert_eq!(engine.tracks[3].auto_cur[lane],if hb_linear {48} else {0});}
+        }}
+    }
+    #[test]
     fn enums_unknown_targets_and_harmony_choices_remain_stepped() {
         let mut engine=setup();
         for (lane,label,numeric) in [(2,"synth:shape",false),(3,"synth:unknown",false),(4,"midi_fx1:chord_form",true)] {
@@ -77,6 +93,27 @@ mod source_linear_tests {
         route.instrument_linear=true;engine.source_route_set(&route.message(3));tick(&mut engine);
         engine.tracks[3].muted=true;assert!(tick(&mut engine).contains(&cc(19)));
         assert_eq!(engine.tracks[3].lane_base[1],19);
+    }
+    #[test]
+    #[ignore = "isolated release-mode timing measurement, not a hardware audio assertion"]
+    fn source_routing_benchmark_linear() {
+        for linear in [false,true] {
+            let mut engine=Engine::new(48000,12000);engine.playing=true;
+            for track in 0..NUM_TRACKS {
+                engine.tracks[track].playing_slot=Some(0);engine.tracks[track].clips[0].set_loop(0,16);
+                engine.tracks[track].clips[0].add_note_raw(0,0,192,60,100);
+                for lane in 0..8 {
+                    let label=format!("synth:parameter{lane}");
+                    engine.auto_label(track,lane,&label);engine.auto_numeric(track,lane,&label,true);
+                    for step in 0..16 {engine.tracks[track].clips[0].set_lock(lane as u8,step,if step%2==0 {0} else {127});}
+                }
+                engine.source_routes[track].instrument_linear=linear;
+            }
+            let mut output=Vec::with_capacity(4096);let mut count=0usize;
+            let started=std::time::Instant::now();
+            for _ in 0..100_000 {engine.advance_block(250,&mut output);count+=output.len();output.clear();}
+            println!("linear-automation enabled={linear} tracks={NUM_TRACKS} lanes=8 ticks=100000 events={count} elapsed_us={}",started.elapsed().as_micros());
+        }
     }
     #[test]
     fn per_reader_modes_and_numeric_target_identity_survive_save_undo_and_legacy() {
