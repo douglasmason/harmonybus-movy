@@ -1,11 +1,11 @@
-# Chord Spread — HarmonyBus 0.2.318 / Movy hbclean.343
+# Chord Spread — HarmonyBus 0.2.319 / Movy hbclean.344
 
-Assign **Chord Spread** to an operation slot in **Chord / Arp**. **Max Spread
-Steps** runs from 0 to 12, defaults to 4, and Auto starts Off. Assign that slot
+Assign **Chord Spread** to an operation slot in **Chord / Arp**. **Spread
+Steps** runs from -12 to +12, defaults to 4, and Auto starts Off. Assign that slot
 to an Approach Pressure row to open the chord as you squeeze.
 
-Each step raises one upper voice by an octave, starting at the top and cycling
-down through the upper voices. The lowest voiced note stays anchored. For a
+Each positive step raises one upper voice by an octave, starting at the top and cycling
+down through the upper voices. The lowest voiced note stays anchored for positive amounts. For a
 C4–E4–G4 triad:
 
 | Steps | Voicing |
@@ -16,14 +16,23 @@ C4–E4–G4 triad:
 | 3 | C4 E5 G6 |
 | 4 | C4 E6 G6 |
 
+Negative steps instead lower one lower voice by an octave, starting at the
+bottom and cycling upward through the lower voices. The highest voiced note
+stays anchored: -1 gives **C3 E4 G4**, -2 gives **C3 E3 G4**, and -4 gives
+**C2 E2 G4**. Zero is the underlying voicing. Existing positive settings keep
+their previous behavior.
+
 Chord tones and voice count remain unchanged. The expansion stops before a
-voice would exceed MIDI 127. Single notes are unchanged. This is a stepped
+voice would cross MIDI 0 or 127. Single notes are unchanged. This is a stepped
 voicing operation, not continuous pitch bend.
 
 Momentary returns to the original voicing on release. Tap Latch holds the
 prepared amount; Peak Latch holds the greatest pressure reached, allows a new
 squeeze to replace it with a lower level, and clears on a light tap. Reverse
 starts expanded and closes toward the original voicing as pressure rises.
+Direction comes from the sign of Spread Steps; Reverse controls whether
+pressure opens or closes that voicing. Switching signs recomputes from the
+underlying chord rather than accumulating shifts.
 A small hysteresis band prevents pressure jitter around step boundaries.
 The readout shows the current spread step.
 
@@ -40,7 +49,7 @@ Move, Remote UI and standalone use the shared operation editor and pressure-row
 settings. Launchpad X supplies pad pressure; Launchpad Mini and operation
 buttons use the prepared amount through existing hold/latch gestures. Remote
 UI uses the same Z control; its X/Y cloud input is independent of this operation.
-Multiple active spread slots on one track add, with a total limit of 12 steps.
+Multiple active spread slots on one track add, with a total range of -12 to +12 steps; opposing amounts cancel.
 
 Assignments, amounts and pressure settings save normally. Runtime contacts and
 pressure latches clear on Stop, role changes and reload. Existing operation-step

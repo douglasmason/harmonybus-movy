@@ -6,7 +6,7 @@ Strokes, captured Hold emitters, recorded clips and recipes retain the finer
 coordinates. Legacy clips and hardware gestures retain their existing musical
 results. Cloud generation still produces harmony-aware, quantized notes.
 
-## Precise knob drawing and pressure (hbclean.344)
+## Precise knob drawing and pressure (hbclean.345)
 
 On **Cloud X / Y**, K1/K2 draw X/Y. Ordinary turns move 129 units on the
 14-bit field; **Shift + turn** moves one unit. The existing 0–127 control range

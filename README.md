@@ -1,4 +1,4 @@
-## Precise cloud knob drawing (hbclean.344)
+## Precise cloud knob drawing (hbclean.345)
 
 X/Y knobs now share the 14-bit finger/MPE contact path. Shift-turn adds fine movement, and Draw Pressure supplies an independent Z control for knob strokes. Remote UI and standalone expose the same fine drawing and pressure controls; existing pad aftertouch and pressure operation mappings remain available. See [Expressive cloud input](docs/expressive-cloud-input.md).
 
