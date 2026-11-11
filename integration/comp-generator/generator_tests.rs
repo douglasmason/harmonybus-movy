@@ -560,6 +560,14 @@
             assert_eq!(engine.generator_explore[2].unwrap().current.seed,37);
             command(&mut engine,"stop");
             assert_eq!(engine.undo_snapshot(),before);
+            command(&mut engine,"gvariation 2 0 1234;rec 2");
+            assert!(engine.generator_result.contains("empty actor clip"));assert!(!engine.part_recording_busy());
+            engine.tracks[2].active_clip=1;
+            command(&mut engine,"rec 2");ticks(&mut engine,crate::TICKS_PER_BAR-1+1536);
+            command(&mut engine,"rec 2;stop");
+            assert_eq!(engine.tracks[2].clips[0].generator,original.generator);
+            assert_eq!(engine.tracks[2].clips[0].locks,original.locks);
+            assert_eq!(engine.tracks[2].clips[1].generator.unwrap().seed,1234);
             // Library and recorded forks share the same seed adoption path.
             let mut fork=fixture();
             command(&mut fork,&format!("guser 2 {} {payload};gvariation 2 0 1234;rec 2",if bass{"bass"}else{"comp"}));
