@@ -25,7 +25,7 @@ def patch_cloud_generator(root: Path) -> None:
     source = source.replace('...generatorParameters(),', '...cloudParameters(),...generatorParameters(),')
     source = replace_once(source, '        const generated=generatorRead', '        const spatial=cloudRead(bare);if(spatial!==null)return spatial;\n        const generated=generatorRead')
     source = replace_once(source, "const bare=key.split(':').pop()??'';const generated", "const bare=key.split(':').pop()??'';const spatial=cloudWrite(bare,value);if(spatial!==null)return spatial;const generated")
-    source = source.replace("+' Generator',generatorKeys);", "+' Generator',generatorPanelKeys());\n    if(generatorCloud()){add('cp_cloud_field','Cloud X / Y',cloudFieldKeys);add('cp_cloud_pressure','Cloud Pressure',cloudPressureKeys);}")
+    source = source.replace("+' Generator',generatorKeys);", "+' Generator',generatorPanelKeys());\n    if(generatorCloud())add('cp_cloud_field','Cloud X / Y',cloudFieldKeys);\n    if(generatorCloud())add('cp_cloud_pressure','Cloud Pressure',cloudPressureKeys);")
     source = source.replace("['cp_comp_generator','cp_generator_browser']", "['cp_comp_generator','cp_generator_browser','cp_cloud_field','cp_cloud_pressure']")
     source = replace_once(source, '    if(!value)generatorStop();', '    if(!value){setCloudSurface(false);generatorStop();}')
     source = replace_once(source, 'export function tickChord():void{', '''function cloudPageVisible():boolean {return chordActive()&&!settingsActive()&&!page?.ctl.hbNavigation?.isMenu()&&['cp_comp_generator','cp_cloud_field','cp_cloud_pressure'].includes(page?.ctl.page?.level??'')&&generatorCloud();}
