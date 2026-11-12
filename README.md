@@ -1,4 +1,4 @@
-## Cloud pressure response (hbclean.346)
+## Cloud pressure response (hbclean.347)
 
 Move, Launchpad, touch/MPE and knob drawing share Linear/Soft/Firm pressure response, Reverse, and Low/High bounds. Find Cloud Pressure on Move or Input pressure response in the shared web editor. Deposited and recorded clouds retain their response. See [Expressive cloud input](docs/expressive-cloud-input.md).
 

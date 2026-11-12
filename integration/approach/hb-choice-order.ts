@@ -10,7 +10,7 @@ const operationGroups: [string, string[]][] = [
     ['Smart Approaches', RELATIVE_OPERATIONS.filter(operation=>operation.group==='Smart Approaches').map(operation=>operation.name)],
     ['Motif', ['Play Motif']],
     ['Harmony', ['Harmony','Live Key Center','Key Center','Recordable Key Center','Relative Key Center','Key Step Back','Key Return to Start','Parallel Scale','Live Harmony Override','Override Harmony (Live + Recorded)']],
-    ['Chord / Arp', ['Chord Spread','Chord Form','Chord/Arp State','Auto Chord Repeat']],
+    ['Chord / Arp', ['Chord Spread','Voicing Rotate','Chord Form','Chord/Arp State','Auto Chord Repeat']],
     ['Pitch', ['Transpose','Global Transpose','Octave','Rotate']],
     ['Expression', ['Velocity','Pan']],
     ['Rhythm', ['Gate','Skip','Ratchet','MIDI Echo']],

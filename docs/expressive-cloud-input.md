@@ -37,7 +37,7 @@ and latch modes are unchanged. This change does not map cloud Z to arbitrary
 synth parameters or add MPE pitch output. Drawing pressure settings persist;
 live cursor contacts do not restart when restoring a set.
 
-## Pressure response (hbclean.346)
+## Pressure response (hbclean.347)
 
 Open **Cloud Pressure** on Move, or **Input pressure response** in the shared
 Remote UI/standalone cloud editor. These are shared cloud input settings, applied
