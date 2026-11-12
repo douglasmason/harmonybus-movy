@@ -74,8 +74,8 @@ try{
  await panel.getByRole('combobox',{name:'Cloud field boundary'}).selectOption('Wrap');
  await panel.getByRole('combobox',{name:'Cloud field activity'}).selectOption('Rate');
  await until(async()=>{const state=JSON.parse(await __wasmRead('cloud_ui_state'));return state.axes==='Pitch / Activity'&&state.edge==='Wrap'&&state.activity==='Rate';});
- await panel.getByRole('combobox',{name:'Cloud pressure target',exact:true}).selectOption('Length');
- await until(async()=>JSON.parse(await __wasmRead('cloud_ui_state')).pressureResponse.target==='Length');
+ await panel.getByRole('combobox',{name:'Cloud pressure target',exact:true}).selectOption('Rate');
+ await until(async()=>JSON.parse(await __wasmRead('cloud_ui_state')).pressureResponse.target==='Rate');
  await panel.getByRole('button',{name:'Record',exact:true}).click();
  await until(async()=>(await __wasmRead('status')).includes('rec=1'));
  await panel.getByRole('button',{name:'Stop recording',exact:true}).waitFor();
@@ -93,7 +93,7 @@ try{
  await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:recordingPoints.map((point,index)=>({...point,x:recordingBounds.x+recordingBounds.width*(index===0?.15:.3)}))});
  await page.waitForFunction(()=>window.cloudMoveSeen);
  await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
- await until(async()=>[...(await __wasmRead('persistent_state')).matchAll(/^cp1 3 0 (-?\d+),(\d+),(\d+),(\d+),1(,14),1$/gm)].some(match=>{const scale=match[5]?129:1;return Math.abs(Number(match[2])/scale-89)<=1&&Number(match[3])/scale>20&&Number(match[3])/scale<107;}));
+ await until(async()=>[...(await __wasmRead('persistent_state')).matchAll(/^cp1 3 0 (-?\d+),(\d+),(\d+),(\d+),1(,14),4$/gm)].some(match=>{const scale=match[5]?129:1;return Math.abs(Number(match[2])/scale-89)<=1&&Number(match[3])/scale>20&&Number(match[3])/scale<107;}));
  const otherSource=await page.evaluate(async()=>(await __wasmRead('generator_info_2')).split('|').slice(0,3));
  await panel.getByRole('combobox',{name:'Follower actor'}).selectOption('Comp');
  await until(async()=>{const state=JSON.parse(await __wasmRead('cloud_ui_state'));return state.track===2&&!state.cloud&&state.transport.track===3&&state.transport.phase==='recording';});
@@ -111,12 +111,12 @@ try{
  await until(async()=>(await __wasmRead('status')).includes('play=0'));
  const saved=await page.evaluate(()=>__wasmRead('persistent_state'));
  assert.match(saved,/cg1 3 0 18 /);assert.match(saved,/cp1 3 0 /);assert.match(saved,/generator:density/);
- assert.match(saved,/^cp1 3 0 .*?,14,1$/m,'recorded touch retains high-resolution coordinates');
- const deposits=[...saved.matchAll(/^cp1 3 0 (-?\d+),(\d+),(\d+),(\d+),1(,14),1$/gm)].map(match=>match.slice(1,5).map((value,index)=>Number(value)/(index===1||index===2?(match[5]?129:1):1)));
+ assert.match(saved,/^cp1 3 0 .*?,14,4$/m,'recorded touch retains high-resolution coordinates');
+ const deposits=[...saved.matchAll(/^cp1 3 0 (-?\d+),(\d+),(\d+),(\d+),1(,14),4$/gm)].map(match=>match.slice(1,5).map((value,index)=>Number(value)/(index===1||index===2?(match[5]?129:1):1)));
  assert(deposits.some(([,activity,pitch])=>Math.abs(pitch-108)<=1&&Math.abs(activity-89)<=1),'recorded field retains rate behavior with horizontal pitch and vertical rate');
  assert(deposits.some(([,activity,pitch])=>Math.abs(activity-89)<=1&&pitch>20&&pitch<107),'fast swipes persist intermediate cloud deposits after finger release');
- await panel.getByRole('combobox',{name:'Cloud pressure target',exact:true}).selectOption('Spread');
- await until(async()=>JSON.parse(await __wasmRead('cloud_ui_state')).pressureResponse.target==='Spread');
+ await panel.getByRole('combobox',{name:'Cloud pressure target',exact:true}).selectOption('Probability');
+ await until(async()=>JSON.parse(await __wasmRead('cloud_ui_state')).pressureResponse.target==='Probability');
  await panel.getByRole('combobox',{name:'Cloud field axes'}).selectOption('pitch-y');
  await panel.getByRole('combobox',{name:'Cloud field activity'}).selectOption('Probability');
  await until(async()=>{const state=JSON.parse(await __wasmRead('cloud_ui_state'));return state.axes==='Activity / Pitch'&&state.activity==='Probability';});
@@ -130,7 +130,7 @@ try{
  await page.locator('#sessions').evaluate(element=>element.open=true);await page.locator('#session-save').click();
  await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('Saved'));
  await page.reload();await page.waitForFunction(()=>document.querySelector('#session-status').textContent.includes('restored'));
- await until(async()=>{try{const state=JSON.parse(await __wasmRead('cloud_ui_state'));return state.axes==='Pitch / Activity'&&state.activity==='Rate'&&state.pressureResponse.target==='Spread';}catch{return false;}});
+ await until(async()=>{try{const state=JSON.parse(await __wasmRead('cloud_ui_state'));return state.axes==='Pitch / Activity'&&state.activity==='Rate'&&state.pressureResponse.target==='Probability';}catch{return false;}});
  assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),saved);assert.deepEqual(errors,[]);
  // Generator browsing restores its default actor independently of saved clips.
  await panel.getByRole('combobox',{name:'Follower actor'}).selectOption('Melody');

@@ -1,10 +1,11 @@
 /** Cloud input response. Stored deposits already contain the mapped pressure. */
-export type CloudPressure={target:'Velocity'|'Length'|'Spread';curve:'Linear'|'Soft'|'Firm';reverse:boolean;low:number;high:number};
-const targets:CloudPressure['target'][]=['Velocity','Length','Spread'];
+export type CloudPressure={target:'Velocity'|'Length'|'Spread'|'Probability'|'Rate';curve:'Linear'|'Soft'|'Firm';reverse:boolean;low:number;high:number};
+const targets:CloudPressure['target'][]=['Velocity','Length','Spread','Probability','Rate'];
 const defaults:CloudPressure={target:'Velocity',curve:'Linear',reverse:false,low:1,high:127};
 let settings:CloudPressure={...defaults};
 export function cloudPressureSnapshot():CloudPressure {return {...settings};}
 export function cloudPressureTarget():number {return targets.indexOf(settings.target);}
+export function cloudPressureTargets():readonly CloudPressure['target'][] {return targets;}
 export function restoreCloudPressure(value:unknown):void {
  const candidate=value as Partial<CloudPressure>|null;
  settings={...defaults};

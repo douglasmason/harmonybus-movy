@@ -1,3 +1,7 @@
+## Cloud rhythmic pressure (hbclean.351)
+
+Pressure can now thin grains with Probability or move through clocked subdivisions with Rate. Native Move, Launchpad, touch/MPE and X/Y knob drawing share the existing target selector, curves and bounds. Held/recorded clouds retain their rhythmic interpretation through replay and Bake. See [Expressive cloud input](docs/expressive-cloud-input.md).
+
 ## Cloud pressure targets (hbclean.349)
 
 Use pressure to shape Velocity, Length or pitch Spread on Move/Launchpad, Remote UI and standalone. Existing curves and bounds work with each target; old trails and recorded clips retain their interpretation. See [Expressive cloud input](docs/expressive-cloud-input.md).

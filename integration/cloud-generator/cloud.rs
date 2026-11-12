@@ -6,19 +6,25 @@ pub const MAX_STROKE_VERTICES:usize=8;
 pub const MAX_POINTS:usize=MAX_CONTACTS*(256+TAIL_STEPS as usize);
 pub const XY_MAX:u16=16383;
 pub const XY_LEGACY_SCALE:u16=129;
+const RATES:[u16;6]=[8,6,4,3,2,1];
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub enum Activity {Probability,Rate}
 impl Activity {
     pub fn parse(value:u32)->Option<Self> {match value {0=>Some(Self::Probability),1=>Some(Self::Rate),_=>None}}
 }
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
-pub enum PressureTarget {Velocity,Length,Spread}
+pub enum PressureTarget {Velocity,Length,Spread,Probability,Rate}
 impl PressureTarget {
-    pub fn parse(value:u32)->Option<Self> {match value {0=>Some(Self::Velocity),1=>Some(Self::Length),2=>Some(Self::Spread),_=>None}}
+    pub fn parse(value:u32)->Option<Self> {match value {0=>Some(Self::Velocity),1=>Some(Self::Length),2=>Some(Self::Spread),3=>Some(Self::Probability),4=>Some(Self::Rate),_=>None}}
 }
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub struct Point {pub step:i32,pub x:u16,pub y:u16,pub pressure:u8,pub activity:Activity,pub pressure_target:PressureTarget}
 impl Point {
+    /// Pressure may slow the existing subdivision, never exceed its ceiling.
+    fn interval(self,fastest:usize)->u16 {
+        let ceiling=match self.activity {Activity::Probability=>fastest,Activity::Rate=>usize::from(self.x)*(fastest+1)/(128*usize::from(XY_LEGACY_SCALE))};
+        RATES[if self.pressure_target==PressureTarget::Rate {ceiling*usize::from(self.pressure)/127}else{ceiling}]
+    }
     pub fn legacy(step:i32,x:u8,y:u8,pressure:u8,activity:Activity)->Self {
         Self{step,x:u16::from(x)*XY_LEGACY_SCALE,y:u16::from(y)*XY_LEGACY_SCALE,pressure,activity,pressure_target:PressureTarget::Velocity}
     }
@@ -282,11 +288,10 @@ pub fn grains(config:Config,step:u16,points:&[Point],field:bool)->Vec<(Note,Poin
 pub fn grains_in_place(config:Config,step:u16,points:&mut Vec<Point>,field:bool)->[Option<(Note,Point)>;4] {
     let mut result=std::array::from_fn(|_|None);
     if config.end>0&&u32::from(step)*TICKS_PER_STEP>=config.end{return result;}
-    let rates=[8,6,4,3,2,1];
-    let fastest=usize::from(config.cloud[0])*rates.len()/128;
+    let fastest=usize::from(config.cloud[0])*RATES.len()/128;
     if config.complexity==0{return result;}
     if !field {points.clear();points.push(Point::legacy(step as i32,64,64,127,Activity::Probability));}
-    if step%rates[fastest]!=0&&!points.iter().any(|point|point.activity==Activity::Rate&&step%rates[usize::from(point.x)*(fastest+1)/(128*usize::from(XY_LEGACY_SCALE))]==0){return result;}
+    if step%RATES[fastest]!=0&&!points.iter().any(|point|step%point.interval(fastest)==0){return result;}
     points.retain(|point|point.step<=step as i32&&step as i32-point.step<TAIL_STEPS);
     // Overdubbing merges recent contacts with untouched clip history. Seeded
     // selection must depend on that history, never on the storage/merge order.
@@ -303,11 +308,11 @@ pub fn grains_in_place(config:Config,step:u16,points:&mut Vec<Point>,field:bool)
         if (random>>16)%TAIL_STEPS as u32>=(TAIL_STEPS-age) as u32 {continue;}
         // Each deposit owns its musical interpretation. Switching the surface
         // affects new strokes, never old trails, recorded clips or saved recipes.
-        let interval=match point.activity {
-            Activity::Probability=>{if (random>>8)%128>32+u32::from(point.x)*3/(4*u32::from(XY_LEGACY_SCALE)) {continue;}rates[fastest]},
-            Activity::Rate=>rates[usize::from(point.x)*(fastest+1)/(128*usize::from(XY_LEGACY_SCALE))],
-        };
-        if step%interval!=0 {continue;}
+        if point.activity==Activity::Probability&&(random>>8)%128>32+u32::from(point.x)*3/(4*u32::from(XY_LEGACY_SCALE)){continue;}
+        if step%point.interval(fastest)!=0 {continue;}
+        // A separate seeded gate makes each lighter-pressure result a subset
+        // of the stronger one, with full pressure retaining every eligible grain.
+        if point.pressure_target==PressureTarget::Probability&&random.rotate_left(13)%127>=u32::from(point.pressure){continue;}
         let spread=i32::from(config.cloud[3])*14/127;
         let spread=if point.pressure_target==PressureTarget::Spread {spread*i32::from(point.pressure)/127}else{spread};
         let scatter=((random>>20)%29) as i32-14;
@@ -348,6 +353,7 @@ mod pressure_tests {
                         PressureTarget::Velocity=>{assert!(soft.vel<full.vel);assert_eq!(soft.gate,full.gate);assert_eq!(soft.pitch,full.pitch);},
                         PressureTarget::Length=>{assert_eq!(soft.vel,full.vel);assert_eq!(soft.gate,3);assert_eq!(full.gate,96);assert_eq!(soft.pitch,full.pitch);},
                         PressureTarget::Spread=>{assert_eq!(soft.vel,full.vel);assert_eq!(soft.gate,full.gate);assert_eq!(soft.pitch,36);changed_spreads+=usize::from(soft.pitch!=full.pitch);},
+                        PressureTarget::Probability|PressureTarget::Rate=>unreachable!("rhythmic targets have separate clock/gate tests"),
                     }
                 }
             }
@@ -367,9 +373,54 @@ mod pressure_tests {
         assert!(runtime.touch(96,0,0,0,Activity::Probability,0,0));assert!(runtime.contacts.is_empty());
     }
     #[test]
+    fn pressure_probability_thins_eligible_grains_without_changing_their_notes() {
+        let mut counts=[0;5];
+        for activity in [Activity::Probability,Activity::Rate] {for density in [40,127] {for seed in 1..64 {for step in 0..32 {
+            let config=Config{style:17,seed,complexity:density,intensity:96,cloud:[127,80,64,100,75,110],..Default::default()};
+            let point=Point::legacy(step as i32-3,80,64,127,activity);
+            let baseline=notes(config,step,&[point],true);
+            let mut previous=false;
+            for (index,pressure) in [1,32,64,96,127].into_iter().enumerate() {
+                let actual=notes(config,step,&[Point{pressure,pressure_target:PressureTarget::Probability,..point}],true);
+                assert!(!previous||!actual.is_empty(),"stronger pressure must retain a previously eligible attack");
+                if !actual.is_empty(){assert_eq!(format!("{actual:?}"),format!("{baseline:?}"),"pressure probability leaves velocity, gate and pitch unchanged");}
+                if pressure==127 {assert_eq!(format!("{actual:?}"),format!("{baseline:?}"));}
+                previous=!actual.is_empty();counts[index]+=actual.len();
+            }
+        }}}}
+        assert!(counts.windows(2).all(|pair|pair[0]<pair[1]));
+        assert!(counts[0]>0&&counts[0]*20<counts[4],"light pressure is sparse, full pressure preserves the existing density ceiling");
+    }
+    #[test]
+    fn pressure_rate_uses_shared_clock_subdivisions_and_respects_both_ceilings() {
+        // Expected intervals in sixteenths. Dotted intervals must not be gated
+        // by the Rate knob's faster clock (e.g. interval 8 under a ceiling of 6).
+        let cases=[
+            (127,Activity::Probability,64,vec![(1,8),(26,6),(51,4),(77,3),(102,2),(127,1)]),
+            (32,Activity::Probability,127,vec![(1,8),(64,8),(127,6)]),
+            (48,Activity::Probability,127,vec![(1,8),(64,6),(127,4)]),
+            (127,Activity::Rate,60,vec![(1,8),(64,6),(127,4)]),
+            (127,Activity::Rate,0,vec![(1,8),(64,8),(127,8)]),
+        ];
+        let mut attacks=0;
+        for (rate,activity,position,expected) in cases {for (pressure,interval) in expected {for seed in 1..16 {for step in 0..48 {
+            let config=Config{style:17,seed,complexity:127,intensity:96,cloud:[rate,80,64,100,75,110],..Default::default()};
+            let point=Point{pressure_target:PressureTarget::Rate,..Point::legacy(step as i32,position,64,pressure,activity)};
+            let actual=notes(config,step,&[point],true);
+            assert!(actual.iter().all(|note|note.step%interval==0));
+            let mut reference=config;
+            reference.cloud[0]=match interval {8=>0,6=>22,4=>43,3=>64,2=>86,1=>107,_=>unreachable!()};
+            let reference_point=Point{pressure:127,pressure_target:PressureTarget::Velocity,x:if activity==Activity::Rate {XY_MAX}else{point.x},..point};
+            let expected=notes(reference,step,&[reference_point],true);
+            assert_eq!(format!("{actual:?}"),format!("{expected:?}"),"rate={rate} activity={activity:?} position={position} pressure={pressure} step={step}");
+            attacks+=actual.len();
+        }}}}
+        assert!(attacks>100);
+    }
+    #[test]
     fn mixed_targets_are_deterministic_independent_of_storage_order() {
         let point=Point::legacy(0,127,64,64,Activity::Rate);
-        let points=[point,Point{pressure_target:PressureTarget::Spread,..point},Point{pressure_target:PressureTarget::Length,..point}];
+        let points=[point,Point{pressure_target:PressureTarget::Spread,..point},Point{pressure_target:PressureTarget::Length,..point},Point{pressure_target:PressureTarget::Probability,..point},Point{pressure_target:PressureTarget::Rate,..point}];
         let mut reversed=points;reversed.reverse();
         for seed in 1..64 {
             let config=Config{style:16,seed,complexity:127,cloud:[127;6],..Default::default()};
