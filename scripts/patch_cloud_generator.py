@@ -83,10 +83,10 @@ export function tickChord():void{
     source = replace_once(path.read_text(), '    entryPoints: [', "    entryPoints: [\n        resolve(root,'src/seq/cloud-view.ts'),\n        resolve(root,'src/seq/cloud-surface.ts'),\n        resolve(root,'src/seq/cloud-remote.ts'),")
     path.write_text(source)
     path = core / 'engine.rs'
-    source = replace_once(path.read_text(), 'pub struct Engine {', 'pub struct Engine {\n    pub clouds:[crate::cloud::Runtime;16],')
-    source = replace_once(source, '            generator_explore:', '            clouds:std::array::from_fn(|_|Default::default()),\n            generator_explore:')
+    source = replace_once(path.read_text(), 'pub struct Engine {', 'pub struct Engine {\n    pub clouds:[crate::cloud::Runtime;16],pub cloud_operation_starts:u16,pub cloud_operation_cancels:u16,')
+    source = replace_once(source, '            generator_explore:', '            clouds:std::array::from_fn(|_|Default::default()),cloud_operation_starts:0,cloud_operation_cancels:0,\n            generator_explore:')
     source = replace_once(source, '                        let mut modified = modified;', '                        let mut modified = modified || self.tracks[ti].clips[slot].recipe.as_ref().is_some_and(|recipe|matches!(recipe.name.as_str(),"Bass-Cloud"|"Follower-Cloud"));')
-    source = replace_once(source, '    pub fn stop(&mut self, out: &mut Vec<OutEvent>) {', '    pub fn stop(&mut self, out: &mut Vec<OutEvent>) {\n        self.clouds=std::array::from_fn(|_|Default::default());')
+    source = replace_once(source, '    pub fn stop(&mut self, out: &mut Vec<OutEvent>) {', '    pub fn stop(&mut self, out: &mut Vec<OutEvent>) {\n        self.cloud_operation_cancels=u16::MAX;self.cloud_operation_starts=0;self.clouds=std::array::from_fn(|_|Default::default());')
     source = replace_once(source, '        self.frame_now += frames as u64;', '        self.frame_now += frames as u64;self.cloud_expire_contacts();')
     source += '\n' + (assets / 'cloud_engine.rs').read_text()
     if (assets / 'cloud_tests.rs').exists():
@@ -96,7 +96,7 @@ export function tickChord():void{
     source = replace_once(path.read_text(), '            if let Some(config)=c.generator', '''            if c.cloud_field {s.push_str(&format!("cf1 {} {} {}\\n",ti,ci,c.cloud_field_start));}
             for point in &c.cloud_points {s.push_str(&format!("cp1 {} {} {}\\n",ti,ci,point.wire()));}
             if let Some(config)=c.generator''')
-    source = replace_once(source, '    engine.generator_explore.fill(None);', '    engine.clouds=std::array::from_fn(|_|Default::default());\n    engine.generator_explore.fill(None);')
+    source = replace_once(source, '    engine.generator_explore.fill(None);', '    engine.cloud_operation_cancels=u16::MAX;engine.cloud_operation_starts=0;engine.clouds=std::array::from_fn(|_|Default::default());\n    engine.generator_explore.fill(None);')
     source = replace_once(source, '            Some("cg1")=>{', '''            Some(kind @ ("cf1"|"cp1"))=>{
                 if let (Some(track),Some(slot))=(it.next().and_then(|value|value.parse::<usize>().ok()),it.next().and_then(|value|value.parse::<usize>().ok())) {
                     if let Some(clip)=engine.tracks.get_mut(track).and_then(|track|track.clips.get_mut(slot)) {
@@ -139,6 +139,11 @@ export function tickChord():void{
                 Some(format!("{}:{}:{}:{}",self.cloud_revision,u8::from(self.engine.playing),self.engine.hb_master_tick(),self.engine.clock.bpm_x100()/100))
             },
 ''')
+    source = replace_once(source, '        self.blocks += 1;', """        self.blocks += 1;
+        let mut cloud_inputs=self.engine.cloud_operation_inputs();
+        for (track,input) in cloud_inputs.iter_mut().enumerate() {if chain_for(track as u8,self.movy_tracks).is_none(){*input=0;}}
+        let cloud_holds=self.chains.cloud_operation_inputs(cloud_inputs);
+        for (track,hold) in cloud_holds.into_iter().enumerate(){self.engine.cloud_operation_hold(track,hold);}""")
     source += '\n' + (assets / 'cloud_reply.rs').read_text()
     source = replace_once(source, '    fn get_param(&mut self, key: &str) -> Option<String> {', '''    fn get_param(&mut self, key: &str) -> Option<String> {
         if let Some(snapshot) = self.cloud_snapshot(key) { return Some(snapshot.to_owned()); }''')
@@ -153,6 +158,11 @@ export function tickChord():void{
     source += '\n' + (assets / 'cloud_performance_tests.rs').read_text()
     (path.parent / 'cloud_grain_reference.rs').write_text((assets / 'cloud_grain_reference.rs').read_text())
     path.write_text(source)
+
+    path = root / 'engine/crates/movy-dsp/src/chain_slots.rs'
+    source = replace_once(path.read_text(), '    queue: LoadQueue,', '    queue: LoadQueue,\n    cloud_input_down:u16,cloud_input_tracks:u16,')
+    source = replace_once(source, '            queue: LoadQueue::new(),', '            queue: LoadQueue::new(),cloud_input_down:0,cloud_input_tracks:0,')
+    path.write_text(source+'\n'+(assets / 'cloud_operation_bridge.rs').read_text())
 
     path = root / 'src/seq/engine.ts'
     source = "export let cloudRemoteRequested=false;\n" + path.read_text()

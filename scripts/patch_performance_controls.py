@@ -49,7 +49,7 @@ def patch_performance_controls(root: Path) -> None:
     source = replace_once(source, 'export function hbPerformancePage(): PerformancePort | null {', 'export function hbPerformancePage(): PerformancePort | null {\n    if(chordActive())return performanceViewAvailable()?chordOperationOwner():null;')
     source = replace_once(source, "if (jointActive() ? jointStepMode() === 2 : flagValue('hbsteprow') === 2)", "if (!chordActive() && (jointActive() ? jointStepMode() === 2 : flagValue('hbsteprow') === 2))")
     source = replace_once(source, "if(jointActive()?jointStepMode()===2:flagValue('hbsteprow')===2)", "if(!chordActive() && (jointActive()?jointStepMode()===2:flagValue('hbsteprow')===2))")
-    source = source.replace("write('movy-clip-v2')", "write('movy-clip-v3')")
+    source = source.replace("write('movy-clip-v2')", "write('movy-clip-v4')")
     source = replace_once(source, '    if(drawMotif())return;', '    drawMotif();')
     source = source.replace('    knob?: boolean;', '    oneShot?: boolean; knob?: boolean;')
     source = replace_once(source, '    invalidateLaneLights(action.owner);', '    invalidateLaneLights(action.owner);\n    if(action.oneShot)return;')
@@ -77,7 +77,7 @@ export function paintChordSteps():boolean{
     # Native clip polling must not downgrade the UI's capability handshake.
     path = root / 'engine/crates/movy-dsp/src/chain_slots.rs'
     if path.exists():
-        path.write_text(path.read_text().replace('movy-clip-v2', 'movy-clip-v3'))
+        path.write_text(path.read_text().replace('movy-clip-v2', 'movy-clip-v4'))
     for filename in ('engine/crates/movy-dsp/src/lib.rs','src/seq/constants.ts'):
         path = root / filename
         path.write_text(path.read_text().replace('0.78.0-drum-gesture1','0.80.0-chord-queue2'))

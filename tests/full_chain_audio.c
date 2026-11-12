@@ -90,6 +90,27 @@ static void field_status_is(const char *expected){
     }
     assert(!strcmp(text,expected));
 }
+#ifdef HB_TEST_CLOUD_OPERATION
+static void test_cloud_operation(void){
+    set("cmd","stop");render(16);
+    set("ch2:midi_fx1:performance_reset","1");set("ch2:midi_fx1:motion_operation_1","Cloud Hold");
+    set("cmd","gexplore 2 16 127 96 71 0 127 50 64 80 64 100");render(16);
+    set("ch2:midi_fx1:motion_gesture_1","Knob,1000");set("ch2:midi_fx1:motion_gesture_1","Up,40,1040");render(16);
+    assert(field_get("cloud_hold_2")==0);
+    set("cmd","gcloud 2 touch14 96 8193 10001 100");render(16);assert(field_get("cloud_hold_2")==1);
+    set("cmd","gcloud 2 touch14 113 8194 10002 100;gcloud 2 touch14 96 8193 10001 0");render(16);assert(field_get("cloud_hold_2")==1);
+    set("cmd","gcloud 2 touch14 113 8194 10002 0");render(16);assert(field_get("cloud_hold_2")==0);
+    set("ch2:midi_fx1:motion_gesture_1","LatchOn");render(16);assert(field_get("cloud_hold_2")==1);
+    set("cmd","gcloud 2 hold 1;gcloud 2 shiftxy 1 2 0");set("ch2:midi_fx1:motion_gesture_1","LatchOff");render(16);assert(field_get("cloud_hold_2")==1);
+    char state[128];assert(api->get_param(instance,"cloud_hold_state_2",state,sizeof(state))>0);assert(!strcmp(state,"ch1|1|1|2|0"));
+    set("cmd","gcloud 2 hold 0");render(16);assert(field_get("cloud_hold_2")==0);
+    set("ch2:midi_fx1:motion_gesture_1","LatchOn");render(16);set("cmd","gcloud 2 clear");render(16);assert(field_get("cloud_hold_2")==0);
+    set("cmd","gcloud 2 touch14 96 8193 10001 100");render(16);assert(field_get("cloud_hold_2")==0);
+    set("cmd","gexplore 2 off;stop");render(16);set("ch2:midi_fx1:motion_operation_1","Off");
+    puts("Cloud Hold operation: production bridge, overlap, latch, manual owner, precise movement, clear cancellation pass");
+}
+#endif
+
 static void test_field_lfos(void){
     set("cmd","stop");render(16);
     assert(field_get("ch0:lfo1:field_source_version")==1);
@@ -978,6 +999,9 @@ int main(int argc,char **argv){
     test_source_weaving();
     test_diagnostic_tone();
     test_field_lfos();
+#ifdef HB_TEST_CLOUD_OPERATION
+    test_cloud_operation();
+#endif
 #ifdef HB_TEST_SEQUENCE_POSITION
     test_sequence_positions();
 #endif

@@ -131,3 +131,25 @@ test('Field operations share Remote note-phrase gestures and preserve direct Fie
   const params=JSON.parse(get('chain_params'));assert(params.find(param=>param.key==='motion_operation').options.includes('Field Output'));
  }finally{engine.dispose();}
 });
+
+test('Cloud Hold uses shared Remote gestures and overlapping precise cloud contacts',async()=>{
+ const engine=await createFullEngine();
+ const set=(key,value)=>engine.request('set',key,String(value));
+ const get=key=>engine.request('get',key).value;
+ const step=()=>engine.request('step',16);
+ const gesture=value=>set('ch2:midi_fx1:motion_gesture_1',value);
+ try{
+  set('cmd','stop');step();set('ch2:midi_fx1:motion_operation_1','Cloud Hold');
+  set('cmd','gexplore 2 16 127 96 71 0 127 50 64 80 64 100');step();
+  gesture('Knob,1000');gesture('Up,40,1040');step();assert.equal(get('cloud_hold_2'),'0');
+  set('cmd','gcloud 2 touch14 96 8193 10001 100');step();assert.equal(get('cloud_hold_2'),'1');
+  set('cmd','gcloud 2 touch14 113 8194 10002 100;gcloud 2 touch14 96 8193 10001 0');step();assert.equal(get('cloud_hold_2'),'1');
+  set('cmd','gcloud 2 touch14 113 8194 10002 0');step();assert.equal(get('cloud_hold_2'),'0');assert.equal(get('ch2:midi_fx1:motion_status_1'),'Off');
+  gesture('Knob,2000');gesture('Up,40,2040');set('cmd','gcloud 2 touch14 96 8193 10001 100;gcloud 2 touch14 96 8193 10001 0');step();assert.equal(get('ch2:midi_fx1:motion_status_1'),'Off');
+  gesture('LatchOn');step();assert.equal(get('cloud_hold_2'),'1');
+  set('cmd','gcloud 2 hold 1;gcloud 2 shiftxy 1 2 0');gesture('LatchOff');step();assert.equal(get('cloud_hold_state_2'),'ch1|1|1|2|0');
+  set('cmd','gcloud 2 hold 0');step();assert.equal(get('cloud_hold_2'),'0');
+  gesture('LatchOn');step();set('cmd','gcloud 2 clear');step();assert.equal(get('ch2:midi_fx1:motion_status_1'),'Off');
+  set('cmd','gcloud 2 touch14 96 8193 10001 100');step();assert.equal(get('cloud_hold_2'),'0');
+ }finally{engine.dispose();}
+});
