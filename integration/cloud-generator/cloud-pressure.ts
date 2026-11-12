@@ -36,7 +36,7 @@ export function mapCloudPressure(pressure:number):number {
  return Math.round(settings.low+(settings.reverse?1-curved:curved)*(settings.high-settings.low));
 }
 export function cloudPressureParameters():any[] {return [
- {key:'cg_pressure_target',name:'Pressure Target',short_name:'Target',type:'enum',options:targets,options_as_string:true,default:'Velocity'},
+ {key:'cg_pressure_target',name:'Pressure Target',short_name:'Target',type:'enum',options:targets,short_options:['Vel','Length','Spread','Prob','Rate'],options_as_string:true,default:'Velocity'},
  {key:'cg_pressure_curve',name:'Pressure Response',short_name:'Response',type:'enum',options:['Linear','Soft','Firm'],options_as_string:true,default:'Linear'},
  {key:'cg_pressure_direction',name:'Pressure Direction',short_name:'Direction',type:'enum',options:['Normal','Reverse'],options_as_string:true,default:'Normal'},
  {key:'cg_pressure_low',name:'Pressure Low',short_name:'Low',type:'int',min:1,max:127,step:1,default:1},
