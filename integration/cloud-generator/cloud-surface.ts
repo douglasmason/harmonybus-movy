@@ -1,5 +1,5 @@
 /** Native, external and browser gestures share the same follower source. */
-import {generatorCloud,generatorSelectedTrack,generatorCloudContact,generatorCloudSnapshot,generatorCloudHeld,generatorCloudHold,generatorCloudHoldState,generatorCloudShift,generatorCloudCenter,type CloudHoldState,generatorTouch,generatorRead,generatorCloud as cloudSelected} from './comp-generator.js';
+import {generatorCloud,generatorSelectedTrack,generatorCloudContact,generatorCloudSnapshot,generatorCloudHeld,generatorCloudHold,generatorCloudHoldState,generatorCloudShift,generatorCloudShiftXY,generatorCloudCenter,type CloudHoldState,generatorTouch,generatorRead,generatorCloud as cloudSelected} from './comp-generator.js';
 import {cloudCoordinate,cloudPosition,readCloud,emptyCloud,cloudCells,cloudFade} from './cloud-view.js';
 import {trailStyle} from './trail-settings.js';
 import {sendPadLedFrame} from './led-cache.js';
@@ -90,6 +90,10 @@ export function cloudWrite(key:string,value:string):boolean|null {
 export function shiftCloudHold(axis:'x'|'y',value:number,relative:boolean):boolean {
  const semantic=flipped?(axis==='x'?'y':'x'):axis;
  const changed=generatorCloudShift(semantic,value,relative,wrap);invalidateHold();appState.dirty=true;return changed;
+}
+export function shiftCloudHoldXY(x:number,y:number):boolean {
+ const delta=cloudInput(x,y),changed=generatorCloudShiftXY(delta.x,delta.y,wrap);
+ invalidateHold();appState.dirty=true;return changed;
 }
 export function cloudHoldTouch(key:string,down:boolean):boolean {
  if(!['cg_hold','cg_hold_center'].includes(key))return false;

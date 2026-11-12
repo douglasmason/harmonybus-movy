@@ -9,6 +9,15 @@ impl Engine {
     /// A contact belongs to one track and one input surface; up never re-targets.
     pub fn cloud_touch(&mut self,message:&str)->bool {
         let clear:Vec<_>=message.split_whitespace().collect();
+        // One gesture packet moves both axes before the musical sampler can run.
+        if clear.get(2)==Some(&"shiftxy") {
+            if clear.len()!=6||!matches!(clear[5],"0"|"1"){return false;}
+            let (Ok(track),Ok(horizontal),Ok(vertical))=(clear[1].parse::<usize>(),clear[3].parse::<i32>(),clear[4].parse::<i32>()) else{return false;};
+            if track>=NUM_TRACKS||![horizontal,vertical].iter().all(|value|(-16383..=16383).contains(value))||!self.generator_explore[track].is_some_and(|state|state.current.is_cloud())||!self.clouds[track].holding(){return false;}
+            let runtime=&mut self.clouds[track];
+            runtime.shift_held(0,horizontal,true,clear[5]=="1");
+            runtime.shift_held(1,vertical,true,clear[5]=="1");return true;
+        }
         if matches!(clear.get(2),Some(&"shift")|Some(&"shiftby")|Some(&"center")) {
             let Ok(track)=clear[1].parse::<usize>() else{return false;};
             if track>=NUM_TRACKS||!self.generator_explore[track].is_some_and(|state|state.current.is_cloud()){return false;}

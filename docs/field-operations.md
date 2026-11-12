@@ -1,4 +1,4 @@
-# Field performance operations — Movy 0.34.1-hbclean.355
+# Field performance operations — Movy 0.34.1-hbclean.356
 
 The shared operation picker has a **Field** group: Field Rate, Field Zoom and
 Field Output. Assign them to standard slots for touch-knob, step/Launchpad or
@@ -12,7 +12,7 @@ Hold is momentary, the existing persistent latch stays active, and a knob tap
 arms the next live-note phrase. All notes released completes that one-shot.
 These contributions preserve underlying settings and do not multiply merely
 because a joint gesture addresses multiple tracks. Existing direct Field
-controls and the precise cloud movement features are retained.
+controls, precise cloud movement and direct dragging of held clouds are retained.
 
 Full-chain coverage checks an actual stock synth modulation destination while
 editing its base. Compiled browser coverage checks Remote note-phrase arming,
