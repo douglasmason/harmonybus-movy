@@ -54,3 +54,7 @@ assert.deepEqual(rotation.options,['Off','Chord Spread','Voicing Rotate','Chord 
 const blend={key:'motion_operation',options_as_string:true,options:['Note Blend','Off','Transpose']};
 orderHarmonyChoices(blend);assert.equal(choiceGroup('Note Blend'),'Pitch');
 assert.deepEqual(blend.options,['Off','Transpose','Note Blend']);
+
+const field={key:'motion_operation',options_as_string:true,options:['Field Output','Field Zoom','Off','Field Rate']};
+orderHarmonyChoices(field);assert.equal(choiceGroup('Field Rate'),'Field');
+assert.deepEqual(field.options,['Off','Field Rate','Field Zoom','Field Output']);

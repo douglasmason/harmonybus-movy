@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.354",
-  "previous_version": "0.34.1-hbclean.353",
+  "version": "0.34.1-hbclean.355",
+  "previous_version": "0.34.1-hbclean.354",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.354 — Note Blend as a shared operation",
-  "notes": "docs/note-blend-operation.md",
+  "title": "Movy 0.34.1-hbclean.355 — shared Field performance operations",
+  "notes": "docs/field-operations.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",
