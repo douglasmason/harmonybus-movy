@@ -50,3 +50,7 @@ const rotation={key:'motion_operation',options_as_string:true,options:['Voicing 
 orderHarmonyChoices(rotation);
 assert.equal(choiceGroup('Voicing Rotate'),'Chord / Arp');
 assert.deepEqual(rotation.options,['Off','Chord Spread','Voicing Rotate','Chord Form']);
+
+const blend={key:'motion_operation',options_as_string:true,options:['Note Blend','Off','Transpose']};
+orderHarmonyChoices(blend);assert.equal(choiceGroup('Note Blend'),'Pitch');
+assert.deepEqual(blend.options,['Off','Transpose','Note Blend']);

@@ -63,7 +63,7 @@ test('production NuSaw renders stereo PCM through Movy/Schwung and panic silence
  assert.throws(()=>engine.request('render',9),/Invalid/);
 });
 
-test('pressure blend drives 14-bit output and audible NuSaw pitch through Remote surface events',async()=>{
+test('Note Blend operation arms through shared gestures and drives audible NuSaw pitch',async()=>{
  const engine=await createFullEngine();
  const set=(key,value)=>engine.request('set',key,String(value));
  const get=key=>engine.request('get',key).value;
@@ -72,8 +72,11 @@ test('pressure blend drives 14-bit output and audible NuSaw pitch through Remote
  // NuSaw's normalized range 1.0 is +/-12 semitones. Do not change it implicitly.
  set('ch0:synth:module','nusaw');engine.request('step',32);
  for(const [key,value] of Object.entries({chorus_mix:0,delay_mix:0,detune:0,spread:0,sub_level:0,cutoff:1,resonance:0,f_amount:0,attack:0,sustain:1,bend_range:1}))set(`ch0:synth:${key}`,value);
- set('ch0:midi_fx1:chord_mode','Off');set('ch0:midi_fx1:note_blend','Bend 12');
- assert.equal(get('ch0:midi_fx1:note_blend'),'Bend 12');
+ set('ch0:midi_fx1:chord_mode','Off');set('ch0:midi_fx1:note_blend','Off');
+ set('ch0:midi_fx1:motion_operation_1','Note Blend');set('ch0:midi_fx1:motion_control_1','Bend 12');
+ set('ch0:midi_fx1:motion_gesture_1','Knob,1000');set('ch0:midi_fx1:motion_gesture_1','Up,40,1040');
+ assert.equal(get('ch0:midi_fx1:motion_status_1'),'Armed');
+ assert.equal(get('ch0:midi_fx1:note_blend'),'Off');
  const params=JSON.parse(get('ch0:midi_fx1:chain_params'));
  assert.deepEqual(params.find(parameter=>parameter.key==='note_blend').options,['Off','Steps','Bend 2','Bend 12','Bend 24','Bend 48']);
  function measuredPitch(expected){
@@ -97,11 +100,13 @@ test('pressure blend drives 14-bit output and audible NuSaw pitch through Remote
   surface(144,60,100);surface(144,72,100);
   let packets=engine.request('step',192).events;
   assert(packets.some(packet=>(packet[1]&240)===224&&((packet[3]<<7)|packet[2])===12288));
+  assert.equal(get('ch0:midi_fx1:motion_status_1'),'Playing');
   measuredPitch(440*2**((66-69)/12));
   surface(160,60,25);surface(160,72,75);packets=engine.request('step',192).events;
   assert(packets.some(packet=>(packet[1]&240)===224&&((packet[3]<<7)|packet[2])===14336));
   measuredPitch(440);
   surface(128,60,0);const released=surface(128,72,0);
   assert([...released.events,...engine.request('step',16).events].some(packet=>(packet[1]&240)===224&&packet[2]===0&&packet[3]===64));
+  assert.equal(get('ch0:midi_fx1:motion_status_1'),'Off');
  }finally{engine.dispose();}
 });
