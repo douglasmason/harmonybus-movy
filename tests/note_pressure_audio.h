@@ -1,5 +1,5 @@
-/* Exercise the ordered surface path used by Launchpad X and Remote UI, plus
-   native Move pad pressure, through production Movy/chain/HB. */
+/* Exercise ordered Launchpad/Remote events and Move's native note edges plus
+   coalesced UI pressure bridge, through production Movy/chain/HB. */
 static void test_note_pressure_output(void){
     set("cmd","stop");render(32);set("chtracks","1");
     set("state","movy1\nbpm 12000\nlink 0\ntk 0 0 0\ncl 0 0 16 0 \n");
@@ -31,7 +31,7 @@ static void test_note_pressure_output(void){
     set("padmap","0,60,64,67,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60,60");
     uint8_t down[]={0x90,68,100},pressure[]={0xa0,68,61},up[]={0x80,68,0};
     api->on_midi(instance,down,3,0);render(16);
-    api->on_midi(instance,pressure,3,0);render(16);
+    api->on_midi(instance,pressure,3,0);set("padpressure","68,61");render(16);
     assert(field_get("ch0:synth:pressure_72")==61&&field_get("ch12:synth:pressure_72")==61);
     api->on_midi(instance,up,3,0);render(16);
     assert(field_get("ch0:synth:held_72")==0&&field_get("ch12:synth:held_72")==0);
