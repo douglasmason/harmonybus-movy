@@ -13,11 +13,11 @@ static void test_note_pressure_output(void){
     set("ch0:midi_fx1:motion_operation_1","Transpose");set("ch0:midi_fx1:motion_control_1","12");
     set("ch0:midi_fx1:motion_lane","1");set("ch0:midi_fx1:motion_enabled","Off");
     set("ch0:midi_fx1:motion_field_target","0");set("ch0:midi_fx1:motion_offset","0");
+    set("ch0:midi_fx1:motion_every","1");set("ch0:midi_fx1:motion_pattern","0");
     set("ch0:midi_fx1:motion_hold_1","On");
     set("ch12:midi_fx1:role","Receiver");set("ch12:midi_fx1:receive_channel","2");
     set("ch0:mix","1,0,0,0,0");set("ch12:mix","1,0,0,0,0");render(16);
     set("cmd","non 0 60 100");render(16);
-    fprintf(stderr,"pressure fixture held72: local=%.0f receiver=%.0f; operation=%.0f\n",field_get("ch0:synth:held_72"),field_get("ch12:synth:held_72"),field_get("ch0:midi_fx1:motion_control_1"));
     assert(field_get("ch0:synth:held_72")==1&&field_get("ch12:synth:held_72")==1);
     set("cmd","npr 0 60 39");render(16);
     assert(field_get("ch0:synth:pressure_72")==39&&field_get("ch12:synth:pressure_72")==39);

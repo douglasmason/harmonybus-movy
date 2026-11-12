@@ -801,6 +801,9 @@ int main(int argc,char **argv){
     #endif
     if(getenv("HB_PART_ONLY")){test_part_library();api->destroy_instance(instance);return 0;}
 #endif
+#ifdef HB_TEST_NOTE_PRESSURE
+    if(getenv("HB_PRESSURE_ONLY")){test_note_pressure_output();api->destroy_instance(instance);return 0;}
+#endif
 #ifdef HB_TEST_CHORD_QUEUE
     if(getenv("HB_QUEUE_ONLY")){test_chord_queue();api->destroy_instance(instance);return 0;}
 #ifdef HB_TEST_QUEUE_COPY
@@ -984,8 +987,5 @@ int main(int argc,char **argv){
     test_chord_discovery();
 #endif
     test_single_conductor_output();
-#ifdef HB_TEST_NOTE_PRESSURE
-    test_note_pressure_output();
-#endif
     api->destroy_instance(instance);return 0;
 }

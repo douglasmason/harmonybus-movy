@@ -63,6 +63,9 @@ if grep -q HB_PARENT_KEY_WITHOUT_CONDUCTOR "$HB_SOURCE/modules/harmonybus/dsp/ha
 cc -O1 -pthread "${CHORD_PLAY_TEST_FLAGS[@]}" -I"$SCHWUNG_SOURCE/src" "$INTEGRATION_ROOT/tests/full_chain_audio.c" -ldl -o "$FIXTURE_ROOT/full-chain-test"
 cargo build --manifest-path "$MOVY_SOURCE/engine/Cargo.toml" -p movy-dsp
 "$FIXTURE_ROOT/full-chain-test" "$MOVY_SOURCE/engine/target/debug/libmovy_dsp.so" "$FIXTURE_ROOT" restored
+if [[ " ${CHORD_PLAY_TEST_FLAGS[*]} " == *" -DHB_TEST_NOTE_PRESSURE "* ]]; then
+  HB_PRESSURE_ONLY=1 "$FIXTURE_ROOT/full-chain-test" "$MOVY_SOURCE/engine/target/debug/libmovy_dsp.so" "$FIXTURE_ROOT" note-pressure
+fi
 if [[ " ${CHORD_PLAY_TEST_FLAGS[*]} " == *" -DHB_TEST_PAD_PARENT_KEY "* ]]; then
   HB_PAD_PARENT_ONLY=1 "$FIXTURE_ROOT/full-chain-test" "$MOVY_SOURCE/engine/target/debug/libmovy_dsp.so" "$FIXTURE_ROOT" parent-key
 fi
