@@ -45,9 +45,10 @@ impl Engine {
         if !self.generator_explore[track].is_some_and(|state|state.current.is_cloud()){return false;}
         // Updates never acquire a contact. Stop, Clear, release and expiry are
         // boundaries that an old pressure packet or browser heartbeat cannot undo.
-        if moving&&!self.clouds[track].contacts.iter().any(|contact|contact.id==fields[1] as u8&&self.master_tick.saturating_sub(contact.refreshed)<192&&self.frame_now.saturating_sub(contact.frame)<self.clock.sample_rate() as u64*2){return false;}
+        let existing=self.clouds[track].contacts.iter().any(|contact|contact.id==fields[1] as u8&&self.master_tick.saturating_sub(contact.refreshed)<192&&self.frame_now.saturating_sub(contact.frame)<self.clock.sample_rate() as u64*2);
+        if moving&&!existing{return false;}
         let scale=if precise {1}else{crate::cloud::XY_LEGACY_SCALE};
-        let starting=fields[4]>0&&!moving&&!self.clouds[track].contacts.iter().any(|contact|contact.id==fields[1] as u8);
+        let starting=fields[4]>0&&!moving&&!existing;
         let accepted=self.clouds[track].touch_expression(fields[1] as u8,fields[2] as u16*scale,fields[3] as u16*scale,fields[4] as u8,activity,pressure_target,self.master_tick,self.frame_now,precise);
         if accepted&&starting {self.cloud_operation_starts|=1<<track;}accepted
     }

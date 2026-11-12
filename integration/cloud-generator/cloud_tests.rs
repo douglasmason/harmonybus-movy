@@ -14,6 +14,8 @@
         assert_eq!(engine.cloud_operation_inputs()[2],3);assert_eq!(engine.cloud_operation_inputs()[2],1);
         command(&mut engine,"gcloud 2 touch14 96 8193 10001 100");assert_eq!(engine.cloud_operation_inputs()[2],7);
         command(&mut engine,"gcloud 2 move14 96 8194 10002 100");assert_eq!(engine.cloud_operation_inputs()[2],5);
+        engine.master_tick+=192;assert_eq!(engine.cloud_operation_inputs()[2],1);
+        command(&mut engine,"gcloud 2 touch14 96 8193 10001 100");assert_eq!(engine.cloud_operation_inputs()[2],7,"a fresh Down can reacquire an expired contact ID");
         engine.frame_now+=engine.clock.sample_rate() as u64*2;assert_eq!(engine.cloud_operation_inputs()[2],1);
         assert!(!engine.cloud_touch("gcloud 2 move14 96 8194 10002 100"));
         command(&mut engine,"gcloud 2 touch14 96 8193 10001 100;gcloud 2 clear");assert_eq!(engine.cloud_operation_inputs()[2],9);
