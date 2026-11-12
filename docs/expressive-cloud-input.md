@@ -96,6 +96,45 @@ loading older settings. Existing Velocity clips keep their original encoding
 and seeded output. New Length/Spread points add an explicit target after the
 14-bit marker; builds before hbclean.349 cannot load those new point records.
 
+## Rhythmic pressure targets (hbclean.351)
+
+**Probability** and **Rate** join the same Pressure Target selector on Move and
+in the Remote UI/standalone cloud editor. Move/Launchpad aftertouch, per-finger
+and MPE pressure, and the knob cursor's Draw Pressure use the existing response
+curves, Reverse and Low/High bounds. No additional page or automation lane is
+needed. Hardware without measured force can use Draw Pressure.
+
+| Target | Light pressure | Full pressure |
+| --- | --- | --- |
+| Probability | Sparse grains from the existing pattern | All otherwise eligible grains |
+| Rate | Half-note subdivision | Fastest subdivision allowed by Rate and the activity axis |
+
+Probability adds a seeded gate after the existing Density, activity-axis and
+age gates. For a given candidate grain, stronger pressure retains any gate opened by
+lighter pressure. Surviving grains keep their velocity, length and pitch;
+Dynamics still sets velocity. Density zero remains silent.
+
+Rate selects the existing half-note, dotted-quarter, quarter-note, dotted-eighth,
+eighth-note and sixteenth-note subdivisions. The Rate knob sets the ceiling;
+when the activity axis is also Rate, that coordinate can lower the ceiling
+further. The Probability activity axis retains its independent chance control.
+Pressure changes remain aligned to the shared clock and do not immediately
+retrigger a held note or create another transport. Dotted subdivisions retain
+their own grid positions even when the ceiling uses another subdivision.
+
+Try **Target: Rate**, a fast Rate ceiling, and a light-to-firm squeeze for an
+accelerating cloud. Choose **Target: Probability** to bring a sparse cloud up
+to its existing density without also making notes louder. Reverse reverses either
+relationship. Touchscreens without force sensing retain precise X/Y; Draw
+Pressure remains available for their knob strokes.
+
+Each deposit retains its rhythmic target and mapped pressure through Hold,
+recording, saved sets/recipes, replay and Bake. New targets affect new deposits;
+existing trails can continue their previous rhythm while they decay. Velocity,
+Length and Spread keep their existing output and storage. Newly saved Probability
+and Rate records require hbclean.351 or later. The web editor advertises supported
+targets and disables these choices when connected to an older host.
+
 ## Touch and playing pads
 
 Open **Follower generators → Cloud**, choose an actor and Cloud, then draw.

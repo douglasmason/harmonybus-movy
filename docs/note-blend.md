@@ -1,4 +1,4 @@
-# Note Blend — Movy 0.34.1-hbclean.351
+# Note Blend — Movy 0.34.1-hbclean.352
 
 Pins HarmonyBus 0.2.323. Humanize / Tools knob 8 and the shared Remote UI expose Note Blend: Off, Steps, Bend 2/12/24/48. Launchpad X, Remote UI surface events and the Move pad-pressure bridge use the same pressure-weighted output, including Render To Receiver tracks.
 

@@ -57,7 +57,8 @@ cloud.cloudWrite('cg_y','0');cloud.cloudTurn('cg_y',-2);assert.equal(cloud.cloud
 cloud.cloudWrite('cg_edge','Bounded');cloud.cloudTurn('cg_x',200);assert.equal(cloud.cloudRead('cg_x'),'127');
 page.goToPage(page.ctl.pages.findIndex(entry=>entry.level==='cp_cloud_field'));now+=200;chord.tickChord();
 assert.equal(page.keyAt(0),'cg_x');assert.equal(page.keyAt(1),'cg_y');assert.equal(page.keyAt(2),'cg_axes');assert.equal(page.keyAt(4),'cg_activity');assert.equal(page.keyAt(5),'cg_pressure');assert.equal(page.keyAt(7),'cg_restore');
-const responsePage=page.ctl.pages.findIndex(entry=>entry.level==='cp_cloud_pressure');assert(responsePage>=0);page.goToPage(responsePage);now+=200;chord.tickChord();assert.equal(page.keyAt(1),'cg_pressure_target');assert.equal(page.keyAt(2),'cg_pressure_curve');assert.equal(page.keyAt(5),'cg_pressure_high');chord.chordMidi([176,72,4]);now+=200;chord.tickChord();assert.equal(cloud.cloudRead('cg_pressure_target'),'Length','second physical encoder selects the pressure target');chord.chordMidi([176,72,124]);now+=200;chord.tickChord();assert.equal(cloud.cloudRead('cg_pressure_target'),'Velocity');page.goToPage(page.ctl.pages.findIndex(entry=>entry.level==='cp_cloud_field'));
+const responsePage=page.ctl.pages.findIndex(entry=>entry.level==='cp_cloud_pressure');assert(responsePage>=0);page.goToPage(responsePage);now+=200;chord.tickChord();assert.equal(page.keyAt(1),'cg_pressure_target');assert.equal(page.keyAt(2),'cg_pressure_curve');assert.equal(page.keyAt(5),'cg_pressure_high');chord.chordMidi([176,72,4]);now+=200;chord.tickChord();assert.equal(cloud.cloudRead('cg_pressure_target'),'Length','second physical encoder selects the pressure target');for(const target of ['Spread','Probability','Rate']){chord.chordMidi([176,72,4]);now+=200;chord.tickChord();assert.equal(cloud.cloudRead('cg_pressure_target'),target);}
+chord.chordMidi([176,72,112]);now+=200;chord.tickChord();assert.equal(cloud.cloudRead('cg_pressure_target'),'Velocity');page.goToPage(page.ctl.pages.findIndex(entry=>entry.level==='cp_cloud_field'));
 cloud.cloudWrite('cg_edge','Wrap');chord.chordMidi([176,71,3]);assert.equal(cloud.cloudRead('cg_x'),String(386/129),'physical X encoder preserves wrapped overshoot');
 cloud.cloudWrite('cg_x','127');cloud.cloudWrite('cg_edge','Bounded');
 // Fine native and Remote drawing share the 14-bit contact path and Z channel.
@@ -142,8 +143,19 @@ commands=[];cloud.cloudWrite('cg_x','81');seqCmdFlush();assert(commands.some(com
 setFlag('hblaunchpad',2);launchpad.tickLaunchpad(now);commands=[];launchpad.onMidiMessageExternal([144,88,64]);launchpad.onMidiMessageExternal([160,88,64]);cloud.flushCloudPressure();seqCmdFlush();
 assert(commands.some(command=>/^gcloud 2 move 95 .* 80 1 2$/.test(command)));launchpad.onMidiMessageExternal([128,88,0]);seqCmdFlush();launchpad.unloadLaunchpad();setFlag('hblaunchpad',0);
 assert.equal(cloud.cloudWrite('cg_pressure_target','Unknown'),false);
+// Rhythmic targets reuse pressure mapping, release ownership and all surfaces.
+remote.cloudRemoteAction('response target Probability');
+assert.deepEqual(JSON.parse(remote.cloudRemoteSnapshot()).pressureTargets,['Velocity','Length','Spread','Probability','Rate']);
+commands=[];chord.chordMidi([144,68,64]);seqCmdFlush();assert(commands.includes('gcloud 2 0 0 0 80 1 3'));
+remote.cloudRemoteAction('response target Rate');commands=[];cloud.flushCloudPressure();assert(commands.includes('gcloud 2 move 0 0 0 80 1 4'));
+commands=[];chord.chordMidi([128,68,0]);seqCmdFlush();assert(commands.includes('gcloud 2 0 0 0 0 1 4'));
+commands=[];remote.cloudRemoteAction('touch14 2 96 8257 8000 64 0');assert(commands.includes('gcloud 2 touch14 96 8000 8257 80 0 4'));remote.cloudRemoteAction('touch14 2 96 8257 8000 0 0');
+commands=[];cloud.cloudWrite('cg_x','82');seqCmdFlush();assert(commands.some(command=>/^gcloud 2 touch14 112 .* 1 4$/.test(command)));cloud.releaseCloud();
+setFlag('hblaunchpad',2);launchpad.tickLaunchpad(now);commands=[];
+launchpad.onMidiMessageExternal([144,88,64]);launchpad.onMidiMessageExternal([160,88,64]);cloud.flushCloudPressure();seqCmdFlush();
+assert(commands.some(command=>/^gcloud 2 move 95 .* 80 1 4$/.test(command)));launchpad.onMidiMessageExternal([128,88,0]);seqCmdFlush();launchpad.unloadLaunchpad();setFlag('hblaunchpad',0);
 const responseSaved=cloud.cloudSurfaceSnapshot();cloud.restoreCloudSurface(null);assert.equal(cloud.cloudRead('cg_pressure_curve'),'Linear');assert.equal(cloud.cloudRead('cg_pressure_target'),'Velocity');
-cloud.restoreCloudSurface(responseSaved);assert.equal(cloud.cloudRead('cg_pressure_target'),'Spread');assert.equal(cloud.cloudRead('cg_pressure_low'),'20');assert.equal(cloud.cloudRead('cg_pressure_high'),'100');assert.equal(cloud.cloudRead('cg_pressure_direction'),'Reverse');assert.equal(cloud.cloudRead('cg_pressure_curve'),'Firm');
+cloud.restoreCloudSurface(responseSaved);assert.equal(cloud.cloudRead('cg_pressure_target'),'Rate');assert.equal(cloud.cloudRead('cg_pressure_low'),'20');assert.equal(cloud.cloudRead('cg_pressure_high'),'100');assert.equal(cloud.cloudRead('cg_pressure_direction'),'Reverse');assert.equal(cloud.cloudRead('cg_pressure_curve'),'Firm');
 assert.equal(cloud.cloudWrite('cg_pressure_low','101'),false);assert.equal(cloud.cloudWrite('cg_pressure_high','19'),false);
 cloud.cloudWrite('cg_pressure_target','Velocity');cloud.cloudWrite('cg_pressure_low','1');cloud.cloudWrite('cg_pressure_high','127');cloud.cloudWrite('cg_pressure_direction','Normal');cloud.cloudWrite('cg_pressure_curve','Linear');cloud.cloudWrite('cg_pressure','100');
 const saved=cloud.cloudSurfaceSnapshot();cloud.restoreCloudSurface(null);assert.equal(cloud.cloudRead('cg_axes'),'Activity / Pitch');assert.equal(cloud.cloudRead('cg_activity'),'Probability');cloud.restoreCloudSurface(saved);assert.equal(cloud.cloudRead('cg_axes'),'Pitch / Activity');assert.equal(cloud.cloudRead('cg_activity'),'Rate');

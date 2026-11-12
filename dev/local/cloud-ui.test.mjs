@@ -58,11 +58,14 @@ try{
  assert((await page.evaluate(()=>window.sent)).includes('drawfine x 1'));
  await page.getByRole('slider',{name:'Cloud draw pressure',exact:true}).fill('37');
  assert((await page.evaluate(()=>window.sent)).includes('pressure 37'));
- await page.getByRole('combobox',{name:'Cloud pressure target',exact:true}).selectOption('Length');
+ assert(await page.locator('[data-response=target] option').filter({hasText:/^Rate$/}).evaluate(option=>option.disabled),'older hosts do not advertise rhythmic pressure');
+ await page.evaluate(()=>window.state.pressureTargets=['Velocity','Length','Spread','Probability','Rate']);await page.waitForTimeout(100);
+ await page.getByRole('combobox',{name:'Cloud pressure target',exact:true}).selectOption('Probability');
+ await page.getByRole('combobox',{name:'Cloud pressure target',exact:true}).selectOption('Rate');
  await page.getByRole('combobox',{name:'Cloud pressure response',exact:true}).selectOption('Firm');
  await page.getByRole('combobox',{name:'Cloud pressure direction',exact:true}).selectOption('Reverse');
  await page.getByRole('spinbutton',{name:'Cloud pressure low',exact:true}).fill('20');await page.getByRole('spinbutton',{name:'Cloud pressure low',exact:true}).press('Tab');
- for(const command of ['response target Length','response curve Firm','response direction Reverse','response low 20'])assert((await page.evaluate(()=>window.sent)).includes(command));
+ for(const command of ['response target Probability','response target Rate','response curve Firm','response direction Reverse','response low 20'])assert((await page.evaluate(()=>window.sent)).includes(command));
 
  await page.getByRole('combobox',{name:'Cloud drawing precision'}).selectOption('coarse');
 
