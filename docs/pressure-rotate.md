@@ -1,4 +1,4 @@
-# Pressure Rotate — HarmonyBus 0.2.321 / Movy hbclean.347
+# Pressure Rotate — HarmonyBus 0.2.321 / Movy hbclean.348
 
 The existing **Pitch → Rotate** operation now accepts Approach Pressure. Assign
 Rotate to a slot, set **Collection Steps** (−24 to +24), turn **Auto Off** for

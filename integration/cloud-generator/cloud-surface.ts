@@ -8,6 +8,7 @@ import {fontPrint} from '../font/index.js';
 import {seqCmd,seqCmdFlush,engineReady,fieldEngineSet} from './engine.js';
 import {syncPadRoute} from '../track/pad-route.js';
 import {markUiStateDirty} from './ui-dirty.js';
+import {cloudPressureSnapshot,restoreCloudPressure,cloudPressureRead,cloudPressureWrite,cloudPressureParameters,type CloudPressure} from './cloud-pressure.js';
 import {EXPRESSION_MAX} from './expression-input.js';
 let owner:number|null=null,lastRead=-Infinity,lastRefresh=-Infinity,snapshot=emptyCloud();
 let holding=false;
@@ -17,15 +18,17 @@ let activity:'Probability'|'Rate'='Probability';
 const held=new Map<number,{track:number;x:number;y:number;pressure:number}>();
 const pendingPressure=new Set<number>();
 export const cloudFieldKeys=['cg_x','cg_y','cg_axes','cg_edge','cg_activity','cg_pressure','cg_bake','cg_restore'];
+export const cloudPressureKeys=['cg_pressure','cg_pressure_curve','cg_pressure_direction','cg_pressure_low','cg_pressure_high','cg_axes','cg_edge','cg_activity'];
 export function cloudParameters():any[]{return [
+ ...cloudPressureParameters(),
  ...['x','y'].map(field=>({key:'cg_'+field,name:'Draw '+field.toUpperCase(),short_name:field.toUpperCase(),type:'float',min:0,max:127,step:1,default:64})),
  {key:'cg_pressure',name:'Draw Pressure',short_name:'Pressure',type:'int',min:1,max:127,step:1,default:100},
  {key:'cg_edge',name:'Field Boundary',short_name:'Edges',type:'enum',options:['Bounded','Wrap'],options_as_string:true,default:'Bounded'},
  {key:'cg_activity',name:'Field Activity',short_name:'Activity',type:'enum',options:['Probability','Rate'],short_options:['Prob','Rate'],options_as_string:true,default:'Probability'},
  {key:'cg_axes',name:'X / Y Axes',short_name:'Axes',type:'enum',options:['Activity / Pitch','Pitch / Activity'],short_options:['Act/Pitch','Pitch/Act'],options_as_string:true,default:'Activity / Pitch'}
 ];}
-export function cloudSurfaceSnapshot():{wrap:boolean;flipped:boolean;activity:string;pressure:number} {return {wrap,flipped,activity,pressure:drawPressure};}
-export function restoreCloudSurface(value:unknown):void {releaseCloud();const state=value as {wrap?:unknown;flipped?:unknown;activity?:unknown;pressure?:unknown}|null;wrap=state?.wrap===true;flipped=state?.flipped===true;activity=state?.activity==='Rate'?'Rate':'Probability';drawPressure=typeof state?.pressure==='number'&&Number.isInteger(state.pressure)&&state.pressure>=1&&state.pressure<=127?state.pressure:100;cursorX=cursorY=8256;paint.fill(-1);appState.dirty=true;}
+export function cloudSurfaceSnapshot():{wrap:boolean;flipped:boolean;activity:string;pressure:number;response:CloudPressure} {return {wrap,flipped,activity,pressure:drawPressure,response:cloudPressureSnapshot()};}
+export function restoreCloudSurface(value:unknown):void {releaseCloud();const state=value as {wrap?:unknown;flipped?:unknown;activity?:unknown;pressure?:unknown;response?:unknown}|null;restoreCloudPressure(state?.response);wrap=state?.wrap===true;flipped=state?.flipped===true;activity=state?.activity==='Rate'?'Rate':'Probability';drawPressure=typeof state?.pressure==='number'&&Number.isInteger(state.pressure)&&state.pressure>=1&&state.pressure<=127?state.pressure:100;cursorX=cursorY=8256;paint.fill(-1);appState.dirty=true;}
 export function cloudInput(x:number,y:number):{x:number;y:number} {return cloudPosition({x,y},flipped);}
 function contactInput(track:number,id:number,x:number,y:number,pressure:number,start=true,flush=true):void {const position=cloudInput(x,y);generatorCloudContact(track,id,position.x,position.y,pressure,start,activity,flush,id===112);}
 function finishContact(id:number,contact:{track:number;x:number;y:number;pressure:number}):void {
@@ -44,8 +47,9 @@ export function setCloudSurface(visible:boolean):void {
  if(next===owner)return;releaseCloud();owner=next;holding=false;paint.fill(-1);snapshot=emptyCloud();lastRead=-Infinity;
  if(engineReady()){syncPadRoute(fieldEngineSet);if(next!==null){fieldEngineSet('joint_map','off');fieldEngineSet('joint_release','1');}}appState.dirty=true;
 }
-export function cloudRead(key:string):string|null {return key==='cg_x'?String(cursorX/129):key==='cg_y'?String(cursorY/129):key==='cg_pressure'?String(drawPressure):key==='cg_activity'?activity:key==='cg_edge'?(wrap?'Wrap':'Bounded'):key==='cg_axes'?(flipped?'Pitch / Activity':'Activity / Pitch'):null;}
+export function cloudRead(key:string):string|null {const response=cloudPressureRead(key);if(response!==null)return response;return key==='cg_x'?String(cursorX/129):key==='cg_y'?String(cursorY/129):key==='cg_pressure'?String(drawPressure):key==='cg_activity'?activity:key==='cg_edge'?(wrap?'Wrap':'Bounded'):key==='cg_axes'?(flipped?'Pitch / Activity':'Activity / Pitch'):null;}
 export function cloudWrite(key:string,value:string):boolean|null {
+ const response=cloudPressureWrite(key,value);if(response!==null){if(response){for(const id of held.keys())pendingPressure.add(id);markUiStateDirty();appState.dirty=true;}return response;}
  if(key==='cg_pressure'){
   const pressure=Number(value);if(!Number.isInteger(pressure)||pressure<1||pressure>127)return false;
   drawPressure=pressure;const contact=held.get(112);if(contact){contact.pressure=pressure;pendingPressure.add(112);}

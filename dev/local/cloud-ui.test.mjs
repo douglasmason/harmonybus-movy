@@ -37,6 +37,13 @@ try{
  await page.evaluate(()=>{window.savedView=window.view;window.view='cf1||64,64,127,0;65,65,127,2|';window.state.holding=true;});await page.waitForTimeout(100);
  assert.equal(await greenPixels(),0,'held clouds and the parked X/Y cursor cannot invent green contacts');
  await page.evaluate(()=>{window.view=window.savedView;window.state.holding=false;});await page.waitForTimeout(100);
+ await page.evaluate(()=>{
+  const root=document.querySelector('#cloud').shadowRoot,bounds=root.querySelector('canvas').getBoundingClientRect();
+  window.component.padGesture('down',{pointerId:902,clientX:bounds.left+1,clientY:bounds.top+1,pointerType:'pen',pressure:.5,preventDefault(){}},bounds);
+  window.sent=[];root.querySelector('[data-action=hold]').click();
+ });
+ assert.match((await page.evaluate(()=>window.sent)).at(-2),/^move 3 96 /,'Hold refreshes even a stationary contact before capture');
+ assert.equal((await page.evaluate(()=>window.sent)).at(-1),'hold 1');await page.evaluate(()=>window.component.release());
  await page.getByRole('button',{name:'Hold cloud',exact:true}).click();assert.equal((await page.evaluate(()=>window.sent)).at(-1),'hold 1');
  assert.equal(await page.getByRole('button',{name:'Hold cloud',exact:true}).getAttribute('aria-pressed'),'false','Hold waits for engine confirmation');
  await page.evaluate(()=>window.state.holding=true);await page.getByRole('button',{name:'Release cloud',exact:true}).waitFor();
@@ -45,12 +52,17 @@ try{
  await page.evaluate(()=>window.state.holding=false);await page.getByRole('button',{name:'Hold cloud',exact:true}).waitFor();
  await page.getByRole('combobox',{name:'Cloud field boundary'}).selectOption('Wrap');await page.getByRole('button',{name:'Draw x positive'}).click();
  assert((await page.evaluate(()=>window.sent)).includes('edge Wrap'));assert((await page.evaluate(()=>window.sent)).includes('draw x 4'));
- await page.evaluate(()=>{window.state.drawBits=14;window.state.pressure=100;});await page.waitForTimeout(100);
+ await page.evaluate(()=>{window.state.drawBits=14;window.state.pressure=100;window.state.pressureResponse={curve:'Linear',reverse:false,low:1,high:127};});await page.waitForTimeout(100);
  await page.getByRole('combobox',{name:'Cloud drawing precision'}).selectOption('fine');
  await page.getByRole('button',{name:'Draw x positive'}).click();
  assert((await page.evaluate(()=>window.sent)).includes('drawfine x 1'));
  await page.getByRole('slider',{name:'Cloud draw pressure',exact:true}).fill('37');
  assert((await page.evaluate(()=>window.sent)).includes('pressure 37'));
+ await page.getByRole('combobox',{name:'Cloud pressure response',exact:true}).selectOption('Firm');
+ await page.getByRole('combobox',{name:'Cloud pressure direction',exact:true}).selectOption('Reverse');
+ await page.getByRole('spinbutton',{name:'Cloud pressure low',exact:true}).fill('20');await page.getByRole('spinbutton',{name:'Cloud pressure low',exact:true}).press('Tab');
+ for(const command of ['response curve Firm','response direction Reverse','response low 20'])assert((await page.evaluate(()=>window.sent)).includes(command));
+
  await page.getByRole('combobox',{name:'Cloud drawing precision'}).selectOption('coarse');
 
  await page.getByRole('combobox',{name:'Cloud field axes'}).selectOption('pitch-x');assert((await page.evaluate(()=>window.sent)).includes('axes pitch-x'));

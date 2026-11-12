@@ -1,6 +1,7 @@
 /** Remote actions re-enter the production controller, including ordinary Record/Undo. */
 import {generatorActor,generatorCloud,generatorSelectedTrack,generatorRead,generatorWrite,generatorTouch,generatorEnsureCloud,generatorCloudContact,generatorCloudHeld,generatorCloudHold,generatorPrepareRecord,generatorFooter,generatorClipSlot,generatorRecording,cloudControls} from './comp-generator.js';
 import {cloudRead,cloudWrite,cloudTurn,cloudInput,releaseCloud,flushCloudPressure} from './cloud-surface.js';
+import {cloudPressureSnapshot} from './cloud-pressure.js';
 import {trailStyle} from './trail-settings.js';
 import {generatorEuclidean,generatorEuclideanView,generatorRotateStep,generatorEnsureEuclidean,generatorCanBake,euclideanControls} from './comp-generator.js';
 import {seqState} from './state.js';
@@ -54,6 +55,7 @@ export function cloudRemoteAction(message:string):void {
  else if(action==='edge'&&fields.length===1)cloudWrite('cg_edge',fields[0]);
  else if(action==='activity'&&fields.length===1)cloudWrite('cg_activity',fields[0]);
  else if(action==='axes'&&fields.length===1&&['pitch-x','pitch-y'].includes(fields[0]))cloudWrite('cg_axes',fields[0]==='pitch-x'?'Pitch / Activity':'Activity / Pitch');
+ else if(action==='response'&&fields.length===2&&['curve','direction','low','high'].includes(fields[0]))cloudWrite('cg_pressure_'+fields[0],fields[1]);
  else if(action==='pressure'&&fields.length===1)cloudWrite('cg_pressure',fields[0]);
  else if(['draw','drawfine'].includes(action)&&fields.length===2&&['x','y'].includes(fields[0])&&Number.isInteger(Number(fields[1]))&&Math.abs(Number(fields[1]))<=127)cloudTurn('cg_'+fields[0],Number(fields[1]),action==='drawfine');
  else if(['explore','bake','restore'].includes(action)&&fields.length===0)generatorTouch('cg_'+action,track,true);
@@ -62,7 +64,7 @@ export function cloudRemoteAction(message:string):void {
 }
 export function cloudRemoteSnapshot():string {
  const track=generatorSelectedTrack();
- return JSON.stringify({xyBits:14,drawBits:14,pressure:Number(cloudRead('cg_pressure')),ready:engineReady(),canBake:generatorCanBake(track),actor:generatorActor(),track,slot:generatorClipSlot(track),transport:{playing:seqState.playing,...generatorRecording()},euclidean:generatorEuclideanView(track),euclideanValues:generatorEuclidean(track)?[...euclideanControls.map(field=>generatorRead('cg_euclid_'+field,track)),generatorRead('cg_intensity',track)]:null,cloud:generatorCloud(),holding:generatorCloudHeld(track),values:cloudControls.map(field=>Number(generatorRead('cg_cloud_'+field,track))),seed:generatorRead('cg_seed',track),explore:generatorRead('cg_explore',track),footer:generatorFooter(track),x:Number(cloudRead('cg_x')),y:Number(cloudRead('cg_y')),edge:cloudRead('cg_edge'),axes:cloudRead('cg_axes'),activity:cloudRead('cg_activity'),trail:trailStyle().settings});
+ return JSON.stringify({xyBits:14,drawBits:14,pressureResponse:cloudPressureSnapshot(),pressure:Number(cloudRead('cg_pressure')),ready:engineReady(),canBake:generatorCanBake(track),actor:generatorActor(),track,slot:generatorClipSlot(track),transport:{playing:seqState.playing,...generatorRecording()},euclidean:generatorEuclideanView(track),euclideanValues:generatorEuclidean(track)?[...euclideanControls.map(field=>generatorRead('cg_euclid_'+field,track)),generatorRead('cg_intensity',track)]:null,cloud:generatorCloud(),holding:generatorCloudHeld(track),values:cloudControls.map(field=>Number(generatorRead('cg_cloud_'+field,track))),seed:generatorRead('cg_seed',track),explore:generatorRead('cg_explore',track),footer:generatorFooter(track),x:Number(cloudRead('cg_x')),y:Number(cloudRead('cg_y')),edge:cloudRead('cg_edge'),axes:cloudRead('cg_axes'),activity:cloudRead('cg_activity'),trail:trailStyle().settings});
 }
 export function tickCloudRemote(now=Date.now()):void {
  if(!engineReady()||!cloudRemoteRequested||now-lastPoll<50)return;lastPoll=now;

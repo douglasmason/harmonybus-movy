@@ -1,5 +1,6 @@
 /** Shared actor browser and temporary performance source; Record owns persistence. */
 import styles from './generator-styles.json';
+import {mapCloudPressure} from './cloud-pressure.js';
 import {userParts,isGeneratorPart,userPartLabel,partLibraryRevision,type PartKind} from './part-storage.js';
 import {portFor} from '../track/registry.js';
 import {seqCmd,seqCmdFlush,engineReady,engineGeneration} from './engine.js';
@@ -282,7 +283,8 @@ function ensureGenerator(track:number):boolean {
  return info(track)[0]==='Recorded'?preview(track,Number(info(track)[1])):send(track);
 }
 export function generatorCloudContact(track:number,id:number,x:number,y:number,pressure:number,start=true,activity='Probability',flush=true,precise=false):void {
- if(!engineReady()||pressure>0&&(start?!generatorEnsureCloud(track):!active(track)))return;
+ if(!Number.isFinite(pressure)||pressure<0||pressure>127||!engineReady()||pressure>0&&(start?!generatorEnsureCloud(track):!active(track)))return;
+ pressure=mapCloudPressure(pressure);
  seqCmd(`gcloud ${track} ${precise?(start?'touch14 ':'move14 '):(start?'':'move ')}${id} ${Math.round(x)} ${Math.round(y)} ${Math.round(pressure)}${activity==='Rate'?' 1':''}`);if(flush)seqCmdFlush();
 }
 export function generatorCloudSnapshot(track=selectedTrack):string {return String(host_module_get_param('cloud_view_'+track)??'');}
