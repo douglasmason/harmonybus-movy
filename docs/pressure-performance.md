@@ -31,7 +31,10 @@ direction. A tap is shorter than the existing hold threshold and does not reach
 8/127 pressure. Note velocity does not substitute for pressure. Pressure returning
 to zero is not a release; only the note-off ends the contact.
 
-Supported amount operations are Velocity, Gate, Pan, Transpose, Ratchet and Echo.
+Supported amount operations include Velocity, Gate, Pan, Transpose, Rotate, Ratchet
+and Echo, plus Note Repeat, Repeat Divisions, Global Transpose, Chord Spread and
+Voicing Rotate. [Pressure Rotate](pressure-rotate.md) explains collection steps
+and onset-only behavior.
 The operation's Amount is the full-pressure endpoint. The low endpoint is zero,
 except Gate starts at 100% and Ratchet at one repeat. Existing Field Amount bounds,
 if configured for that slot, supply both endpoints. Zero active signal suppresses

@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.347",
-  "previous_version": "0.34.1-hbclean.346",
+  "version": "0.34.1-hbclean.348",
+  "previous_version": "0.34.1-hbclean.347",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.347 \u2014 shared cloud pressure response",
-  "notes": "docs/expressive-cloud-input.md",
+  "title": "Movy 0.34.1-hbclean.348 — pressure-controlled collection rotation",
+  "notes": "docs/pressure-rotate.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",
