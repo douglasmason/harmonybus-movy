@@ -11,7 +11,7 @@ const operationGroups: [string, string[]][] = [
     ['Motif', ['Play Motif']],
     ['Harmony', ['Harmony','Live Key Center','Key Center','Recordable Key Center','Relative Key Center','Key Step Back','Key Return to Start','Parallel Scale','Live Harmony Override','Override Harmony (Live + Recorded)']],
     ['Chord / Arp', ['Chord Spread','Voicing Rotate','Chord Form','Chord/Arp State','Auto Chord Repeat']],
-    ['Pitch', ['Transpose','Global Transpose','Octave','Rotate']],
+    ['Pitch', ['Transpose','Global Transpose','Octave','Rotate','Note Blend']],
     ['Expression', ['Velocity','Pan']],
     ['Rhythm', ['Gate','Skip','Ratchet','MIDI Echo']],
     ['Clip', ['Clip Repeat','Clip Reverse','Clip Time Shift','Clip Speed','Clip Weave']],
