@@ -58,3 +58,6 @@ assert.deepEqual(blend.options,['Off','Transpose','Note Blend']);
 const field={key:'motion_operation',options_as_string:true,options:['Field Output','Field Zoom','Off','Field Rate']};
 orderHarmonyChoices(field);assert.equal(choiceGroup('Field Rate'),'Field');
 assert.deepEqual(field.options,['Off','Field Rate','Field Zoom','Field Output']);
+assert.equal(choiceGroup('Cloud Hold'),'Cloud');
+const cloudChoices={key:'motion_operation',options_as_string:true,options:['Cloud Hold','Off','Field Output']};
+orderHarmonyChoices(cloudChoices);assert.deepEqual(cloudChoices.options,['Off','Field Output','Cloud Hold']);

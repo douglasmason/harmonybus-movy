@@ -216,6 +216,7 @@ impl Engine {
             if self.part_recording_busy()&&self.records_track(track) {if self.pending_rec {self.tracks[track].queued_slot=None;}self.recording=false;self.pending_rec=false;self.count_in_left=0;}
             self.flush_track_gates(track,out);
             self.generator_finish_take(state);
+            self.cloud_operation_cancels|=1<<track;self.cloud_operation_starts&=!(1<<track);
             self.clouds[track]=Default::default();
             self.generator_library[track]=None;
             self.recipe_tick(out);

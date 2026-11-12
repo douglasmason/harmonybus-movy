@@ -33,7 +33,7 @@ impl Engine {
             return self.clouds[track].hold(clear[3]=="1",self.master_tick);
         }
         if clear.len()==3&&clear[2]=="clear" {
-            if let Ok(track)=clear[1].parse::<usize>() {if track<NUM_TRACKS {self.clouds[track]=crate::cloud::Runtime{field:true,..Default::default()};return true;}}return false;
+            if let Ok(track)=clear[1].parse::<usize>() {if track<NUM_TRACKS {self.cloud_operation_cancels|=1<<track;self.cloud_operation_starts&=!(1<<track);self.clouds[track]=crate::cloud::Runtime{field:true,..Default::default()};return true;}}return false;
         }
         let precise=matches!(clear.get(2),Some(&"touch14")|Some(&"move14"));
         let moving=matches!(clear.get(2),Some(&"move")|Some(&"move14"));
@@ -47,7 +47,9 @@ impl Engine {
         // boundaries that an old pressure packet or browser heartbeat cannot undo.
         if moving&&!self.clouds[track].contacts.iter().any(|contact|contact.id==fields[1] as u8&&self.master_tick.saturating_sub(contact.refreshed)<192&&self.frame_now.saturating_sub(contact.frame)<self.clock.sample_rate() as u64*2){return false;}
         let scale=if precise {1}else{crate::cloud::XY_LEGACY_SCALE};
-        self.clouds[track].touch_expression(fields[1] as u8,fields[2] as u16*scale,fields[3] as u16*scale,fields[4] as u8,activity,pressure_target,self.master_tick,self.frame_now,precise)
+        let starting=fields[4]>0&&!moving&&!self.clouds[track].contacts.iter().any(|contact|contact.id==fields[1] as u8);
+        let accepted=self.clouds[track].touch_expression(fields[1] as u8,fields[2] as u16*scale,fields[3] as u16*scale,fields[4] as u8,activity,pressure_target,self.master_tick,self.frame_now,precise);
+        if accepted&&starting {self.cloud_operation_starts|=1<<track;}accepted
     }
     fn cloud_capture(&mut self,track:usize,slot:usize,pos:u32) {
         let Some(state)=self.generator_explore[track].filter(|state|state.current.is_cloud()) else{return;};
@@ -135,5 +137,23 @@ impl Engine {
             }
         }
         Ok(())
+    }
+}
+
+impl Engine {
+    /// Bounded edge mailbox preserves a stroke shorter than one audio block.
+    pub fn cloud_operation_inputs(&mut self)->[u8;16] {
+        self.cloud_expire_contacts();
+        let starts=std::mem::take(&mut self.cloud_operation_starts);
+        let cancels=std::mem::take(&mut self.cloud_operation_cancels);
+        std::array::from_fn(|track| {
+            let active=self.generator_explore[track].is_some_and(|state|state.current.is_cloud());
+            u8::from(active)|if starts&(1<<track)!=0 {2}else{0}|
+            if self.clouds[track].contacts.iter().any(|contact|self.master_tick.saturating_sub(contact.refreshed)<192){4}else{0}|
+            if cancels&(1<<track)!=0 {8}else{0}
+        })
+    }
+    pub fn cloud_operation_hold(&mut self,track:usize,enabled:bool) {
+        self.clouds[track].hold_operation(enabled,self.master_tick);
     }
 }

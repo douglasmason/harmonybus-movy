@@ -99,14 +99,27 @@ pub struct Runtime {
     pub(crate) work:Vec<Point>,
     pub(crate) held:Vec<Point>,pub(crate) held_cursor:usize,
     pub held_shift:[i32;2],pub held_wrap:bool,
+    pub(crate) manual_hold:bool,pub(crate) operation_hold:bool,
 }
 impl Runtime {
     pub fn holding(&self)->bool {!self.held.is_empty()}
     /// Freeze a bounded set of emitters, without advancing the musical sampler.
     /// Pending short strokes count even when captured between clock ticks.
     pub fn hold(&mut self,enabled:bool,tick:u64)->bool {
-        if !enabled {self.held.clear();self.held_cursor=0;self.held_shift=[0;2];self.held_wrap=false;return true;}
+        if enabled {if !self.capture_hold(tick){return false;}self.manual_hold=true;}
+        else {self.manual_hold=false;self.release_hold();}true
+    }
+    /// Independent owners share the capture. Ending one cannot erase the other.
+    pub fn hold_operation(&mut self,enabled:bool,tick:u64)->bool {
+        self.operation_hold=enabled;
+        if enabled {self.capture_hold(tick)}else{self.release_hold();true}
+    }
+    fn release_hold(&mut self) {
+        if !self.manual_hold&&!self.operation_hold {self.held.clear();self.held_cursor=0;self.held_shift=[0;2];self.held_wrap=false;}
+    }
+    fn capture_hold(&mut self,tick:u64)->bool {
         if self.holding(){return true;}
+        if self.contacts.is_empty()&&self.pending_touches.is_empty()&&self.points.is_empty(){return false;}
         let step=(tick/TICKS_PER_STEP as u64) as i32;
         let mut fresh=Self{contacts:self.contacts.clone(),pending_touches:self.pending_touches.clone(),..Default::default()};
         fresh.sample(tick);
@@ -472,5 +485,25 @@ mod pressure_tests {
             let config=Config{style:16,seed,complexity:127,cloud:[127;6],..Default::default()};
             assert_eq!(format!("{:?}",grains(config,0,&points,true)),format!("{:?}",grains(config,0,&reversed,true)));
         }
+    }
+}
+
+#[cfg(test)] mod operation_hold_tests {
+    use super::*;
+    #[test] fn independent_hold_owners_preserve_capture_and_precise_movement() {
+        for manual_first in [true,false] {
+            let mut runtime=Runtime::default();runtime.touch_xy(1,8193,10001,100,Activity::Rate,0,0,true);
+            if manual_first {assert!(runtime.hold(true,0));}else{assert!(runtime.hold_operation(true,0));}
+            runtime.shift_held(0,1,true,false);
+            if manual_first {assert!(runtime.hold_operation(true,0));runtime.hold(false,0);}else{assert!(runtime.hold(true,0));runtime.hold_operation(false,0);}
+            assert!(runtime.holding());assert_eq!(runtime.held_shift,[1,0]);assert_eq!(runtime.held[0].x,8193);
+            if manual_first {runtime.hold_operation(false,0);}else{runtime.hold(false,0);}
+            assert!(!runtime.holding());assert_eq!(runtime.held_shift,[0,0]);
+        }
+    }
+    #[test] fn unsuccessful_manual_capture_does_not_acquire_a_hold_owner() {
+        let mut runtime=Runtime::default();assert!(!runtime.hold(true,0));
+        runtime.touch_xy(1,8193,10001,100,Activity::Rate,0,0,true);
+        assert!(runtime.hold_operation(true,0));runtime.hold_operation(false,0);assert!(!runtime.holding());
     }
 }

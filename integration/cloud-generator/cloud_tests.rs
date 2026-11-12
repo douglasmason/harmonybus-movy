@@ -8,6 +8,18 @@
         result
     }
     fn start(engine:&mut Engine){command(engine,"gexplore 2 16 127 96 71 0 127 50 64 80 64 100");}
+    #[test] fn operation_edges_preserve_short_strokes_and_cancel_boundaries() {
+        let mut engine=fixture();start(&mut engine);engine.cloud_operation_inputs();
+        command(&mut engine,"gcloud 2 touch14 96 8193 10001 100;gcloud 2 touch14 96 8193 10001 0");
+        assert_eq!(engine.cloud_operation_inputs()[2],3);assert_eq!(engine.cloud_operation_inputs()[2],1);
+        command(&mut engine,"gcloud 2 touch14 96 8193 10001 100");assert_eq!(engine.cloud_operation_inputs()[2],7);
+        command(&mut engine,"gcloud 2 move14 96 8194 10002 100");assert_eq!(engine.cloud_operation_inputs()[2],5);
+        engine.frame_now+=engine.clock.sample_rate() as u64*2;assert_eq!(engine.cloud_operation_inputs()[2],1);
+        assert!(!engine.cloud_touch("gcloud 2 move14 96 8194 10002 100"));
+        command(&mut engine,"gcloud 2 touch14 96 8193 10001 100;gcloud 2 clear");assert_eq!(engine.cloud_operation_inputs()[2],9);
+        command(&mut engine,"gexplore 2 off");assert_eq!(engine.cloud_operation_inputs()[2],8);
+        start(&mut engine);engine.stop(&mut Vec::new());assert_ne!(engine.cloud_operation_inputs()[2]&8,0);
+    }
     #[test] fn held_motion_records_resolved_deposits_and_replays_and_bakes_exactly() {
         let mut engine=fixture();start(&mut engine);engine.play();engine.toggle_record(2);
         command(&mut engine,"gcloud 2 touch14 96 12001 10001 110 1 4;gcloud 2 hold 1;gcloud 2 touch14 96 12001 10001 0");
