@@ -1,4 +1,4 @@
-# Mapped note pressure — HarmonyBus 0.2.322 / Movy hbclean.349
+# Mapped note pressure — HarmonyBus 0.2.322 / Movy hbclean.350
 
 Ordinary polyphonic pad pressure now follows the voice that HarmonyBus actually
 played. A C pad mapped or transposed to D sends pressure to D, using the stored

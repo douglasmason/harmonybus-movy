@@ -1,3 +1,7 @@
+## Cloud pressure targets (hbclean.349)
+
+Use pressure to shape Velocity, Length or pitch Spread on Move/Launchpad, Remote UI and standalone. Existing curves and bounds work with each target; old trails and recorded clips retain their interpretation. See [Expressive cloud input](docs/expressive-cloud-input.md).
+
 ## Cloud pressure response (hbclean.347)
 
 Move, Launchpad, touch/MPE and knob drawing share Linear/Soft/Firm pressure response, Reverse, and Low/High bounds. Find Cloud Pressure on Move or Input pressure response in the shared web editor. Deposited and recorded clouds retain their response. See [Expressive cloud input](docs/expressive-cloud-input.md).

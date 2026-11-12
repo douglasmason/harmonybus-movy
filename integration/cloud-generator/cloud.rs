@@ -12,25 +12,31 @@ impl Activity {
     pub fn parse(value:u32)->Option<Self> {match value {0=>Some(Self::Probability),1=>Some(Self::Rate),_=>None}}
 }
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
-pub struct Point {pub step:i32,pub x:u16,pub y:u16,pub pressure:u8,pub activity:Activity}
+pub enum PressureTarget {Velocity,Length,Spread}
+impl PressureTarget {
+    pub fn parse(value:u32)->Option<Self> {match value {0=>Some(Self::Velocity),1=>Some(Self::Length),2=>Some(Self::Spread),_=>None}}
+}
+#[derive(Clone,Copy,Debug,PartialEq,Eq)]
+pub struct Point {pub step:i32,pub x:u16,pub y:u16,pub pressure:u8,pub activity:Activity,pub pressure_target:PressureTarget}
 impl Point {
     pub fn legacy(step:i32,x:u8,y:u8,pressure:u8,activity:Activity)->Self {
-        Self{step,x:u16::from(x)*XY_LEGACY_SCALE,y:u16::from(y)*XY_LEGACY_SCALE,pressure,activity}
+        Self{step,x:u16::from(x)*XY_LEGACY_SCALE,y:u16::from(y)*XY_LEGACY_SCALE,pressure,activity,pressure_target:PressureTarget::Velocity}
     }
     pub fn legacy_xy(self)->bool {self.x%XY_LEGACY_SCALE==0&&self.y%XY_LEGACY_SCALE==0}
     pub fn wire(self)->String {
+        if self.pressure_target!=PressureTarget::Velocity {return format!("{},{},{},{},{},14,{}",self.step,self.x,self.y,self.pressure,self.activity as u8,self.pressure_target as u8);}
         if self.legacy_xy() {format!("{},{},{},{}{}",self.step,self.x/XY_LEGACY_SCALE,self.y/XY_LEGACY_SCALE,self.pressure,if self.activity==Activity::Rate {",1"}else{""})}
         else {format!("{},{},{},{},{},14",self.step,self.x,self.y,self.pressure,self.activity as u8)}
     }
     pub fn parse(text:&str)->Option<Self> {
         let fields:Vec<i32>=text.split(',').map(str::parse).collect::<Result<_,_>>().ok()?;
-        if !matches!(fields.len(),4|5|6){return None;}
-        let precise=fields.len()==6;
+        if !matches!(fields.len(),4|5|6|7){return None;}
+        let precise=fields.len()>=6;
         if precise&&fields[5]!=14{return None;}
         let maximum=if precise {i32::from(XY_MAX)}else{127};
         if !(-TAIL_STEPS..256).contains(&fields[0])||fields[1..3].iter().any(|value|!(0..=maximum).contains(value))||!(1..=127).contains(&fields[3]){return None;}
         let scale=if precise {1}else{XY_LEGACY_SCALE};
-        Some(Self{step:fields[0],x:fields[1] as u16*scale,y:fields[2] as u16*scale,pressure:fields[3] as u8,activity:Activity::parse(*fields.get(4).unwrap_or(&0) as u32)?})
+        Some(Self{step:fields[0],x:fields[1] as u16*scale,y:fields[2] as u16*scale,pressure:fields[3] as u8,activity:Activity::parse(*fields.get(4).unwrap_or(&0) as u32)?,pressure_target:PressureTarget::parse(*fields.get(6).unwrap_or(&0) as u32)?})
     }
 }
 #[derive(Clone,Copy,Debug)]
@@ -72,7 +78,7 @@ impl Stroke {
             if remaining<=length&&length>0 {
                 let interpolate=|start:u16,end:u16| (i64::from(start)+(i64::from(end)-i64::from(start))*i64::from(remaining)/i64::from(length)) as u16;
                 let coordinate=|start:u16,end:u16|interpolate(start/unit as u16,end/unit as u16)*unit as u16;
-                return Some(Point{step:0,x:coordinate(pair[0].x,pair[1].x),y:coordinate(pair[0].y,pair[1].y),pressure:interpolate(u16::from(pair[0].pressure),u16::from(pair[1].pressure)) as u8,activity:self.contact.point.activity});
+                return Some(Point{step:0,x:coordinate(pair[0].x,pair[1].x),y:coordinate(pair[0].y,pair[1].y),pressure:interpolate(u16::from(pair[0].pressure),u16::from(pair[1].pressure)) as u8,..self.contact.point});
             }
             remaining=remaining.saturating_sub(length);
         }
@@ -107,6 +113,9 @@ impl Runtime {
         self.touch_xy(id,u16::from(x)*XY_LEGACY_SCALE,u16::from(y)*XY_LEGACY_SCALE,pressure,activity,tick,frame,false)
     }
     pub fn touch_xy(&mut self,id:u8,x:u16,y:u16,pressure:u8,activity:Activity,tick:u64,frame:u64,precise:bool)->bool {
+        self.touch_expression(id,x,y,pressure,activity,PressureTarget::Velocity,tick,frame,precise)
+    }
+    pub fn touch_expression(&mut self,id:u8,x:u16,y:u16,pressure:u8,activity:Activity,pressure_target:PressureTarget,tick:u64,frame:u64,precise:bool)->bool {
         if x>XY_MAX||y>XY_MAX||pressure>127{return false;}
         let held=self.contacts.iter().position(|contact|contact.id==id);
         if pressure==0 {
@@ -115,9 +124,9 @@ impl Runtime {
             return true;
         }
         if held.is_none()&&self.contacts.len()>=MAX_CONTACTS {return false;}
-        let previous=held.map(|index|self.contacts[index]).filter(|contact|contact.precise==precise&&contact.point.activity==activity&&tick.saturating_sub(contact.refreshed)<192);
+        let previous=held.map(|index|self.contacts[index]).filter(|contact|contact.precise==precise&&contact.point.activity==activity&&contact.point.pressure_target==pressure_target&&tick.saturating_sub(contact.refreshed)<192);
         if previous.is_none() {for stroke in &mut self.pending_touches {if stroke.contact.id==id {stroke.open=false;}}}
-        let contact=Contact{id,point:Point{step:0,x,y,pressure,activity},refreshed:tick,frame,precise};
+        let contact=Contact{id,point:Point{step:0,x,y,pressure,activity,pressure_target},refreshed:tick,frame,precise};
         if let Some(index)=held {self.contacts[index]=contact;}else{self.contacts.push(contact);}
         self.field=true;
         if let Some(stroke)=self.pending_touches.iter_mut().find(|stroke|stroke.open&&stroke.contact.id==id) {stroke.push(contact);}
@@ -283,7 +292,7 @@ pub fn grains_in_place(config:Config,step:u16,points:&mut Vec<Point>,field:bool)
     // selection must depend on that history, never on the storage/merge order.
     // Every Point field participates in the key, so equal keys are identical.
     // Unstable sorting therefore preserves musical selection without allocating.
-    points.sort_unstable_by_key(|point|(point.step,point.x,point.y,point.pressure,point.activity as u8));
+    points.sort_unstable_by_key(|point|(point.step,point.x,point.y,point.pressure,point.activity as u8,point.pressure_target as u8));
     if points.is_empty(){return result;}
     let mut count=0;
     for voice in 0..if config.bass(){1}else{4} {
@@ -300,6 +309,7 @@ pub fn grains_in_place(config:Config,step:u16,points:&mut Vec<Point>,field:bool)
         };
         if step%interval!=0 {continue;}
         let spread=i32::from(config.cloud[3])*14/127;
+        let spread=if point.pressure_target==PressureTarget::Spread {spread*i32::from(point.pressure)/127}else{spread};
         let scatter=((random>>20)%29) as i32-14;
         let contour=(i32::from(config.cloud[4])-64)*((step%16) as i32-8)/128;
         let variation=scatter*i32::from(config.cloud[5])/127;
@@ -307,9 +317,63 @@ pub fn grains_in_place(config:Config,step:u16,points:&mut Vec<Point>,field:bool)
         let pitch=(if config.bass(){36}else{60})+degree.div_euclid(7)*12+[0,2,4,5,7,9,11][degree.rem_euclid(7) as usize];
         let pitch=pitch.clamp(0,127) as u8;
         if result.iter().flatten().any(|(note,_):&(Note,Point)|note.pitch==pitch){continue;}
-        let velocity=((40+u32::from(config.intensity)*87/127)*u32::from(point.pressure)/127*(TAIL_STEPS-age) as u32/TAIL_STEPS as u32).clamp(1,127) as u8;
-        result[count]=Some((Note{tick:u32::from(step)*TICKS_PER_STEP,step,gate:3+u32::from(config.cloud[1])*93/127,pitch,vel:velocity,input_key:InputKey::new(0,1),actions:None,pressure:Vec::new(),rendered:false,suppress:false,fired:false},Point{step:step as i32,x:point.x,y:(i32::from(point.y)+(variation*spread/2+contour*8)*i32::from(XY_LEGACY_SCALE)).clamp(0,i32::from(XY_MAX)) as u16,pressure:velocity,activity:point.activity}));
+        let velocity_pressure=if point.pressure_target==PressureTarget::Velocity {point.pressure}else{127};
+        let velocity=((40+u32::from(config.intensity)*87/127)*u32::from(velocity_pressure)/127*(TAIL_STEPS-age) as u32/TAIL_STEPS as u32).clamp(1,127) as u8;
+        let length=u32::from(config.cloud[1])*93/127;
+        let gate=3+if point.pressure_target==PressureTarget::Length {length*u32::from(point.pressure)/127}else{length};
+        result[count]=Some((Note{tick:u32::from(step)*TICKS_PER_STEP,step,gate,pitch,vel:velocity,input_key:InputKey::new(0,1),actions:None,pressure:Vec::new(),rendered:false,suppress:false,fired:false},Point{step:step as i32,y:(i32::from(point.y)+(variation*spread/2+contour*8)*i32::from(XY_LEGACY_SCALE)).clamp(0,i32::from(XY_MAX)) as u16,pressure:velocity,..*point}));
         count+=1;
     }
     result
+}
+
+#[cfg(test)]
+mod pressure_tests {
+    use super::*;
+    #[test]
+    fn pressure_targets_shape_only_the_selected_dimension() {
+        let mut changed_spreads=0;
+        for seed in 1..64 {
+            let config=Config{style:17,seed,complexity:127,intensity:100,cloud:[127,127,64,127,64,127],..Default::default()};
+            let point=Point::legacy(0,127,64,127,Activity::Rate);
+            let full=notes(config,0,&[point],true);
+            for target in [PressureTarget::Velocity,PressureTarget::Length,PressureTarget::Spread] {
+                let maximum=notes(config,0,&[Point{pressure_target:target,..point}],true);
+                assert_eq!(format!("{maximum:?}"),format!("{full:?}"),"full pressure retains the existing control ceiling");
+                let soft=notes(config,0,&[Point{pressure:1,pressure_target:target,..point}],true);
+                assert_eq!(soft.len(),full.len());
+                for (soft,full) in soft.iter().zip(&full) {
+                    assert_eq!(soft.tick,full.tick);assert_eq!(soft.step,full.step);
+                    match target {
+                        PressureTarget::Velocity=>{assert!(soft.vel<full.vel);assert_eq!(soft.gate,full.gate);assert_eq!(soft.pitch,full.pitch);},
+                        PressureTarget::Length=>{assert_eq!(soft.vel,full.vel);assert_eq!(soft.gate,3);assert_eq!(full.gate,96);assert_eq!(soft.pitch,full.pitch);},
+                        PressureTarget::Spread=>{assert_eq!(soft.vel,full.vel);assert_eq!(soft.gate,full.gate);assert_eq!(soft.pitch,36);changed_spreads+=usize::from(soft.pitch!=full.pitch);},
+                    }
+                }
+            }
+        }
+        assert!(changed_spreads>20,"a squeeze audibly expands the seeded pitch scatter");
+    }
+    #[test]
+    fn target_changes_split_strokes_and_hold_retains_both_interpretations() {
+        let mut runtime=Runtime::default();
+        assert!(runtime.touch_expression(96,0,0,100,Activity::Rate,PressureTarget::Length,0,0,true));
+        assert!(runtime.touch_expression(96,XY_MAX,XY_MAX,100,Activity::Rate,PressureTarget::Spread,0,0,true));
+        assert!(runtime.hold(true,0));runtime.sample(0);
+        assert!(runtime.points.iter().all(|point|(point.x,point.y)==(0,0)||(point.x,point.y)==(XY_MAX,XY_MAX)),"no connecting diagonal across a target change");
+        assert_eq!(runtime.held.len(),2);
+        assert!(runtime.held.iter().any(|point|point.pressure_target==PressureTarget::Length));
+        assert!(runtime.held.iter().any(|point|point.pressure_target==PressureTarget::Spread));
+        assert!(runtime.touch(96,0,0,0,Activity::Probability,0,0));assert!(runtime.contacts.is_empty());
+    }
+    #[test]
+    fn mixed_targets_are_deterministic_independent_of_storage_order() {
+        let point=Point::legacy(0,127,64,64,Activity::Rate);
+        let points=[point,Point{pressure_target:PressureTarget::Spread,..point},Point{pressure_target:PressureTarget::Length,..point}];
+        let mut reversed=points;reversed.reverse();
+        for seed in 1..64 {
+            let config=Config{style:16,seed,complexity:127,cloud:[127;6],..Default::default()};
+            assert_eq!(format!("{:?}",grains(config,0,&points,true)),format!("{:?}",grains(config,0,&reversed,true)));
+        }
+    }
 }

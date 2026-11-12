@@ -1,20 +1,24 @@
 /** Cloud input response. Stored deposits already contain the mapped pressure. */
-export type CloudPressure={curve:'Linear'|'Soft'|'Firm';reverse:boolean;low:number;high:number};
-const defaults:CloudPressure={curve:'Linear',reverse:false,low:1,high:127};
+export type CloudPressure={target:'Velocity'|'Length'|'Spread';curve:'Linear'|'Soft'|'Firm';reverse:boolean;low:number;high:number};
+const targets:CloudPressure['target'][]=['Velocity','Length','Spread'];
+const defaults:CloudPressure={target:'Velocity',curve:'Linear',reverse:false,low:1,high:127};
 let settings:CloudPressure={...defaults};
 export function cloudPressureSnapshot():CloudPressure {return {...settings};}
+export function cloudPressureTarget():number {return targets.indexOf(settings.target);}
 export function restoreCloudPressure(value:unknown):void {
  const candidate=value as Partial<CloudPressure>|null;
  settings={...defaults};
  if(!candidate)return;
+ if(targets.includes(candidate.target!))settings.target=candidate.target!;
  if(['Linear','Soft','Firm'].includes(candidate.curve??''))settings.curve=candidate.curve!;
  settings.reverse=candidate.reverse===true;
  if(Number.isInteger(candidate.low)&&Number.isInteger(candidate.high)&&candidate.low!>=1&&candidate.high!<=127&&candidate.low!<=candidate.high!){settings.low=candidate.low!;settings.high=candidate.high!;}
 }
 export function cloudPressureRead(key:string):string|null {
- return key==='cg_pressure_curve'?settings.curve:key==='cg_pressure_direction'?(settings.reverse?'Reverse':'Normal'):key==='cg_pressure_low'?String(settings.low):key==='cg_pressure_high'?String(settings.high):null;
+ return key==='cg_pressure_target'?settings.target:key==='cg_pressure_curve'?settings.curve:key==='cg_pressure_direction'?(settings.reverse?'Reverse':'Normal'):key==='cg_pressure_low'?String(settings.low):key==='cg_pressure_high'?String(settings.high):null;
 }
 export function cloudPressureWrite(key:string,value:string):boolean|null {
+ if(key==='cg_pressure_target'){if(!targets.includes(value as CloudPressure['target']))return false;settings.target=value as CloudPressure['target'];return true;}
  if(key==='cg_pressure_curve'){if(!['Linear','Soft','Firm'].includes(value))return false;settings.curve=value as CloudPressure['curve'];return true;}
  if(key==='cg_pressure_direction'){if(!['Normal','Reverse'].includes(value))return false;settings.reverse=value==='Reverse';return true;}
  if(key==='cg_pressure_low'||key==='cg_pressure_high'){
@@ -31,6 +35,7 @@ export function mapCloudPressure(pressure:number):number {
  return Math.round(settings.low+(settings.reverse?1-curved:curved)*(settings.high-settings.low));
 }
 export function cloudPressureParameters():any[] {return [
+ {key:'cg_pressure_target',name:'Pressure Target',short_name:'Target',type:'enum',options:targets,options_as_string:true,default:'Velocity'},
  {key:'cg_pressure_curve',name:'Pressure Response',short_name:'Response',type:'enum',options:['Linear','Soft','Firm'],options_as_string:true,default:'Linear'},
  {key:'cg_pressure_direction',name:'Pressure Direction',short_name:'Direction',type:'enum',options:['Normal','Reverse'],options_as_string:true,default:'Normal'},
  {key:'cg_pressure_low',name:'Pressure Low',short_name:'Low',type:'int',min:1,max:127,step:1,default:1},
