@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.355",
-  "previous_version": "0.34.1-hbclean.354",
+  "version": "0.34.1-hbclean.356",
+  "previous_version": "0.34.1-hbclean.355",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.355 — drag held clouds directly",
-  "notes": "docs/expressive-cloud-input.md",
+  "title": "Movy 0.34.1-hbclean.356 — shared Field performance operations",
+  "notes": "docs/field-operations.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

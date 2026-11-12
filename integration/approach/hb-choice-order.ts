@@ -13,6 +13,7 @@ const operationGroups: [string, string[]][] = [
     ['Chord / Arp', ['Chord Spread','Voicing Rotate','Chord Form','Chord/Arp State','Auto Chord Repeat']],
     ['Pitch', ['Transpose','Global Transpose','Octave','Rotate','Note Blend']],
     ['Expression', ['Velocity','Pan']],
+    ['Field', ['Field Rate','Field Zoom','Field Output']],
     ['Rhythm', ['Gate','Skip','Ratchet','MIDI Echo']],
     ['Clip', ['Clip Repeat','Clip Reverse','Clip Time Shift','Clip Speed','Clip Weave']],
 ];

@@ -133,6 +133,19 @@ static void test_field_lfos(void){
     set("ch0:lfo1:enabled","0");
     set("ch0:lfo1:shape","0");set("ch0:lfo2:shape","0");render(16);
     assert(field_get("ch0:lfo1:shape")==0&&field_get("ch0:synth:cutoff:effective")==20);
+#ifdef HB_TEST_FIELD_OPERATIONS
+    set("ch0:midi_fx1:field_outputs","fo1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1");
+    set("ch0:midi_fx1:motion_operation_1","Field Output");set("ch0:midi_fx1:motion_control_1","100");
+    set("ch0:midi_fx1:motion_gesture_1","LatchOn");
+    set("ch0:lfo1:shape","6");set("ch0:lfo1:enabled","1");render(16);
+    assert(field_get("ch0:synth:cutoff")==20&&field_get("ch0:synth:cutoff:effective")>50);
+    set("ch0:synth:cutoff","30");set("ch0:midi_fx1:motion_control_1","50");render(16);
+    assert(field_get("ch0:synth:cutoff")==30&&field_get("ch0:synth:cutoff:effective")==30);
+    set("ch0:midi_fx1:motion_gesture_1","LatchOff");set("ch0:lfo1:enabled","0");set("ch0:lfo1:shape","0");render(16);
+    assert(field_get("ch0:synth:cutoff:effective")==30);
+    set("ch0:midi_fx1:motion_operation_1","Off");set("ch0:synth:cutoff","20");
+    puts("Field operation: shared latch drives stock synth modulation and preserves base edits");
+#endif
     puts("Field LFOs: real Movy source selection, two routes, bypass/resume, save/restore and stock waveform return pass");
 }
 

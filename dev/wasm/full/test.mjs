@@ -110,3 +110,24 @@ test('Note Blend operation arms through shared gestures and drives audible NuSaw
   assert.equal(get('ch0:midi_fx1:motion_status_1'),'Off');
  }finally{engine.dispose();}
 });
+
+test('Field operations share Remote note-phrase gestures and preserve direct Field controls',async()=>{
+ const engine=await createFullEngine();
+ const set=(key,value)=>engine.request('set',`ch0:midi_fx1:${key}`,String(value));
+ const get=key=>engine.request('get',`ch0:midi_fx1:${key}`).value;
+ const field=()=>get('field_view').split(',').slice(1,3).map(Number);
+ let serial=0;
+ const note=(status,pitch)=>engine.request('set','surface_events',`${++serial},0,${status},${256+pitch},${pitch},${status===144?100:0},0,-1,0`);
+ try{
+  set('chord_mode','Off');set('field_glide',0);set('motion_operation_1','Field Rate');set('motion_control_1',0);
+  set('motion_gesture_1','Knob,1000');set('motion_gesture_1','Up,40,1040');engine.request('step',16);
+  assert.equal(get('motion_status_1'),'Armed');assert.equal(field()[0],1);
+  note(144,60);engine.request('step',16);assert.equal(field()[0],0);assert.equal(get('motion_status_1'),'Playing');
+  note(144,64);note(128,60);engine.request('step',16);assert.equal(field()[0],0);
+  note(128,64);engine.request('step',16);assert.equal(field()[0],1);assert.equal(get('motion_status_1'),'Off');
+  set('motion_operation_2','Field Zoom');set('motion_control_2',200);set('motion_gesture_2','LatchOn');engine.request('step',16);
+  assert.equal(field()[1],2);set('field_gesture','100,50');engine.request('step',16);assert.equal(field()[1],1);
+  set('motion_gesture_2','LatchOff');engine.request('step',16);assert.equal(field()[1],.5);
+  const params=JSON.parse(get('chain_params'));assert(params.find(param=>param.key==='motion_operation').options.includes('Field Output'));
+ }finally{engine.dispose();}
+});
