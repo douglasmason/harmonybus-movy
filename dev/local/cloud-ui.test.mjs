@@ -52,16 +52,17 @@ try{
  await page.evaluate(()=>window.state.holding=false);await page.getByRole('button',{name:'Hold cloud',exact:true}).waitFor();
  await page.getByRole('combobox',{name:'Cloud field boundary'}).selectOption('Wrap');await page.getByRole('button',{name:'Draw x positive'}).click();
  assert((await page.evaluate(()=>window.sent)).includes('edge Wrap'));assert((await page.evaluate(()=>window.sent)).includes('draw x 4'));
- await page.evaluate(()=>{window.state.drawBits=14;window.state.pressure=100;window.state.pressureResponse={curve:'Linear',reverse:false,low:1,high:127};});await page.waitForTimeout(100);
+ await page.evaluate(()=>{window.state.drawBits=14;window.state.pressure=100;window.state.pressureResponse={target:'Velocity',curve:'Linear',reverse:false,low:1,high:127};});await page.waitForTimeout(100);
  await page.getByRole('combobox',{name:'Cloud drawing precision'}).selectOption('fine');
  await page.getByRole('button',{name:'Draw x positive'}).click();
  assert((await page.evaluate(()=>window.sent)).includes('drawfine x 1'));
  await page.getByRole('slider',{name:'Cloud draw pressure',exact:true}).fill('37');
  assert((await page.evaluate(()=>window.sent)).includes('pressure 37'));
+ await page.getByRole('combobox',{name:'Cloud pressure target',exact:true}).selectOption('Length');
  await page.getByRole('combobox',{name:'Cloud pressure response',exact:true}).selectOption('Firm');
  await page.getByRole('combobox',{name:'Cloud pressure direction',exact:true}).selectOption('Reverse');
  await page.getByRole('spinbutton',{name:'Cloud pressure low',exact:true}).fill('20');await page.getByRole('spinbutton',{name:'Cloud pressure low',exact:true}).press('Tab');
- for(const command of ['response curve Firm','response direction Reverse','response low 20'])assert((await page.evaluate(()=>window.sent)).includes(command));
+ for(const command of ['response target Length','response curve Firm','response direction Reverse','response low 20'])assert((await page.evaluate(()=>window.sent)).includes(command));
 
  await page.getByRole('combobox',{name:'Cloud drawing precision'}).selectOption('coarse');
 

@@ -16,6 +16,7 @@ mod cloud_performance_tests {
             step: (index % 16) as i32 - 15,
             x: (index % 128) as u16*129, y: ((index * 17) % 128) as u16*129,
             pressure: 127 - (index % 100) as u8,
+            pressure_target: seq_core::cloud::PressureTarget::Velocity,
             activity: if index % 3 == 0 { Activity::Rate } else { Activity::Probability },
         }).collect()
     }
