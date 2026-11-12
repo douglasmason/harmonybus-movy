@@ -62,6 +62,33 @@ try{
  await holdX.evaluate(input=>{input.value='7000';input.dispatchEvent(new Event('input',{bubbles:true}));});
  assert(!(await page.evaluate(()=>window.sent)).some(command=>command.startsWith('shift14')),'an old slider gesture cannot move the newly selected actor');
  await page.mouse.up();await page.evaluate(()=>{window.state.track=3;window.state.actor='Melody';window.state.holdShift={x:0,y:0,wrap:false};});await page.waitForTimeout(100);
+ assert(await page.locator('[data-touch-mode] option[value=move]').evaluate(option=>option.disabled),'older hosts cannot advertise direct drag');
+ await page.evaluate(()=>{window.state.holdDrag=true;window.sent=[];});await page.waitForTimeout(100);
+ await page.getByRole('combobox',{name:'Cloud field touch mode'}).selectOption('move');
+ await page.evaluate(()=>{
+  const bounds={left:0,top:0,width:16383,height:16383};
+  const event=(id,x,y)=>({pointerId:id,clientX:x,clientY:y,pointerType:'touch',pressure:.5,preventDefault(){}});
+  window.dragBounds=bounds;window.dragEvent=event;
+  window.component.padGesture('down',event(501,100,100),bounds);
+  window.component.padGesture('down',event(502,200,200),bounds);
+ });assert.deepEqual(await page.evaluate(()=>window.sent),[],'touch and membership changes do not jump the shape');
+ await page.evaluate(()=>{
+  for(const [id,x,y] of [[501,102,98],[502,202,198]])window.component.padGesture('move',window.dragEvent(id,x,y),window.dragBounds);
+ });await page.waitForTimeout(100);
+ assert.deepEqual(await page.evaluate(()=>window.sent),['shiftxy14 3 2 2'],'two fingers translate by their average motion, not twice the displacement');
+ await page.evaluate(()=>window.component.padGesture('up',window.dragEvent(501,102,98),window.dragBounds));await page.waitForTimeout(100);
+ assert.deepEqual(await page.evaluate(()=>window.sent),['shiftxy14 3 2 2'],'lifting one finger does not move the shape');
+ await page.evaluate(()=>{
+  window.component.padGesture('move',window.dragEvent(502,203,197),window.dragBounds);
+  window.component.padGesture('up',window.dragEvent(502,203,197),window.dragBounds);
+ });assert.deepEqual(await page.evaluate(()=>window.sent),['shiftxy14 3 2 2','shiftxy14 3 1 1'],'last movement flushes on release with full 14-bit precision');
+ await page.evaluate(()=>{
+  window.component.padGesture('down',window.dragEvent(503,100,100),window.dragBounds);
+  window.state.track=2;window.state.actor='Comp';
+ });await page.waitForTimeout(100);const dragSent=await page.evaluate(()=>window.sent.length);
+ await page.evaluate(()=>window.component.padGesture('move',window.dragEvent(503,200,200),window.dragBounds));await page.waitForTimeout(100);
+ assert.equal(await page.evaluate(()=>window.sent.length),dragSent,'actor change cancels the drag without retargeting');
+ await page.evaluate(()=>{window.state.track=3;window.state.actor='Melody';});await page.waitForTimeout(100);
  await page.getByRole('button',{name:'Release cloud',exact:true}).click();assert.equal((await page.evaluate(()=>window.sent)).at(-1),'hold 0');
  await page.evaluate(()=>window.state.holding=false);await page.getByRole('button',{name:'Hold cloud',exact:true}).waitFor();
  assert(await holdX.isDisabled());assert(await page.getByRole('button',{name:'Center held cloud',exact:true}).isDisabled());
