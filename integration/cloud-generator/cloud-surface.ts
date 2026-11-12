@@ -1,5 +1,5 @@
 /** Native, external and browser gestures share the same follower source. */
-import {generatorCloud,generatorSelectedTrack,generatorCloudContact,generatorCloudSnapshot,generatorCloudHeld,generatorCloudHold,generatorTouch,generatorRead,generatorCloud as cloudSelected} from './comp-generator.js';
+import {generatorCloud,generatorSelectedTrack,generatorCloudContact,generatorCloudSnapshot,generatorCloudHeld,generatorCloudHold,generatorCloudHoldState,generatorCloudShift,generatorCloudCenter,type CloudHoldState,generatorTouch,generatorRead,generatorCloud as cloudSelected} from './comp-generator.js';
 import {cloudCoordinate,cloudPosition,readCloud,emptyCloud,cloudCells,cloudFade} from './cloud-view.js';
 import {trailStyle} from './trail-settings.js';
 import {sendPadLedFrame} from './led-cache.js';
@@ -12,6 +12,12 @@ import {cloudPressureSnapshot,restoreCloudPressure,cloudPressureRead,cloudPressu
 import {EXPRESSION_MAX} from './expression-input.js';
 let owner:number|null=null,lastRead=-Infinity,lastRefresh=-Infinity,snapshot=emptyCloud();
 let holding=false;
+let holdRead=-Infinity,holdTrack=-1,holdState:CloudHoldState|null=null;
+export function cloudHoldState(track=generatorSelectedTrack()):CloudHoldState|null {
+ const now=Date.now();if(track!==holdTrack||now<holdRead||now-holdRead>=80){holdTrack=track;holdRead=now;holdState=generatorCloudHoldState(track);}return holdState;
+}
+function invalidateHold():void {holdRead=-Infinity;}
+export function cloudHoldPosition():{x:number;y:number}|null {const state=cloudHoldState();return state?cloudPosition({x:state.x,y:state.y},flipped):null;}
 let paint:number[]=Array(32).fill(-1);
 let cursorX=8256,cursorY=8256,drawPressure=100,wrap=false,flipped=false,lastDraw=-Infinity;
 let activity:'Probability'|'Rate'='Probability';
@@ -19,7 +25,11 @@ const held=new Map<number,{track:number;x:number;y:number;pressure:number}>();
 const pendingPressure=new Set<number>();
 export const cloudFieldKeys=['cg_x','cg_y','cg_axes','cg_edge','cg_activity','cg_pressure','cg_bake','cg_restore'];
 export const cloudPressureKeys=['cg_pressure','cg_pressure_target','cg_pressure_curve','cg_pressure_direction','cg_pressure_low','cg_pressure_high','cg_axes','cg_activity'];
+export const cloudHoldKeys=['cg_hold_x','cg_hold_y','cg_edge','cg_axes','cg_hold','cg_hold_center','cg_bake','cg_restore'];
 export function cloudParameters():any[]{return [
+ ...['x','y'].map(axis=>({key:'cg_hold_'+axis,name:'Move Held '+axis.toUpperCase(),short_name:'Hold '+axis.toUpperCase(),type:'float',min:-127,max:127,step:1,default:0})),
+ {key:'cg_hold',name:'Hold Cloud',short_name:'Hold',type:'enum',options:['Off','On'],options_as_string:true,default:'Off'},
+ {key:'cg_hold_center',name:'Center Held Cloud',short_name:'Center',type:'string',readOnly:true},
  ...cloudPressureParameters(),
  ...['x','y'].map(field=>({key:'cg_'+field,name:'Draw '+field.toUpperCase(),short_name:field.toUpperCase(),type:'float',min:0,max:127,step:1,default:64})),
  {key:'cg_pressure',name:'Draw Pressure',short_name:'Pressure',type:'int',min:1,max:127,step:1,default:100},
@@ -40,15 +50,22 @@ export function cloudRunning():boolean {return owner!==null&&generatorRead('cg_e
 /** Cached feedback: LED painters must not poll or mutate the engine. */
 export function cloudHolding():boolean {return owner!==null&&holding;}
 export function toggleCloudHold():void {
- if(owner===null)return;flushCloudPressure();generatorCloudHold(!generatorCloudHeld(owner),owner);holding=generatorCloudHeld(owner);lastRead=-Infinity;appState.dirty=true;
+ if(owner===null)return;flushCloudPressure();generatorCloudHold(!generatorCloudHeld(owner),owner);holding=generatorCloudHeld(owner);invalidateHold();lastRead=-Infinity;appState.dirty=true;
 }
 export function setCloudSurface(visible:boolean):void {
  const next=visible&&generatorCloud()?generatorSelectedTrack():null;
  if(next===owner)return;releaseCloud();owner=next;holding=false;paint.fill(-1);snapshot=emptyCloud();lastRead=-Infinity;
  if(engineReady()){syncPadRoute(fieldEngineSet);if(next!==null){fieldEngineSet('joint_map','off');fieldEngineSet('joint_release','1');}}appState.dirty=true;
 }
-export function cloudRead(key:string):string|null {const response=cloudPressureRead(key);if(response!==null)return response;return key==='cg_x'?String(cursorX/129):key==='cg_y'?String(cursorY/129):key==='cg_pressure'?String(drawPressure):key==='cg_activity'?activity:key==='cg_edge'?(wrap?'Wrap':'Bounded'):key==='cg_axes'?(flipped?'Pitch / Activity':'Activity / Pitch'):null;}
+export function cloudRead(key:string):string|null {if(key==='cg_hold_center')return 'Tap';if(key==='cg_hold')return cloudHoldState()?.holding?'On':'Off';if(key==='cg_hold_x'||key==='cg_hold_y')return String((cloudHoldPosition()?.[key.endsWith('x')?'x':'y']??0)/129);const response=cloudPressureRead(key);if(response!==null)return response;return key==='cg_x'?String(cursorX/129):key==='cg_y'?String(cursorY/129):key==='cg_pressure'?String(drawPressure):key==='cg_activity'?activity:key==='cg_edge'?(wrap?'Wrap':'Bounded'):key==='cg_axes'?(flipped?'Pitch / Activity':'Activity / Pitch'):null;}
 export function cloudWrite(key:string,value:string):boolean|null {
+ if(key==='cg_hold') {if(!['Off','On'].includes(value))return false;flushCloudPressure();generatorCloudHold(value==='On');invalidateHold();appState.dirty=true;return true;}
+ if(key==='cg_hold_center'){generatorCloudCenter();invalidateHold();appState.dirty=true;return true;}
+ if(key==='cg_hold_x'||key==='cg_hold_y'){
+  const amount=Number(value);if(!Number.isFinite(amount)||Math.abs(amount)>127)return false;
+  return shiftCloudHold(key.endsWith('x')?'x':'y',Math.round(amount*129),false);
+ }
+
  const response=cloudPressureWrite(key,value);if(response!==null){if(response){for(const id of held.keys())pendingPressure.add(id);markUiStateDirty();appState.dirty=true;}return response;}
  if(key==='cg_pressure'){
   const pressure=Number(value);if(!Number.isInteger(pressure)||pressure<1||pressure>127)return false;
@@ -56,7 +73,7 @@ export function cloudWrite(key:string,value:string):boolean|null {
   markUiStateDirty();appState.dirty=true;return true;
  }
  if(key==='cg_activity'){if(value!=='Probability'&&value!=='Rate')return false;releaseCloud();activity=value;markUiStateDirty();appState.dirty=true;return true;}
- if(key==='cg_edge'){if(!['Wrap','Bounded'].includes(value))return false;wrap=value==='Wrap';markUiStateDirty();return true;}
+ if(key==='cg_edge'){if(!['Wrap','Bounded'].includes(value))return false;wrap=value==='Wrap';if(cloudHoldState()?.holding)shiftCloudHold('x',0,true);markUiStateDirty();return true;}
  if(key==='cg_axes'){if(!['Activity / Pitch','Pitch / Activity'].includes(value))return false;releaseCloud();flipped=value==='Pitch / Activity';paint.fill(-1);markUiStateDirty();appState.dirty=true;return true;}
  if(!['cg_x','cg_y'].includes(key))return null;
  const number=Number(value);if(!Number.isFinite(number)||!cloudSelected())return false;
@@ -69,8 +86,19 @@ export function cloudWrite(key:string,value:string):boolean|null {
  if(key==='cg_x')cursorX=cloudCoordinate(coordinate,wrap,EXPRESSION_MAX);else cursorY=cloudCoordinate(coordinate,wrap,EXPRESSION_MAX);
  lastDraw=Date.now();const track=generatorSelectedTrack();contactInput(track,112,cursorX,cursorY,drawPressure);held.set(112,{track,x:cursorX,y:cursorY,pressure:drawPressure});appState.dirty=true;return true;
 }
+/** Physical axes are projected once; the engine owns the captured shape. */
+export function shiftCloudHold(axis:'x'|'y',value:number,relative:boolean):boolean {
+ const semantic=flipped?(axis==='x'?'y':'x'):axis;
+ const changed=generatorCloudShift(semantic,value,relative,wrap);invalidateHold();appState.dirty=true;return changed;
+}
+export function cloudHoldTouch(key:string,down:boolean):boolean {
+ if(!['cg_hold','cg_hold_center'].includes(key))return false;
+ if(down)cloudWrite(key,key==='cg_hold'?(generatorCloudHeld()?'Off':'On'):'Tap');return true;
+}
 /** Turn path retains overshoot; enum/int widgets otherwise clamp before writing. */
 export function cloudTurn(key:string,delta:number,fine=false):boolean {
+ if(key==='cg_hold_center'){if(delta)cloudWrite(key,'Tap');return true;}
+ if(key==='cg_hold_x'||key==='cg_hold_y')return shiftCloudHold(key.endsWith('x')?'x':'y',delta*(fine?1:129),true);
  if(!['cg_x','cg_y'].includes(key))return false;cloudWrite(key,String(((key==='cg_x'?cursorX:cursorY)+delta*(fine?1:129))/129));return true;
 }
 export function cloudPad(source:string,index:number,down:boolean,height=4,pressure=100):boolean {
@@ -119,7 +147,7 @@ export function tickCloud(now=Date.now()):void {
 }
 export function cloudColors(height=4):number[]{return cloudCells(snapshot,8,height,trailStyle().settings,flipped);}
 export function paintCloud(force=false):boolean {if(force)paint.fill(-1);const colors=cloudColors(),changes=colors.flatMap((color,index)=>color===paint[index]?[]:[{note:68+index,color}]);for(const change of sendPadLedFrame(changes))paint[change.note-68]=change.color;return colors.every((color,index)=>paint[index]===color);}
-export function drawCloud():void {
+export function drawCloud(holdMotion=false):void {
  fill_rect(0,11,128,46,0);const settings=trailStyle().settings;
  for(const point of [...snapshot.trails,...snapshot.grains].map(point=>cloudPosition(point,flipped))){
   const level=cloudFade(point,settings);if(level<.05)continue;
@@ -127,7 +155,8 @@ export function drawCloud():void {
   fill_rect(x,y,level>.5?2:1,level>.5?2:1,1);
  }
  for(const point of snapshot.contacts.map(point=>cloudPosition(point,flipped))){const x=Math.round(point.x*123)+2,y=53-Math.round(point.y*38);fill_rect(x-1,y,3,1,1);fill_rect(x,y-1,1,3,1);}
- fontPrint(1,56,Date.now()-lastDraw<1500?`X ${(cursorX/129).toFixed(2)} Y ${(cursorY/129).toFixed(2)}`:holding?'Hold / Sample releases':flipped?`X Pitch / Y ${activity}`:`X ${activity} / Y Pitch`,1);
+ const offset=holdMotion?cloudHoldPosition():null;
+ fontPrint(1,56,offset?`Hold X ${(offset.x/129).toFixed(2)} Y ${(offset.y/129).toFixed(2)}`:Date.now()-lastDraw<1500?`X ${(cursorX/129).toFixed(2)} Y ${(cursorY/129).toFixed(2)}`:holding?'Hold / Sample releases':flipped?`X Pitch / Y ${activity}`:`X ${activity} / Y Pitch`,1);
 }
 
-export function clearCloud():void {releaseCloud();if(owner!==null&&engineReady()){seqCmd(`gcloud ${owner} clear`);seqCmdFlush();holding=false;snapshot=emptyCloud();appState.dirty=true;}}
+export function clearCloud():void {releaseCloud();invalidateHold();if(owner!==null&&engineReady()){seqCmd(`gcloud ${owner} clear`);seqCmdFlush();holding=false;snapshot=emptyCloud();appState.dirty=true;}}

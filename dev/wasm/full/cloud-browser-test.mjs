@@ -49,16 +49,22 @@ try{
  await panel.getByRole('button',{name:'Hold cloud',exact:true}).click();
  await until(async()=>JSON.parse(await __wasmRead('cloud_ui_state')).holding===true);
  await panel.getByRole('button',{name:'Release cloud',exact:true}).waitFor();
+ await panel.getByRole('slider',{name:'Move held cloud X',exact:true}).fill('129');
+ await panel.getByRole('slider',{name:'Move held cloud Y',exact:true}).fill('-1');
+ await until(async()=>(await __wasmRead('cloud_hold_state_3'))==='ch1|1|129|-1|0');
  await panel.getByRole('combobox',{name:'Follower actor'}).selectOption('Comp');
  await until(async()=>JSON.parse(await __wasmRead('cloud_ui_state')).track===2);
  await page.waitForTimeout(5000); // More than both contact leases and the four-beat trail at 120 BPM.
  assert.equal(await page.evaluate(()=>__wasmRead('cloud_hold_3')),'1');
  assert.equal(await page.evaluate(()=>__wasmRead('cloud_hold_2')),'0','Hold belongs to the captured actor');
+ assert.equal(await page.evaluate(()=>__wasmRead('cloud_hold_state_3')),'ch1|1|129|-1|0','movement stays with the captured actor');
  const heldView=(await page.evaluate(()=>__wasmRead('cloud_view_3'))).split('|');
  assert.equal(heldView[1],'','held clouds never synthesize green finger contacts');assert(heldView[2].length>0&&heldView[3].length>0);
  assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),before,'Hold is a transient audition until Record');
  await panel.getByRole('combobox',{name:'Follower actor'}).selectOption('Melody');
  await panel.getByRole('button',{name:'Release cloud',exact:true}).waitFor();
+ await panel.getByRole('button',{name:'Center held cloud',exact:true}).click();
+ await until(async()=>(await __wasmRead('cloud_hold_state_3'))==='ch1|1|0|0|0');
  assert.equal(await canvas.evaluate(element=>{
   const pixels=element.getContext('2d').getImageData(0,0,element.width,element.height).data;
   for(let offset=0;offset<pixels.length;offset+=4)if(pixels[offset+1]>90&&pixels[offset+1]>pixels[offset]*1.4&&pixels[offset+1]>pixels[offset+2]*1.1)return true;

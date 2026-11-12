@@ -98,13 +98,14 @@ pub struct Runtime {
     /// Reused step candidates; never persisted or exposed as display ordering.
     pub(crate) work:Vec<Point>,
     pub(crate) held:Vec<Point>,pub(crate) held_cursor:usize,
+    pub held_shift:[i32;2],pub held_wrap:bool,
 }
 impl Runtime {
     pub fn holding(&self)->bool {!self.held.is_empty()}
     /// Freeze a bounded set of emitters, without advancing the musical sampler.
     /// Pending short strokes count even when captured between clock ticks.
     pub fn hold(&mut self,enabled:bool,tick:u64)->bool {
-        if !enabled {self.held.clear();self.held_cursor=0;return true;}
+        if !enabled {self.held.clear();self.held_cursor=0;self.held_shift=[0;2];self.held_wrap=false;return true;}
         if self.holding(){return true;}
         let step=(tick/TICKS_PER_STEP as u64) as i32;
         let mut fresh=Self{contacts:self.contacts.clone(),pending_touches:self.pending_touches.clone(),..Default::default()};
@@ -113,7 +114,26 @@ impl Runtime {
         let count=candidates.len().min(MAX_CONTACTS);
         if count==0{return false;}
         self.held=(0..count).map(|index|candidates[if count==1 {0}else{index*(candidates.len()-1)/(count-1)}]).collect();
-        self.held_cursor=0;self.field=true;true
+        self.held_cursor=0;self.held_shift=[0;2];self.held_wrap=false;self.field=true;true
+    }
+    /// Move emitters from their original coordinates; clipping never erases the shape.
+    pub fn shift_held(&mut self,axis:usize,value:i32,relative:bool,wrap:bool)->bool {
+        let maximum=i32::from(XY_MAX);
+        if !self.holding()||axis>1||!(-maximum..=maximum).contains(&value){return false;}
+        let mut next=if relative {self.held_shift[axis]+value}else{value};
+        if wrap {if next>maximum {next-=maximum+1;}else if next< -maximum {next+=maximum+1;}}
+        self.held_shift[axis]=next.clamp(-maximum,maximum);
+        self.held_wrap=wrap;true
+    }
+    pub fn center_held(&mut self)->bool {
+        if !self.holding(){return false;}self.held_shift=[0;2];true
+    }
+    fn moved_held(&self,point:Point)->Point {
+        let coordinate=|value:u16,offset:i32| {
+            let shifted=i32::from(value)+offset;
+            if self.held_wrap {shifted.rem_euclid(i32::from(XY_MAX)+1) as u16}else{shifted.clamp(0,i32::from(XY_MAX)) as u16}
+        };
+        Point{x:coordinate(point.x,self.held_shift[0]),y:coordinate(point.y,self.held_shift[1]),..point}
     }
     pub fn touch(&mut self,id:u8,x:u8,y:u8,pressure:u8,activity:Activity,tick:u64,frame:u64)->bool {
         self.touch_xy(id,u16::from(x)*XY_LEGACY_SCALE,u16::from(y)*XY_LEGACY_SCALE,pressure,activity,tick,frame,false)
@@ -166,7 +186,7 @@ impl Runtime {
         // any remaining capacity so mixed live/held input cannot starve one end.
         let count=(MAX_CONTACTS-(self.points.len()-before)).min(self.held.len());
         for _ in 0..count {
-            self.points.push(Point{step:step as i32,..self.held[self.held_cursor]});
+            self.points.push(Point{step:step as i32,..self.moved_held(self.held[self.held_cursor])});
             self.held_cursor=(self.held_cursor+1)%self.held.len();
         }
     }
@@ -174,6 +194,32 @@ impl Runtime {
 #[cfg(test)]
 mod stroke_tests {
     use super::*;
+    #[test]
+    fn held_translation_preserves_shape_pressure_history_and_subpixel_motion() {
+        let mut runtime=Runtime::default();
+        for (id,x,y,target) in [(96,10001,8193,PressureTarget::Rate),(97,16383,0,PressureTarget::Spread)] {
+            assert!(runtime.touch_expression(id,x,y,77,Activity::Rate,target,0,0,true));
+        }
+        assert!(runtime.hold(true,0));let original=runtime.held.clone();
+        runtime.contacts.clear();runtime.pending_touches.clear();runtime.sample(0);let history=runtime.points.clone();
+        assert!(runtime.shift_held(0,1,true,false));assert!(runtime.shift_held(1,-1,true,false));runtime.sample(24);
+        let moved:Vec<_>=runtime.points.iter().filter(|point|point.step==1).copied().collect();
+        assert_eq!((moved[0].x,moved[0].y),(10002,8192));assert_eq!((moved[1].x,moved[1].y),(16383,0));
+        for (point,base) in moved.iter().zip(&original){assert_eq!((point.pressure,point.activity,point.pressure_target),(base.pressure,base.activity,base.pressure_target));}
+        assert_eq!(&runtime.points[..history.len()],history.as_slice());assert_eq!(runtime.held,original);
+        assert!(runtime.hold(true,24));assert_eq!(runtime.held_shift,[1,-1],"idempotent capture retains movement");
+        assert!(runtime.shift_held(0,16383,false,true));assert!(runtime.shift_held(0,1,true,true));assert_eq!(runtime.held_shift[0],0);
+        assert!(runtime.shift_held(0,-1,true,true));runtime.sample(48);
+        assert_eq!(runtime.points.last().unwrap().x,16382);assert_eq!(runtime.points.last().unwrap().y,16383);
+        assert!(runtime.shift_held(0,-16383,true,true));assert_eq!(runtime.held_shift[0],0);
+        assert!(runtime.center_held());runtime.sample(72);
+        let centered:Vec<_>=runtime.points.iter().filter(|point|point.step==3).map(|point|Point{step:0,..*point}).collect();assert_eq!(centered,original);
+        assert!(runtime.contacts.is_empty(),"moving consequences never invents direct contacts");
+        assert!(!runtime.shift_held(2,1,true,false));assert!(!runtime.shift_held(0,i32::MAX,true,false));
+        runtime.hold(false,72);assert_eq!(runtime.held_shift,[0,0]);assert!(!runtime.held_wrap);
+        assert!(!runtime.shift_held(0,1,true,false));assert!(!runtime.center_held());
+        assert!(runtime.hold(true,72));assert_eq!(runtime.held_shift,[0,0]);
+    }
     #[test]
     fn hold_captures_pending_paths_without_advancing_and_releases_into_existing_decay() {
         let mut runtime=Runtime::default();

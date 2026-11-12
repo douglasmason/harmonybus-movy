@@ -6,6 +6,36 @@ Strokes, captured Hold emitters, recorded clips and recipes retain the finer
 coordinates. Legacy clips and hardware gestures retain their existing musical
 results. Cloud generation still produces harmony-aware, quantized notes.
 
+## Move a captured cloud (hbclean.353)
+
+Draw a shape and press **Hold cloud** (Sample on Move). On the new **Cloud Hold**
+page, K1/K2 move the captured emitters along physical X/Y. Ordinary turns move
+129 of the 16,384 field positions; **Shift + turn** moves one. K3 selects Bounded
+or Wrap, K4 swaps Axes, K5 toggles Hold, K6 centers the captured shape, and K7/K8
+retain Bake / Restore controls. Tap K5/K6 to act. The cloud and movement offsets
+appear on Move's screen; the same consequences flow to Move and Launchpad pads.
+
+Remote UI and standalone share **Move held cloud** X/Y touch sliders and
+**Center held cloud**. Each slider updates only its own axis. New fingers/pads
+still draw over the moving cloud, with direct input green and consequences in
+the existing cyan/blue trail colors. Pressure targets and response captured in
+each emitter remain intact. Axes changes affect the controls and projection;
+they do not rewrite the captured musical coordinates.
+
+Bounded clips emitters at the field edges while retaining the original shape;
+Wrap carries them across the opposite edge. Center restores the original
+captured position. Already emitted deposits decay in place, leaving a trail
+behind the moving emitters. Hold movement is sampled by the existing musical
+clock, so emitted trails advance while transport runs.
+
+Movement is transient and belongs to the captured actor. Browsing another actor
+does not move it. Release Hold, Stop, Clear, or ending Explore resets movement;
+repeated Hold On preserves it. Record stores the moved deposits in the existing
+clip point stream. Saved recipes, replay and Bake therefore reproduce the same
+movement without another automation lane, sequencer or persistence format.
+Older engines that do not report held positions keep the web movement controls
+disabled.
+
 ## Precise knob drawing and pressure (hbclean.345)
 
 On **Cloud X / Y**, K1/K2 draw X/Y. Ordinary turns move 129 units on the
