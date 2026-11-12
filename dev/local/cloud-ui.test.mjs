@@ -48,8 +48,23 @@ try{
  assert.equal(await page.getByRole('button',{name:'Hold cloud',exact:true}).getAttribute('aria-pressed'),'false','Hold waits for engine confirmation');
  await page.evaluate(()=>window.state.holding=true);await page.getByRole('button',{name:'Release cloud',exact:true}).waitFor();
  assert.equal(await page.getByRole('button',{name:'Release cloud',exact:true}).getAttribute('aria-pressed'),'true');
+ const holdX=page.getByRole('slider',{name:'Move held cloud X',exact:true}),holdY=page.getByRole('slider',{name:'Move held cloud Y',exact:true});
+ assert(await holdX.isDisabled(),'older engines cannot advertise held motion');
+ await page.evaluate(()=>window.state.holdShift={x:1,y:-1,wrap:false});await page.waitForTimeout(100);
+ assert.equal(await holdX.inputValue(),'1');assert.equal(await holdY.inputValue(),'-1');
+ await holdX.fill('8257');await holdY.fill('-16383');
+ assert((await page.evaluate(()=>window.sent)).includes('shift14 3 x 8257'));assert((await page.evaluate(()=>window.sent)).includes('shift14 3 y -16383'));
+ await page.getByRole('button',{name:'Center held cloud',exact:true}).click();assert.equal((await page.evaluate(()=>window.sent)).at(-1),'center 3');
+ // Preserve the pointer's original actor when a different surface changes focus.
+ await holdX.scrollIntoViewIfNeeded();const sliderBounds=await holdX.boundingBox();
+ await page.mouse.move(sliderBounds.x+sliderBounds.width/2,sliderBounds.y+sliderBounds.height/2);await page.mouse.down();
+ await page.evaluate(()=>{window.state.track=2;window.state.actor='Comp';window.sent=[];});await page.waitForTimeout(100);
+ await holdX.evaluate(input=>{input.value='7000';input.dispatchEvent(new Event('input',{bubbles:true}));});
+ assert(!(await page.evaluate(()=>window.sent)).some(command=>command.startsWith('shift14')),'an old slider gesture cannot move the newly selected actor');
+ await page.mouse.up();await page.evaluate(()=>{window.state.track=3;window.state.actor='Melody';window.state.holdShift={x:0,y:0,wrap:false};});await page.waitForTimeout(100);
  await page.getByRole('button',{name:'Release cloud',exact:true}).click();assert.equal((await page.evaluate(()=>window.sent)).at(-1),'hold 0');
  await page.evaluate(()=>window.state.holding=false);await page.getByRole('button',{name:'Hold cloud',exact:true}).waitFor();
+ assert(await holdX.isDisabled());assert(await page.getByRole('button',{name:'Center held cloud',exact:true}).isDisabled());
  await page.getByRole('combobox',{name:'Cloud field boundary'}).selectOption('Wrap');await page.getByRole('button',{name:'Draw x positive'}).click();
  assert((await page.evaluate(()=>window.sent)).includes('edge Wrap'));assert((await page.evaluate(()=>window.sent)).includes('draw x 4'));
  await page.evaluate(()=>{window.state.drawBits=14;window.state.pressure=100;window.state.pressureResponse={target:'Velocity',curve:'Linear',reverse:false,low:1,high:127};});await page.waitForTimeout(100);

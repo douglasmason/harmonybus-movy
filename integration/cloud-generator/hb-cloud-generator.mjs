@@ -10,12 +10,16 @@ const {WHITE_DIM,WHITE_BRIGHT}=await import('../dist/esm/seq/colors.js');
 const {padsPlayNotes}=await import('../dist/esm/seq/router-pads.js');
 const {seqCmdFlush}=await import('../dist/esm/seq/engine.js');
 const originalGet=globalThis.host_module_get_param,originalSet=globalThis.host_module_set_param_blocking;
-let holding=false,commandWrites=0;
+let holding=false,holdShift=[0,0],holdWrap=false,commandWrites=0;
 let now=Date.now()+2000,commands=[],state='Off|0|0 32 64 1 0|';Date.now=()=>now;
-globalThis.host_module_get_param=key=>key==='cloud_hold_2'?(holding?'1':'0'):key==='generator_info_2'?state:key==='cloud_view_2'?'cf1|127,127,100|0,0,100,2|64,64,100,1':originalGet(key);
+globalThis.host_module_get_param=key=>key==='cloud_hold_state_2'?`ch1|${Number(holding)}|${holdShift[0]}|${holdShift[1]}|${Number(holdWrap)}`:key==='cloud_hold_2'?(holding?'1':'0'):key==='generator_info_2'?state:key==='cloud_view_2'?'cf1|127,127,100|0,0,100,2|64,64,100,1':originalGet(key);
 globalThis.host_module_set_param_blocking=(key,value)=>{
  if(key==='cmd')commandWrites++;
  if(key==='cmd')for(const command of value.split(';')){commands.push(command);const fields=command.split(' ');if(fields[0]==='gcloud'&&fields[1]==='2'&&fields[2]==='hold')holding=fields[3]==='1';if(fields[0]==='gexplore'&&fields[1]==='2'&&fields.length>=6)state='Exploring|0|'+fields.slice(2).join(' ')+'|';}
+ if(key==='cmd')for(const command of value.split(';')){const fields=command.split(' ');if(fields[0]==='gcloud'&&fields[1]==='2'){
+  if(['shift','shiftby'].includes(fields[2])&&holding){const axis=Number(fields[3]==='y');holdShift[axis]=Number(fields[4])+(fields[2]==='shiftby'?holdShift[axis]:0);holdWrap=fields[5]==='1';}
+  if(fields[2]==='center'||fields[2]==='hold'&&fields[3]==='0')holdShift=[0,0];
+ }}
  return originalSet?.(key,value);
 };
 generator.generatorWrite('cg_actor','Comp',2);generator.generatorTarget(2,1);
@@ -174,6 +178,22 @@ remote.cloudRemoteAction('hold 0');assert(!holding);assert.equal(JSON.parse(remo
 const sent=commands.length;for(const value of ['hold','hold 2','hold 1 extra','hold -1'])remote.cloudRemoteAction(value);
 assert.equal(commands.length,sent,'malformed Hold actions cannot reach the engine');
 remote.cloudRemoteAction('hold 1');assert(holding);assert.equal(JSON.parse(remote.cloudRemoteSnapshot()).holding,true);
+// Captured translation shares physical axes and the engine's precise offsets.
+cloud.cloudWrite('cg_axes','Activity / Pitch');cloud.cloudWrite('cg_edge','Bounded');
+const holdPage=page.ctl.pages.findIndex(entry=>entry.level==='cp_cloud_hold');assert(holdPage>=0);page.goToPage(holdPage);now+=200;chord.tickChord();
+assert.deepEqual(Array.from({length:8},(_,index)=>page.keyAt(index)),cloud.cloudHoldKeys);assert(cloud.cloudSurfaceActive());
+commands=[];chord.chordMidi([176,71,1]);appState.shiftHeld=true;chord.chordMidi([176,72,127]);appState.shiftHeld=false;
+assert(commands.includes('gcloud 2 shiftby x 129 0'));assert(commands.includes('gcloud 2 shiftby y -1 0'));
+assert.deepEqual(JSON.parse(remote.cloudRemoteSnapshot()).holdShift,{x:129,y:-1,wrap:false});
+cloud.cloudWrite('cg_axes','Pitch / Activity');commands=[];remote.cloudRemoteAction('shift14 2 x 8257');remote.cloudRemoteAction('shiftby14 2 y -1');
+assert.deepEqual(commands,['gcloud 2 shift y 8257 0','gcloud 2 shiftby x -1 0']);
+assert.deepEqual(JSON.parse(remote.cloudRemoteSnapshot()).holdShift,{x:8257,y:128,wrap:false});
+cloud.cloudWrite('cg_edge','Wrap');assert(holdWrap,'edge changes apply to the captured shape immediately');
+commands=[];for(const invalid of ['shift14 1 x 1','shift14 2 z 1','shift14 2 x 16384','shiftby14 2 y 1.5','center 1','center 2 extra'])remote.cloudRemoteAction(invalid);assert.equal(commands.length,0);
+chord.chordMidi([144,5,127]);chord.chordMidi([128,5,0]);assert(commands.includes('gcloud 2 center'),'sixth knob touch centers the cloud');assert.deepEqual(holdShift,[0,0]);
+remote.cloudRemoteAction('shift14 2 x 1');remote.cloudRemoteAction('center 2');assert.deepEqual(holdShift,[0,0]);
+chord.chordMidi([144,4,127]);chord.chordMidi([128,4,0]);assert(!holding,'fifth knob touch releases Hold');
+remote.cloudRemoteAction('hold 1');cloud.cloudWrite('cg_edge','Bounded');
 cloud.setCloudSurface(false);
 commands=[];remote.cloudRemoteAction('touch 2 96 30 50 90 1');remote.cloudRemoteAction('move 2 96 70 80 60 1');
 assert(commands.includes('gcloud 2 96 50 30 90 1'));
