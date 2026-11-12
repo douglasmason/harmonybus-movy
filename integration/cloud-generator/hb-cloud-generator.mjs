@@ -57,6 +57,7 @@ cloud.cloudWrite('cg_y','0');cloud.cloudTurn('cg_y',-2);assert.equal(cloud.cloud
 cloud.cloudWrite('cg_edge','Bounded');cloud.cloudTurn('cg_x',200);assert.equal(cloud.cloudRead('cg_x'),'127');
 page.goToPage(page.ctl.pages.findIndex(entry=>entry.level==='cp_cloud_field'));now+=200;chord.tickChord();
 assert.equal(page.keyAt(0),'cg_x');assert.equal(page.keyAt(1),'cg_y');assert.equal(page.keyAt(2),'cg_axes');assert.equal(page.keyAt(4),'cg_activity');assert.equal(page.keyAt(5),'cg_pressure');assert.equal(page.keyAt(7),'cg_restore');
+const responsePage=page.ctl.pages.findIndex(entry=>entry.level==='cp_cloud_pressure');assert(responsePage>=0);page.goToPage(responsePage);assert.equal(page.keyAt(1),'cg_pressure_curve');assert.equal(page.keyAt(4),'cg_pressure_high');page.goToPage(page.ctl.pages.findIndex(entry=>entry.level==='cp_cloud_field'));
 cloud.cloudWrite('cg_edge','Wrap');chord.chordMidi([176,71,3]);assert.equal(cloud.cloudRead('cg_x'),String(386/129),'physical X encoder preserves wrapped overshoot');
 cloud.cloudWrite('cg_x','127');cloud.cloudWrite('cg_edge','Bounded');
 // Fine native and Remote drawing share the 14-bit contact path and Z channel.
@@ -115,6 +116,24 @@ chord.chordMidi([144,75,110]);seqCmdFlush();assert(commands.includes('gcloud 2 7
 cloud.cloudWrite('cg_activity','Probability');seqCmdFlush();assert(commands.includes('gcloud 2 7 0 127 0 1'),'changing activity releases old input before changing its interpretation');
 cloud.cloudWrite('cg_activity','Rate');cloud.cloudPad('launchpad',63,true,8,100);seqCmdFlush();assert(commands.includes('gcloud 2 95 127 127 100 1'));
 cloud.cloudWrite('cg_x','80');seqCmdFlush();assert(commands.includes('gcloud 2 touch14 112 16254 10320 100 1'));
+// One response maps native, external, remote and knob Z before deposits are recorded.
+cloud.releaseCloud();cloud.cloudWrite('cg_pressure_low','20');cloud.cloudWrite('cg_pressure_high','100');cloud.cloudWrite('cg_pressure_direction','Reverse');
+commands=[];chord.chordMidi([144,68,127]);chord.chordMidi([160,68,0]);cloud.flushCloudPressure();chord.chordMidi([128,68,0]);seqCmdFlush();
+assert(commands.includes('gcloud 2 0 0 0 20 1'));
+assert(commands.includes('gcloud 2 move 0 0 0 100 1'),'zero held pressure reaches the reversed ceiling');
+assert(commands.includes('gcloud 2 0 0 0 0 1'),'Reverse cannot turn a release into a sounding contact');
+commands=[];remote.cloudRemoteAction('touch14 2 96 8257 8000 127 1');remote.cloudRemoteAction('touch14 2 96 8257 8000 0 1');
+assert(commands.includes('gcloud 2 touch14 96 8000 8257 20 1'));assert(commands.includes('gcloud 2 touch14 96 8000 8257 0 1'));
+cloud.cloudWrite('cg_pressure','127');cloud.cloudWrite('cg_x','80');seqCmdFlush();assert(commands.includes('gcloud 2 touch14 112 16254 10320 20 1'));
+cloud.cloudWrite('cg_pressure_curve','Firm');cloud.cloudWrite('cg_pressure_direction','Normal');commands=[];
+remote.cloudRemoteAction('touch14 2 96 8257 8000 64 1');assert(commands.includes('gcloud 2 touch14 96 8000 8257 40 1'));
+cloud.cloudWrite('cg_pressure_curve','Soft');commands=[];remote.cloudRemoteAction('move14 2 96 8257 8000 64 1');assert(commands.includes('gcloud 2 move14 96 8000 8257 77 1'));
+cloud.cloudWrite('cg_pressure_curve','Firm');cloud.cloudWrite('cg_pressure_direction','Reverse');commands=[];remote.cloudRemoteAction('move14 2 96 8257 8000 64 1');assert(commands.includes('gcloud 2 move14 96 8000 8257 80 1'));
+remote.cloudRemoteAction('touch14 2 96 8257 8000 0 1');
+const responseSaved=cloud.cloudSurfaceSnapshot();cloud.restoreCloudSurface(null);assert.equal(cloud.cloudRead('cg_pressure_curve'),'Linear');
+cloud.restoreCloudSurface(responseSaved);assert.equal(cloud.cloudRead('cg_pressure_low'),'20');assert.equal(cloud.cloudRead('cg_pressure_high'),'100');assert.equal(cloud.cloudRead('cg_pressure_direction'),'Reverse');assert.equal(cloud.cloudRead('cg_pressure_curve'),'Firm');
+assert.equal(cloud.cloudWrite('cg_pressure_low','101'),false);assert.equal(cloud.cloudWrite('cg_pressure_high','19'),false);
+cloud.cloudWrite('cg_pressure_low','1');cloud.cloudWrite('cg_pressure_high','127');cloud.cloudWrite('cg_pressure_direction','Normal');cloud.cloudWrite('cg_pressure_curve','Linear');cloud.cloudWrite('cg_pressure','100');
 const saved=cloud.cloudSurfaceSnapshot();cloud.restoreCloudSurface(null);assert.equal(cloud.cloudRead('cg_axes'),'Activity / Pitch');assert.equal(cloud.cloudRead('cg_activity'),'Probability');cloud.restoreCloudSurface(saved);assert.equal(cloud.cloudRead('cg_axes'),'Pitch / Activity');assert.equal(cloud.cloudRead('cg_activity'),'Rate');
 commands=[];cloud.tickCloud(now+200);
 assert.equal(buttons.modeButtonColor(buttons.CC_MODE_SAMPLE,0),WHITE_DIM);
