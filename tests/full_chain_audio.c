@@ -640,6 +640,9 @@ static void test_source_weaving(void){
 #include "single_conductor_audio.h"
 #ifdef HB_TEST_NOTE_PRESSURE
 #include "note_pressure_audio.h"
+#ifdef HB_TEST_NOTE_BLEND
+#include "note_blend_audio.h"
+#endif
 #endif
 
 static void test_drum_fill_output(void){
@@ -802,6 +805,9 @@ int main(int argc,char **argv){
     if(getenv("HB_PART_ONLY")){test_part_library();api->destroy_instance(instance);return 0;}
 #endif
 #ifdef HB_TEST_NOTE_PRESSURE
+    #ifdef HB_TEST_NOTE_BLEND
+    if(getenv("HB_BLEND_ONLY")){test_note_blend_output();api->destroy_instance(instance);return 0;}
+    #endif
     if(getenv("HB_PRESSURE_ONLY")){test_note_pressure_output();api->destroy_instance(instance);return 0;}
 #endif
 #ifdef HB_TEST_CHORD_QUEUE

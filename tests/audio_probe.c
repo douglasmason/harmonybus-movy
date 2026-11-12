@@ -3,12 +3,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-typedef struct { unsigned char held[128],pressure[128]; unsigned phase; int cutoff,attack_cutoff; } Probe;
-static void *create(const char *dir,const char *config){(void)dir;(void)config;return calloc(1,sizeof(Probe));}
+typedef struct { unsigned char held[128],pressure[128]; unsigned phase; int cutoff,attack_cutoff,bend; } Probe;
+static void *create(const char *dir,const char *config){(void)dir;(void)config;Probe *probe=calloc(1,sizeof(Probe));if(probe)probe->bend=8192;return probe;}
 static void destroy(void *instance){free(instance);}
 static void midi(void *instance,const uint8_t *message,int length,int source){
     (void)source;Probe *probe=instance;if(length<3)return;
     int status=message[0]&0xf0,pitch=message[1];if(pitch>=128)return;
+    if(status==0xe0)probe->bend=(message[2]<<7)|message[1];
     if(status==0x90){probe->held[pitch]=message[2]>0;if(message[2])probe->attack_cutoff=probe->cutoff;}
     if(status==0x80)probe->held[pitch]=0;
     if(status==0xa0&&probe->held[pitch])probe->pressure[pitch]=message[2];
@@ -23,6 +24,7 @@ static void set_param(void *instance,const char *key,const char *value){
 }
 static int get_param(void *instance,const char *key,char *buffer,int length){
     Probe *probe=instance;
+    if(!strcmp(key,"bend"))return snprintf(buffer,length,"%d",probe->bend);
     if(!strcmp(key,"cutoff"))return snprintf(buffer,length,"%d",probe->cutoff);
     if(!strcmp(key,"attack_cutoff"))return snprintf(buffer,length,"%d",probe->attack_cutoff);
     if(!strncmp(key,"held_",5)){int pitch=atoi(key+5);return snprintf(buffer,length,"%d",pitch>=0&&pitch<128?probe->held[pitch]:0);}

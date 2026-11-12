@@ -62,3 +62,46 @@ test('production NuSaw renders stereo PCM through Movy/Schwung and panic silence
  assert(engine.request('render',8).pcm.every(value=>Math.abs(value)<2));
  assert.throws(()=>engine.request('render',9),/Invalid/);
 });
+
+test('pressure blend drives 14-bit output and audible NuSaw pitch through Remote surface events',async()=>{
+ const engine=await createFullEngine();
+ const set=(key,value)=>engine.request('set',key,String(value));
+ const get=key=>engine.request('get',key).value;
+ let serial=0;
+ const surface=(status,pitch,pressure)=>set('surface_events',`${++serial},0,${status},${256+pitch},${pitch},${pressure},0,-1,0`);
+ // NuSaw's normalized range 1.0 is +/-12 semitones. Do not change it implicitly.
+ set('ch0:synth:module','nusaw');engine.request('step',32);
+ for(const [key,value] of Object.entries({chorus_mix:0,delay_mix:0,detune:0,spread:0,sub_level:0,cutoff:1,resonance:0,f_amount:0,attack:0,sustain:1,bend_range:1}))set(`ch0:synth:${key}`,value);
+ set('ch0:midi_fx1:chord_mode','Off');set('ch0:midi_fx1:note_blend','Bend 12');
+ assert.equal(get('ch0:midi_fx1:note_blend'),'Bend 12');
+ const params=JSON.parse(get('ch0:midi_fx1:chain_params'));
+ assert.deepEqual(params.find(parameter=>parameter.key==='note_blend').options,['Off','Steps','Bend 2','Bend 12','Bend 24','Bend 48']);
+ function measuredPitch(expected){
+  const samples=[];
+  for(let chunk=0;chunk<8;chunk++){
+   const pcm=engine.request('render',8).pcm;
+   for(let frame=0;frame<pcm.length;frame+=2)samples.push(pcm[frame]);
+  }
+  assert(samples.some(value=>Math.abs(value)>100),'audible PCM');
+  // Compare one-period waveform error near the independently expected note.
+  const nominal=44100/expected;let bestLag=0,bestError=Infinity;
+  for(let lag=Math.floor(nominal*.85);lag<=Math.ceil(nominal*1.15);lag++){
+   let error=0;
+   for(let frame=lag;frame<samples.length;frame++)error+=(samples[frame]-samples[frame-lag])**2;
+   error/=samples.length-lag;
+   if(error<bestError){bestError=error;bestLag=lag;}
+  }
+  assert(Math.abs(44100/bestLag/expected-1)<.02,`expected ${expected} Hz, measured ${44100/bestLag}`);
+ }
+ try{
+  surface(144,60,100);surface(144,72,100);
+  let packets=engine.request('step',192).events;
+  assert(packets.some(packet=>(packet[1]&240)===224&&((packet[3]<<7)|packet[2])===12288));
+  measuredPitch(440*2**((66-69)/12));
+  surface(160,60,25);surface(160,72,75);packets=engine.request('step',192).events;
+  assert(packets.some(packet=>(packet[1]&240)===224&&((packet[3]<<7)|packet[2])===14336));
+  measuredPitch(440);
+  surface(128,60,0);const released=surface(128,72,0);
+  assert([...released.events,...engine.request('step',16).events].some(packet=>(packet[1]&240)===224&&packet[2]===0&&packet[3]===64));
+ }finally{engine.dispose();}
+});
