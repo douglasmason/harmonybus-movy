@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.349",
-  "previous_version": "0.34.1-hbclean.348",
+  "version": "0.34.1-hbclean.350",
+  "previous_version": "0.34.1-hbclean.349",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.349 — expressive cloud pressure targets",
-  "notes": "docs/expressive-cloud-input.md",
+  "title": "Movy 0.34.1-hbclean.350 — pressure follows mapped note voices",
+  "notes": "docs/note-pressure.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

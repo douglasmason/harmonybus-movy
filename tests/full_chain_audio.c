@@ -638,6 +638,9 @@ static void test_source_weaving(void){
 #include "drum_destination_audio.h"
 #include "drum_clip_fill_audio.h"
 #include "single_conductor_audio.h"
+#ifdef HB_TEST_NOTE_PRESSURE
+#include "note_pressure_audio.h"
+#endif
 
 static void test_drum_fill_output(void){
     set("cmd","stop");render(32);set("chtracks","0");
@@ -797,6 +800,9 @@ int main(int argc,char **argv){
     if(getenv("HB_GENERATOR_ONLY")){test_comp_generator();api->destroy_instance(instance);return 0;}
     #endif
     if(getenv("HB_PART_ONLY")){test_part_library();api->destroy_instance(instance);return 0;}
+#endif
+#ifdef HB_TEST_NOTE_PRESSURE
+    if(getenv("HB_PRESSURE_ONLY")){test_note_pressure_output();api->destroy_instance(instance);return 0;}
 #endif
 #ifdef HB_TEST_CHORD_QUEUE
     if(getenv("HB_QUEUE_ONLY")){test_chord_queue();api->destroy_instance(instance);return 0;}
