@@ -638,6 +638,9 @@ static void test_source_weaving(void){
 #include "drum_destination_audio.h"
 #include "drum_clip_fill_audio.h"
 #include "single_conductor_audio.h"
+#ifdef HB_TEST_NOTE_PRESSURE
+#include "note_pressure_audio.h"
+#endif
 
 static void test_drum_fill_output(void){
     set("cmd","stop");render(32);set("chtracks","0");
@@ -981,5 +984,8 @@ int main(int argc,char **argv){
     test_chord_discovery();
 #endif
     test_single_conductor_output();
+#ifdef HB_TEST_NOTE_PRESSURE
+    test_note_pressure_output();
+#endif
     api->destroy_instance(instance);return 0;
 }

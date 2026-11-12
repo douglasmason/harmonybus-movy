@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-typedef struct { unsigned char held[128]; unsigned phase; int cutoff,attack_cutoff; } Probe;
+typedef struct { unsigned char held[128],pressure[128]; unsigned phase; int cutoff,attack_cutoff; } Probe;
 static void *create(const char *dir,const char *config){(void)dir;(void)config;return calloc(1,sizeof(Probe));}
 static void destroy(void *instance){free(instance);}
 static void midi(void *instance,const uint8_t *message,int length,int source){
@@ -11,6 +11,7 @@ static void midi(void *instance,const uint8_t *message,int length,int source){
     int status=message[0]&0xf0,pitch=message[1];if(pitch>=128)return;
     if(status==0x90){probe->held[pitch]=message[2]>0;if(message[2])probe->attack_cutoff=probe->cutoff;}
     if(status==0x80)probe->held[pitch]=0;
+    if(status==0xa0&&probe->held[pitch])probe->pressure[pitch]=message[2];
     if(status==0xb0&&(pitch==120||pitch==123))memset(probe->held,0,128);
 }
 static void render(void *instance,int16_t *output,int frames){
@@ -25,6 +26,7 @@ static int get_param(void *instance,const char *key,char *buffer,int length){
     if(!strcmp(key,"cutoff"))return snprintf(buffer,length,"%d",probe->cutoff);
     if(!strcmp(key,"attack_cutoff"))return snprintf(buffer,length,"%d",probe->attack_cutoff);
     if(!strncmp(key,"held_",5)){int pitch=atoi(key+5);return snprintf(buffer,length,"%d",pitch>=0&&pitch<128?probe->held[pitch]:0);}
+    if(!strncmp(key,"pressure_",9)){int pitch=atoi(key+9);return snprintf(buffer,length,"%d",pitch>=0&&pitch<128?probe->pressure[pitch]:0);}
     return 0;
 }
 static plugin_api_v2_t api={.api_version=2,.create_instance=create,.destroy_instance=destroy,.on_midi=midi,.render_block=render,.set_param=set_param,.get_param=get_param};
