@@ -8,6 +8,39 @@
         result
     }
     fn start(engine:&mut Engine){command(engine,"gexplore 2 16 127 96 71 0 127 50 64 80 64 100");}
+    #[test] fn held_motion_records_resolved_deposits_and_replays_and_bakes_exactly() {
+        let mut engine=fixture();start(&mut engine);engine.play();engine.toggle_record(2);
+        command(&mut engine,"gcloud 2 touch14 96 12001 10001 110 1 4;gcloud 2 hold 1;gcloud 2 touch14 96 12001 10001 0");
+        let mut heard=Vec::new();
+        for step in 0..64 {
+            if step==8 {command(&mut engine,"gcloud 2 shift x -1 0;gcloud 2 shift y 5000 0");}
+            if step==16 {command(&mut engine,"gcloud 2 shiftby x 8000 1;gcloud 2 shiftby y 2000 1");}
+            if step==24 {command(&mut engine,"gcloud 2 center");}
+            if step==32 {command(&mut engine,"gcloud 2 hold 0");}
+            heard.extend(trace(&mut engine,24).into_iter().map(|(tick,pitch,velocity,on)|(tick+step*24,pitch,velocity,on)));
+        }
+        engine.toggle_record(2);let points=engine.tracks[2].clips[0].cloud_points.clone();assert!(!heard.is_empty());
+        for (step,x,y) in [(8,12000,15001),(16,3616,617),(24,12001,10001)] {
+            assert!(points.iter().any(|point|point.step==step&&point.x==x&&point.y==y&&point.pressure_target==crate::cloud::PressureTarget::Rate));
+        }
+        let saved=engine.undo_snapshot();let mut restored=fixture();assert!(crate::persist::load(&mut restored,&saved));
+        assert_eq!(restored.tracks[2].clips[0].cloud_points,points);assert!(!restored.clouds[2].holding());
+        restored.play();assert_eq!(trace(&mut restored,1536),heard);restored.stop(&mut Vec::new());
+        assert_eq!(crate::part_load::prepare_part("user",&restored.part_export(2)).unwrap().clip.cloud_points,points);
+        restored.generator_bake("gbake 2 0",&mut Vec::new());restored.play();assert_eq!(trace(&mut restored,1536),heard);
+    }
+    #[test] fn held_motion_is_transient_bounded_and_cannot_restart_after_cancellation() {
+        let mut engine=fixture();let before=engine.undo_snapshot();engine.dirty=false;start(&mut engine);
+        for ending in ["gcloud 2 hold 0","gcloud 2 clear","stop","gexplore 2 off"] {
+            start(&mut engine);engine.dirty=false;command(&mut engine,"gcloud 2 touch14 96 8193 10001 100;gcloud 2 hold 1;gcloud 2 shiftby x 1 1");
+            assert_eq!(engine.clouds[2].held_shift,[1,0]);
+            for invalid in ["gcloud 2 shift x 16384 0","gcloud 2 shiftby y -16384 1","gcloud 2 shift z 0 0","gcloud 2 shift x 1 2","gcloud 2 center extra","gcloud 2 shift x","gcloud 16 shift x 1 0","gcloud 1 shift x 1 0"] {assert!(!engine.cloud_touch(invalid),"{invalid}");}
+            assert!(!engine.dirty,"live movement does not dirty a clip");command(&mut engine,ending);
+            for message in ["gcloud 2 shift x 4000 0","gcloud 2 shiftby y 1 1","gcloud 2 center"]{assert!(!engine.cloud_touch(message));}
+            assert_eq!(engine.clouds[2].held_shift,[0,0]);assert!(!engine.clouds[2].holding());
+            assert_eq!(engine.undo_snapshot(),before);
+        }
+    }
     #[test] fn precise_contacts_keep_low_bits_through_hold_record_reload_library_and_bake() {
         let mut engine=fixture();start(&mut engine);engine.play();engine.toggle_record(2);
         assert!(!engine.cloud_touch("gcloud 2 move14 96 8193 10001 80"));

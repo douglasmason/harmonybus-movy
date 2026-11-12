@@ -9,6 +9,14 @@ impl Engine {
     /// A contact belongs to one track and one input surface; up never re-targets.
     pub fn cloud_touch(&mut self,message:&str)->bool {
         let clear:Vec<_>=message.split_whitespace().collect();
+        if matches!(clear.get(2),Some(&"shift")|Some(&"shiftby")|Some(&"center")) {
+            let Ok(track)=clear[1].parse::<usize>() else{return false;};
+            if track>=NUM_TRACKS||!self.generator_explore[track].is_some_and(|state|state.current.is_cloud()){return false;}
+            if clear[2]=="center" {return clear.len()==3&&self.clouds[track].center_held();}
+            if clear.len()!=6||!matches!(clear[3],"x"|"y")||!matches!(clear[5],"0"|"1"){return false;}
+            let Ok(value)=clear[4].parse::<i32>() else{return false;};
+            return self.clouds[track].shift_held(usize::from(clear[3]=="y"),value,clear[2]=="shiftby",clear[5]=="1");
+        }
         if clear.len()==4&&clear[2]=="hold" {
             let Ok(track)=clear[1].parse::<usize>() else{return false;};
             if track>=NUM_TRACKS||!matches!(clear[3],"0"|"1")||!self.generator_explore[track].is_some_and(|state|state.current.is_cloud()){return false;}

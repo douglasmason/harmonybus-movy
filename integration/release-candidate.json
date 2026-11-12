@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.352",
-  "previous_version": "0.34.1-hbclean.351",
+  "version": "0.34.1-hbclean.353",
+  "previous_version": "0.34.1-hbclean.352",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.352 — pressure-weighted note blend",
-  "notes": "docs/note-blend.md",
+  "title": "Movy 0.34.1-hbclean.353 — move held clouds",
+  "notes": "docs/expressive-cloud-input.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

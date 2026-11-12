@@ -290,6 +290,21 @@ export function generatorCloudContact(track:number,id:number,x:number,y:number,p
 }
 export function generatorCloudSnapshot(track=selectedTrack):string {return String(host_module_get_param('cloud_view_'+track)??'');}
 export function generatorCloudHeld(track=selectedTrack):boolean {return engineReady()&&String(host_module_get_param('cloud_hold_'+track))==='1';}
+export type CloudHoldState={holding:boolean;x:number;y:number;wrap:boolean};
+export function generatorCloudHoldState(track=selectedTrack):CloudHoldState|null {
+ if(!engineReady())return null;
+ const fields=String(host_module_get_param('cloud_hold_state_'+track)??'').split('|'),values=fields.slice(1).map(Number);
+ if(fields.length!==5||fields[0]!=='ch1'||fields.slice(1).some(value=>!value.trim())||!values.every(Number.isInteger)||![0,1].includes(values[0])||![0,1].includes(values[3])||values.slice(1,3).some(value=>Math.abs(value)>16383))return null;
+ return {holding:values[0]===1,x:values[1],y:values[2],wrap:values[3]===1};
+}
+/** Relative edits execute in the engine, so rapid turns never reuse an old UI reply. */
+export function generatorCloudShift(axis:'x'|'y',value:number,relative:boolean,wrap:boolean,track=selectedTrack):boolean {
+ if(!engineReady()||!generatorCloud(track)||!Number.isInteger(value)||Math.abs(value)>16383)return false;
+ seqCmd(`gcloud ${track} ${relative?'shiftby':'shift'} ${axis} ${value} ${wrap?1:0}`);seqCmdFlush();return true;
+}
+export function generatorCloudCenter(track=selectedTrack):void {
+ if(!engineReady()||!generatorCloud(track))return;seqCmd(`gcloud ${track} center`);seqCmdFlush();
+}
 export function generatorCloudHold(enabled:boolean,track=selectedTrack):void {
  if(!engineReady()||enabled&&!generatorEnsureCloud(track))return;
  seqCmd(`gcloud ${track} hold ${enabled?1:0}`);seqCmdFlush();
