@@ -25,7 +25,8 @@ so the cloud does not draw a line across the opposite edges. Axes can still be
 swapped. Fine positions and drawing pressure flow through existing Hold,
 recording, saved strokes, replay and Bake; the renderer has no separate knob path.
 
-Cloud Z scales generated note velocity with the existing Dynamics control.
+Cloud Z defaults to scaling generated note velocity with the existing Dynamics control.
+The Pressure Target control below can instead shape Length or Spread.
 Move/Launchpad aftertouch and touchscreen/MPE pressure retain their own per-contact
 values: Draw Pressure only controls the knob cursor. Pressure returning to zero
 while a pad remains held still does not release it. An iPad without measured
@@ -51,8 +52,8 @@ Pressure before a deposit reaches the existing engine:
 - **Low / High** bound the mapped output from 1 to 127. Low cannot exceed High;
   equal limits give a fixed pressure while retaining normal release behavior.
 
-The page uses K1 Draw Pressure, K2 Response, K3 Direction, K4 Low, K5 High,
-then Axes, Edges and Activity. X/Y drawing remains on the Cloud X / Y page.
+From hbclean.349, the page uses K1 Draw Pressure, K2 Target, K3 Response,
+K4 Direction, K5 Low, K6 High, K7 Axes and K8 Activity. Edges remains on Cloud X / Y. X/Y drawing remains on the Cloud X / Y page.
 These response settings save with the other cloud surface settings. They are
 shared across follower actors, not per-track automation lanes.
 
@@ -64,9 +65,36 @@ a second time. Hold flushes current input before capture, including a response
 change made just before pressing Hold.
 
 Zero aftertouch is still a softly held contact, and Reverse never converts a
-note-off into a new press. These controls shape the cloud's existing velocity
-response through Dynamics; they do not replace Approach Pressure operation
+note-off into a new press. By default these controls shape velocity through Dynamics; they do not replace Approach Pressure operation
 assignments or add arbitrary synth-parameter pressure routing.
+
+## Pressure targets (hbclean.349)
+
+Choose **Target** on Cloud Pressure or **Cloud pressure target** in the shared
+Remote UI/standalone editor. The same selection applies to Move/Launchpad input,
+per-finger touch, MPE and the drawing knobs. Response, Reverse and Low/High shape
+pressure before it reaches the selected destination.
+
+| Target | Light pressure | Full pressure |
+| --- | --- | --- |
+| Velocity (default) | Softer notes | Existing Dynamics level |
+| Length | Short notes (minimum 3 ticks) | Existing Length setting |
+| Spread | Notes near the field's harmonic height | Existing pitch Spread |
+
+Length and Spread retain the Dynamics velocity and existing trail decay. Spread
+scales the seeded pitch scatter; Variation must be above zero for that scatter
+to be audible. Pitch remains harmony-aware. Trigger rate and probability stay
+on the activity axis. For an expanding cloud, choose Spread and turn up both
+Spread and Variation; Reverse contracts the pitch range as you squeeze.
+
+Targets are attached to deposits, including fine-coordinate points. Switching
+while holding a gesture starts a new segment with the new interpretation; it
+does not connect unrelated segments or reinterpret earlier trails, Hold emitters,
+recorded clips or saved recipes. Hold, Record, replay and Bake reuse the same
+renderer. Surface preferences save with the set and default to Velocity when
+loading older settings. Existing Velocity clips keep their original encoding
+and seeded output. New Length/Spread points add an explicit target after the
+14-bit marker; builds before hbclean.349 cannot load those new point records.
 
 ## Touch and playing pads
 

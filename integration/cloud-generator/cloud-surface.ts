@@ -18,7 +18,7 @@ let activity:'Probability'|'Rate'='Probability';
 const held=new Map<number,{track:number;x:number;y:number;pressure:number}>();
 const pendingPressure=new Set<number>();
 export const cloudFieldKeys=['cg_x','cg_y','cg_axes','cg_edge','cg_activity','cg_pressure','cg_bake','cg_restore'];
-export const cloudPressureKeys=['cg_pressure','cg_pressure_curve','cg_pressure_direction','cg_pressure_low','cg_pressure_high','cg_axes','cg_edge','cg_activity'];
+export const cloudPressureKeys=['cg_pressure','cg_pressure_target','cg_pressure_curve','cg_pressure_direction','cg_pressure_low','cg_pressure_high','cg_axes','cg_activity'];
 export function cloudParameters():any[]{return [
  ...cloudPressureParameters(),
  ...['x','y'].map(field=>({key:'cg_'+field,name:'Draw '+field.toUpperCase(),short_name:field.toUpperCase(),type:'float',min:0,max:127,step:1,default:64})),

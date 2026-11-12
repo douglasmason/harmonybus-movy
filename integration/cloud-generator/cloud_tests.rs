@@ -28,6 +28,25 @@
         command(&mut engine,"stop");assert!(!engine.cloud_touch("gcloud 2 move14 113 9000 10000 80"));
         for malformed in ["0,16384,0,100,0,14","0,10,10,100,0,13","0,-1,10,100,0,14"]{assert!(crate::cloud::Point::parse(malformed).is_none());}
     }
+    #[test] fn mixed_pressure_targets_survive_hold_record_save_recipe_replay_and_bake() {
+        use crate::cloud::{Point,PressureTarget};
+        let mut engine=fixture();start(&mut engine);engine.play();engine.toggle_record(2);
+        command(&mut engine,"gcloud 2 touch14 96 8193 10001 35 1 1;gcloud 2 64 100 70 75 0 2;gcloud 2 0 127 64 110");
+        command(&mut engine,"gcloud 2 hold 1;gcloud 2 touch14 96 8193 10001 0;gcloud 2 64 100 70 0;gcloud 2 0 127 64 0");
+        let heard=trace(&mut engine,768);engine.toggle_record(2);assert!(!heard.is_empty());
+        let points=engine.tracks[2].clips[0].cloud_points.clone();
+        for target in [PressureTarget::Velocity,PressureTarget::Length,PressureTarget::Spread] {assert!(points.iter().any(|point|point.pressure_target==target));}
+        let saved=engine.undo_snapshot();assert!(saved.contains(",8193,10001,35,1,14,1"));assert!(saved.contains(",12900,9030,75,0,14,2"));
+        let mut restored=fixture();assert!(crate::persist::load(&mut restored,&saved));assert_eq!(restored.tracks[2].clips[0].cloud_points,points);
+        restored.play();assert_eq!(trace(&mut restored,768),heard);restored.stop(&mut Vec::new());
+        assert_eq!(crate::part_load::prepare_part("user",&restored.part_export(2)).unwrap().clip.cloud_points,points);
+        restored.generator_bake("gbake 2 0",&mut Vec::new());restored.play();assert_eq!(trace(&mut restored,768),heard);
+        for wire in ["0,40,80,100","0,40,80,100,1","0,8193,10001,80,1,14"] {
+            let point=Point::parse(wire).unwrap();assert_eq!(point.pressure_target,PressureTarget::Velocity);assert_eq!(point.wire(),wire);
+        }
+        for malformed in ["0,10,10,100,0,14,3","0,10,10,100,0,14,-1","0,10,10,100,0,13,1","0,10,10,100,0,14,1,0"] {assert!(Point::parse(malformed).is_none());}
+        for malformed in ["gcloud 2 touch14 96 0 0 80 0 3","gcloud 2 move14 96 0 0 80 0 3"] {assert!(!engine.cloud_touch(malformed));}
+    }
     #[test] fn cloud_updates_cannot_reacquire_released_cleared_stopped_or_expired_contacts() {
         // Exercise each surface's ID range through the production command path.
         for id in [0,32,96,112] {
@@ -162,7 +181,7 @@
         assert_eq!(crate::generator::Config::parse("0 32 64 1").unwrap().wire(),"0 32 64 1 0");
         assert!(crate::generator::Config::parse("16 127 96 1 0 128 64 64 64 64 64").is_none());
         let mut engine=fixture();start(&mut engine);
-        for message in ["gcloud 16 0 0 0 127","gcloud 2 128 0 0 127","gcloud 2 0 -1 0 127","gcloud 2 0 0 0 128","gcloud 2 0 0 0 127 2","gcloud 2 0 0 0 127 1 0"]{assert!(!engine.cloud_touch(message));}
+        for message in ["gcloud 16 0 0 0 127","gcloud 2 128 0 0 127","gcloud 2 0 -1 0 127","gcloud 2 0 0 0 128","gcloud 2 0 0 0 127 2","gcloud 2 0 0 0 127 1 3","gcloud 2 0 0 0 127 1 0 0"]{assert!(!engine.cloud_touch(message));}
         for contact in 0..32 {engine.cloud_touch(&format!("gcloud 2 {contact} 64 64 127"));}
         assert_eq!(engine.clouds[2].contacts.len(),crate::cloud::MAX_CONTACTS);
         let before=engine.undo_snapshot();for _ in 0..10 {engine.cloud_view(2);}assert_eq!(engine.undo_snapshot(),before);

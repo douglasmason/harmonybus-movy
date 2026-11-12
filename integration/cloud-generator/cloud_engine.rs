@@ -21,15 +21,16 @@ impl Engine {
         let precise=matches!(clear.get(2),Some(&"touch14")|Some(&"move14"));
         let moving=matches!(clear.get(2),Some(&"move")|Some(&"move14"));
         let fields:Vec<u32>=clear.iter().enumerate().filter(|(index,_)|*index>0&&(!(moving||precise)||*index!=2)).map(|(_,value)|value.parse()).collect::<Result<_,_>>().unwrap_or_default();
-        if !matches!(fields.len(),5|6)||fields[0]>=NUM_TRACKS as u32||fields[1]>127||fields[2..4].iter().any(|value|*value>if precise {16383}else{127})||fields[4]>127{return false;}
+        if !matches!(fields.len(),5|6|7)||fields[0]>=NUM_TRACKS as u32||fields[1]>127||fields[2..4].iter().any(|value|*value>if precise {16383}else{127})||fields[4]>127{return false;}
         let Some(activity)=crate::cloud::Activity::parse(*fields.get(5).unwrap_or(&0)) else{return false;};
+        let Some(pressure_target)=crate::cloud::PressureTarget::parse(*fields.get(6).unwrap_or(&0)) else{return false;};
         let track=fields[0] as usize;
         if !self.generator_explore[track].is_some_and(|state|state.current.is_cloud()){return false;}
         // Updates never acquire a contact. Stop, Clear, release and expiry are
         // boundaries that an old pressure packet or browser heartbeat cannot undo.
         if moving&&!self.clouds[track].contacts.iter().any(|contact|contact.id==fields[1] as u8&&self.master_tick.saturating_sub(contact.refreshed)<192&&self.frame_now.saturating_sub(contact.frame)<self.clock.sample_rate() as u64*2){return false;}
-        if precise {self.clouds[track].touch_xy(fields[1] as u8,fields[2] as u16,fields[3] as u16,fields[4] as u8,activity,self.master_tick,self.frame_now,true)}
-        else {self.clouds[track].touch(fields[1] as u8,fields[2] as u8,fields[3] as u8,fields[4] as u8,activity,self.master_tick,self.frame_now)}
+        let scale=if precise {1}else{crate::cloud::XY_LEGACY_SCALE};
+        self.clouds[track].touch_expression(fields[1] as u8,fields[2] as u16*scale,fields[3] as u16*scale,fields[4] as u8,activity,pressure_target,self.master_tick,self.frame_now,precise)
     }
     fn cloud_capture(&mut self,track:usize,slot:usize,pos:u32) {
         let Some(state)=self.generator_explore[track].filter(|state|state.current.is_cloud()) else{return;};
