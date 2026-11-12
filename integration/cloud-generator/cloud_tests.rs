@@ -13,8 +13,8 @@
         command(&mut engine,"gcloud 2 touch14 96 12001 10001 110 1 4;gcloud 2 hold 1;gcloud 2 touch14 96 12001 10001 0");
         let mut heard=Vec::new();
         for step in 0..64 {
-            if step==8 {command(&mut engine,"gcloud 2 shift x -1 0;gcloud 2 shift y 5000 0");}
-            if step==16 {command(&mut engine,"gcloud 2 shiftby x 8000 1;gcloud 2 shiftby y 2000 1");}
+            if step==8 {command(&mut engine,"gcloud 2 shiftxy -1 5000 0");}
+            if step==16 {command(&mut engine,"gcloud 2 shiftxy 8000 2000 1");}
             if step==24 {command(&mut engine,"gcloud 2 center");}
             if step==32 {command(&mut engine,"gcloud 2 hold 0");}
             heard.extend(trace(&mut engine,24).into_iter().map(|(tick,pitch,velocity,on)|(tick+step*24,pitch,velocity,on)));
@@ -34,9 +34,9 @@
         for ending in ["gcloud 2 hold 0","gcloud 2 clear","stop","gexplore 2 off"] {
             start(&mut engine);engine.dirty=false;command(&mut engine,"gcloud 2 touch14 96 8193 10001 100;gcloud 2 hold 1;gcloud 2 shiftby x 1 1");
             assert_eq!(engine.clouds[2].held_shift,[1,0]);
-            for invalid in ["gcloud 2 shift x 16384 0","gcloud 2 shiftby y -16384 1","gcloud 2 shift z 0 0","gcloud 2 shift x 1 2","gcloud 2 center extra","gcloud 2 shift x","gcloud 16 shift x 1 0","gcloud 1 shift x 1 0"] {assert!(!engine.cloud_touch(invalid),"{invalid}");}
-            assert!(!engine.dirty,"live movement does not dirty a clip");command(&mut engine,ending);
-            for message in ["gcloud 2 shift x 4000 0","gcloud 2 shiftby y 1 1","gcloud 2 center"]{assert!(!engine.cloud_touch(message));}
+            for invalid in ["gcloud 2 shiftxy 1 16384 0","gcloud 2 shiftxy 16384 1 0","gcloud 2 shiftxy 1 1 2","gcloud 2 shiftxy 1","gcloud 2 shift x 16384 0","gcloud 2 shiftby y -16384 1","gcloud 2 shift z 0 0","gcloud 2 shift x 1 2","gcloud 2 center extra","gcloud 2 shift x","gcloud 16 shift x 1 0","gcloud 1 shift x 1 0"] {assert!(!engine.cloud_touch(invalid),"{invalid}");}
+            assert_eq!(engine.clouds[2].held_shift,[1,0],"rejected paired movement cannot partially change an axis");assert!(!engine.dirty,"live movement does not dirty a clip");command(&mut engine,ending);
+            for message in ["gcloud 2 shiftxy 1 1 0","gcloud 2 shift x 4000 0","gcloud 2 shiftby y 1 1","gcloud 2 center"]{assert!(!engine.cloud_touch(message));}
             assert_eq!(engine.clouds[2].held_shift,[0,0]);assert!(!engine.clouds[2].holding());
             assert_eq!(engine.undo_snapshot(),before);
         }

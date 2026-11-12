@@ -305,6 +305,10 @@ export function generatorCloudShift(axis:'x'|'y',value:number,relative:boolean,w
 export function generatorCloudCenter(track=selectedTrack):void {
  if(!engineReady()||!generatorCloud(track))return;seqCmd(`gcloud ${track} center`);seqCmdFlush();
 }
+export function generatorCloudShiftXY(x:number,y:number,wrap:boolean,track=selectedTrack):boolean {
+ if(!engineReady()||!generatorCloud(track)||![x,y].every(value=>Number.isInteger(value)&&Math.abs(value)<=16383))return false;
+ seqCmd(`gcloud ${track} shiftxy ${x} ${y} ${wrap?1:0}`);seqCmdFlush();return true;
+}
 export function generatorCloudHold(enabled:boolean,track=selectedTrack):void {
  if(!engineReady()||enabled&&!generatorEnsureCloud(track))return;
  seqCmd(`gcloud ${track} hold ${enabled?1:0}`);seqCmdFlush();

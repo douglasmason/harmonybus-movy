@@ -63,6 +63,14 @@ try{
  assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),before,'Hold is a transient audition until Record');
  await panel.getByRole('combobox',{name:'Follower actor'}).selectOption('Melody');
  await panel.getByRole('button',{name:'Release cloud',exact:true}).waitFor();
+ await panel.getByRole('combobox',{name:'Cloud field touch mode'}).selectOption('move');
+ await canvas.scrollIntoViewIfNeeded();const dragBounds=await canvas.boundingBox();
+ const dragPoints=[{id:11,x:dragBounds.x+dragBounds.width*.3,y:dragBounds.y+dragBounds.height*.5,force:.5},{id:12,x:dragBounds.x+dragBounds.width*.6,y:dragBounds.y+dragBounds.height*.5,force:.7}];
+ await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:dragPoints});
+ await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:dragPoints.map(point=>({...point,x:point.x+20,y:point.y-10}))});
+ await until(async()=>{const values=(await __wasmRead('cloud_hold_state_3')).split('|').map(Number);return values[2]>129&&values[3]>-1;});
+ assert.equal((await page.evaluate(()=>__wasmRead('cloud_view_3'))).split('|')[1],'','moving a held cloud does not emit new finger notes');
+ await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  await panel.getByRole('button',{name:'Center held cloud',exact:true}).click();
  await until(async()=>(await __wasmRead('cloud_hold_state_3'))==='ch1|1|0|0|0');
  assert.equal(await canvas.evaluate(element=>{

@@ -6,6 +6,27 @@ Strokes, captured Hold emitters, recorded clips and recipes retain the finer
 coordinates. Legacy clips and hardware gestures retain their existing musical
 results. Cloud generation still produces harmony-aware, quantized notes.
 
+## Drag held clouds directly (hbclean.355)
+
+In Remote UI or standalone, draw a shape, press **Hold cloud**, then choose
+**Field touch → Move held cloud** above the field. Drag anywhere on the field
+or standalone pad surface to move its captured emitters. The initial touch
+anchors movement without jumping to that position. Multiple fingers contribute
+average displacement; adding or lifting a finger never shifts the shape.
+
+Drag input retains 14-bit X/Y and sends both axes in one engine command. It
+shares Axes, Bounded/Wrap and Center with native Move's Cloud Hold knobs and the
+web sliders. The captured pressure interpretation is preserved. Already emitted
+deposits fade behind the moving shape, and Record/replay/Bake use the existing
+moved-deposit stream. MPE input continues to draw expressive strokes.
+
+Grab pointers are white locators, not new green note contacts. Select **Draw**
+to add strokes again. Releasing Hold returns the touch mode to Draw. Stop, Clear,
+actor/axes changes, leaving the workspace or losing input focus cancel active
+drags, and stale movement cannot restart them. Older hosts leave the new mode
+disabled. Native Move keeps its existing X/Y knob controls; physical Move and
+Launchpad pads continue their multitouch drawing and cloud feedback.
+
 ## Move a captured cloud (hbclean.353)
 
 Draw a shape and press **Hold cloud** (Sample on Move). On the new **Cloud Hold**

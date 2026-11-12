@@ -18,6 +18,7 @@ globalThis.host_module_set_param_blocking=(key,value)=>{
  if(key==='cmd')for(const command of value.split(';')){commands.push(command);const fields=command.split(' ');if(fields[0]==='gcloud'&&fields[1]==='2'&&fields[2]==='hold')holding=fields[3]==='1';if(fields[0]==='gexplore'&&fields[1]==='2'&&fields.length>=6)state='Exploring|0|'+fields.slice(2).join(' ')+'|';}
  if(key==='cmd')for(const command of value.split(';')){const fields=command.split(' ');if(fields[0]==='gcloud'&&fields[1]==='2'){
   if(['shift','shiftby'].includes(fields[2])&&holding){const axis=Number(fields[3]==='y');holdShift[axis]=Number(fields[4])+(fields[2]==='shiftby'?holdShift[axis]:0);holdWrap=fields[5]==='1';}
+  if(fields[2]==='shiftxy'&&holding){holdShift[0]+=Number(fields[3]);holdShift[1]+=Number(fields[4]);holdWrap=fields[5]==='1';}
   if(fields[2]==='center'||fields[2]==='hold'&&fields[3]==='0')holdShift=[0,0];
  }}
  return originalSet?.(key,value);
@@ -189,7 +190,8 @@ cloud.cloudWrite('cg_axes','Pitch / Activity');commands=[];remote.cloudRemoteAct
 assert.deepEqual(commands,['gcloud 2 shift y 8257 0','gcloud 2 shiftby x -1 0']);
 assert.deepEqual(JSON.parse(remote.cloudRemoteSnapshot()).holdShift,{x:8257,y:128,wrap:false});
 cloud.cloudWrite('cg_edge','Wrap');assert(holdWrap,'edge changes apply to the captured shape immediately');
-commands=[];for(const invalid of ['shift14 1 x 1','shift14 2 z 1','shift14 2 x 16384','shiftby14 2 y 1.5','center 1','center 2 extra'])remote.cloudRemoteAction(invalid);assert.equal(commands.length,0);
+commands=[];remote.cloudRemoteAction('shiftxy14 2 17 -13');assert.deepEqual(commands,['gcloud 2 shiftxy -13 17 1'],'one paired command projects both physical axes exactly once');assert.equal(JSON.parse(remote.cloudRemoteSnapshot()).holdDrag,true);
+commands=[];for(const invalid of ['shiftxy14 1 1 1','shiftxy14 2 1 16384','shiftxy14 2 1.5 2','shiftxy14 2 1','shift14 1 x 1','shift14 2 z 1','shift14 2 x 16384','shiftby14 2 y 1.5','center 1','center 2 extra'])remote.cloudRemoteAction(invalid);assert.equal(commands.length,0);
 chord.chordMidi([144,5,127]);chord.chordMidi([128,5,0]);assert(commands.includes('gcloud 2 center'),'sixth knob touch centers the cloud');assert.deepEqual(holdShift,[0,0]);
 remote.cloudRemoteAction('shift14 2 x 1');remote.cloudRemoteAction('center 2');assert.deepEqual(holdShift,[0,0]);
 chord.chordMidi([144,4,127]);chord.chordMidi([128,4,0]);assert(!holding,'fifth knob touch releases Hold');
