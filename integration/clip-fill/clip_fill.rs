@@ -89,7 +89,7 @@ impl Engine {
         // Optional edit-time phase offsets. The legacy six-field request remains identical.
         let pitch_rotation=fields.get(6).copied().unwrap_or(0);
         let rhythm_rotation=fields.get(7).copied().unwrap_or(0);
-        if bars>16||alignment>2||pitch_rotation>15||rhythm_rotation>15 {
+        if bars>16||alignment>3||pitch_rotation>15||rhythm_rotation>15 {
             return Err("Invalid length, alignment or rotation");
         }
         if matches!(pitch_track,16|17){return self.fill_style_plan(request,&fields);}
@@ -99,6 +99,25 @@ impl Engine {
         }
         let source=|track:usize,slot:usize| self.tracks.get(track).and_then(|track|track.clips.get(slot)).ok_or("Invalid clip");
         let original_pitch=source(pitch_track,pitch_slot)?;
+        if alignment==3 {
+            // Event-indexed MIDI grains re-articulate sparse source notes:
+            // fields 2/3 are musical spacing + secondary-head direction,
+            // not rhythm donor track/slot. Ordinary Fill and Weaving unchanged.
+            if self.track_is_drum(pitch_track) {return Err("Event grains need melodic material");}
+            if original_pitch.notes.iter().any(|note|note.rendered ||
+                (!note.actions.as_ref().is_some_and(crate::recorded_actions::chord_selection)
+                && note.input_key.or(original_pitch.input_key).is_none())) {
+                return Err("Grain source needs saved input keys");
+            }
+            let clip=crate::midi_grain::event_grains(original_pitch,
+                crate::midi_grain::EventHeads {bars,spacing_index:rhythm_track,
+                    second_mode:rhythm_slot,first_offset:pitch_rotation,
+                    second_offset:rhythm_rotation})?;
+            let mut hash=std::collections::hash_map::DefaultHasher::new();
+            request.hash(&mut hash);
+            crate::motif_load::fingerprint(original_pitch).hash(&mut hash);
+            return Ok(Plan{clip,signature:hash.finish(),drum:false,lanes:None});
+        }
         let rhythm=if alignment==2 {original_pitch}else{source(rhythm_track,rhythm_slot)?};
         let drum=self.track_is_drum(pitch_track);
         if drum&&alignment!=2{return Err("Drum grooves need Original mode");}
