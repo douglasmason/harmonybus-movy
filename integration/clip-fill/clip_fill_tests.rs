@@ -396,9 +396,9 @@ fn drum_command(engine:&Engine,request:&str,track:usize,slot:usize)->String {
     let mut engine=setup();let mut output=Vec::new();
     let request="1_3_2_2_1_3_3_2";
     let initial=engine.fill_preview(request);assert!(!initial.starts_with("error:"));
-    let before=engine.undo_snapshot();
     engine.tracks[1].clips[3].notes[0].vel=42;
     let changed=engine.fill_preview(request);assert_ne!(initial,changed);
+    let before=engine.undo_snapshot();
     let signature=initial.split('|').next().unwrap();
     let command=format!("clipfill 2 5 {} {request} {signature} {} own",
         engine.fill_target("2_5"),Settings::comp().wire());
