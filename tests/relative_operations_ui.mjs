@@ -61,3 +61,5 @@ assert.deepEqual(field.options,['Off','Field Rate','Field Zoom','Field Output'])
 assert.equal(choiceGroup('Cloud Hold'),'Cloud');
 const cloudChoices={key:'motion_operation',options_as_string:true,options:['Cloud Hold','Off','Field Output']};
 orderHarmonyChoices(cloudChoices);assert.deepEqual(cloudChoices.options,['Off','Field Output','Cloud Hold']);
+
+for(const name of ["Cloud Shift X","Cloud Shift Y"])assert.equal(choiceGroup(name),"Cloud");

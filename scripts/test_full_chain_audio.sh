@@ -35,6 +35,7 @@ JSON
 # Older feature workflows deliberately retain their original HB source pin.
 # The Chord Play workflow requires this header, so its new coverage cannot skip.
 CHORD_PLAY_TEST_FLAGS=()
+if grep -q HB_MO_CLOUD_SHIFT_X "$HB_SOURCE/core/include/operation_catalog.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CLOUD_SHIFT); fi
 if grep -q HB_MO_CLOUD_HOLD "$HB_SOURCE/core/include/operation_catalog.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_CLOUD_OPERATION); fi
 if test -f "$HB_SOURCE/src/field_operations.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_FIELD_OPERATIONS); fi
 if test -f "$HB_SOURCE/core/include/note_blend.h"; then CHORD_PLAY_TEST_FLAGS+=(-DHB_TEST_NOTE_BLEND); fi

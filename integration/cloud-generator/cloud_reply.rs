@@ -6,6 +6,13 @@ impl Instance {
             self.cloud_watch_until = self.blocks + 1200;
             return Some(&self.cloud_ui);
         }
+        if let Some(suffix) = key.strip_prefix("cloud_operation_shift_") {
+            use std::fmt::Write;
+            let runtime=self.engine.clouds.get(suffix.parse::<usize>().ok()?)?;
+            self.cloud_reply.clear();
+            write!(&mut self.cloud_reply,"{},{}",runtime.operation_shift[0],runtime.operation_shift[1]).expect("writing a String cannot fail");
+            return Some(&self.cloud_reply);
+        }
         if let Some(suffix) = key.strip_prefix("cloud_hold_state_") {
             use std::fmt::Write;
             let runtime = self.engine.clouds.get(suffix.parse::<usize>().ok()?)?;

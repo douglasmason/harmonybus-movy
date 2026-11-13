@@ -111,6 +111,33 @@ static void test_cloud_operation(void){
 }
 #endif
 
+#ifdef HB_TEST_CLOUD_SHIFT
+static void cloud_text_is(const char *key,const char *expected){char value[128];assert(api->get_param(instance,key,value,sizeof(value))>0);if(strcmp(value,expected))fprintf(stderr,"%s: %s != %s\n",key,value,expected);assert(!strcmp(value,expected));}
+static unsigned cloud_capture_is(int horizontal,int vertical){
+    char state[128],extra;int holding=0,actual_x=0,actual_y=0,wrap=0;unsigned capture=0;
+    assert(api->get_param(instance,"cloud_hold_state_2",state,sizeof(state))>0);
+    assert(sscanf(state,"ch2|%d|%d|%d|%d|%u%c",&holding,&actual_x,&actual_y,&wrap,&capture,&extra)==5);
+    assert(holding==1&&actual_x==horizontal&&actual_y==vertical&&wrap==0&&capture>0);return capture;
+}
+static void test_cloud_shift(void){
+    set("cmd","stop");render(16);set("ch2:midi_fx1:performance_reset","1");
+    set("cmd","gexplore 2 16 127 96 71 0 127 50 64 80 64 100;gcloud 2 touch14 96 8193 10001 100;gcloud 2 hold 1;gcloud 2 touch14 96 8193 10001 0;gcloud 2 shiftxy 1 0 0");render(16);
+    set("cmd","play");render(16);
+    set("ch2:midi_fx1:motion_operation_2","Cloud Shift X");set("ch2:midi_fx1:motion_control_2","25");
+    set("ch2:midi_fx1:motion_operation_3","Cloud Shift Y");set("ch2:midi_fx1:motion_control_3","-25");
+    set("ch2:midi_fx1:motion_gesture_2","LatchOn");set("ch2:midi_fx1:motion_gesture_3","LatchOn");render(16);
+    cloud_text_is("cloud_operation_shift_2","4096,-4096");unsigned capture=cloud_capture_is(1,0);
+    render(128);char view[32768];api->get_param(instance,"cloud_view_2",view,sizeof(view));if(!strstr(view,"12290,5905,"))fprintf(stderr,"SHIFT VIEW %s\n",view);assert(strstr(view,"12290,5905,"));
+    char move[128];snprintf(move,sizeof(move),"gcloud 2 bound %u shiftxy 2 3 0",capture);set("cmd",move);set("ch2:midi_fx1:motion_gesture_2","LatchOff");render(16);
+    cloud_text_is("cloud_operation_shift_2","0,-4096");assert(cloud_capture_is(3,3)==capture);
+    set("ch2:midi_fx1:motion_gesture_3","LatchOff");render(16);cloud_text_is("cloud_operation_shift_2","0,0");assert(field_get("cloud_hold_2")==1);
+    set("ch2:midi_fx1:motion_gesture_2","LatchOn");render(16);set("ch2:midi_fx1:bypassed","1");render(16);cloud_text_is("cloud_operation_shift_2","0,0");assert(field_get("cloud_hold_2")==1);
+    set("ch2:midi_fx1:bypassed","0");render(16);cloud_text_is("cloud_operation_shift_2","0,0");
+    set("cmd","gexplore 2 off;stop");render(16);set("ch2:midi_fx1:motion_operation_2","Off");set("ch2:midi_fx1:motion_operation_3","Off");
+    puts("Cloud Shift: production bridge, precise emitted points, reversible XY, manual edits and bypass cancellation pass");
+}
+#endif
+
 static void test_field_lfos(void){
     set("cmd","stop");render(16);
     assert(field_get("ch0:lfo1:field_source_version")==1);
@@ -1030,5 +1057,8 @@ int main(int argc,char **argv){
     test_chord_discovery();
 #endif
     test_single_conductor_output();
+#ifdef HB_TEST_CLOUD_SHIFT
+    test_cloud_shift();
+#endif
     api->destroy_instance(instance);return 0;
 }

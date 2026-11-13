@@ -161,7 +161,8 @@ impl Engine {
             if cancels&(1<<track)!=0 {8}else{0}
         })
     }
-    pub fn cloud_operation_hold(&mut self,track:usize,enabled:bool) {
-        self.clouds[track].hold_operation(enabled,self.master_tick);
+    pub fn cloud_operation_apply(&mut self,track:usize,operation:crate::cloud::Operation) {
+        self.clouds[track].hold_operation(operation.hold,self.master_tick);
+        self.clouds[track].operation_shift=operation.shift;
     }
 }
