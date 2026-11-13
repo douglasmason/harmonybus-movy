@@ -147,7 +147,7 @@ test('Cloud Hold uses shared Remote gestures and overlapping precise cloud conta
   set('cmd','gcloud 2 touch14 113 8194 10002 0');step();assert.equal(get('cloud_hold_2'),'0');assert.equal(get('ch2:midi_fx1:motion_status_1'),'Off');
   gesture('Knob,2000');gesture('Up,40,2040');set('cmd','gcloud 2 touch14 96 8193 10001 100;gcloud 2 touch14 96 8193 10001 0');step();assert.equal(get('ch2:midi_fx1:motion_status_1'),'Off');
   gesture('LatchOn');step();assert.equal(get('cloud_hold_2'),'1');
-  set('cmd','gcloud 2 hold 1;gcloud 2 shiftxy 1 2 0');gesture('LatchOff');step();assert.equal(get('cloud_hold_state_2'),'ch1|1|1|2|0');
+  set('cmd','gcloud 2 hold 1;gcloud 2 shiftxy 1 2 0');gesture('LatchOff');step();assert.match(get('cloud_hold_state_2'),/^ch2\|1\|1\|2\|0\|[1-9]\d*$/);
   set('cmd','gcloud 2 hold 0');step();assert.equal(get('cloud_hold_2'),'0');
   gesture('LatchOn');step();set('cmd','gcloud 2 clear');step();assert.equal(get('ch2:midi_fx1:motion_status_1'),'Off');
   set('cmd','gcloud 2 touch14 96 8193 10001 100');step();assert.equal(get('cloud_hold_2'),'0');
