@@ -15,12 +15,15 @@ import {partNamesFor,partStockCount} from './part-library.js';
 import {userParts,type UserPart,type PartKind} from './part-storage.js';
 let active=false,choices=[1,0,2,0,1,0],keep=false;
 let pitchRotation=0,rhythmRotation=0;
+let savedRhythm:[number,number]=[2,0];
+const grainRates=['1/16','1/8','1/4','1/2','1 bar'];
+const grainHeads=['Forward','+ Reverse','+ PingPong','+ Forward'];
 let preview='',request='',generation=0,set:string|null=null,peekUntil=0,message='',refreshAt=0;
 let lanePage=0;
 let libraryEntry:UserPart|null=null;
 let stagedLibrary:{bank:number;choice:number;payload:string;generation:number}|null=null;
 type FillSnapshot={
-    choices:number[]; keep:boolean; pitchRotation:number; rhythmRotation:number;
+    choices:number[]; keep:boolean; pitchRotation:number; rhythmRotation:number; savedRhythm:[number,number];
     request:string; preview:string; generation:number; set:string|null;
     libraryEntry:UserPart|null;
 };
@@ -47,7 +50,7 @@ function fillMemory(slot:number,save:boolean):void{
     if(save){
         if(!validPreview()||!engineReady()){seqToast('Finish preview before saving '+name);return;}
         memories[slot]={
-            choices:[...choices],keep,pitchRotation,rhythmRotation,
+            choices:[...choices],keep,pitchRotation,rhythmRotation,savedRhythm:[...savedRhythm],
             request,preview,generation,set,libraryEntry:libraryEntry?{...libraryEntry}:null,
         };
         message='Saved '+name;seqToast('Fill '+name+' saved');
@@ -66,6 +69,7 @@ function fillMemory(slot:number,save:boolean):void{
         choices=[...saved.choices];keep=saved.keep;
         libraryEntry=saved.libraryEntry?{...saved.libraryEntry}:null;
         pitchRotation=saved.pitchRotation;rhythmRotation=saved.rhythmRotation;
+        savedRhythm=[...saved.savedRhythm];
         request=saved.request;preview=current;
         generation=engineGeneration();set=currentSetUuid();refreshAt=0;
         lanePage=0;peekUntil=Date.now()+1800;
@@ -120,14 +124,15 @@ export function fillMidi(data:number[]):boolean {
     if(sourceIsDrum()&&knob===5){lanePage=Math.max(0,Math.min(Math.ceil(previewLanes().length/4)-1,lanePage+direction));peekUntil=Date.now()+1800;appState.dirty=true;return true;}
     if(knob<2)lanePage=0;
     if(appState.shiftHeld&&(knob===0||knob===2)){
-        if(sourceIsDrum()||choices[5]===2){seqToast('Rotate: choose Sequence or Fit');return true;}
+        if(sourceIsDrum()||choices[5]===2){seqToast('Rotate: choose Sequence, Fit or Event heads');return true;}
         if(knob===0)pitchRotation=(pitchRotation+direction+16)%16;
         else rhythmRotation=(rhythmRotation+direction+16)%16;
         refreshAt=Date.now()+70;preview='error:Preparing preview';message='';appState.dirty=true;
         return true;
     }
     if(knob<6){
-        const oldKind=libraryKind(),bounds=[17,oldKind?partNamesFor(oldKind).length-1:7,15,7,16,2];
+        const oldKind=libraryKind(),oldAlignment=choices[5],grain=choices[5]===3;
+        const bounds=[17,oldKind?partNamesFor(oldKind).length-1:7,grain?4:15,grain?3:7,16,oldKind?2:3];
         choices[knob]=Math.max(knob===4&&!oldKind?1:0,Math.min(bounds[knob],choices[knob]+direction));
         const kind=libraryKind();
         if(knob===0&&kind!==oldKind){
@@ -135,6 +140,17 @@ export function fillMidi(data:number[]):boolean {
             if(kind){choices[5]=2;pitchRotation=0;rhythmRotation=0;}
         }
         if(knob===1&&kind)choices[4]=0;
+        if(knob===5&&choices[5]!==oldAlignment){
+            if(choices[5]===3){
+                savedRhythm=[choices[2],choices[3]];
+                // A sparse clip is useful immediately: eighth-note grains,
+                // forward and reverse readers, no extra rhythmic donor.
+                choices[2]=1;choices[3]=1;
+            } else if(oldAlignment===3){
+                [choices[2],choices[3]]=[...savedRhythm];
+            }
+            pitchRotation=0;rhythmRotation=0;
+        }
         refreshAt=Date.now()+70;preview='error:Preparing preview';message='';appState.dirty=true;
     }
     else if(knob===6){keep=direction>0;appState.dirty=true;}
@@ -174,7 +190,7 @@ export function fillCell(track:number,slot:number):boolean {
 export function renderFill():boolean {
     if(!fillActive())return false;
     clear_screen();const line=(y:number,text:string)=>fontPrint(1,y,fitHeaderText(text,126),1);
-    const drum=sourceIsDrum(),kind=libraryKind();
+    const drum=sourceIsDrum(),kind=libraryKind(),grain=!drum&&!kind&&choices[5]===3;
     if(drum&&peekUntil&&preview&&!preview.startsWith('error:')){
         const [,duration,count,encoded]=preview.split('|'),lanes=previewLanes();
         const notes=(encoded??'').split(';').filter(Boolean).map(note=>note.split(',').map(Number));
@@ -198,10 +214,10 @@ export function renderFill():boolean {
             saved.choices.every((value,index)=>choices[index]===value)?'*':'+';
     };
     const memoryLabels=` A${memoryLabel(0)} B${memoryLabel(1)}`;
-    line(1,kind?`FILL ${kind==='comp'?'COMP':'BASS'} LIB`+memoryLabels:drum?'FILL DRUM'+memoryLabels:`FILL P${pitchRotation} R${rhythmRotation}`+memoryLabels);
+    line(1,kind?`FILL ${kind==='comp'?'COMP':'BASS'} LIB`+memoryLabels:drum?'FILL DRUM'+memoryLabels:grain?`GRAIN H1:${pitchRotation} H2:${rhythmRotation}`+memoryLabels:`FILL P${pitchRotation} R${rhythmRotation}`+memoryLabels);
     line(12,kind?'1 Actor / 2 '+partNamesFor(kind)[choices[1]]:`1/2 ${drum?'Drums':'Pitch'} T${choices[0]+1} C${choices[1]+1}`);
-    line(22,kind?'3/4 Rhythm: saved style':drum||choices[5]===2?'3/4 Rhythm: original':`3/4 Rhythm T${choices[2]+1} C${choices[3]+1}`);
-    line(32,kind?(choices[4]===0?'5 Style length / 6 Original':`5 ${choices[4]} bars / 6 Original`):drum?`5 ${choices[4]} bars 6 Lane view`:`5 ${choices[4]} bars  6 ${['Sequence','Fit pitch','Original'][choices[5]]}`);
+    line(22,kind?'3/4 Rhythm: saved style':drum||choices[5]===2?'3/4 Rhythm: original':grain?`3 ${grainRates[choices[2]]}  4 ${grainHeads[choices[3]]}`:`3/4 Rhythm T${choices[2]+1} C${choices[3]+1}`);
+    line(32,kind?(choices[4]===0?'5 Style length / 6 Original':`5 ${choices[4]} bars / 6 Original`):drum?`5 ${choices[4]} bars 6 Lane view`:`5 ${choices[4]} bars  6 ${['Sequence','Fit pitch','Original','Event heads'][choices[5]]}`);
     if(peekUntil&&preview&&!preview.startsWith('error:')){
         const [signature,duration,count,encoded]=preview.split('|');
         const notes=(encoded??'').split(';').filter(Boolean).map(note=>note.split(',').map(Number));

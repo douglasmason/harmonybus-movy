@@ -7,10 +7,10 @@ def patch_clip_fill(root: Path) -> None:
     """Share onset selection with weaving and wire bounded preview/write commands."""
     assets: Path = Path(__file__).resolve().parents[1] / 'integration/clip-fill'
     core: Path = root / 'engine/crates/seq-core/src'
-    for filename in ['clip_fill.rs', 'clip_fill_tests.rs']:
+    for filename in ['clip_fill.rs', 'clip_fill_tests.rs', 'midi_grain.rs']:
         (core / filename).write_text((assets / filename).read_text())
     path: Path = core / 'lib.rs'
-    path.write_text(path.read_text()+'\npub mod clip_fill;\n#[cfg(test)] mod clip_fill_tests;\n')
+    path.write_text(path.read_text()+'\npub mod clip_fill;\npub mod midi_grain;\n#[cfg(test)] mod clip_fill_tests;\n')
     path = core / 'motif_load.rs'
     path.write_text(replace_once(path.read_text(),'fn fingerprint(', 'pub(crate) fn fingerprint('))
     path = core / 'engine.rs'
