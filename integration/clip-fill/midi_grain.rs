@@ -42,7 +42,7 @@ fn event_index(attack: usize, offset: usize, count: usize, mode: usize) -> usize
 /// Fill to retain the authored silence. Head collisions on the same output
 /// pitch/tick are collapsed so the ordinary per-pitch gate owner remains sound.
 pub fn event_grains(source: &Clip, config: EventHeads) -> Result<Clip, &'static str> {
-    if config.bars == 0 || config.bars * 16 > MAX_STEPS
+    if config.bars == 0 || config.bars * 16 > MAX_STEPS as usize
         || config.spacing_index >= SPACING_STEPS.len() || config.second_mode > 3
         || config.first_offset >= 16 || config.second_offset >= 16 {
         return Err("Invalid event grain settings");
@@ -61,7 +61,7 @@ pub fn event_grains(source: &Clip, config: EventHeads) -> Result<Clip, &'static 
     let start = source.loop_start_ticks();
     let end = source.loop_end_ticks();
     let eligible = |note: &&crate::clip::Note| {
-        note.vel > 0 && !note.suppress && !note.rendered
+        note.vel > 0 && !note.rendered
             && note.tick >= start && note.tick < end
     };
     // Sorted unique note onsets: polyphonic chords stay intact, and unrelated
@@ -92,7 +92,7 @@ pub fn event_grains(source: &Clip, config: EventHeads) -> Result<Clip, &'static 
             };
             let selected_onset = onsets[onset_index];
             for source_note in source.notes.iter().take(MAX_NOTES)
-                .filter(|note| note.tick == selected_onset && eligible(&note)) {
+                .filter(|note| note.tick == selected_onset && eligible(note)) {
                 if !seen.insert((tick, source_note.pitch)) { continue; }
                 if clip.notes.len() >= MAX_NOTES {
                     return Err("Event grains exceed clip note capacity; reduce density");
