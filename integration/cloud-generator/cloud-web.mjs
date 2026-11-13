@@ -29,9 +29,9 @@ export function mountCloud({root,api}){
  // Retain fractional deltas across packets so slow multi-finger drags keep precision.
  function flushDrag(){
   const pointer=[...pointers.values()].find(pointer=>pointer.drag);
-  if(!pointer||!state?.holding||pointer.track!==state.track||pointer.axes!==state.axes){dragX=dragY=0;return;}
+  if(!pointer||!state?.holding||pointer.track!==state.track||pointer.axes!==state.axes||pointer.capture!==state.holdShift?.capture){dragX=dragY=0;return;}
   const x=Math.round(dragX),y=Math.round(dragY);dragX-=x;dragY-=y;
-  if(x||y)command(`shiftxy14 ${pointer.track} ${x} ${y}`);
+  if(x||y)command(`shiftxy14 ${pointer.track} ${pointer.capture} ${x} ${y}`);
  }
  const mpeContacts=new Map();
  const mpe=createCloudMpeInput(contact=>{
@@ -71,7 +71,7 @@ export function mountCloud({root,api}){
   if(suspended||!state?.cloud||pointers.size+mpeContacts.size>=16||touchMode==='move'&&(!state.holding||!state.holdDrag))return;event.preventDefault();flushDrag();
   const used=new Set([...pointers.values()].map(pointer=>pointer.id)),id=Array.from({length:16},(_,index)=>96+index).find(id=>!used.has(id));
   const maximum=touchMode==='move'||state.xyBits===14?16383:127,point=cloudPointer(event,bounds,maximum);if(!point)return false;
-  const pointer={...point,maximum,id,track:state.track,activity:state.activity,axes:state.axes,drag:touchMode==='move',pending:false};pointers.set(event.pointerId,pointer);touch(pointer,pointer.pressure,true);paint();return true;
+  const pointer={...point,maximum,id,track:state.track,activity:state.activity,axes:state.axes,capture:state.holdShift?.capture,drag:touchMode==='move',pending:false};pointers.set(event.pointerId,pointer);touch(pointer,pointer.pressure,true);paint();return true;
  }
  function movePointer(event,bounds){const pointer=pointers.get(event.pointerId);if(!pointer)return false;const point=cloudPointer(event,bounds,pointer.maximum);if(!point)return false;if(pointer.drag){const count=[...pointers.values()].filter(value=>value.drag).length;dragX+=(point.x-pointer.x)/count;dragY+=(point.y-pointer.y)/count;}Object.assign(pointer,point,{pending:true});paint();return true;}
  canvas.onpointerdown=event=>{if(beginPointer(event,canvas.getBoundingClientRect()))canvas.setPointerCapture(event.pointerId);};
@@ -89,11 +89,11 @@ export function mountCloud({root,api}){
  root.querySelector('[data-pressure]').oninput=event=>{root.querySelector('[data-pressure-value]').textContent=event.target.value;command('pressure '+event.target.value);};
  for(const input of root.querySelectorAll('[data-hold-axis]')){
   let owner=null;
-  input.onpointerdown=event=>{owner={track:state?.track,axes:state?.axes};input.setPointerCapture(event.pointerId);};
+  input.onpointerdown=event=>{owner={track:state?.track,axes:state?.axes,capture:state?.holdShift?.capture};input.setPointerCapture(event.pointerId);};
   input.onpointerup=input.onpointercancel=input.onlostpointercapture=()=>{owner=null;};
-  input.oninput=()=>{const track=owner?.track??state?.track;if(!state?.holding||!state?.holdShift||track!==state.track||owner&&owner.axes!==state.axes)return;root.querySelector(`[data-hold-value="${input.dataset.holdAxis}"]`).textContent=(Number(input.value)/129).toFixed(2);command(`shift14 ${track} ${input.dataset.holdAxis} ${input.value}`);};
+  input.oninput=()=>{const track=owner?.track??state?.track,capture=owner?.capture??state?.holdShift?.capture;if(!capture||capture!==state?.holdShift?.capture||!state?.holding||!state?.holdShift||track!==state.track||owner&&owner.axes!==state.axes)return;root.querySelector(`[data-hold-value="${input.dataset.holdAxis}"]`).textContent=(Number(input.value)/129).toFixed(2);command(`shift14 ${track} ${capture} ${input.dataset.holdAxis} ${input.value}`);};
  }
- root.querySelector('[data-hold-center]').onclick=()=>{if(state?.holding&&state?.holdShift){release();command(`center ${state.track}`);}};
+ root.querySelector('[data-hold-center]').onclick=()=>{if(state?.holding&&state?.holdShift){release();command(`center ${state.track} ${state.holdShift.capture}`);}};
  const drawAction=event=>state?.drawBits===14&&(event.shiftKey||root.querySelector('[data-precision]').value==='fine')?'drawfine':'draw';
  for(const button of root.querySelectorAll('[data-draw]')){
   button.onclick=event=>command(`${drawAction(event)} ${button.dataset.draw} ${Number(button.dataset.delta)*(drawAction(event)==='drawfine'?1:4)}`);
@@ -124,8 +124,8 @@ export function mountCloud({root,api}){
    const result=await api.read();if(suspended||disposed||token!==generation)return;
    const next=typeof result.ui==='string'?JSON.parse(result.ui||'null'):result.ui;
    if(next&&Number.isInteger(next.track)&&Array.isArray(next.values)&&next.values.length===8){
-    const movedSurface=state&&(state.track!==next.track||state.axes!==next.axes);
-    if(state&&(state.track!==next.track||state.axes!==next.axes||state.activity!==next.activity||state.cloud&&!next.cloud||state.holding&&!next.holding||state.explore==='Stop'&&next.explore!=='Stop'||state.transport?.playing&&!next.transport?.playing))release();state=next;
+    const movedSurface=state&&(state.track!==next.track||state.axes!==next.axes||state.holdShift?.capture!==next.holdShift?.capture);
+    if(state&&(state.track!==next.track||state.axes!==next.axes||state.activity!==next.activity||state.cloud&&!next.cloud||state.holding&&!next.holding||state.holdShift?.capture!==next.holdShift?.capture||state.explore==='Stop'&&next.explore!=='Stop'||state.transport?.playing&&!next.transport?.playing))release();state=next;
     if(!state.holding&&touchMode==='move'){touchMode='draw';root.querySelector('[data-touch-mode]').value='draw';}
     root.querySelector('[data-touch-mode] option[value=move]').disabled=!state.cloud||!state.holding||!state.holdDrag;
     mpeButton.disabled=midiPending||typeof navigator.requestMIDIAccess!=='function'||state.xyBits!==14;
@@ -144,8 +144,8 @@ export function mountCloud({root,api}){
     canvas.setAttribute('aria-label',flipped?`Multitouch cloud field. Horizontal movement changes harmonic height; vertical movement changes ${meaning}.`:`Multitouch cloud field. Horizontal movement changes ${meaning}; vertical movement changes harmonic height.`);
     root.querySelector('[data-actor]').value=state.actor;root.querySelector('[data-edge]').value=state.edge;
     const transport=state.transport,phase=transport?.phase??'idle',recording=phase!=='idle',playing=transport?.playing===true;
-    for(const input of root.querySelectorAll('[data-hold-axis]')){input.disabled=!state.cloud||!state.holding||!state.holdShift;if(movedSurface||input.disabled||root.activeElement!==input)input.value=String(state.holdShift?.[input.dataset.holdAxis]??0);root.querySelector(`[data-hold-value="${input.dataset.holdAxis}"]`).textContent=(Number(input.value)/129).toFixed(2);}
-    root.querySelector('[data-hold-center]').disabled=!state.cloud||!state.holding||!state.holdShift;
+    for(const input of root.querySelectorAll('[data-hold-axis]')){input.disabled=!state.cloud||!state.holding||!state.holdShift?.capture;if(movedSurface||input.disabled||root.activeElement!==input)input.value=String(state.holdShift?.[input.dataset.holdAxis]??0);root.querySelector(`[data-hold-value="${input.dataset.holdAxis}"]`).textContent=(Number(input.value)/129).toFixed(2);}
+    root.querySelector('[data-hold-center]').disabled=!state.cloud||!state.holding||!state.holdShift?.capture;
     const hold=root.querySelector('[data-action="hold"]');hold.textContent=state.holding?'Release cloud':'Hold cloud';hold.setAttribute('aria-pressed',String(state.holding===true));hold.disabled=!state.cloud;
     const record=root.querySelector('[data-action="record"]');
     record.textContent=phase==='count-in'?'Cancel count-in':phase==='armed'?'Cancel recording':recording?'Stop recording':'Record';

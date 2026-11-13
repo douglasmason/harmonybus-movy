@@ -290,24 +290,24 @@ export function generatorCloudContact(track:number,id:number,x:number,y:number,p
 }
 export function generatorCloudSnapshot(track=selectedTrack):string {return String(host_module_get_param('cloud_view_'+track)??'');}
 export function generatorCloudHeld(track=selectedTrack):boolean {return engineReady()&&String(host_module_get_param('cloud_hold_'+track))==='1';}
-export type CloudHoldState={holding:boolean;x:number;y:number;wrap:boolean};
+export type CloudHoldState={holding:boolean;x:number;y:number;wrap:boolean;capture:number};
 export function generatorCloudHoldState(track=selectedTrack):CloudHoldState|null {
  if(!engineReady())return null;
  const fields=String(host_module_get_param('cloud_hold_state_'+track)??'').split('|'),values=fields.slice(1).map(Number);
- if(fields.length!==5||fields[0]!=='ch1'||fields.slice(1).some(value=>!value.trim())||!values.every(Number.isInteger)||![0,1].includes(values[0])||![0,1].includes(values[3])||values.slice(1,3).some(value=>Math.abs(value)>16383))return null;
- return {holding:values[0]===1,x:values[1],y:values[2],wrap:values[3]===1};
+ if(fields.length!==6||fields[0]!=='ch2'||values[4]<0||values[4]>4294967295||fields.slice(1).some(value=>!value.trim())||!values.every(Number.isInteger)||![0,1].includes(values[0])||![0,1].includes(values[3])||values.slice(1,3).some(value=>Math.abs(value)>16383))return null;
+ return {holding:values[0]===1,x:values[1],y:values[2],wrap:values[3]===1,capture:values[4]};
 }
 /** Relative edits execute in the engine, so rapid turns never reuse an old UI reply. */
-export function generatorCloudShift(axis:'x'|'y',value:number,relative:boolean,wrap:boolean,track=selectedTrack):boolean {
+export function generatorCloudShift(axis:'x'|'y',value:number,relative:boolean,wrap:boolean,track=selectedTrack,capture?:number):boolean {
  if(!engineReady()||!generatorCloud(track)||!Number.isInteger(value)||Math.abs(value)>16383)return false;
- seqCmd(`gcloud ${track} ${relative?'shiftby':'shift'} ${axis} ${value} ${wrap?1:0}`);seqCmdFlush();return true;
+ seqCmd(`gcloud ${track} ${capture===undefined?'':`bound ${capture} `}${relative?'shiftby':'shift'} ${axis} ${value} ${wrap?1:0}`);seqCmdFlush();return true;
 }
-export function generatorCloudCenter(track=selectedTrack):void {
- if(!engineReady()||!generatorCloud(track))return;seqCmd(`gcloud ${track} center`);seqCmdFlush();
+export function generatorCloudCenter(track=selectedTrack,capture?:number):void {
+ if(!engineReady()||!generatorCloud(track))return;seqCmd(`gcloud ${track} ${capture===undefined?'':`bound ${capture} `}center`);seqCmdFlush();
 }
-export function generatorCloudShiftXY(x:number,y:number,wrap:boolean,track=selectedTrack):boolean {
+export function generatorCloudShiftXY(x:number,y:number,wrap:boolean,track=selectedTrack,capture?:number):boolean {
  if(!engineReady()||!generatorCloud(track)||![x,y].every(value=>Number.isInteger(value)&&Math.abs(value)<=16383))return false;
- seqCmd(`gcloud ${track} shiftxy ${x} ${y} ${wrap?1:0}`);seqCmdFlush();return true;
+ seqCmd(`gcloud ${track} ${capture===undefined?'':`bound ${capture} `}shiftxy ${x} ${y} ${wrap?1:0}`);seqCmdFlush();return true;
 }
 export function generatorCloudHold(enabled:boolean,track=selectedTrack):void {
  if(!engineReady()||enabled&&!generatorEnsureCloud(track))return;

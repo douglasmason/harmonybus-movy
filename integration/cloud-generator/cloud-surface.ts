@@ -87,14 +87,15 @@ export function cloudWrite(key:string,value:string):boolean|null {
  lastDraw=Date.now();const track=generatorSelectedTrack();contactInput(track,112,cursorX,cursorY,drawPressure);held.set(112,{track,x:cursorX,y:cursorY,pressure:drawPressure});appState.dirty=true;return true;
 }
 /** Physical axes are projected once; the engine owns the captured shape. */
-export function shiftCloudHold(axis:'x'|'y',value:number,relative:boolean):boolean {
+export function shiftCloudHold(axis:'x'|'y',value:number,relative:boolean,capture?:number):boolean {
  const semantic=flipped?(axis==='x'?'y':'x'):axis;
- const changed=generatorCloudShift(semantic,value,relative,wrap);invalidateHold();appState.dirty=true;return changed;
+ const changed=generatorCloudShift(semantic,value,relative,wrap,generatorSelectedTrack(),capture);invalidateHold();appState.dirty=true;return changed;
 }
-export function shiftCloudHoldXY(x:number,y:number):boolean {
- const delta=cloudInput(x,y),changed=generatorCloudShiftXY(delta.x,delta.y,wrap);
+export function shiftCloudHoldXY(x:number,y:number,capture?:number):boolean {
+ const delta=cloudInput(x,y),changed=generatorCloudShiftXY(delta.x,delta.y,wrap,generatorSelectedTrack(),capture);
  invalidateHold();appState.dirty=true;return changed;
 }
+export function centerCloudHold(capture:number):void {generatorCloudCenter(generatorSelectedTrack(),capture);invalidateHold();appState.dirty=true;}
 export function cloudHoldTouch(key:string,down:boolean):boolean {
  if(!['cg_hold','cg_hold_center'].includes(key))return false;
  if(down)cloudWrite(key,key==='cg_hold'?(generatorCloudHeld()?'Off':'On'):'Tap');return true;

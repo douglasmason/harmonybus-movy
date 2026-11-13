@@ -111,7 +111,7 @@ pub struct Runtime {
     /// Reused step candidates; never persisted or exposed as display ordering.
     pub(crate) work:Vec<Point>,
     pub(crate) held:Vec<Point>,pub(crate) held_cursor:usize,
-    pub held_shift:[i32;2],pub held_wrap:bool,
+    pub held_shift:[i32;2],pub held_wrap:bool,pub capture_id:u32,
     pub operation_shift:[i32;2],
     pub(crate) manual_hold:bool,pub(crate) operation_hold:bool,
 }
@@ -141,6 +141,10 @@ impl Runtime {
         let count=candidates.len().min(MAX_CONTACTS);
         if count==0{return false;}
         self.held=(0..count).map(|index|candidates[if count==1 {0}else{index*(candidates.len()-1)/(count-1)}]).collect();
+        // Process-wide identity survives runtime/track resets and Engine replacement.
+        static NEXT_CAPTURE:std::sync::atomic::AtomicU32=std::sync::atomic::AtomicU32::new(1);
+        self.capture_id=NEXT_CAPTURE.fetch_add(1,std::sync::atomic::Ordering::Relaxed);
+        if self.capture_id==0 {self.capture_id=NEXT_CAPTURE.fetch_add(1,std::sync::atomic::Ordering::Relaxed);}
         self.held_cursor=0;self.held_shift=[0;2];self.held_wrap=false;self.field=true;true
     }
     /// Move emitters from their original coordinates; clipping never erases the shape.

@@ -147,7 +147,7 @@ test('Cloud Hold uses shared Remote gestures and overlapping precise cloud conta
   set('cmd','gcloud 2 touch14 113 8194 10002 0');step();assert.equal(get('cloud_hold_2'),'0');assert.equal(get('ch2:midi_fx1:motion_status_1'),'Off');
   gesture('Knob,2000');gesture('Up,40,2040');set('cmd','gcloud 2 touch14 96 8193 10001 100;gcloud 2 touch14 96 8193 10001 0');step();assert.equal(get('ch2:midi_fx1:motion_status_1'),'Off');
   gesture('LatchOn');step();assert.equal(get('cloud_hold_2'),'1');
-  set('cmd','gcloud 2 hold 1;gcloud 2 shiftxy 1 2 0');gesture('LatchOff');step();assert.equal(get('cloud_hold_state_2'),'ch1|1|1|2|0');
+  set('cmd','gcloud 2 hold 1;gcloud 2 shiftxy 1 2 0');gesture('LatchOff');step();assert.match(get('cloud_hold_state_2'),/^ch2\|1\|1\|2\|0\|[1-9]\d*$/);
   set('cmd','gcloud 2 hold 0');step();assert.equal(get('cloud_hold_2'),'0');
   gesture('LatchOn');step();set('cmd','gcloud 2 clear');step();assert.equal(get('ch2:midi_fx1:motion_status_1'),'Off');
   set('cmd','gcloud 2 touch14 96 8193 10001 100');step();assert.equal(get('cloud_hold_2'),'0');
@@ -165,10 +165,10 @@ test('Cloud Shift operations preserve precise manual edits and restore position 
   set('ch2:midi_fx1:motion_operation_2','Cloud Shift X');set('ch2:midi_fx1:motion_control_2',25);
   set('ch2:midi_fx1:motion_operation_3','Cloud Shift Y');set('ch2:midi_fx1:motion_control_3',-25);
   set('ch2:midi_fx1:motion_gesture_2','LatchOn');set('ch2:midi_fx1:motion_gesture_3','Knob,1000');step();
-  assert.equal(get('cloud_operation_shift_2'),'4096,-4096');assert.equal(get('cloud_hold_state_2'),'ch1|1|1|0|0');
+  assert.equal(get('cloud_operation_shift_2'),'4096,-4096');const capture=get('cloud_hold_state_2').split('|').at(-1);assert.match(capture,/^[1-9]\d*$/);assert.equal(get('cloud_hold_state_2'),`ch2|1|1|0|0|${capture}`);
   engine.request('step',128);assert.match(get('cloud_view_2'),/12290,5905,/);
-  set('cmd','gcloud 2 shiftxy 2 3 0');set('ch2:midi_fx1:motion_gesture_2','LatchOff');set('ch2:midi_fx1:motion_gesture_3','Up,500,1500');step();
-  assert.equal(get('cloud_operation_shift_2'),'0,0');assert.equal(get('cloud_hold_state_2'),'ch1|1|3|3|0');
+  set('cmd',`gcloud 2 bound ${capture} shiftxy 2 3 0`);set('ch2:midi_fx1:motion_gesture_2','LatchOff');set('ch2:midi_fx1:motion_gesture_3','Up,500,1500');step();
+  assert.equal(get('cloud_operation_shift_2'),'0,0');assert.equal(get('cloud_hold_state_2'),`ch2|1|3|3|0|${capture}`);
   set('ch2:midi_fx1:motion_gesture_3','Knob,2000');set('ch2:midi_fx1:motion_gesture_3','Up,40,2040');step();assert.equal(get('cloud_operation_shift_2'),'0,0');
   set('cmd','gcloud 2 touch14 97 8193 10001 100');step();assert.equal(get('cloud_operation_shift_2'),'0,-4096');
   set('cmd','gcloud 2 touch14 97 8193 10001 0');step();assert.equal(get('cloud_operation_shift_2'),'0,0');
