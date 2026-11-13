@@ -8,6 +8,12 @@ await new Promise(resolve=>server.once('listening',resolve));
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required']});
 let page;
 const encoderTrace=[];
+// Playwright 1.51 considers a Promise truthy before its result resolves.
+// Await Worker observations explicitly; keep DOM-only polls on waitForFunction.
+async function until(predicate){
+ const deadline=Date.now()+30000;
+ while(true){const value=await page.evaluate(predicate);if(value)return value;if(Date.now()>deadline)throw new Error('Timed out: '+predicate);await page.waitForTimeout(40);}
+}
 try{
  page=await browser.newPage({viewport:{width:1024,height:768},hasTouch:true});const errors=[];
  page.on('pageerror',error=>errors.push(error.message));
@@ -99,32 +105,32 @@ try{
  assert(await page.locator('#monitor-level').evaluate(element=>element===document.activeElement),'reverse focus wrap includes the monitor slider');
  await page.locator('#audio-settings summary').click();await page.locator('#sessions summary').click();
  await page.locator('#shift').check();
- await page.waitForFunction(async()=>(await __wasmStats()).move.held>0);
+ await until(async()=>(await __wasmStats()).move.held>0);
  await button('Files & audio').click();
  assert(!(await page.locator('#sessions').evaluate(element=>element.open)),'files shortcut cannot interrupt a held gesture');
  await page.locator('#stop').click();
- await page.waitForFunction(async()=>(await __wasmStats()).move.held===0);
+ await until(async()=>(await __wasmStats()).move.held===0);
  assert(!(await page.locator('#shift').isChecked()),'editor Stop & release clears held Shift');
  await screenTravel.scrollIntoViewIfNeeded();
  const cell=await screenTravel.boundingBox();
  await page.mouse.move(cell.x+cell.width/2,cell.y+cell.height/2);await page.mouse.down();
  await page.mouse.move(cell.x+cell.width/2,cell.y+cell.height/2-16,{steps:4});await page.mouse.up();
- await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')!=='None');
+ await until(async()=>await __wasmRead('ch3:midi_fx1:travel_map')!=='None');
  for(let detent=0;detent<4;detent++){
   await screenTravel.waitFor({state:'visible'});await screenTravel.press('ArrowDown');
  }
- await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')==='None');
+ await until(async()=>await __wasmRead('ch3:midi_fx1:travel_map')==='None');
  await page.locator('#encoder').selectOption('72');
  for(let detent=0;detent<4;detent++)await button('Knob 2 turn right').click();
- await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')!=='None');
+ await until(async()=>await __wasmRead('ch3:midi_fx1:travel_map')!=='None');
  for(let detent=0;detent<4;detent++)await button('Knob 2 turn left').click();
- await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')==='None');
+ await until(async()=>await __wasmRead('ch3:midi_fx1:travel_map')==='None');
  await button('Shift + Knob 2 touch').focus();await page.keyboard.down('Space');
- await page.waitForFunction(async()=>(await __wasmStats()).move.held>0);
+ await until(async()=>(await __wasmStats()).move.held>0);
  // Closing with a keyboard hold cancels it; its eventual key-up stays harmless.
  await button('Close large display').click();
  await page.keyboard.up('Space');
- await page.waitForFunction(async()=>(await __wasmStats()).move.held===0);
+ await until(async()=>(await __wasmStats()).move.held===0);
  await page.waitForFunction(()=>document.activeElement===document.querySelector('#display-expand'));
  assert.equal(await page.locator('main .display-row #encoder').count(),1,'the same controls return inline');
  assert.equal(await page.locator('body > .playback-controls #transport').count(),1,'transport returns to its original location');
@@ -135,9 +141,9 @@ try{
  const beforePadCancel=await page.evaluate(()=>__wasmRead('persistent_state'));
  await button('Enlarge display').click();await button('Pads & steps').click();
  await button('Pad 2').focus();await page.keyboard.down('Space');
- await page.waitForFunction(async()=>(await __wasmStats()).move.held>0);
+ await until(async()=>(await __wasmStats()).move.held>0);
  await page.keyboard.press('Escape');await page.keyboard.up('Space');
- await page.waitForFunction(async()=>!document.querySelector('#display-dialog').open&&(await __wasmStats()).move.held===0);
+ await until(async()=>!document.querySelector('#display-dialog').open&&(await __wasmStats()).move.held===0);
  // Native close queues restoration separately; the next synthetic encoder
  // event must target the restored surface, not its briefly inert dialog copy.
  await page.waitForFunction(()=>document.activeElement===document.querySelector('#display-expand')&&document.querySelector('body > main #pads'));
@@ -149,16 +155,16 @@ try{
   screen.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
   screen.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',bubbles:true}));
  });
- await page.waitForFunction(async()=>(await __wasmStats()).move.held===1);
+ await until(async()=>(await __wasmStats()).move.held===1);
  assert.equal(await button('Knob 2').getAttribute('data-held'),'true');
  await page.keyboard.press('Escape');
- await page.waitForFunction(async()=>(await __wasmStats()).move.held===0);
+ await until(async()=>(await __wasmStats()).move.held===0);
  await screenTravel.waitFor({state:'visible'});
  await screenTravel.press('ArrowDown');
  // A native read can briefly see the reset before the UI has committed its
  // queued encoder update. Start the reversible detent check from a confirmed
  // surface/native baseline, just as its changed-value check below does.
- await page.waitForFunction(async()=>await __wasmRead('ch3:midi_fx1:travel_map')==='None'&&document.querySelector('[aria-label="Knob 2"] .knob-value').textContent==='None'&&(await __wasmStats()).move.held===0);
+ await until(async()=>await __wasmRead('ch3:midi_fx1:travel_map')==='None'&&document.querySelector('[aria-label="Knob 2"] .knob-value').textContent==='None'&&(await __wasmStats()).move.held===0);
  assert.match(await page.locator('#encoder option[value="72"]').textContent(),/Follower Travel/);
  await page.locator('#encoder').selectOption('72');
  const traceEncoder=async action=>encoderTrace.push({action,...await page.evaluate(async()=>({value:await __wasmRead('ch3:midi_fx1:travel_map'),display:document.querySelector('[aria-label="Knob 2"] .knob-value').textContent,shift:document.querySelector('#shift').checked,selected:document.querySelector('#encoder').value,held:[...document.querySelectorAll('[data-held=true]')].map(element=>element.getAttribute('aria-label'))}))});
@@ -166,12 +172,12 @@ try{
  for(let detent=0;detent<4;detent++){await button('Knob 2 turn right').click();await traceEncoder('right '+detent);}
  // Compare the same observation that satisfied the poll. Separate DOM and
  // Worker reads after it can straddle another asynchronous feedback frame.
- const matchedTravel=await page.waitForFunction(async()=>{
+ const matchedTravel=await until(async()=>{
   const value=await __wasmRead('ch3:midi_fx1:travel_map');
   const display=document.querySelector('[aria-label="Knob 2"] .knob-value').textContent;
   return value&&value!=='None'&&display===value?{value,display}:false;
  });
- const travelSnapshot=await matchedTravel.jsonValue();await matchedTravel.dispose();
+ const travelSnapshot=matchedTravel;
  assert.equal(travelSnapshot.display,travelSnapshot.value);
  // The last action sets its gesture label immediately; the next engine frame
  // restores the parameter description, even if the value was already nonzero.
@@ -213,14 +219,14 @@ try{
  let clip=await page.evaluate(()=>__wasmRead('persistent_state'));
  await button('Undo').tap();await page.waitForFunction(()=>document.querySelector('#feedback').textContent.includes('0 notes'));
  await page.locator('#shift').check();await button('Undo').tap();await page.locator('#shift').uncheck();
- await page.waitForFunction(async()=>(await __wasmRead('persistent_state')).includes('cl 0 0'));
+ await until(async()=>(await __wasmRead('persistent_state')).includes('cl 0 0'));
  assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),clip);
  // A cancelled hold must never toggle a note on pointer release.
  await button('Step 2').focus();await page.keyboard.down('Space');await page.keyboard.press('Escape');await page.keyboard.up('Space');
  assert.equal(await page.evaluate(()=>__wasmRead('persistent_state')),clip);
  // The production conductor sends harmony, while Track 4 renders local audio.
  await button('Track 4').tap();await button('Pad 2').tap();await button('Step 1').tap();
- await page.waitForFunction(async()=>Number((await __wasmRead('motif_clip_info_3')).split(',')[4])===1);
+ await until(async()=>Number((await __wasmRead('motif_clip_info_3')).split(',')[4])===1);
  clip=await page.evaluate(()=>__wasmRead('persistent_state'));
  await button('Enlarge display').click();
  await page.locator('#audio').click();await page.waitForFunction(()=>document.querySelector('#audio').textContent==='Disable audio');
@@ -232,12 +238,12 @@ try{
  await button('Back to display').click();
  assert(await page.evaluate(()=>document.activeElement===document.querySelector('#play-mode')),'display shortcut returns keyboard focus to settings');
  await button('Play / Stop').tap();
- await page.waitForFunction(async()=>/\bplay=1\b/.test(await __wasmRead('status'))&&document.querySelector('#feedback').textContent.includes('Playing'));
+ await until(async()=>/\bplay=1\b/.test(await __wasmRead('status'))&&document.querySelector('#feedback').textContent.includes('Playing'));
  await page.waitForFunction(()=>{try{return JSON.parse(document.querySelector('#audio-report').textContent).peak>.0001;}catch{return false;}});
  await button('Play / Stop').tap();
- await page.waitForFunction(async()=>/\bplay=0\b/.test(await __wasmRead('status'))&&document.querySelector('#feedback').textContent.includes('Stopped'));
+ await until(async()=>/\bplay=0\b/.test(await __wasmRead('status'))&&document.querySelector('#feedback').textContent.includes('Stopped'));
  await button('Play / Stop').tap();
- await page.waitForFunction(async()=>/\bplay=1\b/.test(await __wasmRead('status'))&&document.querySelector('#feedback').textContent.includes('Playing'));
+ await until(async()=>/\bplay=1\b/.test(await __wasmRead('status'))&&document.querySelector('#feedback').textContent.includes('Playing'));
  // Audio startup disables the focused button; touch controls do not steal
  // focus back. An idle Escape must close even when focus has fallen to body.
  await page.evaluate(()=>document.activeElement.blur());
@@ -421,7 +427,7 @@ try{
  assert.match(await page.locator('#comp-route').textContent(),/Track 16 melody · Track 15 comp/);
  assert.equal(await page.locator('#comp-source').inputValue(),'0','each bank retains its own source');
  await button('Step 1').tap();
- await page.waitForFunction(async()=>Number((await __wasmRead('motif_clip_info_15')).split(',')[4])===1);
+ await until(async()=>Number((await __wasmRead('motif_clip_info_15')).split(',')[4])===1);
  // Landscape tablet geometry has no horizontal overflow or overlapping pad targets.
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  const pads=await page.locator('.control[data-kind=note]').evaluateAll(buttons=>buttons.filter(button=>Number(button.dataset.index)>=68).map(button=>{const r=button.getBoundingClientRect();return {width:r.width,height:r.height};}));

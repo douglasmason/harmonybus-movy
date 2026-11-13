@@ -22,14 +22,41 @@
         command(&mut engine,"gexplore 2 off");assert_eq!(engine.cloud_operation_inputs()[2],8);
         start(&mut engine);engine.stop(&mut Vec::new());assert_ne!(engine.cloud_operation_inputs()[2]&8,0);
     }
+    #[test] fn remote_movement_is_bound_to_the_original_capture() {
+        for ending in ["gcloud 2 hold 0","gcloud 2 clear","stop","gexplore 2 off"] {
+            let mut engine=fixture();start(&mut engine);
+            command(&mut engine,"gcloud 2 touch14 96 10001 9001 100;gcloud 2 hold 1");
+            let original=engine.clouds[2].capture_id;assert_ne!(original,0);
+            assert!(engine.cloud_touch(&format!("gcloud 2 bound {original} shiftxy 1 -1 0")));
+            assert_eq!(engine.clouds[2].held_shift,[1,-1]);
+            command(&mut engine,ending);start(&mut engine);
+            command(&mut engine,"gcloud 2 touch14 96 11001 8001 100;gcloud 2 hold 1");
+            let replacement=engine.clouds[2].capture_id;assert_ne!(replacement,original);
+            let saved=engine.undo_snapshot();
+            for action in ["shiftxy 100 200 1","shift x 100 0","shiftby y 100 0","center"] {
+                assert!(!engine.cloud_touch(&format!("gcloud 2 bound {original} {action}")),"{ending}: stale {action}");
+                assert_eq!(engine.clouds[2].held_shift,[0,0]);
+            }
+            for invalid in ["gcloud 2 bound 0 center","gcloud 2 bound -1 center","gcloud 2 bound 4294967296 center","gcloud 2 bound","gcloud 16 bound 1 center"] {assert!(!engine.cloud_touch(invalid));}
+            assert!(!engine.cloud_touch(&format!("gcloud 2 bound {replacement} hold 0")));
+            assert!(engine.cloud_touch(&format!("gcloud 2 bound {replacement} shiftxy -1 1 0")));
+            assert_eq!(engine.clouds[2].held_shift,[-1,1]);assert_eq!(engine.undo_snapshot(),saved);
+            // Adding/releasing an independent operation owner keeps the same capture.
+            assert!(engine.clouds[2].hold_operation(true,0));command(&mut engine,"gcloud 2 hold 0");
+            assert_eq!(engine.clouds[2].capture_id,replacement);
+            assert!(engine.cloud_touch(&format!("gcloud 2 bound {replacement} center")));
+            let mut another=fixture();start(&mut another);command(&mut another,"gcloud 2 96 80 80 100;gcloud 2 hold 1");
+            assert_ne!(another.clouds[2].capture_id,replacement,"runtime identity cannot alias a replaced Engine");
+        }
+    }
     #[test] fn held_motion_records_resolved_deposits_and_replays_and_bakes_exactly() {
         let mut engine=fixture();start(&mut engine);engine.play();engine.toggle_record(2);
         command(&mut engine,"gcloud 2 touch14 96 12001 10001 110 1 4;gcloud 2 hold 1;gcloud 2 touch14 96 12001 10001 0");
-        let mut heard=Vec::new();
+        let capture=engine.clouds[2].capture_id;let mut heard=Vec::new();
         for step in 0..64 {
-            if step==8 {command(&mut engine,"gcloud 2 shiftxy -1 5000 0");}
-            if step==16 {command(&mut engine,"gcloud 2 shiftxy 8000 2000 1");}
-            if step==24 {command(&mut engine,"gcloud 2 center");}
+            if step==8 {command(&mut engine,&format!("gcloud 2 bound {capture} shiftxy -1 5000 0"));}
+            if step==16 {command(&mut engine,&format!("gcloud 2 bound {capture} shiftxy 8000 2000 1"));}
+            if step==24 {command(&mut engine,&format!("gcloud 2 bound {capture} center"));}
             if step==32 {command(&mut engine,"gcloud 2 hold 0");}
             heard.extend(trace(&mut engine,24).into_iter().map(|(tick,pitch,velocity,on)|(tick+step*24,pitch,velocity,on)));
         }

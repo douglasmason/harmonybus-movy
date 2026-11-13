@@ -71,7 +71,7 @@ mod cloud_performance_tests {
                 let ui = instance.cloud_ui.clone();
                 for (key, expected) in [(c"cloud_view", view.as_str()), (c"cloud_view_2", view.as_str()),
                     (c"state", state.as_str()), (c"cloud_ui_state", ui.as_str()),
-                    (c"cloud_hold_2", "0"), (c"cloud_hold_state_2", "ch1|0|0|0|0"), (c"cloud_view_16", "")] {
+                    (c"cloud_hold_2", "0"), (c"cloud_hold_state_2", "ch2|0|0|0|0|0"), (c"cloud_view_16", "")] {
                     output.fill(0xa5);
                     let (_, allocations) = cloud_allocation_counter::measured(|| {
                         for _ in 0..8 {

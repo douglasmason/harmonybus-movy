@@ -102,7 +102,7 @@ static void test_cloud_operation(void){
     set("cmd","gcloud 2 touch14 113 8194 10002 0");render(16);assert(field_get("cloud_hold_2")==0);
     set("ch2:midi_fx1:motion_gesture_1","LatchOn");render(16);assert(field_get("cloud_hold_2")==1);
     set("cmd","gcloud 2 hold 1;gcloud 2 shiftxy 1 2 0");set("ch2:midi_fx1:motion_gesture_1","LatchOff");render(16);assert(field_get("cloud_hold_2")==1);
-    char state[128];assert(api->get_param(instance,"cloud_hold_state_2",state,sizeof(state))>0);assert(!strcmp(state,"ch1|1|1|2|0"));
+    char state[128];assert(api->get_param(instance,"cloud_hold_state_2",state,sizeof(state))>0);unsigned int capture=0;char extra=0;assert(sscanf(state,"ch2|1|1|2|0|%u%c",&capture,&extra)==1&&capture>0);
     set("cmd","gcloud 2 hold 0");render(16);assert(field_get("cloud_hold_2")==0);
     set("ch2:midi_fx1:motion_gesture_1","LatchOn");render(16);set("cmd","gcloud 2 clear");render(16);assert(field_get("cloud_hold_2")==0);
     set("cmd","gcloud 2 touch14 96 8193 10001 100");render(16);assert(field_get("cloud_hold_2")==0);
