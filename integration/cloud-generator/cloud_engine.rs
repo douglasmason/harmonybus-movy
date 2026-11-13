@@ -8,7 +8,14 @@ impl Engine {
     }
     /// A contact belongs to one track and one input surface; up never re-targets.
     pub fn cloud_touch(&mut self,message:&str)->bool {
-        let clear:Vec<_>=message.split_whitespace().collect();
+        let mut clear:Vec<_>=message.split_whitespace().collect();
+        // Remote movement is leased to a particular capture, not merely a track.
+        if clear.get(2)==Some(&"bound") {
+            if clear.len()<5||!matches!(clear[4],"shift"|"shiftby"|"shiftxy"|"center"){return false;}
+            let (Ok(track),Ok(capture))=(clear[1].parse::<usize>(),clear[3].parse::<u32>()) else{return false;};
+            if capture==0||!self.clouds.get(track).is_some_and(|runtime|runtime.holding()&&runtime.capture_id==capture){return false;}
+            clear.drain(2..4);
+        }
         // One gesture packet moves both axes before the musical sampler can run.
         if clear.get(2)==Some(&"shiftxy") {
             if clear.len()!=6||!matches!(clear[5],"0"|"1"){return false;}
