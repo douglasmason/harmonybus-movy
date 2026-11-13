@@ -364,3 +364,48 @@ fn drum_command(engine:&Engine,request:&str,track:usize,slot:usize)->String {
         assert!(ons>0,"pitch {pitch}");assert_eq!(ons,offs,"pitch {pitch}");
     }
 }
+
+#[test] fn sparse_event_heads_preview_write_and_undo_follow_native_fill_contract() {
+    let mut engine=setup();let mut output=Vec::new();
+    let source_notes=engine.tracks[1].clips[3].notes.clone();
+    // A two-onset source becomes a repeated, dual-headed MIDI phrase. No
+    // rhythm donor clip needs to be active or contain any events.
+    let request="1_3_1_1_1_3";
+    let preview=engine.fill_preview(request);
+    assert!(!preview.starts_with("error:"),"{preview}");
+    assert_eq!(engine.tracks[1].clips[3].notes,source_notes);
+    let duration=preview.split('|').nth(1).unwrap().parse::<u32>().unwrap();
+    assert_eq!(duration,16*crate::TICKS_PER_STEP);
+    let count=preview.split('|').nth(2).unwrap().parse::<usize>().unwrap();
+    assert!(count>=8,"sparse sources must produce repeated attacks: {preview}");
+    let before=engine.undo_snapshot();
+    apply_batch(&mut engine,"usnap 246",&mut output);
+    write(&mut engine,request,&mut output);
+    apply_batch(&mut engine,"ucommit 246",&mut output);
+    assert!(engine.part_result.starts_with("Filled"),"{}",engine.part_result);
+    let result=&engine.tracks[2].clips[5];
+    assert!(result.notes.iter().any(|note|note.tick==0&&note.pitch==60));
+    assert!(result.notes.iter().any(|note|note.tick==0&&note.pitch==67));
+    assert!(result.notes.iter().any(|note|note.tick==48));
+    assert!(result.notes.iter().all(|note|note.gate<=47));
+    assert_eq!(engine.tracks[1].clips[3].notes,source_notes);
+    apply_batch(&mut engine,"uswap 246 247",&mut output);
+    assert_eq!(engine.undo_snapshot(),before);
+}
+#[test] fn event_head_settings_use_source_revision_and_reject_invalid_modes() {
+    let mut engine=setup();let mut output=Vec::new();
+    let request="1_3_2_2_1_3_3_2";
+    let initial=engine.fill_preview(request);assert!(!initial.starts_with("error:"));
+    let before=engine.undo_snapshot();
+    engine.tracks[1].clips[3].notes[0].vel=42;
+    let changed=engine.fill_preview(request);assert_ne!(initial,changed);
+    let signature=initial.split('|').next().unwrap();
+    let command=format!("clipfill 2 5 {} {request} {signature} {} own",
+        engine.fill_target("2_5"),Settings::comp().wire());
+    apply_batch(&mut engine,&command,&mut output);
+    assert!(engine.part_result.contains("Source changed"),"{}",engine.part_result);
+    assert_eq!(engine.undo_snapshot(),before);
+    for invalid in ["1_3_6_1_1_3","1_3_1_4_1_3","1_3_1_1_1_3_16_0","1_3_1_1_0_3"] {
+        assert!(engine.fill_preview(invalid).starts_with("error:"),"{invalid}");
+    }
+}
