@@ -84,6 +84,30 @@ fill.fillCell(0,5);
 assert(commands.some(([,value])=>value.includes('clipfill 0 5 def 1_1_2_0_1_2 abc ')),'Original phrase uses same preview/write path and actual conductor cell');
 assert(!commands.some(([,value])=>/\blaunch\b/.test(value)),'conductor fill does not launch');
 
+// Event-indexed head mode must work with sparse source clips. It uses the
+// ordinary preview/Undo/write path and never requires a dense rhythm donor.
+commands.length=0;
+view.clipsMidi([176,76,1]); // Original -> Event heads.
+Date.now=()=>previousNow()+80;fill.fillTick();Date.now=previousNow;
+const grainRequest=previewRequests.at(-1);
+assert.match(grainRequest,/^1_1_1_1_1_3$/,'event heads have eighth-note and dual-reverse defaults');
+const previewReadsBeforeGrain=reads;
+for(let index=0;index<10;index++){fill.renderFill();fill.fillTick();}
+assert.equal(reads,previewReadsBeforeGrain,'grain draw does not regenerate or advance heads');
+commands.length=0;sessionPad(68,68);
+assert(commands.some(([,value])=>value.includes(`clipfill 3 0 def ${grainRequest} abc `)),
+    'event grains use the same acknowledged native Clip Fill and Undo command');
+assert(commands.some(([,value])=>value.includes('ucommit')));
+commands.length=0;appState.shiftHeld=true;
+view.clipsMidi([176,71,1]);view.clipsMidi([176,73,1]);appState.shiftHeld=false;
+Date.now=()=>previousNow()+80;fill.fillTick();Date.now=previousNow;
+assert.equal(previewRequests.at(-1),'1_1_1_1_1_3_1_1','independent reader offsets are editable');
+sessionPad(68,68);
+assert(commands.some(([,value])=>value.includes('clipfill 3 0 def 1_1_1_1_1_3_1_1 abc ')),
+    'offset reads are committed with a source-version check');
+view.clipsMidi([176,76,127]); // Event heads -> Original.
+Date.now=()=>previousNow()+80;fill.fillTick();Date.now=previousNow;
+
 // Drum sources automatically use Original, and do not require an HB destination.
 drumPreview=true;seqState.drumOutputs=(1<<4)|(1<<8);commands.length=0;
 view.clipsMidi([176,71,1]);view.clipsMidi([176,71,1]);view.clipsMidi([176,71,1]);
