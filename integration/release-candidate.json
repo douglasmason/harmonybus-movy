@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.357",
-  "previous_version": "0.34.1-hbclean.356",
+  "version": "0.34.1-hbclean.358",
+  "previous_version": "0.34.1-hbclean.357",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.357 \u2014 shared Cloud Hold operation",
-  "notes": "docs/cloud-hold-operation.md",
+  "title": "Movy 0.34.1-hbclean.358 \u2014 shared Cloud Shift X/Y operations",
+  "notes": "docs/cloud-shift-operations.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

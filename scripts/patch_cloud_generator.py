@@ -142,8 +142,8 @@ export function tickChord():void{
     source = replace_once(source, '        self.blocks += 1;', """        self.blocks += 1;
         let mut cloud_inputs=self.engine.cloud_operation_inputs();
         for (track,input) in cloud_inputs.iter_mut().enumerate() {if chain_for(track as u8,self.movy_tracks).is_none(){*input=0;}}
-        let cloud_holds=self.chains.cloud_operation_inputs(cloud_inputs);
-        for (track,hold) in cloud_holds.into_iter().enumerate(){self.engine.cloud_operation_hold(track,hold);}""")
+        let cloud_operations=self.chains.cloud_operation_inputs(cloud_inputs);
+        for (track,operation) in cloud_operations.into_iter().enumerate(){self.engine.cloud_operation_apply(track,operation);}""")
     source += '\n' + (assets / 'cloud_reply.rs').read_text()
     source = replace_once(source, '    fn get_param(&mut self, key: &str) -> Option<String> {', '''    fn get_param(&mut self, key: &str) -> Option<String> {
         if let Some(snapshot) = self.cloud_snapshot(key) { return Some(snapshot.to_owned()); }''')

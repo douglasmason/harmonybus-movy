@@ -22,6 +22,27 @@
         command(&mut engine,"gexplore 2 off");assert_eq!(engine.cloud_operation_inputs()[2],8);
         start(&mut engine);engine.stop(&mut Vec::new());assert_ne!(engine.cloud_operation_inputs()[2]&8,0);
     }
+    #[test] fn operation_shift_records_resolved_deposits_and_replays_and_bakes_exactly() {
+        let mut engine=fixture();start(&mut engine);engine.play();engine.toggle_record(2);
+        command(&mut engine,"gcloud 2 touch14 96 12001 10001 110 1 4;gcloud 2 hold 1;gcloud 2 touch14 96 12001 10001 0");
+        let mut heard=Vec::new();
+        for step in 0..64 {
+            if step==8 {engine.cloud_operation_apply(2,crate::cloud::Operation{hold:false,shift:[-1,5000]});}
+            if step==16 {command(&mut engine,"gcloud 2 shiftxy 8000 2000 1");}
+            if step==24 {engine.cloud_operation_apply(2,crate::cloud::Operation::default());assert_eq!(engine.clouds[2].held_shift,[8000,2000]);}
+            if step==32 {command(&mut engine,"gcloud 2 hold 0");}
+            heard.extend(trace(&mut engine,24).into_iter().map(|(tick,pitch,velocity,on)|(tick+step*24,pitch,velocity,on)));
+        }
+        engine.toggle_record(2);let points=engine.tracks[2].clips[0].cloud_points.clone();assert!(!heard.is_empty());
+        for (step,x,y) in [(8,12000,15001),(16,3616,617),(24,3617,12001)] {
+            assert!(points.iter().any(|point|point.step==step&&point.x==x&&point.y==y&&point.pressure_target==crate::cloud::PressureTarget::Rate));
+        }
+        let saved=engine.undo_snapshot();let mut restored=fixture();assert!(crate::persist::load(&mut restored,&saved));
+        assert_eq!(restored.tracks[2].clips[0].cloud_points,points);assert!(!restored.clouds[2].holding());assert_eq!(restored.clouds[2].operation_shift,[0;2]);
+        restored.play();assert_eq!(trace(&mut restored,1536),heard);restored.stop(&mut Vec::new());
+        assert_eq!(crate::part_load::prepare_part("user",&restored.part_export(2)).unwrap().clip.cloud_points,points);
+        restored.generator_bake("gbake 2 0",&mut Vec::new());restored.play();assert_eq!(trace(&mut restored,1536),heard);
+    }
     #[test] fn held_motion_records_resolved_deposits_and_replays_and_bakes_exactly() {
         let mut engine=fixture();start(&mut engine);engine.play();engine.toggle_record(2);
         command(&mut engine,"gcloud 2 touch14 96 12001 10001 110 1 4;gcloud 2 hold 1;gcloud 2 touch14 96 12001 10001 0");

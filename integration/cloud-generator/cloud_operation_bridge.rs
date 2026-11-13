@@ -1,8 +1,8 @@
 /// Bridge musical contact edges, never gestures: HB owns arm/hold/latch state.
 /// Small ABI buffers avoid the general allocating parameter reader per block.
 impl ChainSlots {
-    pub fn cloud_operation_inputs(&mut self, inputs:[u8;16])->[bool;16] {
-        let mut holds=[false;16];
+    pub fn cloud_operation_inputs(&mut self, inputs:[u8;16])->[seq_core::cloud::Operation;16] {
+        let mut operations=[seq_core::cloud::Operation::default();16];
         for (track,input) in inputs.into_iter().enumerate() {
             let bit=1u16<<track;
             if input==0&&self.cloud_input_tracks&bit==0 {continue;}
@@ -20,11 +20,17 @@ impl ChainSlots {
             // Up completes a short stroke even when Down and Up arrived together.
             if input&4==0&&(was_down||input&2!=0) {instance.set_param("midi_fx1:motion_cloud_input","Up");}
             if input&4!=0 {self.cloud_input_down|=bit;}
-            let mut reply=[0u8;16];
-            let count=instance.hb_get_small(c"midi_fx1:motion_cloud_hold",&mut reply);
-            holds[track]=count>0&&(count as usize)<reply.len()&&std::str::from_utf8(&reply[..count as usize]).ok().and_then(|value|value.parse::<u16>().ok()).is_some_and(|mask|mask!=0);
-            if holds[track]||input&2!=0 {self.idle.wake(track);}
+            let mut reply=[0u8;64];
+            let count=instance.hb_get_small(c"midi_fx1:motion_cloud_transform",&mut reply);
+            if count>0&&(count as usize)<reply.len() {
+                operations[track]=std::str::from_utf8(&reply[..count as usize]).ok().and_then(seq_core::cloud::Operation::parse).unwrap_or_default();
+            }else if count<=0 {
+                // Preserve Hold on a host that predates the additive position reply.
+                let count=instance.hb_get_small(c"midi_fx1:motion_cloud_hold",&mut reply);
+                operations[track].hold=count>0&&(count as usize)<reply.len()&&std::str::from_utf8(&reply[..count as usize]).ok().and_then(|value|value.parse::<u16>().ok()).is_some_and(|mask|mask!=0);
+            }
+            if operations[track].hold||operations[track].shift!=[0;2]||input&2!=0 {self.idle.wake(track);}
         }
-        holds
+        operations
     }
 }

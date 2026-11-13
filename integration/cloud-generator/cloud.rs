@@ -91,6 +91,19 @@ impl Stroke {
         None
     }
 }
+/// Effective operation contribution; manual position and capture have separate owners.
+#[derive(Clone,Copy,Debug,Default,PartialEq,Eq)]
+pub struct Operation {pub hold:bool,pub shift:[i32;2]}
+impl Operation {
+    pub fn parse(message:&str)->Option<Self> {
+        let mut fields=message.split(',');if fields.next()?!="co1"{return None;}
+        let hold=fields.next()?.parse::<u16>().ok()?!=0;
+        let horizontal=fields.next()?.parse::<i32>().ok()?;
+        let vertical=fields.next()?.parse::<i32>().ok()?;
+        if fields.next().is_some()||![horizontal,vertical].iter().all(|value|(-16383..=16383).contains(value)){return None;}
+        Some(Self{hold,shift:[horizontal,vertical]})
+    }
+}
 #[derive(Clone,Debug,Default)]
 pub struct Runtime {
     pub contacts:Vec<Contact>,pub pending_touches:Vec<Stroke>,pub points:Vec<Point>,pub field:bool,
@@ -99,6 +112,7 @@ pub struct Runtime {
     pub(crate) work:Vec<Point>,
     pub(crate) held:Vec<Point>,pub(crate) held_cursor:usize,
     pub held_shift:[i32;2],pub held_wrap:bool,
+    pub operation_shift:[i32;2],
     pub(crate) manual_hold:bool,pub(crate) operation_hold:bool,
 }
 impl Runtime {
@@ -146,7 +160,7 @@ impl Runtime {
             let shifted=i32::from(value)+offset;
             if self.held_wrap {shifted.rem_euclid(i32::from(XY_MAX)+1) as u16}else{shifted.clamp(0,i32::from(XY_MAX)) as u16}
         };
-        Point{x:coordinate(point.x,self.held_shift[0]),y:coordinate(point.y,self.held_shift[1]),..point}
+        Point{x:coordinate(point.x,self.held_shift[0]+self.operation_shift[0]),y:coordinate(point.y,self.held_shift[1]+self.operation_shift[1]),..point}
     }
     pub fn touch(&mut self,id:u8,x:u8,y:u8,pressure:u8,activity:Activity,tick:u64,frame:u64)->bool {
         self.touch_xy(id,u16::from(x)*XY_LEGACY_SCALE,u16::from(y)*XY_LEGACY_SCALE,pressure,activity,tick,frame,false)
@@ -505,5 +519,25 @@ mod pressure_tests {
         let mut runtime=Runtime::default();assert!(!runtime.hold(true,0));
         runtime.touch_xy(1,8193,10001,100,Activity::Rate,0,0,true);
         assert!(runtime.hold_operation(true,0));runtime.hold_operation(false,0);assert!(!runtime.holding());
+    }
+}
+
+#[cfg(test)] mod operation_shift_tests {
+    use super::*;
+    #[test] fn operation_offsets_preserve_manual_edits_and_precise_shape() {
+        let mut runtime=Runtime::default();runtime.touch_xy(1,8193,10001,100,Activity::Rate,0,0,true);assert!(runtime.hold(true,0));
+        let original=runtime.held[0];runtime.shift_held(0,1,true,false);runtime.operation_shift=[4096,-4096];
+        let moved=runtime.moved_held(original);assert_eq!((moved.x,moved.y),(12290,5905));
+        runtime.shift_held(0,2,true,false);runtime.operation_shift=[0;2];
+        assert_eq!(runtime.moved_held(original).x,8196);assert_eq!(runtime.held[0],original);assert!(runtime.holding());
+        runtime.operation_shift=[16383,-16383];assert_eq!((runtime.moved_held(original).x,runtime.moved_held(original).y),(16383,0));
+        runtime.held_wrap=true;assert_eq!((runtime.moved_held(original).x,runtime.moved_held(original).y),(8195,10002));
+        runtime.center_held();assert_eq!(runtime.held_shift,[0,0]);assert_eq!(runtime.operation_shift,[16383,-16383]);
+        runtime.operation_shift=[0;2];assert_eq!(runtime.moved_held(original),original);
+    }
+    #[test] fn wire_offsets_are_strict_bounded_and_fail_closed() {
+        assert_eq!(Operation::parse("co1,3,1,-1"),Some(Operation{hold:true,shift:[1,-1]}));
+        assert_eq!(Operation::parse("co1,0,16383,-16383"),Some(Operation{hold:false,shift:[16383,-16383]}));
+        for invalid in ["","co1,0,0","co1,0,0,0,1","co2,0,0,0","co1,65536,0,0","co1,0,16384,0","co1,0,0,-16384","co1,0,nan,0"] {assert!(Operation::parse(invalid).is_none(),"{invalid}");}
     }
 }
