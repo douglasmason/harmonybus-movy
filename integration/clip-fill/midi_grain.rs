@@ -61,6 +61,25 @@ pub(crate) fn live_head_onsets(
     first_offset: usize,
     second_offset: usize,
 ) -> Option<(u32, Option<u32>)> {
+    live_head_onsets_driven(source,cursor_onset,second_mode,first_offset,
+        second_offset,None,[None,None])
+}
+
+/// At each *accepted rhythm attack*, sample the existing 14-bit LFO/Field
+/// observations and read the closest ordinal in the sparse source. A missing
+/// driver restores the ordinary advancing event cursor independently per head.
+/// Position 0 selects the first event; 16383 selects the last. Directions and
+/// saved offsets are applied after choosing the position. Only accepted donor
+/// attacks advance the unmodulated bounce phase; observing Field never does.
+pub(crate) fn live_head_onsets_driven(
+    source: &Clip,
+    cursor_onset: u32,
+    second_mode: usize,
+    first_offset: usize,
+    second_offset: usize,
+    accepted_attack: Option<usize>,
+    head_positions: [Option<u16>;2],
+) -> Option<(u32, Option<u32>)> {
     if second_mode > 3 || first_offset >= 16 || second_offset >= 16 {
         return None;
     }
@@ -85,9 +104,18 @@ pub(crate) fn live_head_onsets(
         }
     }
     let ordinal = onsets[..distinct].binary_search(&cursor_onset).ok()?;
-    let first = onsets[event_index(ordinal, first_offset, distinct, 0)];
+    // Group indices, not raw ticks: long source rests never create blank
+    // intervals during a touch sweep. Avoid overflow and preserve endpoints.
+    let position_index = |position:u16| -> usize {
+        (u32::from(position) * (distinct as u32 - 1)
+            + u32::from(crate::position_inputs::POSITION_MAX / 2))
+            as usize / usize::from(crate::position_inputs::POSITION_MAX)
+    };
+    let first_phase=head_positions[0].map_or(ordinal,position_index);
+    let second_phase=head_positions[1].map_or(accepted_attack.unwrap_or(ordinal),position_index);
+    let first = onsets[event_index(first_phase, first_offset, distinct, 0)];
     let second = (second_mode != 0).then(|| {
-        onsets[event_index(ordinal, second_offset, distinct, second_mode)]
+        onsets[event_index(second_phase, second_offset, distinct, second_mode)]
     });
     Some((first, second))
 }
@@ -262,6 +290,44 @@ mod tests {
         assert_eq!(live_next_onset(&source, Some(0)), Some(288));
         source.notes.iter_mut().for_each(|note|note.rendered=true);
         assert_eq!(live_next_onset(&source, None), None);
+    }
+    #[test]
+    fn field_drivers_select_sparse_event_groups_and_preserve_independent_fallback() {
+        let source=sparse();
+        let pick=|left:Option<u16>,right:Option<u16>,attack:usize|{
+            live_head_onsets_driven(&source,0,1,0,0,Some(attack),[left,right])
+        };
+        assert_eq!(pick(Some(0),Some(0),0),Some((0,Some(288))));
+        assert_eq!(pick(Some(8192),Some(8192),0),Some((192,Some(192))));
+        assert_eq!(pick(Some(16383),Some(16383),0),Some((288,Some(0))));
+        // Missing one driver never disables the other head or invents a note.
+        assert_eq!(pick(Some(16383),None,0),Some((288,Some(288))));
+        assert_eq!(pick(None,Some(16383),1),Some((0,Some(0))));
+        // Directions and manual offsets follow the same offline indexing.
+        assert_eq!(live_head_onsets_driven(&source,0,1,1,1,Some(0),
+            [Some(0),Some(0)]),Some((192,Some(192))));
+    }
+    #[test]
+    fn undriven_pingpong_uses_accepted_attacks_instead_of_wrapping_early() {
+        let source=sparse();
+        let pitches=(0..7).map(|attack|{
+            let onset=[0,192,288][attack%3];
+            live_head_onsets_driven(&source,onset,2,0,0,Some(attack),
+                [None,None]).unwrap().1.unwrap()
+        }).collect::<Vec<_>>();
+        assert_eq!(pitches,vec![0,192,288,192,0,192,288]);
+        // A held Field head can be scrubbed in either direction at the
+        // next clocked note-on without retriggering at an idle read.
+        assert_eq!(live_head_onsets_driven(&source,288,2,0,0,Some(6),
+            [None,Some(0)]).unwrap().1,Some(0));
+    }
+    #[test]
+    fn one_note_position_drivers_never_create_extra_pitch_groups() {
+        let mut source=sparse();source.notes.truncate(1);
+        for value in [0,1,8192,16383] {
+            assert_eq!(live_head_onsets_driven(&source,0,1,15,14,Some(4),
+                [Some(value),Some(16383)]),Some((0,Some(0))));
+        }
     }
     #[test]
     fn live_head_selection_matches_offline_pitch_groups_on_sparse_unsorted_sources() {
