@@ -19,7 +19,7 @@ register('Song Sections',['joint_sections','joint_section_shape','joint_section_
 register('Recording',['joint_record']);
 register('Harmony & Timing',['joint_overview']);
 for(const [index,actor] of ['Root','Bass','Comp','Melody'].entries()){
-    for(const family of ['actor','rhythm','weave','conditions','sources','source_expression','source_gestures','source_operations','source_automation','source_position','preview','variation'])shared[`joint_${family}_${index}`]=actor;
+    for(const family of ['actor','rhythm','weave','conditions','sources','source_expression','source_gestures','source_operations','source_automation','source_position','source_heads','preview','variation'])shared[`joint_${family}_${index}`]=actor;
 }
 shared.joint_comp_weave='Comp';
 const chordCore=['root','cp_bank_0','cp_bank_1','cp_bank_2','cp_scale_controls','cp_Conductor_follower_touch','cp_Conductor_operations_9_16','cp_Conductor_motif_play'];

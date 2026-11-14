@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.360",
-  "previous_version": "0.34.1-hbclean.359",
+  "version": "0.34.1-hbclean.361",
+  "previous_version": "0.34.1-hbclean.360",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.360 — sparse MIDI event heads",
-  "notes": "docs/midi-event-grains.md",
+  "title": "Movy 0.34.1-hbclean.361 — live sparse MIDI event heads",
+  "notes": "docs/live-midi-event-heads.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

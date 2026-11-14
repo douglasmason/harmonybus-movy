@@ -19,7 +19,7 @@ pub struct EventHeads {
     pub second_offset: usize,
 }
 
-fn event_index(attack: usize, offset: usize, count: usize, mode: usize) -> usize {
+pub(crate) fn event_index(attack: usize, offset: usize, count: usize, mode: usize) -> usize {
     debug_assert!(count > 0);
     let position = (attack + offset) % count;
     match mode {
@@ -31,6 +31,65 @@ fn event_index(attack: usize, offset: usize, count: usize, mode: usize) -> usize
         }
         _ => position,
     }
+}
+
+/// Advance through sparse non-rendered note groups using existing
+/// sequential Source Weaving cursor semantics: rejected donor attacks never
+/// call this function, and it never mutates the source or advances a clock.
+pub(crate) fn live_next_onset(source: &Clip, previous: Option<u32>) -> Option<u32> {
+    let start = source.loop_start_ticks();
+    let end = source.loop_end_ticks();
+    let events = || source.notes.iter().take(MAX_NOTES).filter(|note| {
+        note.vel > 0 && !note.suppress && !note.rendered &&
+            note.tick >= start && note.tick < end
+    }).map(|note| note.tick);
+    events().filter(|tick| previous.map_or(true, |last| *tick > last)).min()
+        .or_else(|| events().min())
+}
+
+/// Two independent event-group readers for live Source Weaving.
+/// This mirrors the offline EventHeads ordering without copying a clip or
+/// allocating a collection in the audio callback. The selected `cursor_onset`
+/// is the *un-offset* next event group; offsets only move the two readers.
+/// Up to MAX_NOTES tick positions are stack-sorted once per accepted attack,
+/// never per audio sample or browser poll. Chord groups remain indivisible.
+/// The caller owns note-off pairing, rhythm gates, and live source availability.
+pub(crate) fn live_head_onsets(
+    source: &Clip,
+    cursor_onset: u32,
+    second_mode: usize,
+    first_offset: usize,
+    second_offset: usize,
+) -> Option<(u32, Option<u32>)> {
+    if second_mode > 3 || first_offset >= 16 || second_offset >= 16 {
+        return None;
+    }
+    let start = source.loop_start_ticks();
+    let end = source.loop_end_ticks();
+    let mut onsets = [0_u32; MAX_NOTES];
+    let mut total = 0_usize;
+    for note in source.notes.iter().take(MAX_NOTES) {
+        if note.vel > 0 && !note.suppress && !note.rendered &&
+            note.tick >= start && note.tick < end {
+            onsets[total] = note.tick;
+            total += 1;
+        }
+    }
+    if total == 0 { return None; }
+    onsets[..total].sort_unstable();
+    let mut distinct = 0_usize;
+    for index in 0..total {
+        if distinct == 0 || onsets[index] != onsets[distinct - 1] {
+            onsets[distinct] = onsets[index];
+            distinct += 1;
+        }
+    }
+    let ordinal = onsets[..distinct].binary_search(&cursor_onset).ok()?;
+    let first = onsets[event_index(ordinal, first_offset, distinct, 0)];
+    let second = (second_mode != 0).then(|| {
+        onsets[event_index(ordinal, second_offset, distinct, second_mode)]
+    });
+    Some((first, second))
 }
 
 /// Prepare at edit/preview time and reuse the existing Clip Fill, Undo, and
@@ -191,6 +250,49 @@ mod tests {
         assert_eq!(pitches_at(&short, 0), vec![60, 64, 67, 71]);
         assert!(event_grains(&source, EventHeads { bars: 16,
             spacing_index: 0, ..config(1) }).is_err());
+    }
+    #[test]
+    fn live_cursor_tracks_unique_groups_and_ignores_rendered_source_notes() {
+        let mut source = sparse();
+        assert_eq!(live_next_onset(&source, None), Some(0));
+        assert_eq!(live_next_onset(&source, Some(0)), Some(192));
+        assert_eq!(live_next_onset(&source, Some(192)), Some(288));
+        assert_eq!(live_next_onset(&source, Some(288)), Some(0));
+        source.notes[1].rendered = true;
+        assert_eq!(live_next_onset(&source, Some(0)), Some(288));
+        source.notes.iter_mut().for_each(|note|note.rendered=true);
+        assert_eq!(live_next_onset(&source, None), None);
+    }
+    #[test]
+    fn live_head_selection_matches_offline_pitch_groups_on_sparse_unsorted_sources() {
+        let mut source = sparse();
+        source.add_note_raw(0, 0, 24, 72, 100); // a chord, not an extra event
+        source.notes.reverse(); // source order is not guaranteed
+        let first = live_head_onsets(&source, 0, 1, 0, 0);
+        assert_eq!(first, Some((0, Some(288))));
+        assert_eq!(live_head_onsets(&source, 192, 1, 0, 0),
+            Some((192, Some(192))));
+        assert_eq!(live_head_onsets(&source, 288, 2, 0, 0),
+            Some((288, Some(288))));
+        assert_eq!(live_head_onsets(&source, 0, 0, 1, 0),
+            Some((192, None)));
+        assert_eq!(live_head_onsets(&source, 0, 3, 1, 2),
+            Some((192, Some(288))));
+        assert_eq!(live_head_onsets(&source, 0, 4, 0, 0), None);
+    }
+    #[test]
+    fn live_head_selection_handles_one_note_and_trimmed_loop_without_allocation() {
+        let mut source = sparse();
+        source.notes.truncate(1);
+        assert_eq!(live_head_onsets(&source, 0, 1, 0, 0), Some((0, Some(0))));
+        source.set_loop(16, 16);
+        assert_eq!(live_head_onsets(&source, 0, 1, 0, 0), None);
+        let mut long = sparse();
+        long.set_loop(8, 8);
+        // The reverse head mirrors the *event ordinal*, not its timestamp.
+        // On a three-onset source the middle event mirrors to itself.
+        assert_eq!(live_head_onsets(&long, 192, 1, 0, 0),
+            Some((192, Some(192))));
     }
     #[test]
     fn rejects_unrepresentable_timed_source_without_changing_it() {

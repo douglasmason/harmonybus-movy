@@ -73,7 +73,7 @@ export function overviewGet(base:number,key:string):string|null {
     const actor=base+Number(match[1]),field=match[2];
     const state=snapshot('source-'+actor,()=>typeof host_module_get_param==='function'?host_module_get_param('source_preview_'+actor):null);
     if(state?.schema!==1||state.actor!==actor)return 'Unavailable';
-    if(field==='state')return !state.playing?'Stopped':state.muted?'Muted':state.recording?'Recording own':state.generator_owned?(state.generator_rhythm&&state.rhythm_amount!==0?'Generator follow':'Generator own'):state.enabled?(state.alignment===2?'Weave Fit':state.timeline?'Weave Time':'Weave Seq'):'Own playback';
+    if(field==='state')return !state.playing?'Stopped':state.muted?'Muted':state.recording?'Recording own':state.generator_owned?(state.generator_rhythm&&state.rhythm_amount!==0?'Generator follow':'Generator own'):state.enabled?(state.alignment===3?'Event Heads':state.alignment===2?'Weave Fit':state.timeline?'Weave Time':'Weave Seq'):'Own playback';
     if(field==='gates')return Number.isInteger(state.gates)?String(state.gates):'--';
     if(field==='notes'){
         if(!Array.isArray(state.notes))return '--';
@@ -88,6 +88,7 @@ export function overviewGet(base:number,key:string):string|null {
         +(field==='rhythm'&&Number.isInteger(state.rhythm_pitch)&&state.rhythm_pitch>=0&&state.rhythm_pitch<128?' n'+state.rhythm_pitch:'')
         +(field==='rhythm'&&Number.isInteger(state.rhythm_amount)&&state.rhythm_amount>=0&&state.rhythm_amount<100?' '+state.rhythm_amount+'% follow':'');
     if(!source.active)return label+' inactive';
+    if(field==='pitch'&&state.alignment===3)return label+' H'+(state.head_mode===0?'1':'1+2')+' '+(state.head_first_offset??0)+':'+(state.head_second_offset??0);
     if(!Number.isFinite(source.phase_ticks)||!Number.isFinite(source.length_ticks)||source.length_ticks<=0)return label+' --';
     const fitted=(field==='pitch'&&state.alignment===2)||(field==='expression'&&state.expression_fit===true)||(field==='instrument'&&state.instrument_fit===true);
     const phase=fitted&&Number.isFinite(source.selection_phase_ticks)?source.selection_phase_ticks:source.phase_ticks;

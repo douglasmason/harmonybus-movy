@@ -29,7 +29,7 @@ normal.goToPage(0);
 assert.deepEqual(normal.ctl.hbNavigation.state().indices.map(index=>normal.ctl.pages[index].level),['root','harmony_status','follower_touch','operations_9_16']);
 const motif=pages['Motif Play'];motif.goToPage(0);motif.changePage(1);assert.equal(motif.ctl.page.level,'approach_bank_0','motif banks immediately follow Main');
 for(const page of pages['Joint Play'].ctl.pages){
- const match=/^joint_(?:sources|source_expression|source_gestures|source_operations|source_automation|source_position|preview|variation)_([0-3])$/.exec(page.level);
+ const match=/^joint_(?:sources|source_expression|source_gestures|source_operations|source_automation|source_position|source_heads|preview|variation)_([0-3])$/.exec(page.level);
  if(match)assert.equal(panelSpec('Joint Play',page).group,['Root','Bass','Comp','Melody'][Number(match[1])]);
 }
 assert(pages['Joint Play'].ctl.pages.filter(page=>panelSpec('Joint Play',page).group==='Song Sections').length>=3);
