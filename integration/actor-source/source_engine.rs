@@ -22,7 +22,7 @@ impl Engine {
                 write!(&mut text,"{{\"track\":{},\"slot\":{},\"active\":{},\"phase_ticks\":{},\"selection_phase_ticks\":{},\"length_ticks\":{}}}",reference.track,reference.slot,active,phase,selected,clip.length_ticks()).unwrap();
             } else {text.push_str("null");}
         }
-        write!(&mut text,"],\"rhythm_pitch\":{},\"rhythm_amount\":{},\"generator_owned\":{},\"generator_rhythm\":{},\"notes\":[",route.rhythm_pitch.map_or(-1,i32::from),route.rhythm_amount,self.generator_owns(actor),self.generator_rhythm_following(actor)).unwrap();
+        write!(&mut text,"],\"rhythm_pitch\":{},\"rhythm_amount\":{},\"generator_owned\":{},\"generator_rhythm\":{},\"head_mode\":{},\"head_first_offset\":{},\"head_second_offset\":{},\"notes\":[",route.rhythm_pitch.map_or(-1,i32::from),route.rhythm_amount,self.generator_owns(actor),self.generator_rhythm_following(actor),route.head_mode,route.head_first_offset,route.head_second_offset).unwrap();
         let mut count=0;
         let mut pitches=[false;128];let mut gates=0;
         for gate in &self.gates {if gate.track as usize==actor {pitches[gate.pitch as usize]=true;gates+=1;}}
@@ -54,7 +54,7 @@ impl Engine {
                     write!(&mut text,"{{\"track\":{},\"slot\":{},\"active\":{},\"phase_ticks\":{},\"length_ticks\":{},\"speed_num\":{},\"speed_den\":{}}}",reference.track,reference.slot,active,track.pos_tick.saturating_sub(clip.loop_start_ticks()),clip.length_ticks(),clip.scale_num,clip.scale_den).unwrap();
                 } else {text.push_str("null");}
             }
-            write!(&mut text,"],\"rhythm_pitch\":{},\"rhythm_amount\":{},\"generator_owned\":{},\"generator_rhythm\":{}}}",route.rhythm_pitch.map_or(-1,i32::from),route.rhythm_amount,self.generator_owns(actor),self.generator_rhythm_following(actor)).unwrap();
+            write!(&mut text,"],\"rhythm_pitch\":{},\"rhythm_amount\":{},\"generator_owned\":{},\"generator_rhythm\":{},\"head_mode\":{},\"head_first_offset\":{},\"head_second_offset\":{}}}",route.rhythm_pitch.map_or(-1,i32::from),route.rhythm_amount,self.generator_owns(actor),self.generator_rhythm_following(actor),route.head_mode,route.head_first_offset,route.head_second_offset).unwrap();
         }
         text.push_str("]}");text
     }
@@ -138,7 +138,9 @@ impl Engine {
             if cursor.source!=Some(source) {*cursor=crate::source_route::Cursor{source:Some(source),onset:None};}
             let start=clip.loop_start_ticks();let end=clip.loop_end_ticks();
             let eligible=|note: &&crate::clip::Note| note.vel>0 && !note.suppress && note.tick>=start && note.tick<end;
-            let onset=if route.alignment!=crate::source_route::Alignment::Sequential {
+            let onset=if route.alignment==crate::source_route::Alignment::EventHeads {
+                crate::midi_grain::live_next_onset(clip,cursor.onset)
+            } else if route.alignment!=crate::source_route::Alignment::Sequential {
                 // Captured before any track advances on this master tick, so
                 // source track numbering cannot change the selected pitch.
                 let phase=pitch_phase;
@@ -149,6 +151,12 @@ impl Engine {
                     .or_else(||clip.notes.iter().take(crate::clip::MAX_NOTES).filter(eligible).map(|note|note.tick).min())
             };
             let Some(onset)=onset else {continue;};
+            let (first_head,second_head)=if route.alignment==crate::source_route::Alignment::EventHeads {
+                let Some(pair)=crate::midi_grain::live_head_onsets(clip,onset,
+                    route.head_mode as usize,route.head_first_offset as usize,
+                    route.head_second_offset as usize) else {continue;};
+                pair
+            } else {(onset,None)};
             cursor.onset=Some(onset);
             let length=clip.notes.len().min(crate::clip::MAX_NOTES);
             let destination=if source!=own {self.source_phase_note(own)} else {None};
@@ -166,10 +174,18 @@ impl Engine {
                 let track=&self.tracks[reference.track];
                 !track.muted && track.playing_slot==Some(reference.slot) && track.clips[reference.slot].exists()
             }).map(|reference|self.source_phase_note(reference).and_then(|note|note.actions));
-            for index in 0..length {
-                let note=&self.tracks[source.track].clips[source.slot].notes[index];
-                if note.tick!=onset || note.vel==0 || note.suppress {continue;}
-                let mut note=note.clone();
+            let mut emitted_pitches=[false;128];
+            for selected_onset in [Some(first_head),second_head].into_iter().flatten() {
+                for index in 0..length {
+                    let note=&self.tracks[source.track].clips[source.slot].notes[index];
+                    if note.tick!=selected_onset || note.vel==0 || note.suppress {continue;}
+                    // A same-pitch collision from two heads has one gate owner.
+                    // Keep old Sequential/Timeline/Fill behavior unchanged.
+                    if route.alignment==crate::source_route::Alignment::EventHeads {
+                        if note.rendered || emitted_pitches[note.pitch as usize] {continue;}
+                        emitted_pitches[note.pitch as usize]=true;
+                    }
+                    let mut note=note.clone();
                 if source != own {
                     // Only pitches are borrowed. Expression and per-note
                     // operations default to the destination actor's material.
@@ -186,6 +202,7 @@ impl Engine {
                 // on the destination actor through the ordinary HB MIDI path.
                 self.emit_clip_note(actor,source.track,source.slot,note,Some(duration),None,
                     Default::default(),true,rhythm_track,out);
+                }
             }
         }
     }
