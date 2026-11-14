@@ -543,7 +543,11 @@ mod live_midi_head_tests {
             (144,vec![60,64,69]),(192,vec![67]),(240,vec![69,60,64])
         ]);
         assert_eq!(releases,vec![(24,3),(72,1),(120,3),(168,3),(216,1)]);
-        assert_eq!(engine.tracks[1].clips[0].notes,original);
+        // Donor playback legitimately updates transient fired flags. The
+        // authored notes, pitches and dynamics must remain unmodified.
+        let material=|notes:&[crate::clip::Note]|notes.iter()
+            .map(|note|(note.tick,note.pitch,note.vel,note.gate)).collect::<Vec<_>>();
+        assert_eq!(material(&engine.tracks[1].clips[0].notes),material(&original));
     }
     #[test]
     fn solo_reverse_pingpong_and_forward_heads_share_one_note_owner() {
@@ -628,7 +632,8 @@ mod live_midi_head_tests {
             note.input_key=crate::follower_input::InputKey::new(0,1);
         }
         engine.follower_inputs[3]=crate::follower_input::InputKey::new(2,1);
-        assert_eq!(ons(&tick(&mut engine)),vec![62,66,71]);
+        let mut pitches=ons(&tick(&mut engine));pitches.sort_unstable();
+        assert_eq!(pitches,vec![62,66,71],"chord voices need not keep storage order");
         assert_eq!(engine.tracks[1].clips[0].notes.len(),source.len());
         let mut route=engine.source_routes[3];
         route.rhythm=Some(ClipRef{track:2,slot:0});
