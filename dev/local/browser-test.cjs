@@ -53,7 +53,7 @@ const {chromium} = require('playwright');
     await page.waitForFunction(()=>!document.querySelector('.label').textContent.includes(' · L'));
     const xy=page.locator('#field-xy-pad');
     await xy.click({position:{x:60,y:80}});
-    await page.waitForFunction(()=>document.querySelector('#field-xy-readout').textContent.includes('X Field 1'));
+    await page.waitForFunction(()=>[...document.querySelectorAll('.label')].slice(0,2).every(label=>label.textContent.includes(' · L')));
     const xyValue=(await service.processor.request('get','ch1:midi_fx1:field_outputs_view2')).value.split(',').slice(1).map(Number);
     assert.equal(xyValue[52]&3,3,'XY touch latches both native Field channels');
     await page.getByRole('button',{name:'Release all',exact:true}).click();
