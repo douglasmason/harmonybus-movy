@@ -22,7 +22,9 @@ impl Engine {
                 write!(&mut text,"{{\"track\":{},\"slot\":{},\"active\":{},\"phase_ticks\":{},\"selection_phase_ticks\":{},\"length_ticks\":{}}}",reference.track,reference.slot,active,phase,selected,clip.length_ticks()).unwrap();
             } else {text.push_str("null");}
         }
-        write!(&mut text,"],\"rhythm_pitch\":{},\"rhythm_amount\":{},\"generator_owned\":{},\"generator_rhythm\":{},\"head_mode\":{},\"head_first_offset\":{},\"head_second_offset\":{},\"notes\":[",route.rhythm_pitch.map_or(-1,i32::from),route.rhythm_amount,self.generator_owns(actor),self.generator_rhythm_following(actor),route.head_mode,route.head_first_offset,route.head_second_offset).unwrap();
+        write!(&mut text,"],\"rhythm_pitch\":{},\"rhythm_amount\":{},\"generator_owned\":{},\"generator_rhythm\":{},\"head_mode\":{},\"head_first_offset\":{},\"head_second_offset\":{},\"head_drivers\":[{},{}],\"head_positions\":[{},{}],\"notes\":[",route.rhythm_pitch.map_or(-1,i32::from),route.rhythm_amount,self.generator_owns(actor),self.generator_rhythm_following(actor),route.head_mode,route.head_first_offset,route.head_second_offset,route.head_first_driver,route.head_second_driver,
+            self.source_position_inputs.position(actor,route.head_first_driver).map_or(-1,i32::from),
+            self.source_position_inputs.position(actor,route.head_second_driver).map_or(-1,i32::from)).unwrap();
         let mut count=0;
         let mut pitches=[false;128];let mut gates=0;
         for gate in &self.gates {if gate.track as usize==actor {pitches[gate.pitch as usize]=true;gates+=1;}}
@@ -54,7 +56,7 @@ impl Engine {
                     write!(&mut text,"{{\"track\":{},\"slot\":{},\"active\":{},\"phase_ticks\":{},\"length_ticks\":{},\"speed_num\":{},\"speed_den\":{}}}",reference.track,reference.slot,active,track.pos_tick.saturating_sub(clip.loop_start_ticks()),clip.length_ticks(),clip.scale_num,clip.scale_den).unwrap();
                 } else {text.push_str("null");}
             }
-            write!(&mut text,"],\"rhythm_pitch\":{},\"rhythm_amount\":{},\"generator_owned\":{},\"generator_rhythm\":{},\"head_mode\":{},\"head_first_offset\":{},\"head_second_offset\":{}}}",route.rhythm_pitch.map_or(-1,i32::from),route.rhythm_amount,self.generator_owns(actor),self.generator_rhythm_following(actor),route.head_mode,route.head_first_offset,route.head_second_offset).unwrap();
+            write!(&mut text,"],\"rhythm_pitch\":{},\"rhythm_amount\":{},\"generator_owned\":{},\"generator_rhythm\":{},\"head_mode\":{},\"head_first_offset\":{},\"head_second_offset\":{},\"head_drivers\":[{},{}]}}",route.rhythm_pitch.map_or(-1,i32::from),route.rhythm_amount,self.generator_owns(actor),self.generator_rhythm_following(actor),route.head_mode,route.head_first_offset,route.head_second_offset,route.head_first_driver,route.head_second_driver).unwrap();
         }
         text.push_str("]}");text
     }
@@ -134,8 +136,10 @@ impl Engine {
                 crate::source_route::fitted_phase(self.source_positions[actor],actor_clip.loop_start_ticks(),
                     actor_clip.length_ticks(),clip.loop_start_ticks(),clip.length_ticks())
             } else {self.source_positions[source.track]};
+            let head_positions=[route.head_first_driver,route.head_second_driver]
+                .map(|driver|self.source_position_inputs.position(actor,driver));
             let cursor=&mut self.source_cursors[actor];
-            if cursor.source!=Some(source) {*cursor=crate::source_route::Cursor{source:Some(source),onset:None};}
+            if cursor.source!=Some(source) {*cursor=crate::source_route::Cursor{source:Some(source),..Default::default()};}
             let start=clip.loop_start_ticks();let end=clip.loop_end_ticks();
             let eligible=|note: &&crate::clip::Note| note.vel>0 && !note.suppress && note.tick>=start && note.tick<end;
             let onset=if route.alignment==crate::source_route::Alignment::EventHeads {
@@ -152,12 +156,18 @@ impl Engine {
             };
             let Some(onset)=onset else {continue;};
             let (first_head,second_head)=if route.alignment==crate::source_route::Alignment::EventHeads {
-                let Some(pair)=crate::midi_grain::live_head_onsets(clip,onset,
+                let Some(pair)=crate::midi_grain::live_head_onsets_driven(clip,onset,
                     route.head_mode as usize,route.head_first_offset as usize,
-                    route.head_second_offset as usize) else {continue;};
+                    route.head_second_offset as usize,Some(cursor.accepted as usize),
+                    head_positions) else {continue;};
                 pair
             } else {(onset,None)};
             cursor.onset=Some(onset);
+            if route.alignment==crate::source_route::Alignment::EventHeads {
+                // Advances only on a valid accepted donor hit, never on
+                // UI reads or missing-source beats; the rhythm clock owns time.
+                cursor.accepted=cursor.accepted.wrapping_add(1);
+            }
             let length=clip.notes.len().min(crate::clip::MAX_NOTES);
             let destination=if source!=own {self.source_phase_note(own)} else {None};
             let expression=route.expression.map(|reference| {

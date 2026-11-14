@@ -201,7 +201,7 @@ impl Engine {
         hierarchy.levels['joint_actor_'+role].params.push({level:positionLevel});
         root.params.push({level:positionLevel});
         const headsLevel='joint_source_heads_'+role;
-        const headsKeys=allSourceKeys.slice(26,29);
+        const headsKeys=allSourceKeys.slice(26,31);
         hierarchy.levels[headsLevel]={name:name+' MIDI Event Heads',knobs:headsKeys,params:headsKeys.map(key=>({key}))};
         hierarchy.levels['joint_actor_'+role].params.push({level:headsLevel});
         root.params.push({level:headsLevel});

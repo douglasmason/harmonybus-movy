@@ -10,11 +10,16 @@ def patch_position_inputs(root: Path) -> None:
     path.write_text(path.read_text() + "\n" + (assets / "position_bridge.rs").read_text())
     path = root / "engine/crates/movy-dsp/src/lib.rs"
     source: str = path.read_text()
-    source = replace_once(source, "    field_frames: usize,", "    field_frames: usize,\n    position_frames: usize,\n    position_drivers: [[u8;2];16],")
-    source = replace_once(source, "            field_frames: 0,", "            field_frames: 0,\n            position_frames: 0,\n            position_drivers: [[0;2];16],")
+    source = replace_once(source, "    field_frames: usize,", "    field_frames: usize,\n    position_frames: usize,\n    position_drivers: [[u8;4];16],")
+    source = replace_once(source, "            field_frames: 0,", "            field_frames: 0,\n            position_frames: 0,\n            position_drivers: [[0;4];16],")
     source = replace_once(source, "        self.field_frames+=out_audio.len()/2;", """        let drivers=std::array::from_fn(|actor|{
             let route=self.engine.source_routes[actor];
-            if self.engine.playing {[route.instrument_driver,route.hb_render_driver]}else{[0;2]}
+            if !self.engine.playing {[0;4]}else{
+                let heads=if route.enabled&&route.alignment==seq_core::source_route::Alignment::EventHeads {
+                    [route.head_first_driver,route.head_second_driver]
+                }else{[0;2]};
+                [route.instrument_driver,route.hb_render_driver,heads[0],heads[1]]
+            }
         });
         self.position_frames=self.position_frames.saturating_add(out_audio.len()/2);
         if drivers!=self.position_drivers || self.position_frames>=host::sample_rate().max(100) as usize/100 {

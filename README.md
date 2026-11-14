@@ -1,3 +1,7 @@
+## Field-driven live MIDI event heads
+
+Joint Play's **MIDI Event Heads** page can now assign each head to an existing **Input 1/2** or **Field 1–16** position source. A sparse source note/chord group is selected by each head's normalized position, including shared Perlin and Field Play pad/Launchpad/Remote UI pressure/latch overrides, only at accepted donor rhythm attacks. Missing drivers fall back to the ordinary advancing event reader, and the secondary PingPong head now bounces across event groups without a separate musical clock. No extra synthesizer, MIDI gate owner, or audio-rate processing. See [live heads](docs/live-midi-event-heads.md).
+
 ## Live MIDI event heads — Source Weaving
 
 Joint Play's Source Weaving can now read sparse MIDI note/chord groups as live, independently clocked **event heads**. Assign an ordinary clip or generated rhythm donor, choose **Event Heads** alignment and configure a second Reverse/PingPong/Forward head and independent offsets on the new **MIDI Event Heads** source panel. The result plays through the normal HarmonyBus → stock Move MIDI voice path; the source clip is unchanged. The existing Clip Fill mode still makes an editable, offline alternative. This live increment retains recording-as-Own and does not yet implement Cloud X/Y control or generated connector notes. See [Live MIDI Event Heads](docs/live-midi-event-heads.md).

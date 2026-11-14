@@ -624,6 +624,89 @@ mod live_midi_head_tests {
         assert_eq!(ons(&tick(&mut engine)),vec![30],"recording uses Own, never flattens live readers");
     }
     #[test]
+    fn independent_field_drivers_scrub_sparse_chord_groups_on_donor_attacks_only() {
+        let mut engine=engine_with_sparse_source();
+        let mut route=engine.source_routes[3];
+        route.head_first_driver=3; // shared Field 1, X
+        route.head_second_driver=4; // shared Field 2, Y
+        assert!(engine.source_route_set(&route.message(3)));
+        assert_eq!(route.message(3).split_whitespace().count(),32);
+        engine.source_position_inputs.field[0]=Some(0);
+        engine.source_position_inputs.field[1]=Some(16383);
+        // Head 1 = C/E, reverse head 2 at end = C/E; no double triggers.
+        assert_eq!(ons(&tick(&mut engine)),vec![60,64]);
+        assert!(engine.source_preview(3).unwrap().contains("\"head_positions\":[0,16383]"));
+        // Moving X/Y does not directly synthesize anything until a donor attack.
+        engine.source_position_inputs.field[0]=Some(16383);
+        engine.source_position_inputs.field[1]=Some(0);
+        for position in 1..48 {
+            let events=tick(&mut engine);
+            assert!(ons(&events).is_empty(),"no idle retrigger at tick {position}");
+            if position==24{
+                assert!(events.contains(&OutEvent::NoteOff{track:3,pitch:60}));
+                assert!(events.contains(&OutEvent::NoteOff{track:3,pitch:64}));
+            }
+        }
+        // Both independently driven heads now choose the last source event.
+        assert_eq!(ons(&tick(&mut engine)),vec![69]);
+        engine.source_position_inputs.field[0]=Some(8192);
+        engine.source_position_inputs.field[1]=Some(8192);
+        for _ in 49..96 {tick(&mut engine);}
+        assert_eq!(ons(&tick(&mut engine)),vec![67]);
+        let mut output=Vec::new();engine.stop(&mut output);
+        assert!(output.contains(&OutEvent::NoteOff{track:3,pitch:67}));
+        assert!(engine.gates.is_empty());
+    }
+    #[test]
+    fn local_drivers_and_missing_field_fall_back_to_independent_clocked_heads() {
+        let mut engine=engine_with_sparse_source();
+        let mut route=engine.source_routes[3];
+        route.head_first_driver=1;route.head_second_driver=2;
+        route.head_mode=2; // ping-pong progresses 0,1,2,1... without a Field source
+        assert!(engine.source_route_set(&route.message(3)));
+        engine.source_position_inputs.local[3]=[Some(16383),Some(0)];
+        assert_eq!(ons(&tick(&mut engine)),vec![69,60,64]);
+        engine.source_position_inputs.local[3]=[None,None];
+        for _ in 1..48 {tick(&mut engine);}
+        assert_eq!(ons(&tick(&mut engine)),vec![67],"fallback resumes accepted rhythm sequence");
+        for _ in 49..96 {tick(&mut engine);}
+        assert_eq!(ons(&tick(&mut engine)),vec![69],"undriven reader reaches the far endpoint");
+        for _ in 97..144 {tick(&mut engine);}
+        assert_eq!(ons(&tick(&mut engine)),vec![60,64,67],"pingpong reverses at the boundary");
+    }
+    #[test]
+    fn source_driver_values_round_trip_and_reject_bad_optional_messages() {
+        let mut engine=engine_with_sparse_source();
+        let mut route=engine.source_routes[3];
+        route.head_first_driver=3;
+        route.head_second_driver=18;
+        assert!(engine.source_route_set(&route.message(3)));
+        assert_eq!(route.message(3).split_whitespace().count(),32);
+        let saved=crate::persist::serialize(&engine);
+        let mut restored=Engine::new(48000,12000);
+        assert!(crate::persist::load(&mut restored,&saved));
+        assert_eq!(restored.source_routes[3],route);
+        let unchanged=engine.source_routes;
+        let mut fields=route.message(3).split_whitespace().map(str::to_owned).collect::<Vec<_>>();
+        for (index,invalid) in [(30,"19"),(31,"-1")] {
+            let original=fields[index].clone();
+            fields[index]=invalid.to_owned();
+            assert!(!engine.source_route_set(&fields.join(" ")));
+            fields[index]=original;
+        }
+        fields.pop();
+        assert!(!engine.source_route_set(&fields.join(" ")));
+        assert_eq!(engine.source_routes,unchanged);
+        // Legacy Event Heads with 30 fields and earlier 7-field routes preserve
+        // their exact serialization and disabled position-driver defaults.
+        assert!(engine.source_route_set("3 1 1 0 2 0 3"));
+        assert_eq!(engine.source_routes[3].head_first_driver,0);
+        assert_eq!(engine.source_routes[3].head_second_driver,0);
+        assert_eq!(engine.source_routes[3].message(3).split_whitespace().count(),30);
+        assert!(engine.source_route_set("3 1 1 0 2 0 0"));
+        assert_eq!(engine.source_routes[3].message(3).split_whitespace().count(),19);
+    }
+    #[test]
     fn source_reorder_and_follower_pitch_mapping_keep_rhythm_independence() {
         let mut engine=engine_with_sparse_source();
         let source=engine.tracks[1].clips[0].notes.clone();
