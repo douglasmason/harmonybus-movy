@@ -144,7 +144,7 @@ mod source_routing_tests {
     #[test]
     fn invalid_route_is_atomic_and_cycles_reference_only_raw_material() {
         let mut engine=setup();let original=engine.source_routes;
-        for message in ["16 1 0 0 0 0 0","3 1 -1 0 0 0 0","3 1 0 9 0 0 0","3 2 0 0 0 0 0","3 1 0 0 0 0 3"] {
+        for message in ["16 1 0 0 0 0 0","3 1 -1 0 0 0 0","3 1 0 9 0 0 0","3 2 0 0 0 0 0","3 1 0 0 0 0 4"] {
             assert!(!engine.source_route_set(message));assert_eq!(engine.source_routes,original);
         }
         engine.source_route_set("1 1 3 0 2 0 0");
@@ -490,5 +490,148 @@ mod source_fit_window_tests {
         for _ in 1..96 {tick(&mut engine);}
         assert_eq!(pitches(&tick(&mut engine),3),vec![72]);
         assert!(engine.source_preview(3).unwrap().contains("\"alignment\":2"));
+    }
+}
+
+#[cfg(test)]
+mod live_midi_head_tests {
+    use super::*;
+    use crate::source_route::{Alignment,ClipRef};
+    fn engine_with_sparse_source() -> Engine {
+        let mut engine=Engine::new(48000,12000);
+        engine.playing=true;
+        for track in [1,2,3] {
+            engine.tracks[track].playing_slot=Some(0);
+            engine.tracks[track].clips[0].set_loop(0,16);
+        }
+        let source=&mut engine.tracks[1].clips[0];
+        source.add_note_raw(0,0,36,60,100);
+        source.add_note_raw(0,0,36,64,100);
+        source.add_note_raw(8,192,36,67,100);
+        source.add_note_raw(12,288,36,69,100);
+        // An eighth-note donor drives a much sparser three-event melody.
+        for index in 0..8_u32 {
+            engine.tracks[2].clips[0].add_note_raw(
+                (index*2) as u16,index*48,24,36,100);
+        }
+        engine.tracks[3].clips[0].add_note_raw(0,0,24,30,100);
+        assert!(engine.source_route_set("3 1 1 0 2 0 3"));
+        engine
+    }
+    fn tick(engine:&mut Engine)->Vec<OutEvent> {
+        let mut output=Vec::new();engine.advance_block(250,&mut output);output
+    }
+    fn ons(output:&[OutEvent])->Vec<u8> {
+        output.iter().filter_map(|event|match event {
+            OutEvent::NoteOn{track:3,pitch,..}=>Some(*pitch),_=>None
+        }).collect()
+    }
+    #[test]
+    fn sparse_source_events_follow_donor_rhythm_as_dual_forward_reverse_heads() {
+        let mut engine=engine_with_sparse_source();
+        let original=engine.tracks[1].clips[0].notes.clone();
+        let mut attacks=Vec::new();
+        let mut releases=Vec::new();
+        for position in 0..=240 {
+            let events=tick(&mut engine);
+            if !ons(&events).is_empty(){attacks.push((position,ons(&events)));}
+            let count=events.iter().filter(|event|matches!(event,OutEvent::NoteOff{track:3,..})).count();
+            if count>0{releases.push((position,count));}
+        }
+        assert_eq!(attacks,vec![
+            (0,vec![60,64,69]),(48,vec![67]),(96,vec![69,60,64]),
+            (144,vec![60,64,69]),(192,vec![67]),(240,vec![69,60,64])
+        ]);
+        assert_eq!(releases,vec![(24,3),(72,1),(120,3),(168,3),(216,1)]);
+        assert_eq!(engine.tracks[1].clips[0].notes,original);
+    }
+    #[test]
+    fn solo_reverse_pingpong_and_forward_heads_share_one_note_owner() {
+        for (mode,expected) in [
+            (0,vec![60,64]),
+            (1,vec![60,64,69]),
+            (2,vec![60,64]),
+            (3,vec![60,64]),
+        ] {
+            let mut engine=engine_with_sparse_source();
+            let mut route=engine.source_routes[3];route.head_mode=mode;
+            assert!(engine.source_route_set(&route.message(3)));
+            assert_eq!(ons(&tick(&mut engine)),expected,"mode {mode}");
+        }
+        let mut engine=engine_with_sparse_source();
+        let mut route=engine.source_routes[3];
+        route.head_mode=2;route.head_first_offset=1;route.head_second_offset=2;
+        assert!(engine.source_route_set(&route.message(3)));
+        assert_eq!(ons(&tick(&mut engine)),vec![67,69]);
+        // At the next grain the two heads read different note groups.
+        for _ in 1..48{tick(&mut engine);}
+        assert_eq!(ons(&tick(&mut engine)),vec![69,67]);
+        assert_eq!(engine.gates.iter().filter(|gate|gate.track==3).count(),2);
+    }
+    #[test]
+    fn head_settings_reload_and_bad_values_fail_atomically() {
+        let mut engine=engine_with_sparse_source();
+        let mut route=engine.source_routes[3];
+        route.head_mode=3;route.head_first_offset=7;route.head_second_offset=15;
+        assert!(engine.source_route_set(&route.message(3)));
+        let text=route.message(3);
+        assert_eq!(text.split_whitespace().count(),30);
+        assert!(engine.source_preview(3).unwrap().contains("\"alignment\":3"));
+        assert!(engine.source_preview(3).unwrap().contains("\"head_first_offset\":7"));
+        let saved=crate::persist::serialize(&engine);
+        let mut loaded=Engine::new(48000,12000);
+        assert!(crate::persist::load(&mut loaded,&saved));
+        assert_eq!(loaded.source_routes[3],route);
+        let before=engine.source_routes;
+        let mut fields=text.split_whitespace().map(str::to_owned).collect::<Vec<_>>();
+        fields[27]="4".to_owned();
+        assert!(!engine.source_route_set(&fields.join(" ")));
+        fields[27]="3".to_owned();fields[28]="16".to_owned();
+        assert!(!engine.source_route_set(&fields.join(" ")));
+        fields[28]="7".to_owned();fields.pop();
+        assert!(!engine.source_route_set(&fields.join(" ")));
+        assert_eq!(engine.source_routes,before);
+        assert!(engine.source_route_set("3 1 1 0 2 0 0"));
+        assert_eq!(engine.source_routes[3].head_mode,1);
+        assert_eq!(engine.source_routes[3].alignment,Alignment::Sequential);
+    }
+    #[test]
+    fn mute_source_loss_and_recording_preserve_release_and_gate_ownership() {
+        let mut engine=engine_with_sparse_source();
+        assert_eq!(ons(&tick(&mut engine)),vec![60,64,69]);
+        engine.tracks[1].muted=true;
+        for position in 1..=48 {
+            let events=tick(&mut engine);
+            if position==24 {
+                for pitch in [60,64,69] {
+                    assert!(events.contains(&OutEvent::NoteOff{track:3,pitch}));
+                }
+            }
+            assert!(ons(&events).is_empty());
+        }
+        engine.tracks[1].muted=false;
+        for _ in 49..96 {tick(&mut engine);}
+        assert_eq!(ons(&tick(&mut engine)),vec![67]);
+        let mut stop=Vec::new();engine.stop(&mut stop);
+        assert!(stop.contains(&OutEvent::NoteOff{track:3,pitch:67}));
+        assert!(engine.gates.iter().all(|gate|gate.track!=3));
+        let mut engine=engine_with_sparse_source();
+        engine.recording=true;engine.rec_track=3;
+        assert_eq!(ons(&tick(&mut engine)),vec![30],"recording uses Own, never flattens live readers");
+    }
+    #[test]
+    fn source_reorder_and_follower_pitch_mapping_keep_rhythm_independence() {
+        let mut engine=engine_with_sparse_source();
+        let source=engine.tracks[1].clips[0].notes.clone();
+        engine.tracks[1].clips[0].notes.reverse();
+        for note in &mut engine.tracks[1].clips[0].notes {
+            note.input_key=crate::follower_input::InputKey::new(0,1);
+        }
+        engine.follower_inputs[3]=crate::follower_input::InputKey::new(2,1);
+        assert_eq!(ons(&tick(&mut engine)),vec![62,66,71]);
+        assert_eq!(engine.tracks[1].clips[0].notes.len(),source.len());
+        let mut route=engine.source_routes[3];
+        route.rhythm=Some(ClipRef{track:2,slot:0});
+        assert_eq!(route.alignment,Alignment::EventHeads);
     }
 }
