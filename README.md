@@ -1,3 +1,7 @@
+## Live MIDI event heads — Source Weaving
+
+Joint Play's Source Weaving can now read sparse MIDI note/chord groups as live, independently clocked **event heads**. Assign an ordinary clip or generated rhythm donor, choose **Event Heads** alignment and configure a second Reverse/PingPong/Forward head and independent offsets on the new **MIDI Event Heads** source panel. The result plays through the normal HarmonyBus → stock Move MIDI voice path; the source clip is unchanged. The existing Clip Fill mode still makes an editable, offline alternative. This live increment retains recording-as-Own and does not yet implement Cloud X/Y control or generated connector notes. See [Live MIDI Event Heads](docs/live-midi-event-heads.md).
+
 ## Sparse MIDI event heads (Clip Fill)
 
 Clips View → Fill → Event heads now makes repeated MIDI phrases from even a one-note source clip, without requiring a dense original rhythm. Choose the source with K1/K2, attack interval with K3, optional reverse/ping-pong/forward second head with K4, and output bars with K5; Shift+K1/K3 offset each head. Preview and press a destination clip to commit via the existing atomic Clip Fill / Undo path. This first increment is an edit-time MIDI transform, not continuous live playback or audio granulation. See [MIDI Event Heads](docs/midi-event-grains.md).
