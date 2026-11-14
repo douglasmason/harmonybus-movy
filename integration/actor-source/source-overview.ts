@@ -88,7 +88,15 @@ export function overviewGet(base:number,key:string):string|null {
         +(field==='rhythm'&&Number.isInteger(state.rhythm_pitch)&&state.rhythm_pitch>=0&&state.rhythm_pitch<128?' n'+state.rhythm_pitch:'')
         +(field==='rhythm'&&Number.isInteger(state.rhythm_amount)&&state.rhythm_amount>=0&&state.rhythm_amount<100?' '+state.rhythm_amount+'% follow':'');
     if(!source.active)return label+' inactive';
-    if(field==='pitch'&&state.alignment===3)return label+' H'+(state.head_mode===0?'1':'1+2')+' '+(state.head_first_offset??0)+':'+(state.head_second_offset??0);
+    if(field==='pitch'&&state.alignment===3){
+        const drivers=Array.isArray(state.head_drivers)?state.head_drivers:[0,0];
+        const positions=Array.isArray(state.head_positions)?state.head_positions:[-1,-1];
+        const driven=[0,1].map((index:number)=>Number(drivers[index])>0&&
+            Number.isInteger(positions[index])&&positions[index]>=0?
+            ' '+Math.round(100*positions[index]/16383)+'%':'').join('');
+        return label+' H'+(state.head_mode===0?'1':'1+2')+' '+
+            (state.head_first_offset??0)+':'+(state.head_second_offset??0)+driven;
+    }
     if(!Number.isFinite(source.phase_ticks)||!Number.isFinite(source.length_ticks)||source.length_ticks<=0)return label+' --';
     const fitted=(field==='pitch'&&state.alignment===2)||(field==='expression'&&state.expression_fit===true)||(field==='instrument'&&state.instrument_fit===true);
     const phase=fitted&&Number.isFinite(source.selection_phase_ticks)?source.selection_phase_ticks:source.phase_ticks;

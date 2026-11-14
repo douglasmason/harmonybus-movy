@@ -1,7 +1,7 @@
 /// Observe existing owners before advancing any track. Fixed buffers and no
 /// oscillator evaluation keep observation independent of reader count/order.
 impl ChainSlots {
-    pub fn sequence_position_inputs(&mut self, drivers: [[u8; 2]; 16]) -> seq_core::position_inputs::Inputs {
+    pub fn sequence_position_inputs(&mut self, drivers: [[u8; 4]; 16]) -> seq_core::position_inputs::Inputs {
         let mut result = seq_core::position_inputs::Inputs::default();
         let field_needed = drivers.iter().flatten().any(|driver| (3..=18).contains(driver));
         let mut field_read = false;

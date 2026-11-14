@@ -155,7 +155,7 @@ const sourceRoutes=new Map();
 globalThis.host_module_get_param=key=>key.startsWith('source_route_')?(sourceRoutes.get(Number(key.slice(13)))??`${key.slice(13)} 0 -1 -1 -1 -1 0`):nativeGet(key);
 globalThis.host_module_set_param_blocking=(key,value,timeout)=>{
  if(key==='cmd')for(const command of value.split(';'))if(command.startsWith('source ')){
-  const fields=command.slice(7).split(' ').map(Number);assert([23,30].includes(fields.length),'legacy or head-enabled route');if(fields[6]===3)assert.equal(fields.length,30);sourceRoutes.set(fields[0],fields.join(' '));
+  const fields=command.slice(7).split(' ').map(Number);assert([23,30,32].includes(fields.length),'legacy or driven head route');if(fields[6]===3)assert([30,32].includes(fields.length));sourceRoutes.set(fields[0],fields.join(' '));
  }
  return nativeSet?.(key,value,timeout);
 };
@@ -192,6 +192,17 @@ for(const group of [0,3]){
  assert.equal(sourceRoutes.get(actor)?.split(' ')[28],'1','Head 1 offset is independent');
  page.knobTurn(2,4);flush(page);
  assert.equal(sourceRoutes.get(actor)?.split(' ')[29],'1','Head 2 offset is independent');
+ assert.equal(page.keyAt(3),'joint_source_3_head_first_driver');
+ assert.equal(page.keyAt(4),'joint_source_3_head_second_driver');
+ // 3 increments: Clock -> Input1 -> Input2 -> Field1.
+ for(let index=0;index<3;index++){page.knobTurn(3,4);flush(page);}
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[30],'3','Head 1 reads shared Field X');
+ // 4 increments: Clock -> Input1 -> Input2 -> Field1 -> Field2.
+ for(let index=0;index<4;index++){page.knobTurn(4,4);flush(page);}
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[31],'4','Head 2 reads independent Field Y');
+ assert.equal(sourceRoutes.get(actor)?.split(' ').length,32,'driven heads retain optional source fields');
+ assert.equal(page.performanceGet('joint_source_3_head_first_driver'),'Field 1');
+ assert.equal(page.performanceGet('joint_source_3_head_second_driver'),'Field 2');
  page.goToPage(sourcePage);flush(page);
  page.knobTurn(5,-4);flush(page);
  assert.equal(sourceRoutes.get(actor)?.split(' ')[6],'2','Fit restored without dropping head settings');
