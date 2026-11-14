@@ -82,6 +82,14 @@ try{
  await slider.press('ArrowRight');
  await page.waitForFunction(async()=>(Number((await __wasmRead('ch0:midi_fx1:field_outputs_view2')).split(',')[53])&1)===1);
  await page.locator('[data-workspace=field] #release').click();
+ await page.waitForFunction(async()=>(Number((await __wasmRead('ch0:midi_fx1:field_outputs_view2')).split(',')[53])&1)===0);
+ const xyPad=page.locator('[data-workspace=field] #field-xy-pad');
+ await xyPad.waitFor();
+ await xyPad.click({position:{x:60,y:80}});
+ await page.waitForFunction(async()=>(Number((await __wasmRead('ch0:midi_fx1:field_outputs_view2')).split(',')[53])&3)===3);
+ assert.match(await page.locator('[data-workspace=field] #field-xy-readout').textContent(),/X Field 1 .* Y Field 2/,'canonical XY pad controls both shared Field outputs');
+ await page.locator('[data-workspace=field] #release').click();
+ await page.waitForFunction(async()=>(Number((await __wasmRead('ch0:midi_fx1:field_outputs_view2')).split(',')[53])&3)===0);
  // Global cancellation must reach the canonical editor, not just physical Move inputs.
  // Dispatch at the document so the field slider's own Escape handler cannot mask the gap.
  await slider.focus();await page.keyboard.down('ArrowRight');
