@@ -51,6 +51,14 @@ const {chromium} = require('playwright');
     assert.equal(field[52]&1,1,'production field panel creates native latch');
     await page.getByRole('button',{name:'Release all',exact:true}).click();
     await page.waitForFunction(()=>!document.querySelector('.label').textContent.includes(' · L'));
+    const xy=page.locator('#field-xy-pad');
+    await xy.click({position:{x:60,y:80}});
+    await page.waitForFunction(()=>document.querySelector('#field-xy-readout').textContent.includes('X Field 1'));
+    const xyValue=(await service.processor.request('get','ch1:midi_fx1:field_outputs_view2')).value.split(',').slice(1).map(Number);
+    assert.equal(xyValue[52]&3,3,'XY touch latches both native Field channels');
+    await page.getByRole('button',{name:'Release all',exact:true}).click();
+    await page.waitForFunction(()=>![...document.querySelectorAll('.label')].slice(0,2).some(label=>label.textContent.includes(' · L')));
+    assert.equal((await service.processor.request('get','ch1:midi_fx1:field_outputs_view2')).value.split(',').slice(1).map(Number)[52]&3,0);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Field Outputs phone layout fits');
     assert.deepEqual(errors,[]);console.log('Browser: real chord change, held-note travel, release, parameter edit, phone layout passed');
   }finally{await browser?.close();await service.close()}
