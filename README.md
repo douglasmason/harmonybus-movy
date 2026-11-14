@@ -1,3 +1,7 @@
+## Shared 2D MIDI head X/Y surface (HarmonyBus 0.2.328)
+
+The canonical HarmonyBus **Field Outputs** web editor gains a two-finger **MIDI event heads · X / Y** touch pad. Assign Movy's two Event Heads to Field 1 and Field 2 in Joint Play; use the same touchpad in Schwung Remote UI or the compiled browser workspace to move the two sparse MIDI readers on accepted rhythm attacks. No additional synth, scheduler, note-owner or separate web implementation. Native Move/Launchpad Field output strips still control the same channels. See [MIDI head X/Y surface](docs/midi-head-xy-surface.md).
+
 ## Field-driven live MIDI event heads
 
 Joint Play's **MIDI Event Heads** page can now assign each head to an existing **Input 1/2** or **Field 1–16** position source. A sparse source note/chord group is selected by each head's normalized position, including shared Perlin and Field Play pad/Launchpad/Remote UI pressure/latch overrides, only at accepted donor rhythm attacks. Missing drivers fall back to the ordinary advancing event reader, and the secondary PingPong head now bounces across event groups without a separate musical clock. No extra synthesizer, MIDI gate owner, or audio-rate processing. See [live heads](docs/live-midi-event-heads.md).
