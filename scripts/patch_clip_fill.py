@@ -19,8 +19,12 @@ def patch_clip_fill(root: Path) -> None:
     source = replace_once(source, 'part_result:String::new(),', 'fill_library:Err("Select a saved style"),part_result:String::new(),')
     start: int = source.index('            let start=clip.loop_start_ticks();let end=clip.loop_end_ticks();', source.index('    fn source_attack('))
     end: int = source.index('            let Some(onset)=onset', start)
-    source = source[:start]+'''            let onset=crate::clip_fill::pitch_onset(clip,
-                (route.alignment!=crate::source_route::Alignment::Sequential).then_some(pitch_phase),cursor.onset);
+    source = source[:start]+'''            let onset=if route.alignment==crate::source_route::Alignment::EventHeads {
+                crate::midi_grain::live_next_onset(clip,cursor.onset)
+            } else {
+                crate::clip_fill::pitch_onset(clip,
+                    (route.alignment!=crate::source_route::Alignment::Sequential).then_some(pitch_phase),cursor.onset)
+            };
 '''+source[end:]
     path.write_text(source)
     path = core / 'command.rs'
