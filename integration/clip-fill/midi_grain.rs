@@ -33,6 +33,20 @@ pub(crate) fn event_index(attack: usize, offset: usize, count: usize, mode: usiz
     }
 }
 
+/// Advance through sparse non-rendered note groups using existing
+/// sequential Source Weaving cursor semantics: rejected donor attacks never
+/// call this function, and it never mutates the source or advances a clock.
+pub(crate) fn live_next_onset(source: &Clip, previous: Option<u32>) -> Option<u32> {
+    let start = source.loop_start_ticks();
+    let end = source.loop_end_ticks();
+    let events = || source.notes.iter().take(MAX_NOTES).filter(|note| {
+        note.vel > 0 && !note.suppress && !note.rendered &&
+            note.tick >= start && note.tick < end
+    }).map(|note| note.tick);
+    events().filter(|tick| previous.map_or(true, |last| *tick > last)).min()
+        .or_else(|| events().min())
+}
+
 /// Two independent event-group readers for live Source Weaving.
 /// This mirrors the offline EventHeads ordering without copying a clip or
 /// allocating a collection in the audio callback. The selected `cursor_onset`
@@ -236,6 +250,18 @@ mod tests {
         assert_eq!(pitches_at(&short, 0), vec![60, 64, 67, 71]);
         assert!(event_grains(&source, EventHeads { bars: 16,
             spacing_index: 0, ..config(1) }).is_err());
+    }
+    #[test]
+    fn live_cursor_tracks_unique_groups_and_ignores_rendered_source_notes() {
+        let mut source = sparse();
+        assert_eq!(live_next_onset(&source, None), Some(0));
+        assert_eq!(live_next_onset(&source, Some(0)), Some(192));
+        assert_eq!(live_next_onset(&source, Some(192)), Some(288));
+        assert_eq!(live_next_onset(&source, Some(288)), Some(0));
+        source.notes[1].rendered = true;
+        assert_eq!(live_next_onset(&source, Some(0)), Some(288));
+        source.notes.iter_mut().for_each(|note|note.rendered=true);
+        assert_eq!(live_next_onset(&source, None), None);
     }
     #[test]
     fn live_head_selection_matches_offline_pitch_groups_on_sparse_unsorted_sources() {
