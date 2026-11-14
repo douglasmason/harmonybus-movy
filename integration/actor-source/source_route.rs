@@ -22,7 +22,7 @@ impl RhythmAttack {
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(u8)]
-pub enum Alignment { #[default] Sequential=0, Timeline=1, FitWindow=2 }
+pub enum Alignment { #[default] Sequential=0, Timeline=1, FitWindow=2, EventHeads=3 }
 
 /// Map one actor loop into a source loop without changing either clock.
 /// Integer flooring keeps the result inside the half-open source window.
@@ -39,6 +39,12 @@ pub struct Route {
     pub rhythm_pitch: Option<u8>,
     pub rhythm_amount: u8,
     pub alignment: Alignment,
+    /// EventHeads reads each accepted rhythm attack as one event-group step.
+    /// Head 1 always reads forward. 0=solo; 1=+reverse; 2=+ping-pong;
+    /// 3=+forward. Default reverse is active only when EventHeads is chosen.
+    pub head_mode: u8,
+    pub head_first_offset: u8,
+    pub head_second_offset: u8,
     pub expression: Option<ClipRef>,
     pub expression_fit: bool,
     pub instrument: Option<ClipRef>,
@@ -56,7 +62,8 @@ pub struct Route {
 impl Default for Route {
     fn default()->Self {
         Self {enabled:false,pitch:None,rhythm:None,rhythm_pitch:None,rhythm_amount:100,
-            alignment:Alignment::default(),expression:None,expression_fit:false,
+            alignment:Alignment::default(),head_mode:1,head_first_offset:0,
+            head_second_offset:0,expression:None,expression_fit:false,
             instrument:None,instrument_fit:false,hb_render:None,instrument_linear:false,hb_render_linear:false,instrument_driver:0,hb_render_driver:0,note_ops:None,
             grid_holds:None,gestures:None}
     }
@@ -82,20 +89,26 @@ impl Route {
     /// Optional fields 20/21 select expression/instrument Fit (0 Timeline, 1 Fit).
     /// Optional field 22 selects a raw rhythm note (0..127); -1 means all notes.
     /// Optional field 23 blends Own (0) to the rhythm source (100, default).
-    /// Pitch alignment: 0 Sequential, 1 Timeline, 2 Fit to Window.
+    /// Pitch alignment: 0 Sequential, 1 Timeline, 2 Fit to Window,
+    /// 3 Event Heads (event-indexed, rhythm donor owns attack rate).
+    /// 28–30: optional head mode (0–3), first offset (0–15), second
+    /// offset (0–15). This requires the complete 27-field predecessor;
+    /// legacy Set/Undo strings keep their original lengths.
     /// Optional fields 24/25 select Instrument/HB read mode (0 Step, 1 Linear).
     /// Optional fields 26/27 select Instrument/HB position drivers (0 Clock, 1/2 Input, 3..18 Field).
     /// Legacy seven/nine/eleven/thirteen/fifteen/seventeen-field routes retain Own for omitted dimensions.
     /// A -1 track with -1 slot means that actor's own playing clip.
     pub fn parse(message: &str) -> Option<(usize, Self)> {
         let values: Vec<i32> = message.split_whitespace().map(str::parse).collect::<Result<_,_>>().ok()?;
-        if values.len()!=7 && values.len()!=9 && values.len()!=11 && values.len()!=13 && values.len()!=15 && values.len()!=17 && !(19..=27).contains(&values.len()) {return None;}
+        if values.len()!=7 && values.len()!=9 && values.len()!=11 && values.len()!=13 && values.len()!=15 && values.len()!=17 && !(19..=27).contains(&values.len()) && values.len()!=30 {return None;}
         if values.iter().skip(23).take(2).any(|mode|!(0..=1).contains(mode)) || values.iter().skip(25).any(|driver|!(0..=18).contains(driver)) {return None;}
         if values.get(19).is_some_and(|value|!(0..=1).contains(value)) || values.get(20).is_some_and(|value|!(0..=1).contains(value)) {return None;}
         if values.get(21).is_some_and(|pitch|!(-1..=127).contains(pitch)) {return None;}
         if values.get(22).is_some_and(|amount|!(0..=100).contains(amount)) {return None;}
+        if values.get(27).is_some_and(|mode|!(0..=3).contains(mode))
+            || values.iter().skip(28).any(|offset|!(0..=15).contains(offset)) {return None;}
         let [actor,enabled,pitch_track,pitch_slot,rhythm_track,rhythm_slot,timeline] = &values[..7] else { return None; };
-        if !(0..NUM_TRACKS as i32).contains(actor) || !(0..=1).contains(enabled) || !(0..=2).contains(timeline) { return None; }
+        if !(0..NUM_TRACKS as i32).contains(actor) || !(0..=1).contains(enabled) || !(0..=3).contains(timeline) { return None; }
         fn reference(track: i32, slot: i32) -> Option<Option<ClipRef>> {
             if track == -1 && slot == -1 { return Some(None); }
             if !(0..NUM_TRACKS as i32).contains(&track) || !(0..CLIPS_PER_TRACK as i32).contains(&slot) { return None; }
@@ -105,7 +118,10 @@ impl Route {
             pitch:reference(*pitch_track,*pitch_slot)?, rhythm:reference(*rhythm_track,*rhythm_slot)?,
             rhythm_pitch:values.get(21).copied().filter(|pitch|*pitch>=0).map(|pitch|pitch as u8),
             rhythm_amount:values.get(22).copied().unwrap_or(100) as u8,
-            alignment:match timeline {0=>Alignment::Sequential,1=>Alignment::Timeline,_=>Alignment::FitWindow},
+            alignment:match timeline {0=>Alignment::Sequential,1=>Alignment::Timeline,2=>Alignment::FitWindow,_=>Alignment::EventHeads},
+            head_mode:values.get(27).copied().unwrap_or(1) as u8,
+            head_first_offset:values.get(28).copied().unwrap_or(0) as u8,
+            head_second_offset:values.get(29).copied().unwrap_or(0) as u8,
             expression:if values.len()>=9 {reference(values[7],values[8])?} else {None},
             expression_fit:values.get(19)==Some(&1),
             instrument:if values.len()>=11 {reference(values[9],values[10])?} else {None},
@@ -129,13 +145,16 @@ impl Route {
         let mut message=format!("{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}",actor,self.enabled as u8,pitch.0,pitch.1,rhythm.0,rhythm.1,self.alignment as u8,expression.0,expression.1,instrument.0,instrument.1,hb_render.0,hb_render.1,note_ops.0,note_ops.1,grid_holds.0,grid_holds.1,gestures.0,gestures.1);
         // Preserve the older route encoding unless the new mode is selected.
         let driven=self.instrument_driver!=0 || self.hb_render_driver!=0;
-        let extended=self.instrument_linear || self.hb_render_linear || driven;
+        let heads=self.alignment==Alignment::EventHeads ||
+            self.head_mode!=1 || self.head_first_offset!=0 || self.head_second_offset!=0;
+        let extended=self.instrument_linear || self.hb_render_linear || driven || heads;
         if extended || self.expression_fit || self.instrument_fit || self.rhythm_pitch.is_some() || self.rhythm_amount!=100 {message.push_str(if self.expression_fit {" 1"} else {" 0"});}
         if extended || self.instrument_fit || self.rhythm_pitch.is_some() || self.rhythm_amount!=100 {message.push_str(if self.instrument_fit {" 1"} else {" 0"});}
         if extended || self.rhythm_pitch.is_some() || self.rhythm_amount!=100 {message.push_str(&format!(" {}",self.rhythm_pitch.map_or(-1,i32::from)));}
         if extended || self.rhythm_amount!=100 {message.push_str(&format!(" {}",self.rhythm_amount));}
         if extended {message.push_str(&format!(" {} {}",self.instrument_linear as u8,self.hb_render_linear as u8));}
-        if driven {message.push_str(&format!(" {} {}",self.instrument_driver,self.hb_render_driver));}
+        if driven || heads {message.push_str(&format!(" {} {}",self.instrument_driver,self.hb_render_driver));}
+        if heads {message.push_str(&format!(" {} {} {}",self.head_mode,self.head_first_offset,self.head_second_offset));}
         message
     }
 }
