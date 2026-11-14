@@ -289,8 +289,10 @@ mod tests {
         assert_eq!(live_head_onsets(&source, 0, 1, 0, 0), None);
         let mut long = sparse();
         long.set_loop(8, 8);
+        // The reverse head mirrors the *event ordinal*, not its timestamp.
+        // On a three-onset source the middle event mirrors to itself.
         assert_eq!(live_head_onsets(&long, 192, 1, 0, 0),
-            Some((192, Some(288))));
+            Some((192, Some(192))));
     }
     #[test]
     fn rejects_unrepresentable_timed_source_without_changing_it() {
