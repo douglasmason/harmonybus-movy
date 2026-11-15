@@ -29,10 +29,48 @@ Head Position routes. Match the two choices in Joint Play manually.
 Source clips containing one onset or one chord remain valid because
 the position controls index source event groups rather than empty beats.
 
-The same normalized output state is available from native Move/Launchpad
-**Field Play → Outputs** as individual strips. This increment does not
-silently replace those pad mappings with an incompatible XY layout.
-A physical two-dimensional pad page is a later independent extension.
+## Physical Move / Launchpad XY layout (Movy hbclean.364)
+
+The exact same shared Field outputs now have an **opt-in XY pad layout**
+on both physical controllers. Field Play's old strips are still the default,
+so existing Sets and memorized mappings never change unexpectedly.
+
+1. In **Field Play**, set **Field Display → Outputs** if needed. Tap **Loop**
+   to switch the pad plane between **Strips** and **XY**. Loop lights brightly
+   while XY is selected and dims in Strips. Its contextual Remote UI button
+   descriptor shows the same meaning. This does not activate the Loop editor.
+2. In **XY**, the physical 8×4 Move or 8×8 Launchpad X pad grid spans X
+   left-to-right and Y bottom-to-top. The first held finger controls both
+   outputs; a second held finger controls Y independently. Release the
+   second to return Y to the first. The same normal/latch policy is used.
+3. **Pressure** on the current Y finger fine-tunes Y within half a pad row,
+   anchored on the first aftertouch message so pressing does not jump.
+   Move's four rows have coarse position until pressure/knobs refine it;
+   Launchpad X has eight rows. Launchpad Mini works by grid position without
+   pressure.
+4. **K1/K2** retain their existing fine output control of the first two
+   channels in the selected bank; **Jog** still changes the bank. Bank 1
+   controls **Field 1 (X)** and **Field 2 (Y)**; bank 2 controls Field 5/6,
+   then 9/10 and 13/14. Change the actor's Head Position settings to match
+   these Field channels when using a different bank.
+5. Hold **X + pad** (or the Launchpad modifier + pad) to clear **just the
+   two XY channels** in the active bank. Shift+Back and the modifier's
+   existing Release All control retain their normal all-output behavior.
+6. The physical LED grid draws a cyan crosshair and green live touches
+   with short blue trails on Launchpad X. Move uses its existing green
+   palette as a best-effort approximation.
+
+The physical layout switch is deliberately transient; it resets to Strips
+after leaving Field Play, and it does not overwrite the saved Field Display,
+output bank, operation assignments or the independently saved Event Heads
+driver choices. Mode/track/source disconnect and lane clear cancel active
+XY touches **without creating a latch**. Ordinary last-touch release
+commits both output leases only when the underlying Field DSP is in Latch.
+
+Move, Launchpad X, Remote UI, and the browser studio all feed exactly the
+same Field output channels to the live MIDI-head reader. Pads add no
+new note triggers or realtime schedulers. The next accepted rhythm-donor
+attack decides when the moved heads emit musical content.
 
 ## Gesture and cancellation rules
 
