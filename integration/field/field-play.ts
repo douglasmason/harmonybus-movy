@@ -6,7 +6,7 @@ import { selectTrack } from '../track/focus.js';
 import { LFO_CHAIN_INDEX } from '../chain/config.js';
 import { VIEW_KNOBS } from '../app/state.js';
 import { fontPrint } from '../font/index.js';
-import { outputs, latchMode, cancelOutputLane, type OutputFinish, outputView, vertical, outputBank, outputLane, outputSnapshot, outputLabels, outputPad, outputPressure, outputKnob, releaseOutputs, outputFrame, outputHeld, outputDirty, outputSent, outputColors } from './field-outputs.js';
+import { outputs, latchMode, cancelOutputLane, type OutputFinish, outputView, vertical, outputBank, outputLane, outputSnapshot, outputLabels, outputPad, outputPressure, outputKnob, outputXYPad, outputXYPressure, outputXYColors, releaseOutputs, outputFrame, outputHeld, outputDirty, outputSent, outputColors } from './field-outputs.js';
 /** Field Play owns gestures and display only; noise and timing belong to HB DSP. */
 import { appState } from '../app/state.js';
 import { seqState } from './state.js';
@@ -20,6 +20,23 @@ import { syncPadRoute } from '../track/pad-route.js';
 import { releaseLaunchpad } from '../surfaces/launchpad.js';
 
 let fieldEraseHeld=false;
+let xyPadLayout=false;
+/** Opt-in performance layout on the existing output bank. Its first two
+ * channels remain normal Field outputs to both DSP and remote UI.
+ * Physical Loop toggles the layout in Field Outputs; all other views retain
+ * their existing pad and Loop meanings.
+ */
+export function fieldXYAvailable():boolean {
+    return fieldActive()&&outputView&&!settingsOpen&&!routesOpen;
+}
+export function fieldXYActive():boolean{return xyPadLayout&&fieldXYAvailable();}
+export function toggleFieldXY():void {
+    if(!fieldXYAvailable())return;
+    // Never commit a pad latch merely because the performance layout changes.
+    releaseOutputs();sendOutputs();xyPadLayout=!xyPadLayout;paint.fill(-1);
+    appState.dirty=true;
+}
+
 let enabled=false, owner=-1, lastRead=-Infinity, lastSend=-Infinity, setId='';
 let page:SchwungPage|null=null;
 let samples:number[]=Array(64).fill(64), paint:number[]=Array(32).fill(-1);
@@ -44,6 +61,7 @@ export function releaseField():void{
 }
 export function setFieldEnabled(value:boolean):void{
     if(enabled===value)return;
+    if(!value)xyPadLayout=false;
     setFieldRoutesOpen(false);releaseField();releaseLaunchpad();enabled=value;owner=appState.activeTrack.index;page=null;paint.fill(-1);lastRead=-Infinity;
     // Immediately retire the native fast note map before another pad can arrive.
     if(engineReady()){syncPadRoute(fieldEngineSet);if(value){fieldEngineSet('joint_map','off');fieldEngineSet('joint_release','1');}}appState.dirty=true;
@@ -64,14 +82,34 @@ export function fieldPage():SchwungPage{
 /** Last-pressed wins; releasing it restores another held gesture or baseline. */
 export function fieldPad(source:string,index:number,down:boolean,width=8,height=4,clear=appState.shiftHeld||fieldEraseHeld):boolean{
     if(!['move','launchpad','remote'].includes(source)||!fieldActive()||!engineReady()||!Number.isInteger(index)||index<0||index>=width*height||width!==8||![4,8].includes(height))return false;
-    if(outputView){if(clear&&down)clearFieldOutput(outputLane(vertical?index%8:Math.floor(index/8)));else finishOutput(outputPad(source,index,down,height));sendOutputs();appState.dirty=true;return true;}
+    if(outputView){
+        if(fieldXYActive()){
+            if(clear){
+                if(down)clearFieldXY();
+                else releaseOutputs(source); // Release after an X/Shift gesture cancels, never latches.
+            }else for(const finish of outputXYPad(source,index,down,height))finishOutput(finish);
+        }else if(clear&&down)clearFieldOutput(outputLane(vertical?index%8:Math.floor(index/8)));
+        else finishOutput(outputPad(source,index,down,height));
+        sendOutputs();appState.dirty=true;return true;
+    }
     const key=source+':'+index;
     if(down){held.delete(key);held.set(key,{rate:rates[index%8],zoom:Math.round(25*Math.pow(16,Math.floor(index/8)/(height-1)))});}
     else held.delete(key);
     sendGesture();appState.dirty=true;return true;
 }
 export function fieldPressure(source:string,index:number,pressure:number):void{
-    if(fieldActive()&&outputView){outputPressure(source,index,pressure);appState.dirty=true;}
+    if(fieldActive()&&outputView){if(fieldXYActive())outputXYPressure(source,index,pressure,source==='move'?4:8);else outputPressure(source,index,pressure);appState.dirty=true;}
+}
+/** Erase exactly the current two X/Y Field channels, preserving unrelated
+ * output latches. Cancels any active native touch before sending DSP clears.
+ */
+function clearFieldXY():void{
+    const lanes=[outputLane(0),outputLane(1)];
+    for(const lane of lanes){
+        pendingFinishes=pendingFinishes.filter(finish=>finish.lane!==lane);
+        cancelOutputLane(lane);pendingClears.add(lane);
+    }
+    sendOutputs();appState.dirty=true;
 }
 function finishOutput(finish:OutputFinish|undefined):void{
     if(finish&&owner>=0){pendingFinishes=pendingFinishes.filter(entry=>entry.lane!==finish.lane);pendingFinishes.push(finish);}
@@ -128,6 +166,7 @@ export function tickField(now=Date.now()):void{
     }
 }
 export function fieldColors(source:string,width=8,height=4):number[]{
+    if(fieldXYActive())return outputXYColors(source,height);
     if(outputView)return outputColors(source,height);
     return Array.from({length:width*height},(_,index)=>{
         if(held.has(source+':'+index))return 127;
@@ -154,7 +193,8 @@ export function openFieldRoute():boolean {
 }
 export function showFieldRoutes(open=true):void {
     if(!fieldActive())return;
-    releaseOutputs('knob');sendOutputs();setFieldRoutesOpen(open);appState.dirty=true;
+    if(xyPadLayout)releaseOutputs();else releaseOutputs('knob');
+    sendOutputs();setFieldRoutesOpen(open);appState.dirty=true;
 }
 function fieldReadout(value:string|null):string {
     if(!value)return '?';
@@ -173,6 +213,15 @@ export function renderField():void{
         }else fontPrint(2,24,snapshot.scanned<snapshot.total?'Scanning routes...':snapshot.tracks.some(track=>track.freshness!=='fresh')?'Route data unavailable':'No Field LFO routes',1);
         fontPrint(2,56,'Jog: route Press: LFO',1);return;
     }
+    if(fieldXYActive()){
+        clear_screen();drawHeader('MIDI Heads XY',latchMode?'Latch':'Momentary');
+        const first=outputLane(0),second=outputLane(1);
+        fontPrint(2,15,`X F${first+1} ${(outputs[first].value*100).toFixed(1)}%`,1);
+        fontPrint(2,26,`Y F${second+1} ${(outputs[second].value*100).toFixed(1)}%`,1);
+        fontPrint(2,37,'Pads: X/Y  Press: multi',1);
+        fontPrint(2,47,'K1/K2: fine  Z: Y fine',1);
+        fontPrint(2,56,'Loop: strips  Jog: bank',1);return;
+    }
     if(outputView&&!settingsOpen){
         clear_screen();drawHeader('Field Outputs',latchMode?'Latch':'Momentary');
         const count=vertical?8:4;
@@ -181,7 +230,7 @@ export function renderField():void{
             fontPrint(column+2,14+row*10,`${lane+1}${output.latched?'L':''} ${output.label??Math.round(output.value*100)+'%'}`,1);
             if(!output.label)fill_rect(column+36,17+row*10,Math.round(output.value*25),2,1);
         }
-        fontPrint(2,56,'Shift press: routes',1);return;
+        fontPrint(2,56,'Loop: XY / Shift: routes',1);return;
     }
     clear_screen();const panel=fieldPage();drawHeader('Field Play',`${rate.toFixed(1)}x / ${zoom.toFixed(1)}x`);drawBankBar(panel.pageIndex,panel.pageCount);panel.render('Pads: speed / size');
 }
@@ -203,7 +252,7 @@ export function fieldMidi(data:number[]):boolean{
         if((type===144||type===128)&&key<8){finishOutput(outputKnob(key,type===144&&value>0));sendOutputs();appState.dirty=true;return true;}
         if(type===176&&key===14){releaseOutputs();sendOutputs();portFor(owner).setParam('midi_fx1:field_bank',String((outputBank+(value<64?1:3))%4));return true;}
     }
-    if(type===176&&key===MoveMainButton&&value&&outputView&&(!settingsOpen||appState.shiftHeld)){releaseOutputs('knob');sendOutputs();settingsOpen=!settingsOpen;appState.dirty=true;return true;}
+    if(type===176&&key===MoveMainButton&&value&&outputView&&(!settingsOpen||appState.shiftHeld)){if(xyPadLayout)releaseOutputs();else releaseOutputs('knob');sendOutputs();settingsOpen=!settingsOpen;appState.dirty=true;return true;}
     if(type===176&&key>=71&&key<=78){fieldPage().knobTurn(key-71,value<64?value:value-128);appState.dirty=true;return true;}
     if((type===144||type===128)&&key<8){fieldPage().knobTouch(key,type===144&&value>0);return true;}
     if(type===176&&key===14){fieldPage().changePage(value<64?value:value-128);appState.dirty=true;return true;}
@@ -212,4 +261,4 @@ export function fieldMidi(data:number[]):boolean{
     return false;
 }
 /** Remote UI uses the same event contract. Polling this snapshot is read-only. */
-export function fieldSnapshot(){return {active:fieldActive(),rate,scale:zoom,values:[...samples],view:outputView?'outputs':'terrain',orientation:vertical?'vertical':'horizontal',bank:outputBank,override:latchMode?'latch':'momentary',outputs:outputs.map(output=>({...output})),routing:fieldRoutesSnapshot()};}
+export function fieldSnapshot(){return {active:fieldActive(),rate,scale:zoom,values:[...samples],view:outputView?'outputs':'terrain',xyPadLayout:fieldXYActive(),xyChannels:[outputLane(0)+1,outputLane(1)+1],orientation:vertical?'vertical':'horizontal',bank:outputBank,override:latchMode?'latch':'momentary',outputs:outputs.map(output=>({...output})),routing:fieldRoutesSnapshot()};}

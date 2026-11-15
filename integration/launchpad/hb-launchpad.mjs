@@ -228,6 +228,38 @@ assert.deepEqual(claims.at(-1),[0,-1]);
 globalThis.overtakeParked=false;setFlag('hblaunchpad',0);unloadLaunchpad();
 console.log('Launchpad Mini MK3: mode setup, RGB addressing/backpressure, shared controls, repeats, track ownership and teardown pass');
 
+// Field XY reuses the Launchpad programmer input and existing Field output
+// owners. Modifier + second-to-last top key toggles XY; rightmost top + the
+// modifier still clears all Field channels exactly as before.
+const fieldXY=await import('../dist/esm/seq/field-play.js');
+const outputXY=await import('../dist/esm/seq/field-outputs.js');
+selectTrack(0);seqState.sessionMode=false;seqState.loopMode=false;appState.shiftHeld=false;
+fieldXY.setFieldEnabled(true);
+outputXY.outputSnapshot('fo2,1,0,0,'+Array.from({length:16},()=>[5000,3500,1]).flat().join(',')+',0,0,0,0');
+setFlag('hblaunchpad',2);tickLaunchpad(1920);tickLaunchpad(1930);tickLaunchpad(1940);
+assert(!fieldXY.fieldXYActive());
+onMidiMessageExternal([176,89,127]);onMidiMessageExternal([176,97,127]);onMidiMessageExternal([176,97,0]);onMidiMessageExternal([176,89,0]);
+assert(fieldXY.fieldXYActive(),'X modifier + seventh top key switches XY');
+const xyLights=sent.length;
+for(let now=2010;now<=2500;now+=25)tickLaunchpad(now);
+assert(sent.length>xyLights,'XY layout repaints when the existing USB/LED queue is ready');
+const transmitted=()=>outputXY.outputFrame().split(',').slice(1).map(Number);
+const musicalBefore=midi.length;
+onMidiMessageExternal([144,11,100]);onMidiMessageExternal([144,88,100]);
+assert.deepEqual(transmitted().slice(0,2),[0,0],'first LPX pad X / second pad Y');
+assert.equal(midi.length,musicalBefore,'pad XY positions must never trigger a synth note');
+onMidiMessageExternal([160,88,40]);assert.equal(transmitted()[1],0,'first Z packet anchors the Y position');
+onMidiMessageExternal([160,88,127]);assert(transmitted()[1]>0,'LPX pressure refines Y');
+onMidiMessageExternal([128,88,0]);
+assert.equal(transmitted()[1],10000,'second Y release restores first finger vertical coordinate');
+onMidiMessageExternal([128,11,0]);
+assert.equal(transmitted()[0],-1);assert.equal(transmitted()[1],-1);
+onMidiMessageExternal([176,89,127]);onMidiMessageExternal([176,97,127]);onMidiMessageExternal([176,97,0]);onMidiMessageExternal([176,89,0]);
+assert(!fieldXY.fieldXYActive(),'same modifier gesture returns to preserved output strips');
+fieldXY.setFieldEnabled(false);setFlag('hblaunchpad',0);unloadLaunchpad();
+console.log('Launchpad Field XY: native pad routing, pressure, global output owner, top toggle, LED repaint, no note triggers and release pass');
+
+
 // Existing host APIs only: a burst has one engine write for sound plus recording.
 const { flushLaunchpadInput } = await import('../dist/esm/surfaces/launchpad.js');
 const nativeWrites=[];

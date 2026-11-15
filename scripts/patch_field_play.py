@@ -36,13 +36,26 @@ def patch_field_play(root: Path) -> None:
     source += "\nObject.assign(globalThis, { fieldPad, fieldPressure, fieldSnapshot, showFieldRoutes, openFieldRoute, clearFieldOutput, releaseFieldSource });\n"
     path.write_text(source)
     path = root / 'src/surfaces/launchpad.ts'
-    source = "import { fieldActive, fieldPad, fieldPressure, fieldColors, clearFieldOutput, releaseFieldSource } from '../seq/field-play.js';\n" + path.read_text()
+    source = "import { fieldActive, fieldPad, fieldPressure, fieldColors, fieldXYAvailable, fieldXYActive, toggleFieldXY, clearFieldOutput, releaseFieldSource } from '../seq/field-play.js';\n" + path.read_text()
     source = replace_once(source, 'export function releaseLaunchpad(): boolean {', "export function releaseLaunchpad(): boolean {\n    releaseFieldSource('launchpad');")
     source = source.replace('if(gridActive()){frameReady=true;}else sample(now);','if(fieldActive()||gridActive()){frameReady=true;}else sample(now);')
     source = source.replace('const desired = gridActive()?', "const desired = fieldActive()?fieldColors('launchpad',8,8):gridActive()?")
     source = replace_once(source,'    const top = type === 176 ?', '''    if(fieldActive()&&index>=0){if(type===160)fieldPressure('launchpad',index,value);else if(type===128||type===144)fieldPad('launchpad',index,type===144&&value>0,8,8,modifier);return;}
     const top = type === 176 ?''')
+    source = replace_once(source,
+        '    if (isModifier) { modifier = type !== 128 && value > 0; return; }',
+        '''    if (isModifier) { modifier = type !== 128 && value > 0; return; }
+    // Modifier + next-to-last top button changes only the Field pad geometry.
+    // Do not steal a release belonging to a previously pressed normal control.
+    if(fieldXYAvailable()&&modifier&&top===6&&!controls.has(top)){
+        if(value)toggleFieldXY();
+        return;
+    }''')
     source = source.replace('    if (top >= 0 && top < 8) {', '    if(fieldActive()&&modifier&&top===7){if(value)clearFieldOutput();return;}\n    if (top >= 0 && top < 8) {')
+    source = replace_once(source,
+        '        desired.push(model === 1 ? legacyColor(color, false, false, false, false) : color);',
+        '''        const fieldColor=fieldXYAvailable()&&slot===6?(fieldXYActive()?119:32):color;
+        desired.push(model === 1 ? legacyColor(fieldColor, false, false, false, false) : fieldColor);''')
     path.write_text(source)
     path = root / 'build/browser.mjs'
     path.write_text(path.read_text().replace('    entryPoints: [', "    entryPoints: [\n        resolve(root, 'src/seq/field-routes.ts'),\n        resolve(root, 'src/seq/field-play.ts'),\n        resolve(root, 'src/seq/field-outputs.ts'),"))

@@ -3,6 +3,103 @@ import { PAD_PALETTE } from '../keyboard/pad-palette.js';
 export type Output = {raw:number;value:number;target:number;latched:boolean;label?:string;description?:string};
 type Hold = {lane:number;base:number;offset:number;anchor:number|null;spacing:number};
 const holds=new Map<string,Hold>();
+
+/** A pad-plane is merely another pair of owners in the existing Field lane map.
+ * Its contacts are physical note IDs, not new MIDI voices or synth events.
+ * Insertion order is authoritative: first finger X/Y, second Y only.
+ */
+type XYContact={x:number;y:number;anchor:number|null;pressureOffset:number};
+type XYPoint={x:number;y:number;at:number};
+const xyContacts=new Map<string,Map<number,XYContact>>();
+const xyOwners=new Map<string,readonly [number,number]>();
+const xyTrails=new Map<string,XYPoint[]>();
+const xyKey=(source:string,axis:'x'|'y')=>source+':xy:'+axis;
+const clamp01=(value:number)=>Math.max(0,Math.min(1,value));
+function cancelXYSource(source:string,trail=true):void {
+    xyContacts.delete(source);xyOwners.delete(source);
+    holds.delete(xyKey(source,'x'));holds.delete(xyKey(source,'y'));
+    if(trail)xyTrails.delete(source);
+    changed=true;
+}
+function updateXYSource(source:string,height:number):void{
+    const contacts=xyContacts.get(source),pair=xyOwners.get(source);
+    if(!contacts?.size||!pair)return;
+    const values=[...contacts.values()],primary=values[0],vertical=values[1]??primary;
+    const x=primary.x,y=clamp01(vertical.y+vertical.pressureOffset);
+    // Maintain the same two physical Field leases, independent of web touches.
+    for(const [axis,lane,base] of [['x',pair[0],x],['y',pair[1],y]] as const){
+        const key=xyKey(source,axis);
+        holds.set(key,{lane,base,offset:0,anchor:null,spacing:1/Math.max(1,height-1)});
+    }
+    const history=xyTrails.get(source)??[],prior=history[history.length-1];
+    if(!prior||Math.abs(prior.x-x)+Math.abs(prior.y-y)>.005){
+        history.push({x,y,at:Date.now()});if(history.length>24)history.shift();
+        xyTrails.set(source,history);
+    }
+    changed=true;
+}
+/** A bounded 8x4 Move or 8x8 Launchpad X multi-touch Field XY surface.
+ * Return the existing per-lane latch requests only on the last normal release.
+ * Release/cancel at any other boundary never makes a new DSP latch.
+ */
+export function outputXYPad(source:string,index:number,down:boolean,height:number):OutputFinish[]{
+    if(!['move','launchpad','remote'].includes(source)||!Number.isInteger(index)||
+        index<0||index>=height*8||![4,8].includes(height))return [];
+    let contacts=xyContacts.get(source);
+    if(down){
+        if(!contacts){contacts=new Map();xyContacts.set(source,contacts);
+            xyOwners.set(source,[outputLane(0),outputLane(1)]);
+        }
+        if(contacts.has(index)||contacts.size>=2)return [];
+        contacts.set(index,{x:index%8/7,y:1-Math.floor(index/8)/(height-1),
+            anchor:null,pressureOffset:0});
+        updateXYSource(source,height);
+        return [];
+    }
+    if(!contacts?.delete(index))return [];
+    if(contacts.size){updateXYSource(source,height);return [];}
+    xyContacts.delete(source);xyOwners.delete(source);
+    const finished=[finishHold(xyKey(source,'x')),finishHold(xyKey(source,'y'))];
+    return finished.filter((value):value is OutputFinish=>value!==undefined);
+}
+/** First aftertouch anchors, subsequent pressure fine-tunes the currently
+ * vertical finger within half a pad row (Y). The DSP still owns smoothing.
+ */
+export function outputXYPressure(source:string,index:number,pressure:number,height:number):void{
+    const contacts=xyContacts.get(source),contact=contacts?.get(index);
+    if(!contact||!Number.isFinite(pressure)||![4,8].includes(height))return;
+    const value=Math.max(0,Math.min(127,pressure));
+    if(contact.anchor===null)contact.anchor=value;
+    contact.pressureOffset=(value-contact.anchor)/127/(height-1)*.5;
+    if(Array.from(contacts?.keys()??[]).pop()===index || contacts?.size===1)updateXYSource(source,height);
+}
+/** Exact physical grid contact data for the shared redrawn pad frame. */
+export function outputXYActive(source:string):boolean{return (xyContacts.get(source)?.size??0)>0;}
+export function outputXYColors(source:string,height:number):number[]{
+    const [laneX,laneY]=[outputLane(0),outputLane(1)];
+    const x=clamp01(effectiveHeld(laneX)??outputs[laneX].value),
+        y=clamp01(effectiveHeld(laneY)??outputs[laneY].value);
+    const column=Math.round(x*7),row=Math.round((1-y)*(height-1));
+    const touches=xyContacts.get(source),trail=xyTrails.get(source)??[],now=Date.now();
+    return Array.from({length:8*height},(_,index)=>{
+        const c=index%8,r=Math.floor(index/8);
+        const contact=touches?.has(index)??false;
+        const cursor=c===column&&r===row;
+        const cross=c===column||r===row;
+        const blue=trail.reduce((level,point)=>{
+            if(now-point.at>1600)return level;
+            const tc=Math.round(point.x*7),tr=Math.round((1-point.y)*(height-1));
+            return tc===c&&tr===r?Math.max(level,Math.round((1-(now-point.at)/1600)*60)):level;
+        },0);
+        if(source==='launchpad'){
+            const green=contact?127:cursor?80:cross?18:0;
+            return 0x200000|(green<<7)|(contact?0:cursor?110:blue);
+        }
+        // Move's available hardware palette is quantized green/neutral.
+        return contact?119:cursor?118:cross?32:blue>10?11:0;
+    });
+}
+
 export const outputs:Output[]=Array.from({length:16},()=>({raw:.5,value:.5,target:0,latched:false}));
 export let outputView=false, vertical=false, outputBank=0, latchMode=false;
 export type OutputFinish={lane:number;value:number};
@@ -76,11 +173,16 @@ function finishHold(key:string):OutputFinish|undefined{
 }
 /** Cancellation never commits a latch. */
 export function cancelOutputLane(lane:number):void{
+    // Clearing either axis invalidates the whole 2D capture. A held finger
+    // cannot silently re-arm the other axis after a remote lane clear.
+    for(const [source,pair] of xyOwners)if(pair.includes(lane))cancelXYSource(source);
     for(const [key,hold] of holds)if(hold.lane===lane)holds.delete(key);
     changed=true;
 }
 export function releaseOutputs(source?:string):void{
+    for(const key of [...xyContacts.keys()])if(!source||key===source)cancelXYSource(key);
     for(const key of holds.keys())if(!source||key.startsWith(source+':'))holds.delete(key);
+    if(!source)xyTrails.clear();
     changed=true;
 }
 export function outputFrame():string{return 'fo1,'+outputs.map((_,lane)=>{const value=effectiveHeld(lane);return value===undefined?-1:Math.round(value*10000);}).join(',');}

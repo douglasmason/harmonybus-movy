@@ -62,3 +62,86 @@ field.setFieldEnabled(false);
 console.log('Latch delivery: busy writes retry finish before clearing its source lease');
 
 assert(strips.outputLabels('fl1;Vel10%|Velocity amount 10%'+(';--|Unmapped').repeat(15)));assert.equal(strips.outputs[0].label,'Vel10%');assert.equal(strips.outputs[0].description,'Velocity amount 10%');assert.equal(strips.outputLabels('fl1;broken'),false);
+
+
+const xyMode=await import('../dist/esm/seq/mode-buttons.js');
+strips.outputSnapshot('fo2,1,0,0,'+Array.from({length:16},()=>[5000,3500,1]).flat().join(',')+',0,0,0,0');
+field.setFieldEnabled(true);
+assert(field.fieldXYAvailable(),'the existing Field Outputs view is the only XY layout owner');
+assert(!field.fieldXYActive(),'legacy Field output strips remain the default');
+assert(xyMode.modeButtonMidi(xyMode.CC_MODE_LOOP,127,false),'Loop toggles the field pad layout only in Outputs');
+assert(field.fieldXYActive());
+assert(xyMode.modeButtonColor(xyMode.CC_MODE_LOOP,0)>0,'XY Loop is lit when selected');
+xyMode.modeButtonMidi(xyMode.CC_MODE_LOOP,0,false);
+const xyDescriptor=xyMode.modeActionDescriptors().find(item=>item.cc===xyMode.CC_MODE_LOOP);
+assert.match(xyDescriptor?.label??'',/XY/);
+assert.deepEqual(field.fieldSnapshot().xyChannels,[1,2]);
+assert.equal(field.fieldColors('move').length,32);
+assert.equal(field.fieldColors('launchpad',8,8).length,64);
+// Move's first held pad owns X/Y; a second pad only selects Y.
+// The existing outputFrame, Field DSP lease and gate system are unchanged.
+field.fieldPad('move',10,true);
+assert.deepEqual(frame().slice(0,2),[2857,6667]);
+field.fieldPad('move',23,true);
+assert.deepEqual(frame().slice(0,2),[2857,3333]);
+const yHeld=frame()[1];
+field.fieldPressure('move',23,40);
+assert.equal(frame()[1],yHeld,'pressure anchors without jumping');
+field.fieldPressure('move',23,120);
+assert(frame()[1]>yHeld,'Y pressure adds fine control within half a pad row');
+field.fieldPad('move',23,false);
+assert.deepEqual(frame().slice(0,2),[2857,6667],'lifting second finger restores the first finger Y');
+const finishesAt=writes.filter(([key])=>key==='midi_fx1:field_output_finish').length;
+field.fieldPad('move',10,false);
+assert(frame().slice(0,2).every(value=>value===-1));
+assert.equal(writes.filter(([key])=>key==='midi_fx1:field_output_finish').length,finishesAt+2,'the last release forwards both existing DSP latches');
+assert(!strips.outputXYActive('move'));
+const afterRelease=writes.filter(([key])=>key==='midi_fx1:field_output_finish').length;
+field.fieldPad('move',10,false);
+field.fieldPressure('move',10,127);
+assert.equal(writes.filter(([key])=>key==='midi_fx1:field_output_finish').length,afterRelease,
+    'stale note-off and aftertouch cannot commit another latch');
+assert(frame().every(value=>value===-1),'stale physical input cannot re-arm a Field output');
+
+// Launchpad's 8x8 cells use the same two channels with finer vertical travel.
+field.fieldPad('launchpad',0,true,8,8);
+field.fieldPad('launchpad',63,true,8,8);
+assert.deepEqual(frame().slice(0,2),[0,0]);
+assert(strips.outputXYActive('launchpad'));
+field.releaseFieldSource('launchpad');
+assert(frame().slice(0,2).every(value=>value===-1));
+assert(!strips.outputXYActive('launchpad'));
+field.fieldPad('launchpad',63,false,8,8);
+assert(frame().slice(0,2).every(value=>value===-1),'late Launchpad release after disconnect cannot relatch');
+
+// The same two-pad bank follows the existing Jog bank; a global clear must
+// never erase the unrelated Field channels.
+strips.outputSnapshot('fo2,1,0,1,'+Array.from({length:16},()=>[5000,3500,1]).flat().join(',')+',0,0,0,0');
+assert.deepEqual(field.fieldSnapshot().xyChannels,[5,6]);
+field.fieldPad('move',3,true);
+assert.equal(frame()[4],4286);assert.equal(frame()[5],10000);
+assert.equal(frame()[0],-1);
+const clearStart=writes.length;
+field.fieldPad('move',6,true,8,4,true);
+assert(writes.slice(clearStart).some(([key,value])=>key==='midi_fx1:field_output_clear'&&value==='4'));
+assert(writes.slice(clearStart).some(([key,value])=>key==='midi_fx1:field_output_clear'&&value==='5'));
+assert(!writes.slice(clearStart).some(([key,value])=>key==='midi_fx1:field_output_clear'&&value==='16'));
+field.fieldPad('move',3,false);
+assert(frame().every(value=>value===-1),'cleared XY touch cannot relatch');
+assert(!strips.outputXYActive('move'));
+
+// Mode switch is cancellation, not a latch. Existing strips and their
+// pressure/knob behavior are restored immediately on the next pad press.
+strips.outputSnapshot('fo2,1,0,0,'+Array.from({length:16},()=>[5000,3500,1]).flat().join(',')+',0,0,0,0');
+field.fieldPad('move',14,true);
+assert(strips.outputXYActive('move'));
+const switchStart=writes.length;
+assert(xyMode.modeButtonMidi(xyMode.CC_MODE_LOOP,127,false));
+assert(!field.fieldXYActive());
+assert(!strips.outputXYActive('move'));
+assert(!writes.slice(switchStart).some(([key])=>key==='midi_fx1:field_output_finish'));
+xyMode.modeButtonMidi(xyMode.CC_MODE_LOOP,0,false);
+field.fieldPad('move',3,true);assert.equal(frame()[0],4286,'legacy strip layout restored');
+field.releaseFieldSource('move');
+field.setFieldEnabled(false);
+console.log('Physical MIDI XY: Move 8x4 and Launchpad 8x8 first/second touch, Z fine Y, bank navigation, Loop LED/help, source cancel, pair clear and legacy strips pass');

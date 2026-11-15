@@ -1,3 +1,7 @@
+## Physical MIDI-head XY pads on Move and Launchpad
+
+Field Play → Outputs now supports an opt-in **8×4 Move / 8×8 Launchpad X XY pad plane**. Tap **Loop** to switch Strips ↔ XY; first finger controls X/Y, second independently controls Y, and pressure provides fine Y placement. K1/K2 and Jog retain their Field-output fine adjustment and bank selection, and X+pad clears just the two XY channels. The ordinary Field DSP provides latching/release ownership, so the sparse MIDI heads still emit only at rhythm-source attacks. The existing Strips layout remains the default. [Setup and hardware notes](docs/midi-head-xy-surface.md).
+
 ## Shared 2D MIDI head X/Y surface (HarmonyBus 0.2.328)
 
 The canonical HarmonyBus **Field Outputs** web editor gains a two-finger **MIDI event heads · X / Y** touch pad. Assign Movy's two Event Heads to Field 1 and Field 2 in Joint Play; use the same touchpad in Schwung Remote UI or the compiled browser workspace to move the two sparse MIDI readers on accepted rhythm attacks. No additional synth, scheduler, note-owner or separate web implementation. Native Move/Launchpad Field output strips still control the same channels. See [MIDI head X/Y surface](docs/midi-head-xy-surface.md).
