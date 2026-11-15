@@ -96,10 +96,12 @@ field.fieldPad('move',10,false);
 assert(frame().slice(0,2).every(value=>value===-1));
 assert.equal(writes.filter(([key])=>key==='midi_fx1:field_output_finish').length,finishesAt+2,'the last release forwards both existing DSP latches');
 assert(!strips.outputXYActive('move'));
-const afterRelease=writes.length;
+const afterRelease=writes.filter(([key])=>key==='midi_fx1:field_output_finish').length;
 field.fieldPad('move',10,false);
 field.fieldPressure('move',10,127);
-assert.equal(writes.length,afterRelease,'stale note-off and aftertouch cannot rearm');
+assert.equal(writes.filter(([key])=>key==='midi_fx1:field_output_finish').length,afterRelease,
+    'stale note-off and aftertouch cannot commit another latch');
+assert(frame().every(value=>value===-1),'stale physical input cannot re-arm a Field output');
 
 // Launchpad's 8x8 cells use the same two channels with finer vertical travel.
 field.fieldPad('launchpad',0,true,8,8);
