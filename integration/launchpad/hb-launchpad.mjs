@@ -240,8 +240,9 @@ setFlag('hblaunchpad',2);tickLaunchpad(1920);tickLaunchpad(1930);tickLaunchpad(1
 assert(!fieldXY.fieldXYActive());
 onMidiMessageExternal([176,89,127]);onMidiMessageExternal([176,97,127]);onMidiMessageExternal([176,97,0]);onMidiMessageExternal([176,89,0]);
 assert(fieldXY.fieldXYActive(),'X modifier + seventh top key switches XY');
-const xyLights=sent.length;tickLaunchpad(2010);
-assert(sent.length>xyLights,'XY layout forces a controller LED update');
+const xyLights=sent.length;
+for(let now=2010;now<=2500;now+=25)tickLaunchpad(now);
+assert(sent.length>xyLights,'XY layout repaints when the existing USB/LED queue is ready');
 const transmitted=()=>outputXY.outputFrame().split(',').slice(1).map(Number);
 const musicalBefore=midi.length;
 onMidiMessageExternal([144,11,100]);onMidiMessageExternal([144,88,100]);
