@@ -36,7 +36,7 @@ on both physical controllers. Field Play's old strips are still the default,
 so existing Sets and memorized mappings never change unexpectedly.
 
 1. In **Field Play**, set **Field Display → Outputs** if needed. Tap **Loop**
-   to switch the pad plane between **Strips** and **XY**. Loop lights brightly
+   to switch the pad plane between **Strips** and **XY**. On Launchpad X or Mini, hold the usual **side modifier** and press the **seventh top button** (second from the right); its light indicates the selection. Loop lights brightly
    while XY is selected and dims in Strips. Its contextual Remote UI button
    descriptor shows the same meaning. This does not activate the Loop editor.
 2. In **XY**, the physical 8×4 Move or 8×8 Launchpad X pad grid spans X
