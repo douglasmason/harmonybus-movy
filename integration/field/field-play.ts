@@ -228,7 +228,7 @@ export function renderField():void{
             fontPrint(column+2,14+row*10,`${lane+1}${output.latched?'L':''} ${output.label??Math.round(output.value*100)+'%'}`,1);
             if(!output.label)fill_rect(column+36,17+row*10,Math.round(output.value*25),2,1);
         }
-        fontPrint(2,56,'Shift press: routes',1);return;
+        fontPrint(2,56,'Loop: XY / Shift: routes',1);return;
     }
     clear_screen();const panel=fieldPage();drawHeader('Field Play',`${rate.toFixed(1)}x / ${zoom.toFixed(1)}x`);drawBankBar(panel.pageIndex,panel.pageCount);panel.render('Pads: speed / size');
 }
