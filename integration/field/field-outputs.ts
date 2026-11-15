@@ -71,7 +71,7 @@ export function outputXYPressure(source:string,index:number,pressure:number,heig
     const value=Math.max(0,Math.min(127,pressure));
     if(contact.anchor===null)contact.anchor=value;
     contact.pressureOffset=(value-contact.anchor)/127/(height-1)*.5;
-    if([...(contacts?.keys()??[])].at(-1)===index || contacts?.size===1)updateXYSource(source,height);
+    if(Array.from(contacts?.keys()??[]).pop()===index || contacts?.size===1)updateXYSource(source,height);
 }
 /** Exact physical grid contact data for the shared redrawn pad frame. */
 export function outputXYActive(source:string):boolean{return (xyContacts.get(source)?.size??0)>0;}
