@@ -68,6 +68,37 @@ upstream app-loop suite still has 11 existing failures and terminates in a missi
 MIDI-send mock; the same failures reproduce in the pre-Field checkout. Its result
 is not represented as a passing test. Device acceptance remains outstanding.
 
+## Opt-in XY pad plane for MIDI event heads (Movy hbclean.364)
+
+Field Play retains its default physical output strips. When **Field
+Display** is set to **Outputs**, tap **Loop** on Move or its mapped Launchpad
+control to switch pads to **XY**; tap again to return to Strips. The
+first two Field channels in the selected output bank become X and Y,
+without introducing a second oscillator, transport or MIDI note engine.
+
+On Move the 8×4 pad area maps X to columns and Y to rows; Launchpad X uses
+8×8. Hold one pad for both coordinates, or a second pad for Y alone.
+First aftertouch anchors its pressure and subsequent pressure can fine
+adjust Y by half a row. K1/K2 fine-tune the first two bank channels
+through the existing output-knob owners, Jog selects an output bank,
+and X+pad cancels *both* selected channels without affecting unrelated
+Field latches. Green direct touches and a cyan cursor/blue trail on
+Launchpad X reuse the cached native LED painter. Move quantizes into
+its existing green/neutral palette.
+
+In Joint Play choose Event Heads and assign its Head 1/2 Position
+to Field 1/2 for bank 1. The chosen pitch/chord group changes only at
+the next accepted rhythm-source attack. Other Field mappings,
+momentary/latch rules, Source Weaving, and stock Move instruments are
+unchanged. Changing mode, track, bank or disconnecting cancels the
+physical XY gesture without latching anything. The layout switch is
+temporary and Strips remains the initial state for existing Sets.
+The canonical 2D Remote UI pad continues to drive the same channels.
+
+See [MIDI head XY surface](midi-head-xy-surface.md) for setup and
+limitations. Hardware touch accuracy and crackle still require a
+physical device test.
+
 ## Output strips (HB 0.2.284 / Movy 206 candidate)
 
 In Field Display set View to 1 (Outputs). Orientation 0 is Horizontal on every
