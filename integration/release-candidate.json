@@ -1,8 +1,8 @@
 {
-  "version": "0.34.1-hbclean.363",
-  "previous_version": "0.34.1-hbclean.362",
+  "version": "0.34.1-hbclean.364",
+  "previous_version": "0.34.1-hbclean.363",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.363 — shared MIDI head XY surface",
+  "title": "Movy 0.34.1-hbclean.364 — physical MIDI-head XY pad plane",
   "notes": "docs/midi-head-xy-surface.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
