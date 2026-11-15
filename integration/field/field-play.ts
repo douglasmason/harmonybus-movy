@@ -84,8 +84,10 @@ export function fieldPad(source:string,index:number,down:boolean,width=8,height=
     if(!['move','launchpad','remote'].includes(source)||!fieldActive()||!engineReady()||!Number.isInteger(index)||index<0||index>=width*height||width!==8||![4,8].includes(height))return false;
     if(outputView){
         if(fieldXYActive()){
-            if(clear){if(down)clearFieldXY();}
-            else for(const finish of outputXYPad(source,index,down,height))finishOutput(finish);
+            if(clear){
+                if(down)clearFieldXY();
+                else releaseOutputs(source); // Release after an X/Shift gesture cancels, never latches.
+            }else for(const finish of outputXYPad(source,index,down,height))finishOutput(finish);
         }else if(clear&&down)clearFieldOutput(outputLane(vertical?index%8:Math.floor(index/8)));
         else finishOutput(outputPad(source,index,down,height));
         sendOutputs();appState.dirty=true;return true;
