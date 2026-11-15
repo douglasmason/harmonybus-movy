@@ -13,7 +13,7 @@ import {loopEditResizeHold} from './loop-mode.js';
 import {gridActive,gridEraseActive,gridFollowActive,setGridEraseHeld,toggleGridFollow} from './grid.js';
 import {scaleFindingActive,scaleFindingCanApply,scaleFindingCanClear,clearScaleFindingPreview,commitScaleFindingPreview,scaleMicrophoneListening,scaleMicrophoneAvailable,setScaleMicrophoneListening} from './scale-finding.js';
 import {seqToast} from './render.js';
-import {fieldEraseAvailable,fieldEraseActive,setFieldEraseHeld} from './field-play.js';
+import {fieldEraseAvailable,fieldEraseActive,setFieldEraseHeld,fieldXYAvailable,fieldXYActive,toggleFieldXY} from './field-play.js';
 import {motifEditing,motifAction,motifPage,motifFinish} from '../renderer/hb-motif.js';
 import {schwungActiveFor} from '../renderer/schwung-grid.js';
 import {chordActive, chordQueuedMode, chordQueuePresent, chordLoopSelected, chordLoopButton, chordSampleButton, chordRetrigger, chordMuteSelected, chordMuteButton, chordPadModalActive, harmonyOff} from './chord-play.js';
@@ -48,10 +48,11 @@ const MODE_GUIDES:Readonly<Record<number,{name:string;lines:readonly string[]}>>
         'Loop: follow / hold page',
         'Copy: normal clipboard']},
     5:{name:'Field Play',lines:[
-        'Pads: speed / shape',
-        'X+pad: erase output lane',
-        'Only in Outputs view',
-        'Jog: settings/routing']},
+        'Pads: field / output / XY',
+        'Loop: XY <-> strips (Out)',
+        '2nd pad: independent Y',
+        'X+pad: erase XY pair',
+        'Jog: bank / settings']},
     6:{name:'Chord Play',lines:[
         'X: cancel chord queue',
         'Sample: Immediate / Queued',
@@ -145,6 +146,7 @@ export function modeButtonColor(cc:number,fallback:number):number {
         if(cc===CC_MODE_COPY)return motifActionPage()&&!motifEditing()?WHITE_DIM:WHITE_OFF;
         if(cc===CC_MODE_CLEAR&&motifEditing())return WHITE_DIM;
     }
+    if(fieldXYAvailable()&&cc===CC_MODE_LOOP)return fieldXYActive()?WHITE_BRIGHT:WHITE_DIM;
     if(fieldEraseAvailable()&&cc===CC_MODE_CLEAR)return fieldEraseActive()?WHITE_BRIGHT:WHITE_DIM;
     if(gridActive()){
         if(cc===CC_MODE_CLEAR)return gridEraseActive()?WHITE_BRIGHT:WHITE_DIM;
@@ -191,6 +193,10 @@ export function modeButtonMidi(cc:number,value:number,shiftHeld:boolean):boolean
         if(chordButtonContext()){
             dismissModeHelp();
             if(shiftHeld)chordRetrigger();else chordLoopButton();
+            return true;
+        }
+        if(fieldXYAvailable()){
+            if(!shiftHeld){dismissModeHelp();toggleFieldXY();}
             return true;
         }
         if(shiftHeld)return true;
@@ -308,7 +314,12 @@ export function modeActionDescriptors():ModeActionDescriptor[]{
         set(CC_MODE_CLEAR,'Erase cell','Hold X then press an occupied Grid cell',true,gridEraseActive(),'hold+pad');
         set(CC_MODE_LOOP,'Follow grid','Toggle moving playhead page vs fixed page',true,gridFollowActive());
     }else if(mode===5){
-        set(CC_MODE_CLEAR,'Erase output','Hold X then press a Field output lane',fieldEraseAvailable(),fieldEraseActive(),'hold+pad');
+        set(CC_MODE_CLEAR,fieldXYActive()?'Erase XY pair':'Erase output',
+            fieldXYActive()?'Hold X then press a pad to release the current X/Y channels':'Hold X then press a Field output lane',
+            fieldEraseAvailable(),fieldEraseActive(),'hold+pad');
+        set(CC_MODE_LOOP,fieldXYActive()?'Pad layout: XY':'Pad layout: Strips',
+            'Toggle the physical Field Outputs pad plane between lane strips and 2D MIDI read-head position',
+            fieldXYAvailable(),fieldXYActive());
     }else if(mode===8){
         set(CC_MODE_COPY,'Apply key','Apply the selected tonic and scale together to the shared parent key',scaleFindingCanApply());
         set(CC_MODE_CLEAR,'Clear preview','Discard uncommitted key/scale selection only',scaleFindingCanClear());
