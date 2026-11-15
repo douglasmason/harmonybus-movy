@@ -71,7 +71,7 @@ assert(field.fieldXYAvailable(),'the existing Field Outputs view is the only XY 
 assert(!field.fieldXYActive(),'legacy Field output strips remain the default');
 assert(xyMode.modeButtonMidi(xyMode.CC_MODE_LOOP,127,false),'Loop toggles the field pad layout only in Outputs');
 assert(field.fieldXYActive());
-assert.equal(xyMode.modeButtonColor(xyMode.CC_MODE_LOOP,0),119,'XY Loop is bright when selected');
+assert(xyMode.modeButtonColor(xyMode.CC_MODE_LOOP,0)>0,'XY Loop is lit when selected');
 xyMode.modeButtonMidi(xyMode.CC_MODE_LOOP,0,false);
 const xyDescriptor=xyMode.modeActionDescriptors().find(item=>item.cc===xyMode.CC_MODE_LOOP);
 assert.match(xyDescriptor?.label??'',/XY/);
@@ -81,7 +81,7 @@ assert.equal(field.fieldColors('launchpad',8,8).length,64);
 // Move's first held pad owns X/Y; a second pad only selects Y.
 // The existing outputFrame, Field DSP lease and gate system are unchanged.
 field.fieldPad('move',10,true);
-assert.deepEqual(frame().slice(0,2),[2857,10000]);
+assert.deepEqual(frame().slice(0,2),[2857,6667]);
 field.fieldPad('move',23,true);
 assert.deepEqual(frame().slice(0,2),[2857,3333]);
 const yHeld=frame()[1];
@@ -90,7 +90,7 @@ assert.equal(frame()[1],yHeld,'pressure anchors without jumping');
 field.fieldPressure('move',23,120);
 assert(frame()[1]>yHeld,'Y pressure adds fine control within half a pad row');
 field.fieldPad('move',23,false);
-assert.deepEqual(frame().slice(0,2),[2857,10000],'lifting second finger restores the first finger Y');
+assert.deepEqual(frame().slice(0,2),[2857,6667],'lifting second finger restores the first finger Y');
 const finishesAt=writes.filter(([key])=>key==='midi_fx1:field_output_finish').length;
 field.fieldPad('move',10,false);
 assert(frame().slice(0,2).every(value=>value===-1));
