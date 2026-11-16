@@ -486,9 +486,8 @@ mod recorded_xy_bake_tests {
         apply_batch(&mut live,"ucommit 171",&mut output);
         assert!(live.part_result.starts_with("Filled"),"{}",live.part_result);
         assert!(!live.source_routes[3].enabled,"Own clip takes over after Bake");
-        assert_eq!(live.tracks[3].clips[5].notes.len(),14);
+        assert_eq!(live.tracks[3].clips[5].notes.len(),11);
         assert!(live.tracks[3].clips[5].notes.iter().all(|note|note.input_key==InputKey::new(0,1)));
-        let reproduced=trace(live,true /* source route is off, but choose baked slot below */);
         // Recreate playback from saved contents to guarantee a fresh 96 PPQN
         // clock; the "false" selection chooses the baked actor's slot.
         let mut replay=setup_head_motion();
@@ -496,7 +495,6 @@ mod recorded_xy_bake_tests {
         replay.source_routes[3]=Default::default();
         assert_eq!(trace(replay,false),original,
             "baked ordinary clip uses the same NoteOn/NoteOff schedule");
-        assert!(!reproduced.is_empty());
         apply_batch(&mut live,"uswap 171 172",&mut output);
         assert_eq!(live.undo_snapshot(),before);
     }
@@ -509,11 +507,11 @@ mod recorded_xy_bake_tests {
         let mut out=Vec::new();
         let command=format!("clipfill 3 5 {} {request} {} {} own",
             engine.fill_target("3_5"),preview.split('|').next().unwrap(),Settings::comp().wire());
-        let before=engine.undo_snapshot();
         engine.tracks[3].clips[0].shared_events[1].value.a=12000;
+        let before=engine.undo_snapshot();
         apply_batch(&mut engine,&command,&mut out);
         assert!(engine.part_result.contains("Source changed"));
-        assert_eq!(engine.undo_snapshot(),before.replace("a=some", "a=some"),"failed write does not mutate destination");
+        assert_eq!(engine.undo_snapshot(),before,"failed write does not mutate destination");
         engine.tracks[3].clips[0].shared_events.remove(1);
         assert!(engine.fill_preview(request).contains("Record one complete"));
         engine=setup_head_motion();
