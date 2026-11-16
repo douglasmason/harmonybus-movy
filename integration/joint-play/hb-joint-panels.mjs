@@ -216,8 +216,11 @@ for(const group of [0,3]){
  // Schwung list knobs require SIX detents per enum entry and drop partial
  // accumulation on direction reversal. A single -1 is intentionally inert.
  const beforeTurn=sourceCommands.length;
- page.knobTurn(5,-6);flush(page); // one Schwung enum step
- console.log('HEAD_CAPTURE_TURN_DEBUG',JSON.stringify({pageIndex:page.pageIndex,keyAt5:page.keyAt(5),routes:sourceRoutes.get(actor),lastCommands:sourceCommands.slice(beforeTurn),ctlState:page.ctl.state?.values?.['joint_source_3_head_capture']}));
+ const debugMeta=page.ctl.state?.metaIndex?.getOrGuess?.('joint_source_3_head_capture');
+ const debugBefore=page.ctl.state?.knobStates?.['joint_source_3_head_capture'];
+ page.knobTurn(5,-6);flush(page);
+ const debugAfter=page.ctl.state?.knobStates?.['joint_source_3_head_capture'];
+ console.log('HEAD_CAPTURE_TURN_DEBUG',JSON.stringify({pageIndex:page.pageIndex,keyAt5:page.keyAt(5),routes:sourceRoutes.get(actor),lastCommands:sourceCommands.slice(beforeTurn),ctlState:page.ctl.state?.values?.['joint_source_3_head_capture'],meta:debugMeta?{type:debugMeta.type,kind:debugMeta.kind,options:debugMeta.options,turn:debugMeta.turn}:null,beforeKnob:debugBefore,afterKnob:debugAfter}));
  assert.equal(page.performanceGet('joint_source_3_head_capture'),'Off',
      'Capture Off is reachable through Schwung-native six-detent enum navigation');
  assert.equal(sourceRoutes.get(actor)?.split(' ').length,32,
