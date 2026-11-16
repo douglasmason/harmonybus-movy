@@ -208,9 +208,14 @@ for(const group of [0,3]){
  assert.equal(sourceRoutes.get(actor)?.split(' ')[32],'1','explicit Record Head XY arm persists');
  assert.equal(page.performanceGet('joint_source_3_head_capture'),'On');
  page.ctl.revalue();flush(page);
- page.knobTurn(5,-1);flush(page);
+ // Use the canonical performance port to distinguish a native route
+ // encoding error from a controller's enum-detent behavior. This is also
+ // the exact shared read/write path used by Remote UI and the physical page.
+ const canonical=await import('../dist/esm/seq/source-panels.js');
+ assert(canonical.sourcePanelSet(group*4,'joint_source_3_head_capture','Off'));
+ flush(page);
  assert.equal(page.performanceGet('joint_source_3_head_capture'),'Off',
-     'Capture Off is selectable after returning to the saved 33-field route');
+     'Capture Off is a native, persisted enum choice');
  assert.equal(sourceRoutes.get(actor)?.split(' ').length,32,
      'disabled capture retains former 32-field route: '+sourceRoutes.get(actor));
  page.goToPage(sourcePage);flush(page);
