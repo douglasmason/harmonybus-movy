@@ -2,15 +2,15 @@
 import { seqCmdFlush, engineReady } from './engine.js';
 import { beginEdit, CLOSE } from '../undo/group.js';
 import { seqEdit } from '../undo/record.js';
-const fields=['enabled','pitch_track','pitch_slot','rhythm_track','rhythm_slot','alignment','expression_track','expression_slot','instrument_track','instrument_slot','hb_render_track','hb_render_slot','note_ops_track','note_ops_slot','grid_holds_track','grid_holds_slot','gesture_track','gesture_slot','expression_alignment','instrument_alignment','rhythm_pitch','rhythm_amount','instrument_read','hb_render_read','instrument_driver','hb_render_driver','head_mode','head_first_offset','head_second_offset','head_first_driver','head_second_driver'];
-const names=['Source Weaving','Pitch Source','Pitch Clip','Rhythm Source','Rhythm Clip','Alignment','Expression Source','Expression Clip','Instrument Source','Instrument Clip','HB Render Source','HB Render Clip','Note Ops Source','Note Ops Clip','Grid Holds Source','Grid Holds Clip','Gesture Source','Gesture Clip','Expression Alignment','Instrument Alignment','Rhythm Lane','Follow Amount','Instrument Read','HB Render Read','Instrument Position','HB Render Position','Head Pattern','Head 1 Offset','Head 2 Offset','Head 1 Position','Head 2 Position'];
+const fields=['enabled','pitch_track','pitch_slot','rhythm_track','rhythm_slot','alignment','expression_track','expression_slot','instrument_track','instrument_slot','hb_render_track','hb_render_slot','note_ops_track','note_ops_slot','grid_holds_track','grid_holds_slot','gesture_track','gesture_slot','expression_alignment','instrument_alignment','rhythm_pitch','rhythm_amount','instrument_read','hb_render_read','instrument_driver','hb_render_driver','head_mode','head_first_offset','head_second_offset','head_first_driver','head_second_driver','head_capture'];
+const names=['Source Weaving','Pitch Source','Pitch Clip','Rhythm Source','Rhythm Clip','Alignment','Expression Source','Expression Clip','Instrument Source','Instrument Clip','HB Render Source','HB Render Clip','Note Ops Source','Note Ops Clip','Grid Holds Source','Grid Holds Clip','Gesture Source','Gesture Clip','Expression Alignment','Instrument Alignment','Rhythm Lane','Follow Amount','Instrument Read','HB Render Read','Instrument Position','HB Render Position','Head Pattern','Head 1 Offset','Head 2 Offset','Head 1 Position','Head 2 Position','Record Head XY'];
 // Common assignments first; the stored value is always the actual raw note.
 // Every note remains selectable for custom kits, without another mode/knob.
 const commonRhythmNotes=[36,38,42,46,39,49,51];
 const rhythmNotes=[-1,...commonRhythmNotes,...Array.from({length:128},(_,pitch)=>pitch).filter(pitch=>!commonRhythmNotes.includes(pitch))];
 const rhythmNames:Record<number,string>={36:'Kick 36',38:'Snare 38',42:'Closed Hat 42',46:'Open Hat 46',39:'Clap 39',49:'Crash 49',51:'Ride 51'};
 const rhythmChoices=rhythmNotes.map(pitch=>pitch<0?'All':rhythmNames[pitch]??'Note '+pitch);
-const positionChoices=['Clock','Input 1','Input 2',...Array.from({length:16},(_,index)=>'Field '+(index+1))];
+const positionChoices=['Clock','Input 1','Input 2',...Array.from({length:16},(_,index)=>'Field '+(index+1)),'Recorded X','Recorded Y'];
 const choices=[['Off','On'],['Own',...Array.from({length:16},(_,index)=>String(index+1))],
     Array.from({length:8},(_,index)=>String(index+1)),
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
@@ -27,7 +27,7 @@ const choices=[['Off','On'],['Own',...Array.from({length:16},(_,index)=>String(i
     Array.from({length:8},(_,index)=>String(index+1)),
     ['Own',...Array.from({length:16},(_,index)=>String(index+1))],
     Array.from({length:8},(_,index)=>String(index+1)),['Timeline','Fit to Window'],['Timeline','Fit to Window'],rhythmChoices,[],['Step','Linear'],['Step','Linear'],positionChoices,positionChoices,
-    ['Single','+ Reverse','+ PingPong','+ Forward'],...Array.from({length:2},()=>Array.from({length:16},(_,offset)=>String(offset))),positionChoices,positionChoices];
+    ['Single','+ Reverse','+ PingPong','+ Forward'],...Array.from({length:2},()=>Array.from({length:16},(_,offset)=>String(offset))),positionChoices,positionChoices,['Off','On']];
 export const sourceKeys=(role:number):string[]=>fields.map(field=>'joint_source_'+role+'_'+field);
 export const sourceParameters=[0,1,2,3].flatMap(role=>sourceKeys(role).map((key,index)=>(index===21?{key,name:names[index],short_name:names[index],type:'int' as const,min:0,max:100,step:1,default:100}:{key,name:names[index],short_name:names[index],type:'enum' as const,options:choices[index],options_as_string:true,default:choices[index][0]})));
 function identity(base:number,key:string):{actor:number;field:number}|null {
@@ -57,7 +57,8 @@ function read(actor:number):number[] {
     if(values.length===29)values.push(0);
     if(values.length===30)values.push(0);
     if(values.length===31)values.push(0);
-    return values.length===32&&values.every(Number.isFinite)?values:[actor,0,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,0,-1,100,0,0,0,0,1,0,0,0,0];
+    if(values.length===32)values.push(0);
+    return values.length===33&&values.every(Number.isFinite)?values:[actor,0,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,0,-1,100,0,0,0,0,1,0,0,0,0,0];
 }
 export function sourcePanelGet(base:number,key:string):string|null {
     const target=identity(base,key);if(!target)return null;
@@ -78,9 +79,10 @@ export function sourcePanelSet(base:number,key:string,value:string):boolean {
     else if(field===2||field===4||field===7||field===9||field===11||field===13||field===15||field===17){if(values[field]===-1)return true;values[field+1]=selected;}
     else values[field+1]=field===20?rhythmNotes[selected]:selected;
     beginEdit({key:'source-'+target.actor+'-'+field,verb:'Source Weaving',target:'Track '+(target.actor+1),close:CLOSE.IDLE,seq:true});
-    // Head drivers are only serialized if nonzero, preserving existing
-    // 30-field Event Heads and pre-Event Heads route messages exactly.
-    if(values[30]===0&&values[31]===0)values.length=30;
+    // Explicit head-motion Record is stored only when enabled. All older
+    // 7–32-field routes retain their exact previous byte encoding.
+    if(values[32]===0)values.length=32;
+    if(values.length===32&&values[30]===0&&values[31]===0)values.length=30;
     if(values[6]!==3&&values[27]===1&&values[28]===0&&values[29]===0&&values.length===30){
         values.length=27;
         if(values[25]===0&&values[26]===0){
