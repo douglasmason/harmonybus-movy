@@ -101,7 +101,7 @@ impl Engine {
         self.source_note_at(reference,self.source_positions[reference.track])
     }
 
-    fn source_note_at(&self, reference: crate::source_route::ClipRef, phase:u32) -> Option<crate::clip::Note> {
+    pub(crate) fn source_note_at(&self, reference: crate::source_route::ClipRef, phase:u32) -> Option<crate::clip::Note> {
         let clip=&self.tracks[reference.track].clips[reference.slot];
         let notes=||clip.notes.iter().take(crate::clip::MAX_NOTES).filter(|note|
             note.vel>0 && !note.suppress && note.tick>=clip.loop_start_ticks() && note.tick<clip.loop_end_ticks());
@@ -202,22 +202,6 @@ impl Engine {
                 // UI reads or missing-source beats; the rhythm clock owns time.
                 cursor.accepted=cursor.accepted.wrapping_add(1);
             }
-            if capture {
-                // A Head Motion take records the *sample used for this attack*,
-                // not every input frame. Every note/chord group still emits
-                // through the original sequencer and remains editable.
-                let value=crate::shared_context::Value{on:true,
-                    a:head_positions[0].map_or(-1,i32::from),
-                    b:head_positions[1].map_or(-1,i32::from),c:0};
-                let target=&mut self.tracks[actor].clips[actor_slot];
-                let same_tick=target.shared_events.binary_search_by_key(&(3,captured_phase),
-                    |event|(event.kind,event.tick)).is_ok();
-                if same_tick||target.shared_events.len()<crate::shared_context::LIMIT {
-                    crate::shared_context::record(&mut target.shared_events,
-                        crate::shared_context::Event{tick:captured_phase,kind:3,value});
-                    self.dirty=true;
-                }
-            }
             let length=clip.notes.len().min(crate::clip::MAX_NOTES);
             let destination=if source!=own {self.source_phase_note(own)} else {None};
             let expression=route.expression.map(|reference| {
@@ -262,6 +246,22 @@ impl Engine {
                 // on the destination actor through the ordinary HB MIDI path.
                 self.emit_clip_note(actor,source.track,source.slot,note,Some(duration),None,
                     Default::default(),true,rhythm_track,out);
+                }
+            }
+            if capture {
+                // A Head Motion take records the *sample used for this attack*,
+                // not every input frame. Every note/chord group still emits
+                // through the original sequencer and remains editable.
+                let value=crate::shared_context::Value{on:true,
+                    a:head_positions[0].map_or(-1,i32::from),
+                    b:head_positions[1].map_or(-1,i32::from),c:0};
+                let target=&mut self.tracks[actor].clips[actor_slot];
+                let same_tick=target.shared_events.binary_search_by_key(&(3,captured_phase),
+                    |event|(event.kind,event.tick)).is_ok();
+                if same_tick||target.shared_events.len()<crate::shared_context::LIMIT {
+                    crate::shared_context::record(&mut target.shared_events,
+                        crate::shared_context::Event{tick:captured_phase,kind:3,value});
+                    self.dirty=true;
                 }
             }
         }
