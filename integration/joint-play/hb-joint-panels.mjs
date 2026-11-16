@@ -155,7 +155,7 @@ const sourceRoutes=new Map();
 globalThis.host_module_get_param=key=>key.startsWith('source_route_')?(sourceRoutes.get(Number(key.slice(13)))??`${key.slice(13)} 0 -1 -1 -1 -1 0`):nativeGet(key);
 globalThis.host_module_set_param_blocking=(key,value,timeout)=>{
  if(key==='cmd')for(const command of value.split(';'))if(command.startsWith('source ')){
-  const fields=command.slice(7).split(' ').map(Number);assert([23,30,32].includes(fields.length),'legacy or driven head route');if(fields[6]===3)assert([30,32].includes(fields.length));sourceRoutes.set(fields[0],fields.join(' '));
+  const fields=command.slice(7).split(' ').map(Number);assert([23,30,32,33].includes(fields.length),'legacy or recorded head route');if(fields[6]===3)assert([30,32,33].includes(fields.length));sourceRoutes.set(fields[0],fields.join(' '));
  }
  return nativeSet?.(key,value,timeout);
 };
@@ -203,6 +203,12 @@ for(const group of [0,3]){
  assert.equal(sourceRoutes.get(actor)?.split(' ').length,32,'driven heads retain optional source fields');
  assert.equal(page.performanceGet('joint_source_3_head_first_driver'),'Field 1');
  assert.equal(page.performanceGet('joint_source_3_head_second_driver'),'Field 2');
+ assert.equal(page.keyAt(5),'joint_source_3_head_capture');
+ page.knobTurn(5,4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ')[32],'1','explicit Record Head XY arm persists');
+ assert.equal(page.performanceGet('joint_source_3_head_capture'),'On');
+ page.knobTurn(5,-4);flush(page);
+ assert.equal(sourceRoutes.get(actor)?.split(' ').length,32,'disabled capture retains former 32-field route');
  page.goToPage(sourcePage);flush(page);
  page.knobTurn(5,-4);flush(page);
  assert.equal(sourceRoutes.get(actor)?.split(' ')[6],'2','Fit restored without dropping head settings');
