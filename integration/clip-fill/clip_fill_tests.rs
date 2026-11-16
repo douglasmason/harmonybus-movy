@@ -409,3 +409,133 @@ fn drum_command(engine:&Engine,request:&str,track:usize,slot:usize)->String {
         assert!(engine.fill_preview(invalid).starts_with("error:"),"{invalid}");
     }
 }
+
+
+#[cfg(test)]
+mod recorded_xy_bake_tests {
+    use super::*;
+    use crate::shared_context::{Event,Value};
+
+    fn setup_head_motion() -> Engine {
+        let mut engine=Engine::new(48000,12000);
+        engine.tracks[1].clips[0].set_loop(0,16);
+        engine.tracks[1].clips[0].input_key=InputKey::new(0,1);
+        for (step,tick,pitch) in [(0,0,60),(0,0,64),(8,192,67),(12,288,69)] {
+            engine.tracks[1].clips[0].add_note_raw(step,tick,36,pitch,90);
+        }
+        engine.tracks[2].clips[0].set_loop(0,16);
+        for index in 0..8u32 {
+            engine.tracks[2].clips[0].add_note_raw((index*2) as u16,index*48,24,36,100);
+        }
+        engine.tracks[3].clips[0].set_loop(0,16);
+        engine.tracks[3].clips[0].add_note_raw(0,0,24,30,100);
+        for index in 0..8u32 {
+            let (left,right)=match index%3 {
+                0=>(0,16383),1=>(16383,0),_=>(8192,8192),
+            };
+            crate::shared_context::record(&mut engine.tracks[3].clips[0].shared_events,
+                Event{tick:index*48,kind:3,
+                    value:Value{on:true,a:left,b:right,c:0}});
+        }
+        assert!(engine.source_route_set("3 1 1 0 2 0 3"));
+        let mut route=engine.source_routes[3];
+        route.head_first_driver=19;route.head_second_driver=20;
+        assert!(engine.source_route_set(&route.message(3)));
+        engine
+    }
+    fn trace(mut engine:Engine,source_route:bool)->Vec<(u32,OutEvent)> {
+        engine.playing=true;
+        for track in [1,2,3] {
+            engine.tracks[track].playing_slot=Some(if track==3&&!source_route {5}else{0});
+            engine.tracks[track].pos_tick=0;
+            engine.tracks[track].cycle=0;
+            engine.tracks[track].clips[0].release_pass_flags();
+            if track==3&&!source_route{engine.tracks[track].clips[5].release_pass_flags();}
+        }
+        let mut events=Vec::new();
+        for tick in 0..384 {
+            let mut output=Vec::new();engine.advance_block(250,&mut output);
+            for event in output {
+                if matches!(event,OutEvent::NoteOn{track:3,..}|OutEvent::NoteOff{track:3,..}) {
+                    events.push((tick,event));
+                }
+            }
+        }
+        events
+    }
+    fn bake(engine:&mut Engine,request:&str)->String {
+        let preview=engine.fill_preview(request);
+        assert!(!preview.starts_with("error:"),"{preview}");
+        let mut events=Vec::new();
+        let command=format!("clipfill 3 5 {} {request} {} {} own",
+            engine.fill_target("3_5"),preview.split('|').next().unwrap(),
+            Settings::comp().wire());
+        apply_batch(engine,&command,&mut events);command
+    }
+    #[test]
+    fn one_bar_recorded_xy_bakes_exact_native_onsets_and_gates() {
+        let mut live=setup_head_motion();
+        let original=trace(setup_head_motion(),true);
+        assert!(!original.is_empty());
+        let before=live.undo_snapshot();
+        assert!(live.fill_preview("3_0_0_0_1_4").contains("|"));
+        assert_eq!(live.undo_snapshot(),before,"preview cannot alter a recorded take");
+        let mut output=Vec::new();
+        apply_batch(&mut live,"usnap 171",&mut output);
+        bake(&mut live,"3_0_0_0_1_4");
+        apply_batch(&mut live,"ucommit 171",&mut output);
+        assert!(live.part_result.starts_with("Filled"),"{}",live.part_result);
+        assert!(!live.source_routes[3].enabled,"Own clip takes over after Bake");
+        assert_eq!(live.tracks[3].clips[5].notes.len(),14);
+        assert!(live.tracks[3].clips[5].notes.iter().all(|note|note.input_key==InputKey::new(0,1)));
+        let reproduced=trace(live,true /* source route is off, but choose baked slot below */);
+        // Recreate playback from saved contents to guarantee a fresh 96 PPQN
+        // clock; the "false" selection chooses the baked actor's slot.
+        let mut replay=setup_head_motion();
+        replay.tracks[3].clips[5]=live.tracks[3].clips[5].clone();
+        replay.source_routes[3]=Default::default();
+        assert_eq!(trace(replay,false),original,
+            "baked ordinary clip uses the same NoteOn/NoteOff schedule");
+        assert!(!reproduced.is_empty());
+        apply_batch(&mut live,"uswap 171 172",&mut output);
+        assert_eq!(live.undo_snapshot(),before);
+    }
+    #[test]
+    fn missing_samples_stale_sources_wrong_actor_and_other_routes_fail_closed() {
+        let mut engine=setup_head_motion();
+        let request="3_0_0_0_1_4";
+        let preview=engine.fill_preview(request);
+        assert!(!preview.starts_with("error:"),"{preview}");
+        let mut out=Vec::new();
+        let command=format!("clipfill 3 5 {} {request} {} {} own",
+            engine.fill_target("3_5"),preview.split('|').next().unwrap(),Settings::comp().wire());
+        let before=engine.undo_snapshot();
+        engine.tracks[3].clips[0].shared_events[1].value.a=12000;
+        apply_batch(&mut engine,&command,&mut out);
+        assert!(engine.part_result.contains("Source changed"));
+        assert_eq!(engine.undo_snapshot(),before.replace("a=some", "a=some"),"failed write does not mutate destination");
+        engine.tracks[3].clips[0].shared_events.remove(1);
+        assert!(engine.fill_preview(request).contains("Record one complete"));
+        engine=setup_head_motion();
+        assert!(engine.fill_preview("3_0_0_0_2_4").contains("matching"));
+        assert!(engine.fill_preview("3_0_1_0_1_4").contains("no rotations"));
+        assert!(engine.fill_preview("3_0_0_0_1_4_1_0").contains("no rotations"));
+        let preview=engine.fill_preview(request);
+        let signature=preview.split('|').next().unwrap();
+        let other=format!("clipfill 2 5 {} {request} {signature} {} own",
+            engine.fill_target("2_5"),Settings::comp().wire());
+        apply_batch(&mut engine,&other,&mut out);
+        assert!(engine.part_result.contains("Bake to a different clip"));
+        let same=format!("clipfill 3 0 {} {request} {signature} {} own",
+            engine.fill_target("3_0"),Settings::comp().wire());
+        apply_batch(&mut engine,&same,&mut out);
+        assert!(engine.part_result.contains("Bake to a different clip"));
+        let keep=format!("clipfill 3 5 {} {request} {signature} {} keep",
+            engine.fill_target("3_5"),Settings::comp().wire());
+        apply_batch(&mut engine,&keep,&mut out);
+        assert!(engine.part_result.contains("Own content"));
+        engine.recording=true;
+        bake(&mut engine,request);
+        assert!(engine.part_result.contains("recording"));
+    }
+}
