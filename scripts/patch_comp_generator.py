@@ -102,7 +102,9 @@ def patch_comp_generator(root: Path) -> None:
                 continue;
             }
             let source=route.pitch.unwrap_or(own);''')
-    source = replace_once(source,'if !self.source_routes[ti].enabled || joint_recording_here {','if !self.source_routes[ti].enabled || joint_recording_here || self.generator_rhythm_own(ti) {')
+    source = replace_once(source,
+        'if !self.source_routes[ti].enabled || (joint_recording_here && !self.head_motion_capture_active(ti)) {',
+        'if !self.source_routes[ti].enabled || (joint_recording_here && !self.head_motion_capture_active(ti)) || self.generator_rhythm_own(ti) {')
     source = source.replace('.recipe.as_ref().filter(|_|!self.drum_output(ti))', '.recipe.as_ref().filter(|_|!self.drum_output(ti)&&!self.generator_free(ti))')
     source = source.replace('&& !(self.recording && self.records_track(ti)) {', '&& (self.generator_owns(ti)||!(self.recording && self.records_track(ti))) {')
     source = replace_once(source, '                if let Some(lv) = clip.lock_at(lane, step) {', '                if clip.generator.is_some() {crate::generator::lane_value(clip,lane,step,base)} else if let Some(lv) = clip.lock_at(lane, step) {')
