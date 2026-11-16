@@ -688,7 +688,7 @@ mod live_midi_head_tests {
         assert_eq!(restored.source_routes[3],route);
         let unchanged=engine.source_routes;
         let mut fields=route.message(3).split_whitespace().map(str::to_owned).collect::<Vec<_>>();
-        for (index,invalid) in [(30,"19"),(31,"-1")] {
+        for (index,invalid) in [(30,"21"),(31,"-1")] {
             let original=fields[index].clone();
             fields[index]=invalid.to_owned();
             assert!(!engine.source_route_set(&fields.join(" ")));
