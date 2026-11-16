@@ -1,4 +1,21 @@
 impl Engine {
+    /// Explicitly opt-in to recording the accepted head-position observations
+    /// into the current actor clip. Ordinary Record continues to play Own unless
+    /// these safe source-preconditions are all true. No separate transport or
+    /// runtime gesture recorder exists.
+    fn head_motion_capture_active(&self,actor:usize)->bool {
+        if !self.recording || !self.playing || !self.records_track(actor) {return false;}
+        let Some(slot)=self.tracks[actor].playing_slot else {return false;};
+        let route=self.source_routes[actor];
+        route.enabled && route.alignment==crate::source_route::Alignment::EventHeads
+            && route.head_capture
+            && route.head_first_driver<=18 && route.head_second_driver<=18
+            && route.pitch.is_some_and(|donor|donor.track!=actor)
+            && route.rhythm.is_some_and(|donor|donor.track!=actor)
+            && self.tracks[actor].active_clip==slot
+            && self.tracks[actor].clips[slot].exists()
+    }
+
     /// Bounded, read-only snapshot of one actor. Gate pitches are sequencer
     /// inputs to HB, not a prediction of final harmony/arp rendering.
     pub fn source_preview(&self, actor: usize) -> Option<String> {
@@ -22,7 +39,9 @@ impl Engine {
                 write!(&mut text,"{{\"track\":{},\"slot\":{},\"active\":{},\"phase_ticks\":{},\"selection_phase_ticks\":{},\"length_ticks\":{}}}",reference.track,reference.slot,active,phase,selected,clip.length_ticks()).unwrap();
             } else {text.push_str("null");}
         }
-        write!(&mut text,"],\"rhythm_pitch\":{},\"rhythm_amount\":{},\"generator_owned\":{},\"generator_rhythm\":{},\"head_mode\":{},\"head_first_offset\":{},\"head_second_offset\":{},\"head_drivers\":[{},{}],\"head_positions\":[{},{}],\"notes\":[",route.rhythm_pitch.map_or(-1,i32::from),route.rhythm_amount,self.generator_owns(actor),self.generator_rhythm_following(actor),route.head_mode,route.head_first_offset,route.head_second_offset,route.head_first_driver,route.head_second_driver,
+        write!(&mut text,"],\"rhythm_pitch\":{},\"rhythm_amount\":{},\"generator_owned\":{},\"generator_rhythm\":{},\"head_mode\":{},\"head_first_offset\":{},\"head_second_offset\":{},\"head_capture\":{},\"head_events\":{},\"head_drivers\":[{},{}],\"head_positions\":[{},{}],\"notes\":[",route.rhythm_pitch.map_or(-1,i32::from),route.rhythm_amount,self.generator_owns(actor),self.generator_rhythm_following(actor),route.head_mode,route.head_first_offset,route.head_second_offset,route.head_capture,
+            track.playing().map_or(0,|clip|clip.shared_events.iter().filter(|event|event.kind==3).count()),
+            route.head_first_driver,route.head_second_driver,
             self.source_position_inputs.position(actor,route.head_first_driver).map_or(-1,i32::from),
             self.source_position_inputs.position(actor,route.head_second_driver).map_or(-1,i32::from)).unwrap();
         let mut count=0;
@@ -97,7 +116,9 @@ impl Engine {
         use crate::source_route::ClipRef;
         for actor in 0..NUM_TRACKS {
             let route=self.source_routes[actor];
-            if !route.enabled || self.tracks[actor].muted || (self.recording && self.records_track(actor)) {continue;}
+            let capture=self.head_motion_capture_active(actor);
+            if !route.enabled || self.tracks[actor].muted ||
+                (self.recording && self.records_track(actor) && !capture) {continue;}
             let Some(actor_slot)=self.tracks[actor].playing_slot else {continue;};
             if !self.tracks[actor].clips[actor_slot].exists() {continue;}
             let own=ClipRef{track:actor,slot:actor_slot};
@@ -136,8 +157,21 @@ impl Engine {
                 crate::source_route::fitted_phase(self.source_positions[actor],actor_clip.loop_start_ticks(),
                     actor_clip.length_ticks(),clip.loop_start_ticks(),clip.length_ticks())
             } else {self.source_positions[source.track]};
-            let head_positions=[route.head_first_driver,route.head_second_driver]
-                .map(|driver|self.source_position_inputs.position(actor,driver));
+            // Stored samples are ordinary clip-owned 14-bit shared events.
+            // Live Field readings and the recorded heads share the same
+            // event-group selector, gate owner and rhythm clock.
+            let captured_phase=self.source_positions[actor];
+            let recorded=if route.head_first_driver>=19||route.head_second_driver>=19 {
+                let own_clip=&self.tracks[actor].clips[actor_slot];
+                crate::shared_context::at(&own_clip.shared_events,3,captured_phase,
+                    own_clip.loop_start_ticks(),own_clip.length_ticks()).map(|(event,_)|event.value)
+            }else{None};
+            let head_positions=[route.head_first_driver,route.head_second_driver].map(|driver|
+                match driver {
+                    19=>recorded.and_then(|event|(event.a>=0).then_some(event.a as u16)),
+                    20=>recorded.and_then(|event|(event.b>=0).then_some(event.b as u16)),
+                    _=>self.source_position_inputs.position(actor,driver),
+                });
             let cursor=&mut self.source_cursors[actor];
             if cursor.source!=Some(source) {*cursor=crate::source_route::Cursor{source:Some(source),..Default::default()};}
             let start=clip.loop_start_ticks();let end=clip.loop_end_ticks();
@@ -167,6 +201,22 @@ impl Engine {
                 // Advances only on a valid accepted donor hit, never on
                 // UI reads or missing-source beats; the rhythm clock owns time.
                 cursor.accepted=cursor.accepted.wrapping_add(1);
+            }
+            if capture {
+                // A Head Motion take records the *sample used for this attack*,
+                // not every input frame. Every note/chord group still emits
+                // through the original sequencer and remains editable.
+                let value=crate::shared_context::Value{on:true,
+                    a:head_positions[0].map_or(-1,i32::from),
+                    b:head_positions[1].map_or(-1,i32::from),c:0};
+                let target=&mut self.tracks[actor].clips[actor_slot];
+                let same_tick=target.shared_events.binary_search_by_key(&(3,captured_phase),
+                    |event|(event.kind,event.tick)).is_ok();
+                if same_tick||target.shared_events.len()<crate::shared_context::LIMIT {
+                    crate::shared_context::record(&mut target.shared_events,
+                        crate::shared_context::Event{tick:captured_phase,kind:3,value});
+                    self.dirty=true;
+                }
             }
             let length=clip.notes.len().min(crate::clip::MAX_NOTES);
             let destination=if source!=own {self.source_phase_note(own)} else {None};
