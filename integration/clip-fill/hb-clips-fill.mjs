@@ -105,6 +105,20 @@ assert.equal(previewRequests.at(-1),'1_1_1_1_1_3_1_1','independent reader offset
 sessionPad(68,68);
 assert(commands.some(([,value])=>value.includes('clipfill 3 0 def 1_1_1_1_1_3_1_1 abc ')),
     'offset reads are committed with a source-version check');
+// Recorded XY Take reuses the same six-field request and native guarded
+// Clip Fill write, deriving both donors from the selected actor's saved route.
+view.clipsMidi([176,76,1]); // Event heads -> Recorded XY
+Date.now=()=>previousNow()+80;fill.fillTick();Date.now=previousNow;
+assert.equal(previewRequests.at(-1),'1_1_0_0_1_4','Recorded XY selects an actor take, not fabricated pitch/rhythm tracks');
+const bakeRead=reads;
+fill.renderFill();fill.renderFill();assert.equal(reads,bakeRead,'repainting never records head observations');
+view.clipsMidi([176,73,1]);view.clipsMidi([176,74,1]); // read-only donors
+Date.now=()=>previousNow()+80;fill.fillTick();Date.now=previousNow;
+assert.equal(previewRequests.at(-1),'1_1_0_0_1_4');
+commands.length=0;sessionPad(68,68);
+assert(commands.some(([,value])=>value.includes('clipfill 3 0 def 1_1_0_0_1_4 abc ')),
+    'captured XY uses the existing preview, source hash, Undo and write command');
+view.clipsMidi([176,76,127]); // Recorded XY -> Event Heads
 view.clipsMidi([176,76,127]); // Event heads -> Original.
 Date.now=()=>previousNow()+80;fill.fillTick();Date.now=previousNow;
 

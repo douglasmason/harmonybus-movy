@@ -89,6 +89,7 @@ function refresh():void {
     refreshAt=0;
     const original=sourceIsDrum()||choices[5]===2;
     const values=[...choices.slice(0,5),original?2:choices[5]];
+    if(choices[5]===4){values[2]=0;values[3]=0;}
     // Keep default six-field requests byte-for-byte compatible.
     request=(original||(!pitchRotation&&!rhythmRotation)?values:[...values,pitchRotation,rhythmRotation]).join('_');
     generation=engineGeneration();set=currentSetUuid();
@@ -120,11 +121,12 @@ export function fillMidi(data:number[]):boolean {
         return true;
     }
     if(sourceIsDrum()&&(knob===2||knob===3))return true;
+    if(choices[5]===4&&(knob===2||knob===3)){seqToast('Recorded XY uses the saved Source Weaving route');return true;}
     if(libraryKind()&&(knob===2||knob===3||knob===5)){seqToast('Style keeps original rhythm');return true;}
     if(sourceIsDrum()&&knob===5){lanePage=Math.max(0,Math.min(Math.ceil(previewLanes().length/4)-1,lanePage+direction));peekUntil=Date.now()+1800;appState.dirty=true;return true;}
     if(knob<2)lanePage=0;
     if(appState.shiftHeld&&(knob===0||knob===2)){
-        if(sourceIsDrum()||choices[5]===2){seqToast('Rotate: choose Sequence, Fit or Event heads');return true;}
+        if(sourceIsDrum()||choices[5]===2||choices[5]===4){seqToast('Captured head motion cannot be rotated independently');return true;}
         if(knob===0)pitchRotation=(pitchRotation+direction+16)%16;
         else rhythmRotation=(rhythmRotation+direction+16)%16;
         refreshAt=Date.now()+70;preview='error:Preparing preview';message='';appState.dirty=true;
@@ -132,7 +134,7 @@ export function fillMidi(data:number[]):boolean {
     }
     if(knob<6){
         const oldKind=libraryKind(),oldAlignment=choices[5],grain=choices[5]===3;
-        const bounds=[17,oldKind?partNamesFor(oldKind).length-1:7,grain?4:15,grain?3:7,16,oldKind?2:3];
+        const bounds=[17,oldKind?partNamesFor(oldKind).length-1:7,grain?4:15,grain?3:7,16,oldKind?2:4];
         choices[knob]=Math.max(knob===4&&!oldKind?1:0,Math.min(bounds[knob],choices[knob]+direction));
         const kind=libraryKind();
         if(knob===0&&kind!==oldKind){
@@ -142,11 +144,13 @@ export function fillMidi(data:number[]):boolean {
         if(knob===1&&kind)choices[4]=0;
         if(knob===5&&choices[5]!==oldAlignment){
             if(choices[5]===3){
-                savedRhythm=[choices[2],choices[3]];
-                // A sparse clip is useful immediately: eighth-note grains,
-                // forward and reverse readers, no extra rhythmic donor.
+                if(oldAlignment!==4)savedRhythm=[choices[2],choices[3]];
+                // Sparse Event Heads default to 1/8 with forward+reverse.
                 choices[2]=1;choices[3]=1;
-            } else if(oldAlignment===3){
+            }else if(choices[5]===4){
+                if(oldAlignment!==3)savedRhythm=[choices[2],choices[3]];
+                choices[2]=0;choices[3]=0;
+            }else if(oldAlignment===3||oldAlignment===4){
                 [choices[2],choices[3]]=[...savedRhythm];
             }
             pitchRotation=0;rhythmRotation=0;
@@ -190,7 +194,8 @@ export function fillCell(track:number,slot:number):boolean {
 export function renderFill():boolean {
     if(!fillActive())return false;
     clear_screen();const line=(y:number,text:string)=>fontPrint(1,y,fitHeaderText(text,126),1);
-    const drum=sourceIsDrum(),kind=libraryKind(),grain=!drum&&!kind&&choices[5]===3;
+    const drum=sourceIsDrum(),kind=libraryKind(),grain=!drum&&!kind&&choices[5]===3,
+        recordedXY=!drum&&!kind&&choices[5]===4;
     if(drum&&peekUntil&&preview&&!preview.startsWith('error:')){
         const [,duration,count,encoded]=preview.split('|'),lanes=previewLanes();
         const notes=(encoded??'').split(';').filter(Boolean).map(note=>note.split(',').map(Number));
@@ -214,10 +219,10 @@ export function renderFill():boolean {
             saved.choices.every((value,index)=>choices[index]===value)?'*':'+';
     };
     const memoryLabels=` A${memoryLabel(0)} B${memoryLabel(1)}`;
-    line(1,kind?`FILL ${kind==='comp'?'COMP':'BASS'} LIB`+memoryLabels:drum?'FILL DRUM'+memoryLabels:grain?`GRAIN H1:${pitchRotation} H2:${rhythmRotation}`+memoryLabels:`FILL P${pitchRotation} R${rhythmRotation}`+memoryLabels);
-    line(12,kind?'1 Actor / 2 '+partNamesFor(kind)[choices[1]]:`1/2 ${drum?'Drums':'Pitch'} T${choices[0]+1} C${choices[1]+1}`);
-    line(22,kind?'3/4 Rhythm: saved style':drum||choices[5]===2?'3/4 Rhythm: original':grain?`3 ${grainRates[choices[2]]}  4 ${grainHeads[choices[3]]}`:`3/4 Rhythm T${choices[2]+1} C${choices[3]+1}`);
-    line(32,kind?(choices[4]===0?'5 Style length / 6 Original':`5 ${choices[4]} bars / 6 Original`):drum?`5 ${choices[4]} bars 6 Lane view`:`5 ${choices[4]} bars  6 ${['Sequence','Fit pitch','Original','Event heads'][choices[5]]}`);
+    line(1,kind?`FILL ${kind==='comp'?'COMP':'BASS'} LIB`+memoryLabels:drum?'FILL DRUM'+memoryLabels:grain?`GRAIN H1:${pitchRotation} H2:${rhythmRotation}`+memoryLabels:recordedXY?`BAKE HEAD XY`+memoryLabels:`FILL P${pitchRotation} R${rhythmRotation}`+memoryLabels);
+    line(12,kind?'1 Actor / 2 '+partNamesFor(kind)[choices[1]]:`1/2 ${recordedXY?'Take':'Pitch'} T${choices[0]+1} C${choices[1]+1}`);
+    line(22,kind?'3/4 Rhythm: saved style':drum||choices[5]===2?'3/4 Rhythm: original':recordedXY?'3/4 Saved pitch/rhythm':grain?`3 ${grainRates[choices[2]]}  4 ${grainHeads[choices[3]]}`:`3/4 Rhythm T${choices[2]+1} C${choices[3]+1}`);
+    line(32,kind?(choices[4]===0?'5 Style length / 6 Original':`5 ${choices[4]} bars / 6 Original`):drum?`5 ${choices[4]} bars 6 Lane view`:`5 ${choices[4]} bars  6 ${['Sequence','Fit pitch','Original','Event heads','Recorded XY'][choices[5]]}`);
     if(peekUntil&&preview&&!preview.startsWith('error:')){
         const [signature,duration,count,encoded]=preview.split('|');
         const notes=(encoded??'').split(';').filter(Boolean).map(note=>note.split(',').map(Number));

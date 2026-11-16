@@ -688,7 +688,7 @@ mod live_midi_head_tests {
         assert_eq!(restored.source_routes[3],route);
         let unchanged=engine.source_routes;
         let mut fields=route.message(3).split_whitespace().map(str::to_owned).collect::<Vec<_>>();
-        for (index,invalid) in [(30,"19"),(31,"-1")] {
+        for (index,invalid) in [(30,"21"),(31,"-1")] {
             let original=fields[index].clone();
             fields[index]=invalid.to_owned();
             assert!(!engine.source_route_set(&fields.join(" ")));
@@ -705,6 +705,129 @@ mod live_midi_head_tests {
         assert_eq!(engine.source_routes[3].message(3).split_whitespace().count(),30);
         assert!(engine.source_route_set("3 1 1 0 2 0 0"));
         assert_eq!(engine.source_routes[3].message(3).split_whitespace().count(),19);
+    }
+    #[test]
+    fn record_head_motion_samples_only_accepted_attacks_and_replays_exact_midi_gates() {
+        use crate::shared_context::Value;
+        let mut engine=engine_with_sparse_source();
+        let mut route=engine.source_routes[3];
+        route.head_capture=true;
+        route.head_first_driver=3;route.head_second_driver=4;
+        assert!(engine.source_route_set(&route.message(3)));
+        assert_eq!(route.message(3).split_whitespace().count(),33);
+        engine.recording=true;engine.rec_track=3;
+        let mut original=Vec::new();
+        for position in 0..384 {
+            let first=match position / 48 % 3 {0=>0,1=>16383,_=>8192};
+            let second=match position / 48 % 3 {0=>16383,1=>0,_=>8192};
+            engine.source_position_inputs.field[0]=Some(first);
+            engine.source_position_inputs.field[1]=Some(second);
+            let output=tick(&mut engine);
+            for event in output {
+                if matches!(event,OutEvent::NoteOn{track:3,..}|OutEvent::NoteOff{track:3,..}) {
+                    original.push((position,event));
+                }
+            }
+        }
+        assert!(!original.is_empty());
+        assert!(!original.iter().any(|(_,event)|matches!(event,
+            OutEvent::NoteOn{pitch:30,..})),"opted-in Record never doubles Own playback");
+        let events=engine.tracks[3].clips[0].shared_events.iter().filter(|event|event.kind==3).copied().collect::<Vec<_>>();
+        assert_eq!(events.len(),8,"only the eight accepted 1/8-note attacks were captured");
+        assert_eq!(events[0].tick,0);
+        assert_eq!(events[0].value,Value{on:true,a:0,b:16383,c:0});
+        assert_eq!(events[1].tick,48);
+        assert_eq!(events[1].value,Value{on:true,a:16383,b:0,c:0});
+        assert!(events.iter().all(|event|event.tick%48==0));
+        let saved=crate::persist::serialize(&engine);
+        let mut replay=Engine::new(48000,12000);
+        assert!(crate::persist::load(&mut replay,&saved));
+        assert_eq!(replay.tracks[3].clips[0].shared_events,engine.tracks[3].clips[0].shared_events);
+        assert_eq!(replay.source_routes[3],route);
+        replay.recording=false;replay.playing=true;
+        for track in [1,2,3]{
+            replay.tracks[track].playing_slot=Some(0);
+            replay.tracks[track].pos_tick=0;
+            replay.tracks[track].cycle=0;
+            replay.tracks[track].clips[0].release_pass_flags();
+        }
+        route.head_capture=false;
+        route.head_first_driver=19;route.head_second_driver=20;
+        assert!(replay.source_route_set(&route.message(3)));
+        assert_eq!(route.message(3).split_whitespace().count(),32);
+        let mut playback=Vec::new();
+        for position in 0..384 {
+            // Observed live channels can disappear: recorded clip events
+            // must still replay deterministically at accepted donor attacks.
+            replay.source_position_inputs.field[0]=None;
+            replay.source_position_inputs.field[1]=None;
+            for event in tick(&mut replay) {
+                if matches!(event,OutEvent::NoteOn{track:3,..}|OutEvent::NoteOff{track:3,..}) {
+                    playback.push((position,event));
+                }
+            }
+        }
+        assert_eq!(playback,original,"onsets and all note-off gates match the recorded live heads");
+    }
+    #[test]
+    fn capture_is_opt_in_independent_and_bounded_and_never_advances_at_idle() {
+        let mut engine=engine_with_sparse_source();
+        let mut route=engine.source_routes[3];
+        route.head_capture=true;route.head_first_driver=3;route.head_second_driver=4;
+        assert!(engine.source_route_set(&route.message(3)));
+        engine.recording=true;engine.rec_track=3;
+        engine.source_position_inputs.field[0]=Some(4096);
+        engine.source_position_inputs.field[1]=Some(16383);
+        assert_eq!(ons(&tick(&mut engine)),vec![67,60,64]);
+        assert_eq!(engine.tracks[3].clips[0].shared_events.len(),1);
+        for _ in 1..48 {tick(&mut engine);}
+        assert_eq!(engine.tracks[3].clips[0].shared_events.len(),1,
+            "gesture movement and UI repaint do not record an idle event");
+        // Muted donor cannot create motion samples.
+        engine.tracks[2].muted=true;
+        for _ in 0..100 {tick(&mut engine);}
+        assert_eq!(engine.tracks[3].clips[0].shared_events.len(),1);
+        engine.tracks[2].muted=false;
+        assert_eq!(engine.tracks[1].clips[0].shared_events.len(),0,"pitch source untouched");
+        assert_eq!(engine.tracks[2].clips[0].shared_events.len(),0,"rhythm source untouched");
+        // Capture refuses self-sourcing (and unarmed legacy routes keep Own).
+        route.rhythm=Some(ClipRef{track:3,slot:0});
+        assert!(engine.source_route_set(&route.message(3)));
+        assert!(!engine.head_motion_capture_active(3));
+        let before=engine.tracks[3].clips[0].shared_events.len();
+        tick(&mut engine);
+        assert_eq!(engine.tracks[3].clips[0].shared_events.len(),before);
+        // A recorded head driver must not write back onto itself.
+        route.rhythm=Some(ClipRef{track:2,slot:0});
+        route.head_first_driver=19;
+        assert!(engine.source_route_set(&route.message(3)));
+        assert!(!engine.head_motion_capture_active(3));
+    }
+    #[test]
+    fn capture_route_undo_and_legacy_source_formats_are_unchanged() {
+        let mut engine=engine_with_sparse_source();let mut output=Vec::new();
+        let legacy=engine.source_routes[3].message(3);
+        assert_eq!(legacy.split_whitespace().count(),30);
+        let before=engine.undo_snapshot();
+        crate::command::apply_batch(&mut engine,"usnap 131 3",&mut output);
+        let mut route=engine.source_routes[3];
+        route.head_capture=true;route.head_first_driver=3;route.head_second_driver=4;
+        assert!(engine.source_route_set(&route.message(3)));
+        let full=route.message(3);assert_eq!(full.split_whitespace().count(),33);
+        let mut parts=full.split_whitespace().map(str::to_owned).collect::<Vec<_>>();
+        parts[32]="2".into();assert!(!engine.source_route_set(&parts.join(" ")));
+        parts[32]="1".into();parts[30]="21".into();
+        assert!(!engine.source_route_set(&parts.join(" ")));
+        parts[30]="3".into();parts.pop();
+        assert!(engine.source_route_set(&parts.join(" ")));
+        assert!(!engine.source_routes[3].head_capture);
+        assert_eq!(engine.source_routes[3].message(3).split_whitespace().count(),32);
+        assert!(engine.source_route_set(&full));
+        crate::command::apply_batch(&mut engine,"ucommit 131",&mut output);
+        crate::command::apply_batch(&mut engine,"uswap 131 132",&mut output);
+        assert_eq!(engine.undo_snapshot(),before);
+        assert!(engine.source_route_set(&legacy));
+        assert!(!engine.source_routes[3].head_capture);
     }
     #[test]
     fn source_reorder_and_follower_pitch_mapping_keep_rhythm_independence() {

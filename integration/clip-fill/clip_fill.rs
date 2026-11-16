@@ -82,6 +82,110 @@ impl Engine {
         format!("{:?}",part.lanes).hash(&mut hash);
         Ok(Plan{clip,signature:hash.finish(),drum:false,lanes:Some(part.lanes)})
     }
+    /// Replay a complete captured MIDI-head XY phrase to an editable clip.
+    /// This uses the existing read-only Fill preview -> SHA-checked atomic write
+    /// -> Undo transaction. It never creates a second live scheduler or copies
+    /// a synth/audio buffer. A conservative one-loop proof rejects unsupported
+    /// stochastic operations, mismatched clocks and missing attack samples.
+    fn fill_head_motion_plan(&self,request:&str,fields:&[usize])->Result<Plan,&'static str> {
+        let [actor,slot,rhythm_field,head_field,bars,alignment]=fields[..6] else {unreachable!()};
+        if alignment!=4 || actor>=self.tracks.len() || slot>=self.tracks[actor].clips.len()
+            || rhythm_field!=0 || head_field!=0 || fields.get(6).copied().unwrap_or(0)!=0
+            || fields.get(7).copied().unwrap_or(0)!=0 {return Err("Recorded XY uses an actor clip and no rotations");}
+        if self.track_is_drum(actor) {return Err("Recorded XY needs a melodic actor");}
+        let motion=&self.tracks[actor].clips[slot];
+        let route=self.source_routes[actor];
+        if !motion.exists() || !route.enabled || route.alignment!=crate::source_route::Alignment::EventHeads
+            || route.rhythm_amount!=100 {return Err("Choose an Event Heads actor with full rhythm following");}
+        // This first parity contract is intentionally narrow: every event must
+        // have exactly one deterministic donor clock and its captured 14-bit XY.
+        if route.expression.is_some()||route.note_ops.is_some()||route.grid_holds.is_some()
+            ||route.gestures.is_some()||route.instrument.is_some()||route.hb_render.is_some() {
+            return Err("Bake routed expression/operations separately");
+        }
+        let own=crate::source_route::ClipRef{track:actor,slot};
+        let source=route.pitch.filter(|reference|reference.track!=actor).ok_or("Choose an independent pitch donor")?;
+        let rhythm_source=route.rhythm.filter(|reference|reference.track!=actor).ok_or("Choose an independent rhythm donor")?;
+        let source_clip=&self.tracks[source.track].clips[source.slot];
+        let rhythm_clip=&self.tracks[rhythm_source.track].clips[rhythm_source.slot];
+        if !source_clip.exists()||!rhythm_clip.exists(){return Err("Missing source clip");}
+        let duration=bars as u32*16*TICKS_PER_STEP;
+        if duration==0 || duration!=motion.length_ticks() || duration!=rhythm_clip.length_ticks()
+            || motion.loop_start_ticks()!=0 || rhythm_clip.loop_start_ticks()!=0
+            || rhythm_clip.quant!=0 || rhythm_clip.scale_num!=rhythm_clip.scale_den
+            || motion.quant!=0 || motion.scale_num!=motion.scale_den {
+            return Err("Recorded XY Bake needs matching original 1:1 loop lengths");
+        }
+        if rhythm_clip.generator.is_some()||!rhythm_clip.trigs.is_empty()
+            ||!rhythm_clip.grid_gates.is_empty()||!rhythm_clip.operation_intervals.is_empty()
+            ||!rhythm_clip.shared_events.is_empty()||rhythm_clip.notes.iter().any(|note|note.suppress||note.rendered) {
+            return Err("Use a plain unmodified rhythm clip for exact Bake");
+        }
+        if source_clip.notes.iter().any(|note|note.rendered ||
+            (!note.actions.as_ref().is_some_and(crate::recorded_actions::chord_selection)
+                &&note.input_key.or(source_clip.input_key).is_none())) {
+            return Err("Recorded XY pitch source needs saved input keys");
+        }
+        let mut pitch=source_clip.clone();
+        for note in &mut pitch.notes {note.fired=false;note.suppress=false;}
+        let mut attacks=std::collections::BTreeMap::<u32,u32>::new();
+        for note in &rhythm_clip.notes {
+            if note.vel==0 || note.tick>=duration {continue;}
+            if route.rhythm_pitch.is_some_and(|pitch|pitch!=note.pitch){continue;}
+            let gate=attacks.entry(note.tick).or_insert(0);
+            *gate=(*gate).max(note.gate.max(1));
+        }
+        if attacks.is_empty(){return Err("Rhythm clip has no eligible attacks");}
+        let mut result=Clip::new();
+        result.length_steps=(bars*16) as u16;
+        result.input_key=pitch.input_key;result.transpose=pitch.transpose;
+        result.recipe=motion.recipe.clone();
+        let mut previous=None;
+        for (ordinal,(tick,gate)) in attacks.into_iter().enumerate() {
+            // Captured at exactly this accepted attack, not interpolated from
+            // the nearest other finger sample. Otherwise Bake would silently
+            // infer unheard notes during a muted/missing donor interval.
+            let event=motion.shared_events.binary_search_by_key(&(3,tick),
+                |entry|(entry.kind,entry.tick)).ok()
+                .map(|index|motion.shared_events[index])
+                .ok_or("Record one complete XY motion pass before Bake")?;
+            let positions=[event.value.a,event.value.b]
+                .map(|value|(value>=0).then_some(value as u16));
+            let onset=crate::midi_grain::live_next_onset(&pitch,previous).ok_or("No input note groups")?;
+            let (first,second)=crate::midi_grain::live_head_onsets_driven(&pitch,onset,
+                route.head_mode as usize,route.head_first_offset as usize,
+                route.head_second_offset as usize,Some(ordinal),positions)
+                .ok_or("Recorded event head settings invalid")?;
+            previous=Some(onset);
+            let destination=self.source_note_at(own,tick);
+            let mut seen=[false;128];
+            for selected in [Some(first),second].into_iter().flatten() {
+                for original in pitch.notes.iter().filter(|note|note.tick==selected&&note.vel>0&&!note.rendered) {
+                    if seen[original.pitch as usize]{continue;}seen[original.pitch as usize]=true;
+                    if result.notes.len()>=MAX_NOTES{return Err("Recorded XY Bake exceeds note capacity");}
+                    let mut note=original.clone();note.tick=tick;
+                    note.step=(tick/TICKS_PER_STEP) as u16;
+                    note.gate=gate.min(duration-tick).max(1);
+                    note.vel=destination.as_ref().map_or(100,|entry|entry.vel);
+                    note.actions=destination.as_ref().and_then(|entry|entry.actions);
+                    note.pressure=destination.as_ref().map_or_else(Vec::new,|entry|entry.pressure.clone());
+                    note.pressure.retain(|(offset,_)|*offset<note.gate);
+                    note.input_key=note.input_key.or(pitch.input_key);
+                    note.suppress=false;note.fired=false;
+                    result.notes.push(note);
+                }
+            }
+        }
+        if result.notes.is_empty(){return Err("Recorded XY had no sounding notes");}
+        let mut hash=std::collections::hash_map::DefaultHasher::new();
+        request.hash(&mut hash);route.message(actor).hash(&mut hash);
+        crate::motif_load::fingerprint(source_clip).hash(&mut hash);
+        crate::motif_load::fingerprint(rhythm_clip).hash(&mut hash);
+        crate::motif_load::fingerprint(motion).hash(&mut hash);
+        format!("{:?}",motion.shared_events).hash(&mut hash);
+        Ok(Plan{clip:result,signature:hash.finish(),drum:false,lanes:None})
+    }
+
     fn fill_plan(&self,request:&str)->Result<Plan,&'static str>{
         let fields:Vec<usize>=request.split('_').map(str::parse).collect::<Result<_,_>>().map_err(|_|"Invalid sources")?;
         if fields.len()!=6&&fields.len()!=8 {return Err("Invalid sources");}
@@ -89,9 +193,10 @@ impl Engine {
         // Optional edit-time phase offsets. The legacy six-field request remains identical.
         let pitch_rotation=fields.get(6).copied().unwrap_or(0);
         let rhythm_rotation=fields.get(7).copied().unwrap_or(0);
-        if bars>16||alignment>3||pitch_rotation>15||rhythm_rotation>15 {
+        if bars>16||alignment>4||pitch_rotation>15||rhythm_rotation>15 {
             return Err("Invalid length, alignment or rotation");
         }
+        if alignment==4 {return self.fill_head_motion_plan(request,&fields);}
         if matches!(pitch_track,16|17){return self.fill_style_plan(request,&fields);}
         if bars==0{return Err("Invalid length");}
         if alignment==2&&(pitch_rotation!=0||rhythm_rotation!=0) {
@@ -227,6 +332,13 @@ impl Engine {
         if format!("{:x}",plan.signature)!=values[5]{return Err("Source changed - preview again");}
         if plan.drum!=self.track_is_drum(track){return Err(if plan.drum{"Choose a drum destination"}else{"Choose a melodic destination"});}
         if !matches!(values[7],"own"|"keep"){return Err("Invalid weaving choice");}
+        // A baked actor clip must not replace the captured motion clip itself,
+        // and keeping live Weaving would double-trigger every baked attack.
+        let request_parts:Vec<usize>=values[4].split('_').filter_map(|part|part.parse().ok()).collect();
+        if request_parts.get(5)==Some(&4) {
+            if request_parts.len()!=6 || request_parts[0]!=track || request_parts[1]==slot ||
+                values[7]!="own" {return Err("Bake to a different clip on the captured actor, with Own content");}
+        }
         let baseline=if plan.drum {
             if values[6]!="drums"{return Err("Drum destination changed - retry");}
             if values[7]=="keep"&&self.source_routes[track].enabled{return Err("Choose Own content for drums");}

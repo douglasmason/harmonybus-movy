@@ -49,6 +49,10 @@ pub struct Route {
     /// 3..18 = shared Field outputs. Each head samples its own driver.
     pub head_first_driver: u8,
     pub head_second_driver: u8,
+    /// Opt-in: Record captures X/Y into the actor clip's existing shared
+    /// event timeline (kind 3), while the live Event Heads keep sounding.
+    /// Ordinary Record retains Own source playback when this is disabled.
+    pub head_capture: bool,
     pub expression: Option<ClipRef>,
     pub expression_fit: bool,
     pub instrument: Option<ClipRef>,
@@ -67,7 +71,7 @@ impl Default for Route {
     fn default()->Self {
         Self {enabled:false,pitch:None,rhythm:None,rhythm_pitch:None,rhythm_amount:100,
             alignment:Alignment::default(),head_mode:1,head_first_offset:0,
-            head_second_offset:0,head_first_driver:0,head_second_driver:0,expression:None,expression_fit:false,
+            head_second_offset:0,head_first_driver:0,head_second_driver:0,head_capture:false,expression:None,expression_fit:false,
             instrument:None,instrument_fit:false,hb_render:None,instrument_linear:false,hb_render_linear:false,instrument_driver:0,hb_render_driver:0,note_ops:None,
             grid_holds:None,gestures:None}
     }
@@ -97,9 +101,12 @@ impl Route {
     /// 3 Event Heads (event-indexed, rhythm donor owns attack rate).
     /// 28–30: optional head mode (0–3), first offset (0–15), second
     /// offset (0–15). This requires the complete 27-field predecessor;
-    /// 31–32: optional individual head position drivers (0–18), only when
-    /// the preceding 30 fields are present. A missing driver means follow
-    /// the accepted donor attacks, not a fabricated position.
+    /// 31–32: optional individual head position drivers (0–20), only when
+    /// the preceding 30 fields are present. 19=Recorded X, 20=Recorded Y,
+    /// from the existing clip-owned shared event lane. A missing driver means
+    /// follow accepted donor attacks, not a fabricated position.
+    /// 33: opt-in head motion capture during an ordinary actor Record take
+    /// (requires independent pitch and rhythm sources). Default Off.
     /// legacy Set/Undo strings keep their original lengths.
     /// Optional fields 24/25 select Instrument/HB read mode (0 Step, 1 Linear).
     /// Optional fields 26/27 select Instrument/HB position drivers (0 Clock, 1/2 Input, 3..18 Field).
@@ -107,14 +114,15 @@ impl Route {
     /// A -1 track with -1 slot means that actor's own playing clip.
     pub fn parse(message: &str) -> Option<(usize, Self)> {
         let values: Vec<i32> = message.split_whitespace().map(str::parse).collect::<Result<_,_>>().ok()?;
-        if values.len()!=7 && values.len()!=9 && values.len()!=11 && values.len()!=13 && values.len()!=15 && values.len()!=17 && !(19..=27).contains(&values.len()) && values.len()!=30 && values.len()!=32 {return None;}
+        if values.len()!=7 && values.len()!=9 && values.len()!=11 && values.len()!=13 && values.len()!=15 && values.len()!=17 && !(19..=27).contains(&values.len()) && values.len()!=30 && values.len()!=32 && values.len()!=33 {return None;}
         if values.iter().skip(23).take(2).any(|mode|!(0..=1).contains(mode)) || values.iter().skip(25).take(2).any(|driver|!(0..=18).contains(driver)) {return None;}
         if values.get(19).is_some_and(|value|!(0..=1).contains(value)) || values.get(20).is_some_and(|value|!(0..=1).contains(value)) {return None;}
         if values.get(21).is_some_and(|pitch|!(-1..=127).contains(pitch)) {return None;}
         if values.get(22).is_some_and(|amount|!(0..=100).contains(amount)) {return None;}
         if values.get(27).is_some_and(|mode|!(0..=3).contains(mode))
             || values.iter().skip(28).take(2).any(|offset|!(0..=15).contains(offset))
-            || values.iter().skip(30).any(|driver|!(0..=18).contains(driver)) {return None;}
+            || values.iter().skip(30).take(2).any(|driver|!(0..=20).contains(driver))
+            || values.get(32).is_some_and(|capture|!(0..=1).contains(capture)) {return None;}
         let [actor,enabled,pitch_track,pitch_slot,rhythm_track,rhythm_slot,timeline] = &values[..7] else { return None; };
         if !(0..NUM_TRACKS as i32).contains(actor) || !(0..=1).contains(enabled) || !(0..=3).contains(timeline) { return None; }
         fn reference(track: i32, slot: i32) -> Option<Option<ClipRef>> {
@@ -132,6 +140,7 @@ impl Route {
             head_second_offset:values.get(29).copied().unwrap_or(0) as u8,
             head_first_driver:values.get(30).copied().unwrap_or(0) as u8,
             head_second_driver:values.get(31).copied().unwrap_or(0) as u8,
+            head_capture:values.get(32)==Some(&1),
             expression:if values.len()>=9 {reference(values[7],values[8])?} else {None},
             expression_fit:values.get(19)==Some(&1),
             instrument:if values.len()>=11 {reference(values[9],values[10])?} else {None},
@@ -157,7 +166,7 @@ impl Route {
         let driven=self.instrument_driver!=0 || self.hb_render_driver!=0;
         let head_driven=self.head_first_driver!=0 || self.head_second_driver!=0;
         let heads=self.alignment==Alignment::EventHeads ||
-            self.head_mode!=1 || self.head_first_offset!=0 || self.head_second_offset!=0 || head_driven;
+            self.head_mode!=1 || self.head_first_offset!=0 || self.head_second_offset!=0 || head_driven || self.head_capture;
         let extended=self.instrument_linear || self.hb_render_linear || driven || heads;
         if extended || self.expression_fit || self.instrument_fit || self.rhythm_pitch.is_some() || self.rhythm_amount!=100 {message.push_str(if self.expression_fit {" 1"} else {" 0"});}
         if extended || self.instrument_fit || self.rhythm_pitch.is_some() || self.rhythm_amount!=100 {message.push_str(if self.instrument_fit {" 1"} else {" 0"});}
@@ -166,7 +175,8 @@ impl Route {
         if extended {message.push_str(&format!(" {} {}",self.instrument_linear as u8,self.hb_render_linear as u8));}
         if driven || heads {message.push_str(&format!(" {} {}",self.instrument_driver,self.hb_render_driver));}
         if heads {message.push_str(&format!(" {} {} {}",self.head_mode,self.head_first_offset,self.head_second_offset));}
-        if head_driven {message.push_str(&format!(" {} {}",self.head_first_driver,self.head_second_driver));}
+        if head_driven || self.head_capture {message.push_str(&format!(" {} {}",self.head_first_driver,self.head_second_driver));}
+        if self.head_capture {message.push_str(" 1");}
         message
     }
 }

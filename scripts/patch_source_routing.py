@@ -79,7 +79,7 @@ impl Engine {
 ''' + emission + '\n    }\n}\n'
     source = source[:begin] + '''                        let duration=weave.map_or_else(||hb_window.map_or(n.gate.max(1),|window|window.duration(n.gate)),|(_,gate)|gate);
                         if n.vel>0 {crate::source_route::RhythmAttack::accept(&mut source_duration,n.pitch,duration);}
-                        if !self.source_routes[ti].enabled || joint_recording_here {
+                        if !self.source_routes[ti].enabled || (joint_recording_here && !self.head_motion_capture_active(ti)) {
                             self.emit_clip_note(ti,ti,slot,n,weave.map(|(_,gate)|gate),hb_window,hb_rhythm,humanize.time_active(ti),ti,out);
                         }''' + source[end:]
     source = replace_once(source, '            if !muted {\n                    let len =', '            let mut source_duration: Option<crate::source_route::RhythmAttack> = None;\n            if !muted {\n                    let len =')
@@ -201,7 +201,7 @@ impl Engine {
         hierarchy.levels['joint_actor_'+role].params.push({level:positionLevel});
         root.params.push({level:positionLevel});
         const headsLevel='joint_source_heads_'+role;
-        const headsKeys=allSourceKeys.slice(26,31);
+        const headsKeys=allSourceKeys.slice(26,32);
         hierarchy.levels[headsLevel]={name:name+' MIDI Event Heads',knobs:headsKeys,params:headsKeys.map(key=>({key}))};
         hierarchy.levels['joint_actor_'+role].params.push({level:headsLevel});
         root.params.push({level:headsLevel});

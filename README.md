@@ -1,3 +1,7 @@
+## Recorded MIDI-head X/Y and deterministic Clip Fill Bake
+
+Joint Play's **MIDI Event Heads** panel now offers **Record Head XY** (opt-in) and **Recorded X / Recorded Y** position drivers. During ordinary Record on an actor with independent pitch/rhythm donors, native Field/Move/Launchpad/Remote X/Y is sampled at accepted rhythm attacks as 14-bit, clip-owned shared events. The exact stored positions can replay without the live Field source. **Clips → Fill → Recorded XY** reconstructs a constrained, plain one-to-one rhythmic loop into an editable MIDI clip through the existing preview/signature/Undo write; it rejects missing motion samples and unsupported stochastic sources instead of fabricating parity. The default Record path and earlier Set schemas remain unchanged. See [Record head motion and Bake](docs/head-motion-record-bake.md).
+
 ## Physical MIDI-head XY pads on Move and Launchpad
 
 Field Play → Outputs now supports an opt-in **8×4 Move / 8×8 Launchpad X XY pad plane**. Tap **Loop** to switch Strips ↔ XY; first finger controls X/Y, second independently controls Y, and pressure provides fine Y placement. K1/K2 and Jog retain their Field-output fine adjustment and bank selection, and X+pad clears just the two XY channels. The ordinary Field DSP provides latching/release ownership, so the sparse MIDI heads still emit only at rhythm-source attacks. The existing Strips layout remains the default. [Setup and hardware notes](docs/midi-head-xy-surface.md).

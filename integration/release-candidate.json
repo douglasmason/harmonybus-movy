@@ -1,9 +1,9 @@
 {
-  "version": "0.34.1-hbclean.364",
-  "previous_version": "0.34.1-hbclean.363",
+  "version": "0.34.1-hbclean.365",
+  "previous_version": "0.34.1-hbclean.364",
   "workflow": "chord-play.yml",
-  "title": "Movy 0.34.1-hbclean.364 — physical MIDI-head XY pad plane",
-  "notes": "docs/midi-head-xy-surface.md",
+  "title": "Movy 0.34.1-hbclean.365 — record/replay and Bake sparse MIDI head XY",
+  "notes": "docs/head-motion-record-bake.md",
   "assets": [
     "harmonybus-movy-module.tar.gz",
     "SHA256SUMS",

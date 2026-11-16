@@ -12,8 +12,14 @@ pub fn parse(text: &str) -> Option<(usize,u8,Value)> {
     let kind=fields.next()?.parse::<u8>().ok()?;
     let on=fields.next()?.parse::<u8>().ok()?;
     let value=Value {on:on==1,a:fields.next()?.parse().ok()?,b:fields.next()?.parse().ok()?,c:fields.next()?.parse().ok()?};
-    if fields.next().is_some() || track>=16 || kind>=3 || on>1 {return None;}
-    if value.on && match kind {0=>!valid_key(value),1=>!(1..=crate::scale_catalog::PARALLEL_COUNT as i32).contains(&value.a),_=>!(1..=crate::scale_catalog::SCALE_COUNT as i32).contains(&value.a)} {return None;}
+    if fields.next().is_some() || track>=16 || kind>=4 || on>1 {return None;}
+    // Kind 3 is clip-owned MIDI event-head X/Y motion. A/B are exact
+    // 14-bit observations at accepted rhythm attacks; -1 means undriven.
+    // It never enters the global harmony contributions (kinds 0..2).
+    if kind==3 {
+        if !value.on||value.c!=0||!(-1..=16383).contains(&value.a)
+            || !(-1..=16383).contains(&value.b) {return None;}
+    } else if value.on && match kind {0=>!valid_key(value),1=>!(1..=crate::scale_catalog::PARALLEL_COUNT as i32).contains(&value.a),_=>!(1..=crate::scale_catalog::SCALE_COUNT as i32).contains(&value.a)} {return None;}
     Some((track,kind,value))
 }
 pub fn record(events: &mut Vec<Event>, event: Event) {
@@ -36,6 +42,24 @@ pub fn at(events: &[Event],kind: u8,position:u32,start:u32,length:u32)->Option<(
 }
 #[cfg(test)] mod tests {
     use super::*;
+    #[test]
+    fn normalized_14bit_head_xy_reuses_bounded_shared_event_storage() {
+        for (left,right) in [(-1,-1),(0,16383),(8192,4096),(16383,0)] {
+            let payload=format!("sc1,3,3,1,{left},{right},0");
+            assert_eq!(parse(&payload),Some((3,3,Value{on:true,a:left,b:right,c:0})));
+        }
+        for invalid in ["sc1,3,3,1,16384,0,0","sc1,3,3,1,-2,0,0",
+            "sc1,3,3,1,0,16384,0","sc1,3,3,1,0,0,1",
+            "sc1,3,3,0,0,0,0","sc1,3,4,1,0,0,0"] {
+            assert_eq!(parse(invalid),None);
+        }
+        let value=Value{on:true,a:8192,b:10312,c:0};
+        let mut events=Vec::new();
+        record(&mut events,Event{tick:144,kind:3,value});
+        record(&mut events,Event{tick:144,kind:3,value:Value{a:4096,..value}});
+        assert_eq!(events.len(),1,"one observation per accepted clock tick");
+        assert_eq!(at(&events,3,144,0,384).unwrap().0.value.a,4096);
+    }
     #[test] fn held_across_wrap_and_mid_loop_start(){
         let on=Value{on:true,a:2,b:0,c:0};let off=Value::default();
         let events=[Event{tick:40,kind:1,value:off},Event{tick:350,kind:1,value:on}];
