@@ -207,8 +207,12 @@ for(const group of [0,3]){
  page.knobTurn(5,4);flush(page);
  assert.equal(sourceRoutes.get(actor)?.split(' ')[32],'1','explicit Record Head XY arm persists');
  assert.equal(page.performanceGet('joint_source_3_head_capture'),'On');
+ page.ctl.revalue();flush(page);
  page.knobTurn(5,-4);flush(page);
- assert.equal(sourceRoutes.get(actor)?.split(' ').length,32,'disabled capture retains former 32-field route');
+ assert.equal(page.performanceGet('joint_source_3_head_capture'),'Off',
+     'Capture Off is selectable after returning to the saved 33-field route');
+ assert.equal(sourceRoutes.get(actor)?.split(' ').length,32,
+     'disabled capture retains former 32-field route: '+sourceRoutes.get(actor));
  page.goToPage(sourcePage);flush(page);
  page.knobTurn(5,-4);flush(page);
  assert.equal(sourceRoutes.get(actor)?.split(' ')[6],'2','Fit restored without dropping head settings');
