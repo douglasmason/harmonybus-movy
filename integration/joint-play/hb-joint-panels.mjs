@@ -213,9 +213,11 @@ for(const group of [0,3]){
  // the exact shared read/write path used by Remote UI and the physical page.
  page.goToPage(sourcePage);page.goToPage(headsPage);page.ctl.revalue();flush(page);
  assert.equal(page.keyAt(5),'joint_source_3_head_capture','page reentry retains the capture knob');
- page.knobTurn(5,-1);flush(page);
+ // Schwung list knobs require SIX detents per enum entry and drop partial
+ // accumulation on direction reversal. A single -1 is intentionally inert.
+ page.knobTurn(5,-12);flush(page);
  assert.equal(page.performanceGet('joint_source_3_head_capture'),'Off',
-     'Capture Off is reachable from the native knob after page reentry');
+     'Capture Off is reachable through Schwung-native six-detent enum navigation');
  assert.equal(sourceRoutes.get(actor)?.split(' ').length,32,
      'disabled capture retains former 32-field route: '+sourceRoutes.get(actor));
  page.goToPage(sourcePage);flush(page);
