@@ -215,7 +215,7 @@ for(const group of [0,3]){
  assert.equal(page.keyAt(5),'joint_source_3_head_capture','page reentry retains the capture knob');
  // Schwung list knobs require SIX detents per enum entry and drop partial
  // accumulation on direction reversal. A single -1 is intentionally inert.
- page.knobTurn(5,-12);flush(page);
+ page.knobTurn(5,-6);flush(page); // exactly one list entry, not two wrapped entries
  assert.equal(page.performanceGet('joint_source_3_head_capture'),'Off',
      'Capture Off is reachable through Schwung-native six-detent enum navigation');
  assert.equal(sourceRoutes.get(actor)?.split(' ').length,32,
