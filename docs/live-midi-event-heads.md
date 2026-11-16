@@ -117,8 +117,11 @@ continue using their existing Step/Linear driver path.
 - Existing recording is intentionally **Own**, not a flattened capture of
   Source Weaving. Source route settings do save/reload/Undo. Recordable
   automation of head positions/shape, deterministic live performance Bake,
-  and a dedicated Cloud X/Y editor binding remain future steps. Field
-  channels are already available as the live head-position drivers.
+  and optional advanced continuous automation remain future steps.
+  **Record Head XY** now captures stepped 14-bit head positions at accepted
+  rhythm attacks into existing clip events; **Recorded X/Y** replays them,
+  and Clips Fill **Recorded XY** can bake plain matching loops. See
+  [the recording/Bake contract](head-motion-record-bake.md).
 - Source Weaving only accepts a *playing, unmuted* pitch donor. Clip Fill
   can create an independent editable MIDI clip for the static counterpart.
 - Real device latency, controller feel and audio crackle are not proven
