@@ -151,11 +151,11 @@ const {installEditGuard,setUndoStrict}=await import('../dist/esm/undo/record.js'
 installEditGuard();setUndoStrict(true);
 const nativeGet=globalThis.host_module_get_param;
 const nativeSet=globalThis.host_module_set_param_blocking;
-const sourceRoutes=new Map();
+const sourceRoutes=new Map(),sourceCommands=[];
 globalThis.host_module_get_param=key=>key.startsWith('source_route_')?(sourceRoutes.get(Number(key.slice(13)))??`${key.slice(13)} 0 -1 -1 -1 -1 0`):nativeGet(key);
 globalThis.host_module_set_param_blocking=(key,value,timeout)=>{
  if(key==='cmd')for(const command of value.split(';'))if(command.startsWith('source ')){
-  const fields=command.slice(7).split(' ').map(Number);assert([23,30,32,33].includes(fields.length),'legacy or recorded head route');if(fields[6]===3)assert([30,32,33].includes(fields.length));sourceRoutes.set(fields[0],fields.join(' '));
+  const fields=command.slice(7).split(' ').map(Number);assert([23,30,32,33].includes(fields.length),'legacy or recorded head route');if(fields[6]===3)assert([30,32,33].includes(fields.length));sourceCommands.push(fields.join(' '));sourceRoutes.set(fields[0],fields.join(' '));
  }
  return nativeSet?.(key,value,timeout);
 };
@@ -215,7 +215,9 @@ for(const group of [0,3]){
  assert.equal(page.keyAt(5),'joint_source_3_head_capture','page reentry retains the capture knob');
  // Schwung list knobs require SIX detents per enum entry and drop partial
  // accumulation on direction reversal. A single -1 is intentionally inert.
- page.knobTurn(5,-6);flush(page); // exactly one list entry, not two wrapped entries
+ const beforeTurn=sourceCommands.length;
+ page.knobTurn(5,-6);flush(page); // one Schwung enum step
+ console.log('HEAD_CAPTURE_TURN_DEBUG',JSON.stringify({pageIndex:page.pageIndex,keyAt5:page.keyAt(5),routes:sourceRoutes.get(actor),lastCommands:sourceCommands.slice(beforeTurn),ctlState:page.ctl.state?.values?.['joint_source_3_head_capture']}));
  assert.equal(page.performanceGet('joint_source_3_head_capture'),'Off',
      'Capture Off is reachable through Schwung-native six-detent enum navigation');
  assert.equal(sourceRoutes.get(actor)?.split(' ').length,32,
